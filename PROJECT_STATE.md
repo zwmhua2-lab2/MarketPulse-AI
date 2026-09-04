@@ -10,8 +10,8 @@ Acceptance Group 3 — AI Decision + Trade Plan + Paper Execution + Account + Po
 - GitHub Repository URL: https://github.com/zwmhua2-lab2/MarketPulse-AI
 - Visibility: `PRIVATE`
 - Default Branch: `main`
-- Latest Accepted Baseline Commit: `293beeca17ba754ec46f972b3aea82b10eca7228`
-- Current Development Status: `G3 ACCEPTED / waiting G4`
+- Latest Accepted Baseline Commit: `62b973220c4ad9d800aa5811933252379c22bcdd`
+- Current Development Status: `G3 ACCEPTED / POST-ACCEPTANCE FIX IMPLEMENTED / WAITING REVIEW`
 
 ## Completed
 
@@ -24,7 +24,7 @@ Acceptance Group 3 — AI Decision + Trade Plan + Paper Execution + Account + Po
 
 ## In Progress
 
-- 无；Group 3 已通过人工 Acceptance Review #3（`PASS WITH NON-BLOCKING NOTES`），已建立 G3 Accepted Baseline；未进入 G4 / G5。
+- `g3-fix-limit-consistency`：G3 限价单与资金一致性 Post-Acceptance Source Review Fix 已完成真实 PostgreSQL 回归，等待人工源码级 Acceptance Review；未进入 G4 / G5。
 
 ## Blocked
 
@@ -80,4 +80,4 @@ Acceptance Group 3 — AI Decision + Trade Plan + Paper Execution + Account + Po
 - 人工 Acceptance Review #3 已完成。
 - Real AI Provider Integration = `DEFERRED`。
 - G3 Basic Reconciliation = `PASS`。
-- 当前未进入 G4 / G5。
+- G3 Post-Acceptance Fix = `IMPLEMENTED / WAITING REVIEW`，不得视为 Accepted；当前未进入 G4 / G5。

@@ -21,6 +21,7 @@ from marketpulse.g2.models import FeatureSnapshot, SymbolState, SymbolStateRecor
 from marketpulse.g3.models import (
     AIAnalysis,
     BestBidAsk,
+    DataQuality,
     Direction,
     ExecutionIntent,
     OrderSide,
@@ -548,3 +549,340 @@ def test_basic_reconciliation_open_orders_invariants():
         abs(reconciliation["available_cash"] - (account.cash_balance - account.reserved_cash))
         < 1e-9
     )
+
+
+def test_limit_buy_lifecycle_duplicate_cancel_and_settlement_rollback():
+    """真实 PostgreSQL：OPEN BUY → BBO Fill / duplicate / cancel / rollback 原子性。"""
+
+    async def case():
+        await _clean()
+        quotes = {"SOL-USDT": (99.0, 100.0)}
+
+        async def bbo_for(instrument: str):
+            bid, ask = quotes[instrument]
+            return BestBidAsk(instrument_id=instrument, bid=bid, ask=ask, received_at=NOW)
+
+        service = PaperExecutionService(
+            SESSIONS, bbo_for, lambda _: asyncio.sleep(0, result=7), initial_balance=1000
+        )
+        await service.bootstrap_account(RunMode.REPLAY)
+        plan = _plan("SOL-USDT", notional=50, order_type=OrderType.LIMIT)
+        intent = ExecutionIntent(
+            intent_id="limit-buy-fill",
+            plan_id=plan.plan_id,
+            instrument_id=plan.instrument_id,
+            run_mode=RunMode.REPLAY,
+            state_version=7,
+            created_at=NOW,
+        )
+        opened = await service.execute(intent, plan, NOW)
+        quotes["SOL-USDT"] = (90.0, 91.0)
+        not_triggered = await service.process_open_orders(
+            RunMode.REPLAY, await bbo_for("SOL-USDT"), NOW
+        )
+        quotes["SOL-USDT"] = (88.0, 89.0)
+        filled = await service.process_open_orders(RunMode.REPLAY, await bbo_for("SOL-USDT"), NOW)
+        duplicate = await service.process_open_orders(
+            RunMode.REPLAY, await bbo_for("SOL-USDT"), NOW
+        )
+
+        quotes["SOL-USDT"] = (99.0, 100.0)
+        rollback_plan = _plan("SOL-USDT", notional=10, order_type=OrderType.LIMIT)
+        rollback_intent = ExecutionIntent(
+            intent_id="limit-buy-rollback",
+            plan_id=rollback_plan.plan_id,
+            instrument_id=rollback_plan.instrument_id,
+            run_mode=RunMode.REPLAY,
+            state_version=7,
+            created_at=NOW,
+        )
+        rollback_opened = await service.execute(rollback_intent, rollback_plan, NOW)
+        async with SESSIONS() as session:
+            account_before = await session.scalar(
+                select(AccountRecord).where(AccountRecord.run_mode == RunMode.REPLAY)
+            )
+            reserved_before = account_before.reserved_cash
+            position_before = await session.scalar(
+                select(PositionRecord).where(
+                    PositionRecord.run_mode == RunMode.REPLAY,
+                    PositionRecord.instrument_id == "SOL-USDT",
+                )
+            )
+            quantity_before = position_before.quantity
+        quotes["SOL-USDT"] = (88.0, 89.0)
+        service.after_settlement = lambda: (_ for _ in ()).throw(RuntimeError("injected"))
+        with pytest.raises(RuntimeError):
+            await service.process_open_orders(RunMode.REPLAY, await bbo_for("SOL-USDT"), NOW)
+        service.after_settlement = None
+        async with SESSIONS() as session:
+            rollback_account = await session.scalar(
+                select(AccountRecord).where(AccountRecord.run_mode == RunMode.REPLAY)
+            )
+            rollback_order_before_cancel = await session.scalar(
+                select(PaperOrderRecord).where(PaperOrderRecord.order_id == rollback_opened.order_id)
+            )
+            rollback_position = await session.scalar(
+                select(PositionRecord).where(
+                    PositionRecord.run_mode == RunMode.REPLAY,
+                    PositionRecord.instrument_id == "SOL-USDT",
+                )
+            )
+        cancelled = await service.cancel_order(rollback_opened.order_id, NOW)
+        duplicate_cancel = await service.cancel_order(rollback_opened.order_id, NOW)
+        async with SESSIONS() as session:
+            account = await session.scalar(
+                select(AccountRecord).where(AccountRecord.run_mode == RunMode.REPLAY)
+            )
+            order = await session.scalar(
+                select(PaperOrderRecord).where(PaperOrderRecord.order_id == opened.order_id)
+            )
+            rollback_order = await session.scalar(
+                select(PaperOrderRecord).where(PaperOrderRecord.order_id == rollback_opened.order_id)
+            )
+            fills = list(
+                (
+                    await session.scalars(
+                        select(FillRecord).where(FillRecord.order_id == opened.order_id)
+                    )
+                ).all()
+            )
+            rollback_fills = list(
+                (
+                    await session.scalars(
+                        select(FillRecord).where(FillRecord.order_id == rollback_opened.order_id)
+                    )
+                ).all()
+            )
+            ledgers = list(
+                (
+                    await session.scalars(
+                        select(LedgerEntryRecord).where(LedgerEntryRecord.fill_id == fills[0].fill_id)
+                    )
+                ).all()
+            )
+        return (
+            not_triggered,
+            filled,
+            duplicate,
+            account,
+            order,
+            rollback_order,
+            fills,
+            rollback_fills,
+            ledgers,
+            reserved_before,
+            quantity_before,
+            rollback_account.reserved_cash,
+            rollback_order_before_cancel,
+            rollback_position.quantity,
+            cancelled,
+            duplicate_cancel,
+        )
+
+    (
+        not_triggered,
+        filled,
+        duplicate,
+        account,
+        order,
+        rollback_order,
+        fills,
+        rollback_fills,
+        ledgers,
+        reserved_before,
+        quantity_before,
+        reserved_after_error,
+        rollback_order_before_cancel,
+        quantity_after_error,
+        cancelled,
+        duplicate_cancel,
+    ) = asyncio.run(case())
+    assert not not_triggered and len(filled) == 1 and not duplicate
+    assert order.status == OrderStatus.FILLED and order.reserved_cash == 0
+    assert len(fills) == len(ledgers) == 1
+    assert rollback_order_before_cancel.status == OrderStatus.OPEN
+    assert reserved_before == reserved_after_error and quantity_before == quantity_after_error
+    assert rollback_order.status == OrderStatus.CANCELLED and not rollback_fills
+    assert cancelled.cancelled and not duplicate_cancel.cancelled
+    assert reserved_before > 0 and account.reserved_cash == 0
+
+
+def test_limit_sell_reservation_cancel_fill_and_oversell_protection():
+    """真实 PostgreSQL：SELL 限价冻结、取消、成交及多个 OPEN SELL 防超卖。"""
+
+    async def case():
+        await _clean()
+        quote = BestBidAsk(instrument_id="SOL-USDT", bid=99, ask=100, received_at=NOW)
+        service = PaperExecutionService(
+            SESSIONS,
+            lambda _: asyncio.sleep(0, result=quote),
+            lambda _: asyncio.sleep(0, result=7),
+            initial_balance=1000,
+        )
+        await service.bootstrap_account(RunMode.REPLAY)
+        buy_plan = _plan("SOL-USDT", notional=100)
+        await service.execute(
+            ExecutionIntent(
+                intent_id="sell-base-buy",
+                plan_id=buy_plan.plan_id,
+                instrument_id="SOL-USDT",
+                run_mode=RunMode.REPLAY,
+                state_version=7,
+                created_at=NOW,
+            ),
+            buy_plan,
+            NOW,
+        )
+        cancel_plan = _plan("SOL-USDT", side=OrderSide.SELL, notional=30, order_type=OrderType.LIMIT)
+        cancel_opened = await service.execute(
+            ExecutionIntent(
+                intent_id="sell-cancel",
+                plan_id=cancel_plan.plan_id,
+                instrument_id="SOL-USDT",
+                run_mode=RunMode.REPLAY,
+                state_version=7,
+                created_at=NOW,
+            ),
+            cancel_plan,
+            NOW,
+        )
+        cancelled = await service.cancel_order(cancel_opened.order_id, NOW)
+        sell_plan = _plan("SOL-USDT", side=OrderSide.SELL, notional=84, order_type=OrderType.LIMIT)
+        sell_opened = await service.execute(
+            ExecutionIntent(
+                intent_id="sell-fill",
+                plan_id=sell_plan.plan_id,
+                instrument_id="SOL-USDT",
+                run_mode=RunMode.REPLAY,
+                state_version=7,
+                created_at=NOW,
+            ),
+            sell_plan,
+            NOW,
+        )
+        blocked_plan = _plan("SOL-USDT", side=OrderSide.SELL, notional=60, order_type=OrderType.LIMIT)
+        blocked = await service.execute(
+            ExecutionIntent(
+                intent_id="sell-oversell",
+                plan_id=blocked_plan.plan_id,
+                instrument_id="SOL-USDT",
+                run_mode=RunMode.REPLAY,
+                state_version=7,
+                created_at=NOW,
+            ),
+            blocked_plan,
+            NOW,
+        )
+        match_bbo = BestBidAsk(instrument_id="SOL-USDT", bid=121, ask=122, received_at=NOW)
+        filled = await service.process_open_orders(RunMode.REPLAY, match_bbo, NOW)
+        async with SESSIONS() as session:
+            order = await session.scalar(
+                select(PaperOrderRecord).where(PaperOrderRecord.order_id == sell_opened.order_id)
+            )
+            position = await session.scalar(
+                select(PositionRecord).where(
+                    PositionRecord.run_mode == RunMode.REPLAY,
+                    PositionRecord.instrument_id == "SOL-USDT",
+                )
+            )
+            ledger = await session.scalar(
+                select(LedgerEntryRecord).join(
+                    FillRecord, LedgerEntryRecord.fill_id == FillRecord.fill_id
+                ).where(FillRecord.order_id == sell_opened.order_id)
+            )
+        return cancelled, blocked, filled, order, position, ledger
+
+    cancelled, blocked, filled, order, position, ledger = asyncio.run(case())
+    assert cancelled.cancelled
+    assert blocked.reason == "CAPACITY_BLOCKED"
+    assert len(filled) == 1 and order.status == OrderStatus.FILLED
+    assert order.reserved_quantity == 0 and position.quantity > 0 and ledger.entry_type == "SELL_FILL"
+
+
+def test_pending_buy_exposure_fee_reservation_equity_marks_and_reconciliation():
+    """真实 PostgreSQL：Pending BUY、手续费冻结、全账户 Fresh Mark 与六项对账。"""
+
+    async def case():
+        await _clean()
+        quotes = {f"FEE-{index}-USDT": (99.0, 100.0) for index in range(7)}
+        quotes["PENDING-USDT"] = (99.0, 100.0)
+        quotes["FEE-REJECT-USDT"] = (99.0, 100.0)
+        quotes["FRESH-CHECK-USDT"] = (99.0, 100.0)
+        stale_instruments: set[str] = set()
+
+        async def bbo_for(instrument: str):
+            bid, ask = quotes[instrument]
+            return BestBidAsk(
+                instrument_id=instrument,
+                bid=bid,
+                ask=ask,
+                received_at=NOW,
+                data_quality=(
+                    DataQuality.STALE if instrument in stale_instruments else DataQuality.FRESH
+                ),
+            )
+
+        service = PaperExecutionService(
+            SESSIONS, bbo_for, lambda _: asyncio.sleep(0, result=7), initial_balance=1000
+        )
+        await service.bootstrap_account(RunMode.REPLAY)
+
+        async def open_limit(instrument: str, intent_id: str, notional: float = 100):
+            plan = _plan(instrument, notional=notional, order_type=OrderType.LIMIT)
+            return await service.execute(
+                ExecutionIntent(
+                    intent_id=intent_id,
+                    plan_id=plan.plan_id,
+                    instrument_id=instrument,
+                    run_mode=RunMode.REPLAY,
+                    state_version=7,
+                    created_at=NOW,
+                ),
+                plan,
+                NOW,
+            )
+
+        first_pending = await open_limit("PENDING-USDT", "pending-1")
+        second_pending = await open_limit("PENDING-USDT", "pending-2")
+        pending_blocked = await open_limit("PENDING-USDT", "pending-3", 1)
+        fee_opened = [
+            await open_limit(f"FEE-{index}-USDT", f"fee-{index}") for index in range(7)
+        ]
+        fee_blocked = await open_limit("FEE-REJECT-USDT", "fee-reject")
+        for instrument in ("PENDING-USDT", *(f"FEE-{index}-USDT" for index in range(7))):
+            quotes[instrument] = (89.0, 90.0)
+            await service.process_open_orders(RunMode.REPLAY, await bbo_for(instrument), NOW)
+        stale_instruments.add("PENDING-USDT")
+        stale_equity = await open_limit("FRESH-CHECK-USDT", "stale-equity", 1)
+        reconciliation = await service.reconciliation(RunMode.REPLAY)
+        async with SESSIONS() as session:
+            account = await session.scalar(
+                select(AccountRecord).where(AccountRecord.run_mode == RunMode.REPLAY)
+            )
+        return (
+            first_pending,
+            second_pending,
+            pending_blocked,
+            fee_opened,
+            fee_blocked,
+            stale_equity,
+            reconciliation,
+            account,
+        )
+
+    (
+        first_pending,
+        second_pending,
+        pending_blocked,
+        fee_opened,
+        fee_blocked,
+        stale_equity,
+        reconciliation,
+        account,
+    ) = asyncio.run(case())
+    assert first_pending.order_id and second_pending.order_id
+    assert pending_blocked.reason == "CAPACITY_BLOCKED"
+    assert all(result.order_id for result in fee_opened)
+    assert fee_blocked.reason == "CAPACITY_BLOCKED"
+    assert stale_equity.reason == "CORE_POSITION_MARK_STALE"
+    assert account.cash_balance >= -1e-9 and reconciliation["ok"] is True

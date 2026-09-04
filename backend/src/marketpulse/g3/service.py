@@ -37,6 +37,7 @@ from .models import (
     ExecutionIntent,
     ExecutionResult,
     IntentStatus,
+    OrderCancelResult,
     OrderSide,
     OrderStatus,
     OrderType,
@@ -528,16 +529,60 @@ class PaperExecutionService:
                 if plan.side is OrderSide.BUY
                 else (bbo.bid * (1 - self.slippage_bps / 10_000))
             )
-            quantity = plan.intended_notional / price
-            position = await session.scalar(
-                select(PositionRecord)
-                .where(
-                    PositionRecord.run_mode == intent.run_mode,
-                    PositionRecord.instrument_id == intent.instrument_id,
-                )
-                .with_for_update()
+            positions = list(
+                (
+                    await session.scalars(
+                        select(PositionRecord)
+                        .where(PositionRecord.run_mode == intent.run_mode)
+                        .with_for_update()
+                    )
+                ).all()
             )
-            if self._capacity_blocked(account, position, plan, price):
+            position = next(
+                (item for item in positions if item.instrument_id == intent.instrument_id), None
+            )
+            limit_price = (
+                plan.entry_zone.lower if plan.side is OrderSide.BUY else plan.entry_zone.upper
+            )
+            if plan.order_type is OrderType.LIMIT:
+                price = limit_price
+            quantity = plan.intended_notional / price
+            equity_and_marks = await self._execution_equity(account, positions, bbo, now)
+            if equity_and_marks is None:
+                session.add(
+                    ExecutionIntentRecord(
+                        intent_id=intent.intent_id,
+                        plan_id=intent.plan_id,
+                        instrument_id=intent.instrument_id,
+                        run_mode=intent.run_mode,
+                        state_version=intent.state_version,
+                        status=IntentStatus.REJECTED,
+                        reason="CORE_POSITION_MARK_STALE",
+                        created_at=now,
+                    )
+                )
+                return ExecutionResult(
+                    intent_id=intent.intent_id,
+                    status=IntentStatus.REJECTED,
+                    reason="CORE_POSITION_MARK_STALE",
+                )
+            equity, marks = equity_and_marks
+            pending_buy_exposure = await self._open_buy_exposure(
+                session, intent.run_mode, intent.instrument_id
+            )
+            open_sell_reserved = await self._open_sell_reserved_quantity(
+                session, intent.run_mode, intent.instrument_id
+            )
+            if self._capacity_blocked(
+                account,
+                position,
+                plan,
+                quantity,
+                equity,
+                (position.quantity * marks.get(intent.instrument_id, 0.0)) if position else 0.0,
+                pending_buy_exposure,
+                open_sell_reserved,
+            ):
                 session.add(
                     ExecutionIntentRecord(
                         intent_id=intent.intent_id,
@@ -587,19 +632,89 @@ class PaperExecutionService:
         return None
 
     def _capacity_blocked(
-        self, account: AccountRecord, position: PositionRecord | None, plan: TradePlan, price: float
+        self,
+        account: AccountRecord,
+        position: PositionRecord | None,
+        plan: TradePlan,
+        quantity: float,
+        equity: float,
+        current_symbol_market_value: float,
+        pending_buy_exposure: float,
+        open_sell_reserved: float,
     ) -> bool:
-        # Account row is already locked. Current position plus this order must remain under 20% equity.
-        equity = account.cash_balance + ((position.quantity * price) if position else 0)
+        """Apply the bounded G3 capacity policy while the account row is locked."""
         if plan.side is OrderSide.BUY:
             cost = plan.intended_notional * (1 + self.fee_rate)
-            exposure = (position.quantity * price if position else 0) + plan.intended_notional
+            exposure = current_symbol_market_value + pending_buy_exposure + plan.intended_notional
             return (
                 cost > account.cash_balance - account.reserved_cash
                 or plan.intended_notional > equity * 0.10
                 or exposure > equity * 0.20
             )
-        return position is None or plan.intended_notional / price > position.quantity
+        return position is None or quantity > position.quantity - open_sell_reserved + 1e-12
+
+    def _is_fresh_bbo(self, bbo: BestBidAsk, now: datetime) -> bool:
+        return (
+            bbo.tradable
+            and bbo.data_quality is DataQuality.FRESH
+            and now - bbo.received_at <= self.freshness_ttl
+        )
+
+    async def _execution_equity(
+        self,
+        account: AccountRecord,
+        positions: list[PositionRecord],
+        current_bbo: BestBidAsk,
+        now: datetime,
+    ) -> tuple[float, dict[str, float]] | None:
+        """Return fresh-mark equity for every held symbol, or fail closed."""
+        marks: dict[str, float] = {}
+        for position in positions:
+            if position.quantity <= 1e-12:
+                continue
+            bbo = (
+                current_bbo
+                if position.instrument_id == current_bbo.instrument_id
+                else await self.bbo_for(position.instrument_id)
+            )
+            if bbo.instrument_id != position.instrument_id or not self._is_fresh_bbo(bbo, now):
+                return None
+            marks[position.instrument_id] = (bbo.bid + bbo.ask) / 2
+        return account.cash_balance + sum(
+            position.quantity * marks[position.instrument_id]
+            for position in positions
+            if position.quantity > 1e-12
+        ), marks
+
+    async def _open_buy_exposure(
+        self, session: AsyncSession, run_mode: RunMode, instrument_id: str
+    ) -> float:
+        value = await session.scalar(
+            select(
+                func.coalesce(
+                    func.sum(PaperOrderRecord.quantity * PaperOrderRecord.limit_price), 0.0
+                )
+            ).where(
+                PaperOrderRecord.run_mode == run_mode,
+                PaperOrderRecord.instrument_id == instrument_id,
+                PaperOrderRecord.status == OrderStatus.OPEN,
+                PaperOrderRecord.side == OrderSide.BUY,
+            )
+        )
+        return float(value)
+
+    async def _open_sell_reserved_quantity(
+        self, session: AsyncSession, run_mode: RunMode, instrument_id: str
+    ) -> float:
+        value = await session.scalar(
+            select(func.coalesce(func.sum(PaperOrderRecord.reserved_quantity), 0.0)).where(
+                PaperOrderRecord.run_mode == run_mode,
+                PaperOrderRecord.instrument_id == instrument_id,
+                PaperOrderRecord.status == OrderStatus.OPEN,
+                PaperOrderRecord.side == OrderSide.SELL,
+            )
+        )
+        return float(value)
 
     async def _reserve_limit(
         self,
@@ -612,7 +727,9 @@ class PaperExecutionService:
         now: datetime,
     ) -> ExecutionResult:
         order_id = stable_id("order", intent.intent_id)
-        reserve_cash = plan.intended_notional if plan.side is OrderSide.BUY else 0
+        reserve_cash = (
+            plan.intended_notional * (1 + self.fee_rate) if plan.side is OrderSide.BUY else 0
+        )
         reserve_quantity = quantity if plan.side is OrderSide.SELL else 0
         account.reserved_cash += reserve_cash
         session.add(
@@ -638,9 +755,9 @@ class PaperExecutionService:
                 order_type=plan.order_type,
                 status=OrderStatus.OPEN,
                 quantity=quantity,
-                limit_price=plan.entry_zone.upper
+                limit_price=plan.entry_zone.lower
                 if plan.side is OrderSide.BUY
-                else plan.entry_zone.lower,
+                else plan.entry_zone.upper,
                 reserved_cash=reserve_cash,
                 reserved_quantity=reserve_quantity,
                 created_at=now,
@@ -661,49 +778,101 @@ class PaperExecutionService:
         price: float,
         now: datetime,
     ) -> ExecutionResult:
-        order_id, fill_id = (
-            stable_id("order", intent.intent_id),
-            stable_id("fill", intent.intent_id),
+        order_id = stable_id("order", intent.intent_id)
+        order = PaperOrderRecord(
+            order_id=order_id,
+            intent_id=intent.intent_id,
+            plan_id=intent.plan_id,
+            instrument_id=intent.instrument_id,
+            run_mode=intent.run_mode,
+            side=plan.side,
+            order_type=plan.order_type,
+            status=OrderStatus.OPEN,
+            quantity=quantity,
+            limit_price=None,
+            reserved_cash=0,
+            reserved_quantity=0,
+            created_at=now,
         )
-        gross, fee = price * quantity, price * quantity * self.fee_rate
+        session.add(
+            ExecutionIntentRecord(
+                intent_id=intent.intent_id,
+                plan_id=intent.plan_id,
+                instrument_id=intent.instrument_id,
+                run_mode=intent.run_mode,
+                state_version=intent.state_version,
+                status=IntentStatus.EXECUTED,
+                reason=None,
+                created_at=now,
+            )
+        )
+        session.add(order)
+        return await self._settle_order(session, account, position, order, price, now)
+
+    async def _settle_order(
+        self,
+        session: AsyncSession,
+        account: AccountRecord,
+        position: PositionRecord | None,
+        order: PaperOrderRecord,
+        price: float,
+        now: datetime,
+    ) -> ExecutionResult:
+        """Persist one all-or-none fill and every G3 settlement record atomically."""
+        if order.status != OrderStatus.OPEN:
+            raise RuntimeError("only_open_orders_can_settle")
+        fill_id = stable_id("fill", order.intent_id)
+        gross, fee = price * order.quantity, price * order.quantity * self.fee_rate
         trade_id: str | None = position.trade_id if position else None
         realized = 0.0
-        if plan.side is OrderSide.BUY:
+        if order.side == OrderSide.BUY:
+            if account.reserved_cash + 1e-12 < order.reserved_cash:
+                raise RuntimeError("reserved_cash_underflow")
+            account.reserved_cash -= order.reserved_cash
+            if abs(account.reserved_cash) <= 1e-12:
+                account.reserved_cash = 0.0
             account.cash_balance -= gross + fee
-            if position is None:
-                trade_id = stable_id("trade", intent.run_mode, intent.instrument_id, fill_id)
-                position = PositionRecord(
-                    position_id=stable_id("pos", intent.run_mode, intent.instrument_id),
-                    run_mode=intent.run_mode,
-                    instrument_id=intent.instrument_id,
-                    quantity=quantity,
-                    average_cost=price,
-                    realized_pnl=0,
-                    trade_id=trade_id,
-                    updated_at=now,
-                )
-                session.add(position)
+            if position is None or position.quantity <= 1e-12:
+                trade_id = stable_id("trade", order.run_mode, order.instrument_id, fill_id)
+                if position is None:
+                    position = PositionRecord(
+                        position_id=stable_id("pos", order.run_mode, order.instrument_id),
+                        run_mode=order.run_mode,
+                        instrument_id=order.instrument_id,
+                        quantity=order.quantity,
+                        average_cost=price,
+                        realized_pnl=0,
+                        trade_id=trade_id,
+                        updated_at=now,
+                    )
+                    session.add(position)
+                else:
+                    position.quantity = order.quantity
+                    position.average_cost = price
+                    position.trade_id = trade_id
+                    position.updated_at = now
                 session.add(
                     TradeRecord(
                         trade_id=trade_id,
-                        run_mode=intent.run_mode,
-                        instrument_id=intent.instrument_id,
+                        run_mode=order.run_mode,
+                        instrument_id=order.instrument_id,
                         status="OPEN",
                         opened_at=now,
                         closed_at=None,
                     )
                 )
             else:
-                position.average_cost = ((position.quantity * position.average_cost) + gross) / (
-                    position.quantity + quantity
-                )
-                position.quantity += quantity
+                position.average_cost = (
+                    (position.quantity * position.average_cost) + gross
+                ) / (position.quantity + order.quantity)
+                position.quantity += order.quantity
                 position.updated_at = now
             cash_delta, entry_type = -(gross + fee), "BUY_FILL"
         else:
-            assert position is not None
-            realized = (price - position.average_cost) * quantity - fee
-            position.quantity -= quantity
+            if position is None or order.quantity > position.quantity + 1e-12:
+                raise RuntimeError("sell_position_underflow")
+            realized = (price - position.average_cost) * order.quantity - fee
+            position.quantity -= order.quantity
             position.realized_pnl += realized
             position.updated_at = now
             account.realized_pnl += realized
@@ -718,43 +887,17 @@ class PaperExecutionService:
                         .values(status="CLOSED", closed_at=now)
                     )
             cash_delta, entry_type = gross - fee, "SELL_FILL"
+        order.status = OrderStatus.FILLED
+        order.reserved_cash = 0.0
+        order.reserved_quantity = 0.0
         account.updated_at = now
-        session.add(
-            ExecutionIntentRecord(
-                intent_id=intent.intent_id,
-                plan_id=intent.plan_id,
-                instrument_id=intent.instrument_id,
-                run_mode=intent.run_mode,
-                state_version=intent.state_version,
-                status=IntentStatus.EXECUTED,
-                reason=None,
-                created_at=now,
-            )
-        )
-        session.add(
-            PaperOrderRecord(
-                order_id=order_id,
-                intent_id=intent.intent_id,
-                plan_id=intent.plan_id,
-                instrument_id=intent.instrument_id,
-                run_mode=intent.run_mode,
-                side=plan.side,
-                order_type=plan.order_type,
-                status=OrderStatus.FILLED,
-                quantity=quantity,
-                limit_price=None,
-                reserved_cash=0,
-                reserved_quantity=0,
-                created_at=now,
-            )
-        )
         session.add(
             FillRecord(
                 fill_id=fill_id,
-                order_id=order_id,
-                intent_id=intent.intent_id,
+                order_id=order.order_id,
+                intent_id=order.intent_id,
                 price=price,
-                quantity=quantity,
+                quantity=order.quantity,
                 fee=fee,
                 created_at=now,
             )
@@ -769,14 +912,14 @@ class PaperExecutionService:
                 fee=fee,
                 created_at=now,
                 payload={
-                    "order_id": order_id,
-                    "instrument_id": intent.instrument_id,
+                    "order_id": order.order_id,
+                    "instrument_id": order.instrument_id,
                     "realized_pnl": realized,
                 },
             )
         )
         for event_type, aggregate in (
-            ("ORDER_FILLED", order_id),
+            ("ORDER_FILLED", order.order_id),
             ("POSITION_CHANGED", position.position_id),
         ):
             session.add(
@@ -784,35 +927,318 @@ class PaperExecutionService:
                     outbox_id=stable_id("outbox", event_type, aggregate, fill_id),
                     aggregate_id=aggregate,
                     event_type=event_type,
-                    payload={"fill_id": fill_id, "instrument_id": intent.instrument_id},
+                    payload={"fill_id": fill_id, "instrument_id": order.instrument_id},
                     created_at=now,
                 )
             )
         if self.after_settlement:
             self.after_settlement()
         return ExecutionResult(
-            intent_id=intent.intent_id,
+            intent_id=order.intent_id,
             status=IntentStatus.EXECUTED,
-            order_id=order_id,
+            order_id=order.order_id,
             fill_id=fill_id,
         )
 
-    async def reconciliation(self, run_mode: RunMode) -> dict[str, float | bool]:
+    async def process_open_orders(
+        self, run_mode: RunMode, bbo: BestBidAsk, now: datetime | None = None
+    ) -> list[ExecutionResult]:
+        """Process eligible OPEN limit orders once; database order status is authoritative."""
+        now = now or datetime.now(UTC)
+        if not self._is_fresh_bbo(bbo, now):
+            return []
+        async with self.sessions() as session:
+            order_ids = list(
+                (
+                    await session.scalars(
+                        select(PaperOrderRecord.order_id).where(
+                            PaperOrderRecord.run_mode == run_mode,
+                            PaperOrderRecord.instrument_id == bbo.instrument_id,
+                            PaperOrderRecord.order_type == OrderType.LIMIT,
+                            PaperOrderRecord.status == OrderStatus.OPEN,
+                        )
+                    )
+                ).all()
+            )
+        results: list[ExecutionResult] = []
+        for order_id in order_ids:
+            result = await self._process_open_order(order_id, bbo, now)
+            if result is not None:
+                results.append(result)
+        return results
+
+    async def _process_open_order(
+        self, order_id: str, bbo: BestBidAsk, now: datetime
+    ) -> ExecutionResult | None:
+        async with self.sessions() as session, session.begin():
+            order = await session.scalar(
+                select(PaperOrderRecord)
+                .where(PaperOrderRecord.order_id == order_id)
+                .with_for_update()
+            )
+            if (
+                order is None
+                or order.status != OrderStatus.OPEN
+                or order.order_type != OrderType.LIMIT
+                or order.instrument_id != bbo.instrument_id
+            ):
+                return None
+            if order.limit_price is None:
+                return ExecutionResult(
+                    intent_id=order.intent_id,
+                    status=IntentStatus.EXECUTED,
+                    reason="LIMIT_PRICE_MISSING",
+                    order_id=order.order_id,
+                )
+            price = bbo.ask if order.side == OrderSide.BUY else bbo.bid
+            eligible = (
+                order.side == OrderSide.BUY and price <= order.limit_price
+            ) or (
+                order.side == OrderSide.SELL and price >= order.limit_price
+            )
+            if not eligible:
+                return None
+            account = await session.scalar(
+                select(AccountRecord)
+                .where(AccountRecord.run_mode == order.run_mode)
+                .with_for_update()
+            )
+            if account is None:
+                raise RuntimeError("account_not_bootstrapped")
+            positions = list(
+                (
+                    await session.scalars(
+                        select(PositionRecord)
+                        .where(PositionRecord.run_mode == order.run_mode)
+                        .with_for_update()
+                    )
+                ).all()
+            )
+            position = next(
+                (item for item in positions if item.instrument_id == order.instrument_id), None
+            )
+            equity_and_marks = await self._execution_equity(account, positions, bbo, now)
+            if equity_and_marks is None:
+                return ExecutionResult(
+                    intent_id=order.intent_id,
+                    status=IntentStatus.EXECUTED,
+                    reason="CORE_POSITION_MARK_STALE",
+                    order_id=order.order_id,
+                )
+            equity, marks = equity_and_marks
+            if order.side == OrderSide.BUY:
+                pending_exposure = await self._open_buy_exposure(
+                    session, order.run_mode, order.instrument_id
+                )
+                position_value = (
+                    position.quantity * marks.get(order.instrument_id, 0.0) if position else 0.0
+                )
+                if (
+                    price * order.quantity > equity * 0.10
+                    or position_value + pending_exposure > equity * 0.20
+                    or account.reserved_cash + 1e-12 < order.reserved_cash
+                ):
+                    return ExecutionResult(
+                        intent_id=order.intent_id,
+                        status=IntentStatus.EXECUTED,
+                        reason="CAPACITY_BLOCKED",
+                        order_id=order.order_id,
+                    )
+            elif position is None or order.quantity > position.quantity + 1e-12:
+                return ExecutionResult(
+                    intent_id=order.intent_id,
+                    status=IntentStatus.EXECUTED,
+                    reason="SELL_RESERVATION_EXCEEDS_POSITION",
+                    order_id=order.order_id,
+                )
+            return await self._settle_order(session, account, position, order, price, now)
+
+    async def cancel_order(
+        self, order_id: str, now: datetime | None = None
+    ) -> OrderCancelResult:
+        """Cancel an OPEN order and release its reservation in the same transaction."""
+        now = now or datetime.now(UTC)
+        async with self.sessions() as session, session.begin():
+            order = await session.scalar(
+                select(PaperOrderRecord)
+                .where(PaperOrderRecord.order_id == order_id)
+                .with_for_update()
+            )
+            if order is None:
+                raise ValueError("order_not_found")
+            if order.status != OrderStatus.OPEN:
+                return OrderCancelResult(
+                    order_id=order_id,
+                    status=OrderStatus(order.status),
+                    cancelled=False,
+                    reason="order_not_open",
+                )
+            account = await session.scalar(
+                select(AccountRecord)
+                .where(AccountRecord.run_mode == order.run_mode)
+                .with_for_update()
+            )
+            if account is None:
+                raise RuntimeError("account_not_bootstrapped")
+            if account.reserved_cash + 1e-12 < order.reserved_cash:
+                raise RuntimeError("reserved_cash_underflow")
+            account.reserved_cash -= order.reserved_cash
+            if abs(account.reserved_cash) <= 1e-12:
+                account.reserved_cash = 0.0
+            account.updated_at = now
+            order.status = OrderStatus.CANCELLED
+            order.reserved_cash = 0.0
+            order.reserved_quantity = 0.0
+            session.add(
+                OutboxRecord(
+                    outbox_id=stable_id("outbox", "ORDER_CANCELLED", order.order_id),
+                    aggregate_id=order.order_id,
+                    event_type="ORDER_CANCELLED",
+                    payload={"instrument_id": order.instrument_id},
+                    created_at=now,
+                )
+            )
+            return OrderCancelResult(
+                order_id=order_id, status=OrderStatus.CANCELLED, cancelled=True
+            )
+
+    async def reconciliation(self, run_mode: RunMode) -> dict[str, Any]:
+        """Return G3 accounting invariants and diagnostics without attempting repair."""
+        tolerance = 1e-8
         async with self.sessions() as session:
             account = await session.scalar(
                 select(AccountRecord).where(AccountRecord.run_mode == run_mode)
             )
-            reserved = await session.scalar(
-                select(func.coalesce(func.sum(PaperOrderRecord.reserved_cash), 0)).where(
-                    PaperOrderRecord.run_mode == run_mode,
-                    PaperOrderRecord.status == OrderStatus.OPEN,
-                )
+            orders = list(
+                (
+                    await session.scalars(
+                        select(PaperOrderRecord).where(PaperOrderRecord.run_mode == run_mode)
+                    )
+                ).all()
             )
-            return {
-                "reserved_cash_matches_open_buys": bool(
-                    account and abs(account.reserved_cash - float(reserved)) < 1e-8
-                ),
-                "available_cash": (account.cash_balance - account.reserved_cash)
-                if account
-                else 0.0,
-            }
+            fills = list(
+                (
+                    await session.scalars(
+                        select(FillRecord).join(
+                            PaperOrderRecord, FillRecord.order_id == PaperOrderRecord.order_id
+                        ).where(PaperOrderRecord.run_mode == run_mode)
+                    )
+                ).all()
+            )
+            ledgers = list(
+                (
+                    await session.scalars(
+                        select(LedgerEntryRecord).where(
+                            LedgerEntryRecord.account_id == (account.account_id if account else "")
+                        )
+                    )
+                ).all()
+            )
+            positions = list(
+                (
+                    await session.scalars(
+                        select(PositionRecord).where(PositionRecord.run_mode == run_mode)
+                    )
+                ).all()
+            )
+        diagnostics: list[str] = []
+        open_buys = [
+            order
+            for order in orders
+            if order.status == OrderStatus.OPEN and order.side == OrderSide.BUY
+        ]
+        open_sells = [
+            order
+            for order in orders
+            if order.status == OrderStatus.OPEN and order.side == OrderSide.SELL
+        ]
+        expected_reserved_cash = sum(order.reserved_cash for order in open_buys)
+        reserved_cash_matches_open_buys = bool(
+            account and abs(account.reserved_cash - expected_reserved_cash) <= tolerance
+        )
+        if not reserved_cash_matches_open_buys:
+            diagnostics.append("reserved_cash_mismatch")
+        positions_by_instrument = {position.instrument_id: position for position in positions}
+        open_sell_reserved: dict[str, float] = {}
+        for order in open_sells:
+            open_sell_reserved[order.instrument_id] = (
+                open_sell_reserved.get(order.instrument_id, 0.0) + order.reserved_quantity
+            )
+        sell_reservations_within_positions = all(
+            quantity
+            <= (
+                positions_by_instrument[instrument].quantity
+                if instrument in positions_by_instrument
+                else 0.0
+            )
+            + tolerance
+            for instrument, quantity in open_sell_reserved.items()
+        )
+        if not sell_reservations_within_positions:
+            diagnostics.append("open_sell_reservation_exceeds_position")
+        orders_by_id = {order.order_id: order for order in orders}
+        net_fill_quantity: dict[str, float] = {}
+        fill_counts_by_order: dict[str, int] = {}
+        for fill in fills:
+            order = orders_by_id.get(fill.order_id)
+            if order is None:
+                diagnostics.append(f"fill_without_order:{fill.fill_id}")
+                continue
+            multiplier = 1 if order.side == OrderSide.BUY else -1
+            net_fill_quantity[order.instrument_id] = (
+                net_fill_quantity.get(order.instrument_id, 0.0) + multiplier * fill.quantity
+            )
+            fill_counts_by_order[fill.order_id] = fill_counts_by_order.get(fill.order_id, 0) + 1
+        position_quantities_match_fills = all(
+            abs(
+                (
+                    positions_by_instrument[instrument].quantity
+                    if instrument in positions_by_instrument
+                    else 0.0
+                )
+                - quantity
+            )
+            <= tolerance
+            for instrument, quantity in net_fill_quantity.items()
+        ) and all(
+            abs(position.quantity - net_fill_quantity.get(position.instrument_id, 0.0)) <= tolerance
+            for position in positions
+        )
+        if not position_quantities_match_fills:
+            diagnostics.append("position_quantity_mismatch")
+        ledger_counts: dict[str, int] = {}
+        for ledger in ledgers:
+            ledger_counts[ledger.fill_id] = ledger_counts.get(ledger.fill_id, 0) + 1
+        fills_have_one_ledger_entry = all(
+            ledger_counts.get(fill.fill_id, 0) == 1 for fill in fills
+        ) and all(ledger.fill_id in {fill.fill_id for fill in fills} for ledger in ledgers)
+        if not fills_have_one_ledger_entry:
+            diagnostics.append("fill_ledger_mismatch")
+        filled_orders_match_fills = all(
+            fill_counts_by_order.get(order.order_id, 0) == 1
+            for order in orders
+            if order.status == OrderStatus.FILLED
+        ) and all(
+            orders_by_id.get(fill.order_id) is not None
+            and orders_by_id[fill.order_id].status == OrderStatus.FILLED
+            and abs(orders_by_id[fill.order_id].quantity - fill.quantity) <= tolerance
+            and orders_by_id[fill.order_id].intent_id == fill.intent_id
+            for fill in fills
+        )
+        if not filled_orders_match_fills:
+            diagnostics.append("filled_order_fill_mismatch")
+        available_cash = (account.cash_balance - account.reserved_cash) if account else 0.0
+        available_cash_non_negative = bool(account and available_cash >= -tolerance)
+        if not available_cash_non_negative:
+            diagnostics.append("available_cash_negative_or_missing_account")
+        return {
+            "ok": not diagnostics,
+            "reserved_cash_matches_open_buys": reserved_cash_matches_open_buys,
+            "sell_reservations_within_positions": sell_reservations_within_positions,
+            "position_quantities_match_fills": position_quantities_match_fills,
+            "available_cash_non_negative": available_cash_non_negative,
+            "fills_have_one_ledger_entry": fills_have_one_ledger_entry,
+            "filled_orders_match_fills": filled_orders_match_fills,
+            "available_cash": available_cash,
+            "diagnostics": diagnostics,
+        }

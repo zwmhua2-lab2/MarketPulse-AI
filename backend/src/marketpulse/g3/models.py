@@ -186,3 +186,12 @@ class ExecutionResult(BaseModel):
     reason: str | None = None
     order_id: str | None = None
     fill_id: str | None = None
+
+
+class OrderCancelResult(BaseModel):
+    """Result of the G3 order-layer cancellation operation."""
+
+    order_id: str
+    status: OrderStatus
+    cancelled: bool
+    reason: str | None = None
