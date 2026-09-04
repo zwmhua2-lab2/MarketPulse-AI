@@ -4,6 +4,15 @@
 
 Acceptance Group 3 — AI Decision + Trade Plan + Paper Execution + Account + Position + Ledger
 
+## GitHub Repository
+
+- GitHub Repository Full Name: `zwmhua2-lab2/MarketPulse-AI`
+- GitHub Repository URL: https://github.com/zwmhua2-lab2/MarketPulse-AI
+- Visibility: `PRIVATE`
+- Default Branch: `main`
+- Latest Accepted Baseline Commit: `293beeca17ba754ec46f972b3aea82b10eca7228`
+- Current Development Status: `G3 ACCEPTED / waiting G4`
+
 ## Completed
 
 - 空工作区 Git 初始化。
