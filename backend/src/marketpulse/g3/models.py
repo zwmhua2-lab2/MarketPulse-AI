@@ -3,9 +3,10 @@ from __future__ import annotations
 import math
 from datetime import UTC, datetime
 from enum import StrEnum
-from typing import Any
+from typing import Any, Protocol, runtime_checkable
 
 from pydantic import BaseModel, Field, field_validator
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class RunMode(StrEnum):
@@ -167,6 +168,8 @@ class TradePlan(BaseModel):
     stop_loss: float
     take_profit: float
     intended_notional: float
+    # G4 UPDATE_INVALIDATION stores the durable invalidation text on the plan version.
+    invalidation: str | None = None
     probe: bool = False
     backup_scenarios: list[str] = Field(default_factory=list)
 
@@ -195,3 +198,19 @@ class OrderCancelResult(BaseModel):
     status: OrderStatus
     cancelled: bool
     reason: str | None = None
+
+
+@runtime_checkable
+class RiskGate(Protocol):
+    """Admission boundary owned by G4. `None` allows the action, a string blocks it."""
+
+    async def evaluate(
+        self,
+        session: AsyncSession,
+        *,
+        run_mode: RunMode,
+        instrument_id: str,
+        side: OrderSide,
+        plan_id: str | None,
+        now: datetime,
+    ) -> str | None: ...

@@ -240,6 +240,9 @@ class TradeRecord(Base):
     status: Mapped[str] = mapped_column(String(16), nullable=False)
     opened_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # G4: machine-readable close reason (STOP_LOSS / TAKE_PROFIT / AI_CLOSE / AI_REDUCE /
+    # MANUAL_CLOSE). Nullable and additive so existing G3 rows stay valid.
+    exit_reason: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
 
 class AccountRecord(Base):
@@ -271,3 +274,69 @@ class OutboxRecord(Base):
     event_type: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     payload: Mapped[dict] = mapped_column(JSON, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class RuntimeControlRecord(Base):
+    """G4 system/operator control facts. PostgreSQL is the restart-recovery source of truth."""
+
+    __tablename__ = "runtime_controls"
+    run_mode: Mapped[str] = mapped_column(String(16), primary_key=True)
+    operator_state: Mapped[str] = mapped_column(String(32), nullable=False)
+    system_state: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    runtime_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    heartbeat_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    payload: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+
+
+class SymbolControlRecord(Base):
+    """G4 per-instrument operator control (block / unblock). Append-audited via outbox."""
+
+    __tablename__ = "symbol_controls"
+    __table_args__ = (
+        UniqueConstraint("run_mode", "instrument_id", name="uq_symbol_controls_mode_instrument"),
+    )
+    control_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    run_mode: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
+    instrument_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    blocked: Mapped[bool] = mapped_column(nullable=False, default=False)
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    payload: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+
+
+class IncidentRecord(Base):
+    """G4 minimal persisted incident. Detector output only; never a repair engine."""
+
+    __tablename__ = "incidents"
+    incident_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    incident_type: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    run_mode: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
+    instrument_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    payload: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    opened_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class PositionEventRecord(Base):
+    """G4 append-only position lifecycle audit. `dedupe_key` gives DB-level idempotency."""
+
+    __tablename__ = "position_events"
+    event_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    run_mode: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
+    instrument_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    position_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    plan_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    order_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    fill_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    event_type: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    dedupe_key: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    payload: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("run_mode", "dedupe_key", name="uq_position_events_dedupe"),
+    )

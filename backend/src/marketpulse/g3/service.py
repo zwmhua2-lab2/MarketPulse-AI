@@ -42,6 +42,7 @@ from .models import (
     OrderStatus,
     OrderType,
     PlanStatus,
+    RiskGate,
     RunMode,
     StrategyContext,
     TradePlan,
@@ -432,6 +433,7 @@ class PaperExecutionService:
         fee_rate: float = 0.001,
         slippage_bps: float = 5,
         freshness_ttl: timedelta = timedelta(seconds=5),
+        risk_gate: RiskGate | None = None,
     ) -> None:
         self.sessions, self.bbo_for, self.state_version_for = sessions, bbo_for, state_version_for
         self.initial_balance, self.fee_rate, self.slippage_bps, self.freshness_ttl = (
@@ -440,6 +442,8 @@ class PaperExecutionService:
             slippage_bps,
             freshness_ttl,
         )
+        # G4 injects the system risk gate; `None` preserves the accepted G3 standalone behaviour.
+        self.risk_gate = risk_gate
         self.after_settlement: Callable[[], None] | None = None
 
     async def bootstrap_account(self, run_mode: RunMode) -> None:
@@ -460,14 +464,22 @@ class PaperExecutionService:
                 )
 
     async def execute(
-        self, intent: ExecutionIntent, plan: TradePlan, now: datetime | None = None
+        self,
+        intent: ExecutionIntent,
+        plan: TradePlan,
+        now: datetime | None = None,
+        *,
+        session: AsyncSession | None = None,
     ) -> ExecutionResult:
+        """Execute one intent. When `session` is supplied the caller owns the transaction."""
         now = now or datetime.now(UTC)
+        if session is not None:
+            return await self._execute_once(intent, plan, now, session=session)
         try:
             return await self._execute_once(intent, plan, now)
         except IntegrityError:
-            async with self.sessions() as session:
-                order = await session.scalar(
+            async with self.sessions() as fallback:
+                order = await fallback.scalar(
                     select(PaperOrderRecord).where(PaperOrderRecord.intent_id == intent.intent_id)
                 )
             if order:
@@ -480,133 +492,193 @@ class PaperExecutionService:
             raise
 
     async def _execute_once(
-        self, intent: ExecutionIntent, plan: TradePlan, now: datetime
+        self,
+        intent: ExecutionIntent,
+        plan: TradePlan,
+        now: datetime,
+        session: AsyncSession | None = None,
     ) -> ExecutionResult:
-        async with self.sessions() as session, session.begin():
-            existing = await session.scalar(
-                select(PaperOrderRecord).where(PaperOrderRecord.intent_id == intent.intent_id)
+        if session is None:
+            async with self.sessions() as inner, inner.begin():
+                return await self._execute_once(intent, plan, now, session=inner)
+        existing = await session.scalar(
+            select(PaperOrderRecord).where(PaperOrderRecord.intent_id == intent.intent_id)
+        )
+        if existing:
+            fill = await session.scalar(
+                select(FillRecord).where(FillRecord.intent_id == intent.intent_id)
             )
-            if existing:
-                fill = await session.scalar(
-                    select(FillRecord).where(FillRecord.intent_id == intent.intent_id)
-                )
-                return ExecutionResult(
+            return ExecutionResult(
+                intent_id=intent.intent_id,
+                status=IntentStatus.EXECUTED,
+                reason="duplicate_intent",
+                order_id=existing.order_id,
+                fill_id=fill.fill_id if fill else None,
+            )
+        gate_reason = await self._risk_gate_reason(session, intent, plan.side, now)
+        if gate_reason is not None:
+            session.add(
+                ExecutionIntentRecord(
                     intent_id=intent.intent_id,
-                    status=IntentStatus.EXECUTED,
-                    reason="duplicate_intent",
-                    order_id=existing.order_id,
-                    fill_id=fill.fill_id if fill else None,
+                    plan_id=intent.plan_id,
+                    instrument_id=intent.instrument_id,
+                    run_mode=intent.run_mode,
+                    state_version=intent.state_version,
+                    status=IntentStatus.REJECTED,
+                    reason=gate_reason,
+                    created_at=now,
                 )
-            bbo = await self.bbo_for(intent.instrument_id)
-            reason = self._revalidate(
-                plan, intent, bbo, now, await self.state_version_for(intent.instrument_id)
             )
-            if reason:
-                session.add(
-                    ExecutionIntentRecord(
-                        intent_id=intent.intent_id,
-                        plan_id=intent.plan_id,
-                        instrument_id=intent.instrument_id,
-                        run_mode=intent.run_mode,
-                        state_version=intent.state_version,
-                        status=IntentStatus.REJECTED,
-                        reason=reason,
-                        created_at=now,
-                    )
-                )
-                return ExecutionResult(
-                    intent_id=intent.intent_id, status=IntentStatus.REJECTED, reason=reason
-                )
-            account = await session.scalar(
-                select(AccountRecord)
-                .where(AccountRecord.run_mode == intent.run_mode)
-                .with_for_update()
+            return ExecutionResult(
+                intent_id=intent.intent_id, status=IntentStatus.REJECTED, reason=gate_reason
             )
-            if account is None:
-                raise RuntimeError("account_not_bootstrapped")
-            price = (
-                (bbo.ask * (1 + self.slippage_bps / 10_000))
-                if plan.side is OrderSide.BUY
-                else (bbo.bid * (1 - self.slippage_bps / 10_000))
-            )
-            positions = list(
-                (
-                    await session.scalars(
-                        select(PositionRecord)
-                        .where(PositionRecord.run_mode == intent.run_mode)
-                        .with_for_update()
-                    )
-                ).all()
-            )
-            position = next(
-                (item for item in positions if item.instrument_id == intent.instrument_id), None
-            )
-            limit_price = (
-                plan.entry_zone.lower if plan.side is OrderSide.BUY else plan.entry_zone.upper
-            )
-            if plan.order_type is OrderType.LIMIT:
-                price = limit_price
-            quantity = plan.intended_notional / price
-            equity_and_marks = await self._execution_equity(account, positions, bbo, now)
-            if equity_and_marks is None:
-                session.add(
-                    ExecutionIntentRecord(
-                        intent_id=intent.intent_id,
-                        plan_id=intent.plan_id,
-                        instrument_id=intent.instrument_id,
-                        run_mode=intent.run_mode,
-                        state_version=intent.state_version,
-                        status=IntentStatus.REJECTED,
-                        reason="CORE_POSITION_MARK_STALE",
-                        created_at=now,
-                    )
-                )
-                return ExecutionResult(
+        bbo = await self.bbo_for(intent.instrument_id)
+        reason = self._revalidate(
+            plan, intent, bbo, now, await self.state_version_for(intent.instrument_id)
+        )
+        if reason:
+            session.add(
+                ExecutionIntentRecord(
                     intent_id=intent.intent_id,
+                    plan_id=intent.plan_id,
+                    instrument_id=intent.instrument_id,
+                    run_mode=intent.run_mode,
+                    state_version=intent.state_version,
+                    status=IntentStatus.REJECTED,
+                    reason=reason,
+                    created_at=now,
+                )
+            )
+            return ExecutionResult(
+                intent_id=intent.intent_id, status=IntentStatus.REJECTED, reason=reason
+            )
+        account = await session.scalar(
+            select(AccountRecord)
+            .where(AccountRecord.run_mode == intent.run_mode)
+            .with_for_update()
+        )
+        if account is None:
+            raise RuntimeError("account_not_bootstrapped")
+        price = (
+            (bbo.ask * (1 + self.slippage_bps / 10_000))
+            if plan.side is OrderSide.BUY
+            else (bbo.bid * (1 - self.slippage_bps / 10_000))
+        )
+        positions = list(
+            (
+                await session.scalars(
+                    select(PositionRecord)
+                    .where(PositionRecord.run_mode == intent.run_mode)
+                    .with_for_update()
+                )
+            ).all()
+        )
+        position = next(
+            (item for item in positions if item.instrument_id == intent.instrument_id), None
+        )
+        limit_price = (
+            plan.entry_zone.lower if plan.side is OrderSide.BUY else plan.entry_zone.upper
+        )
+        if plan.order_type is OrderType.LIMIT:
+            price = limit_price
+        quantity = plan.intended_notional / price
+        equity_and_marks = await self._execution_equity(account, positions, bbo, now)
+        if equity_and_marks is None:
+            session.add(
+                ExecutionIntentRecord(
+                    intent_id=intent.intent_id,
+                    plan_id=intent.plan_id,
+                    instrument_id=intent.instrument_id,
+                    run_mode=intent.run_mode,
+                    state_version=intent.state_version,
                     status=IntentStatus.REJECTED,
                     reason="CORE_POSITION_MARK_STALE",
+                    created_at=now,
                 )
-            equity, marks = equity_and_marks
-            pending_buy_exposure = await self._open_buy_exposure(
-                session, intent.run_mode, intent.instrument_id
             )
-            open_sell_reserved = await self._open_sell_reserved_quantity(
-                session, intent.run_mode, intent.instrument_id
+            return ExecutionResult(
+                intent_id=intent.intent_id,
+                status=IntentStatus.REJECTED,
+                reason="CORE_POSITION_MARK_STALE",
             )
-            if self._capacity_blocked(
-                account,
-                position,
-                plan,
-                quantity,
-                equity,
-                (position.quantity * marks.get(intent.instrument_id, 0.0)) if position else 0.0,
-                pending_buy_exposure,
-                open_sell_reserved,
-            ):
-                session.add(
-                    ExecutionIntentRecord(
-                        intent_id=intent.intent_id,
-                        plan_id=intent.plan_id,
-                        instrument_id=intent.instrument_id,
-                        run_mode=intent.run_mode,
-                        state_version=intent.state_version,
-                        status=IntentStatus.REJECTED,
-                        reason="CAPACITY_BLOCKED",
-                        created_at=now,
-                    )
-                )
-                return ExecutionResult(
+        equity, marks = equity_and_marks
+        pending_buy_exposure = await self._open_buy_exposure(
+            session, intent.run_mode, intent.instrument_id
+        )
+        open_sell_reserved = await self._open_sell_reserved_quantity(
+            session, intent.run_mode, intent.instrument_id
+        )
+        if self._capacity_blocked(
+            account,
+            position,
+            plan,
+            quantity,
+            equity,
+            (position.quantity * marks.get(intent.instrument_id, 0.0)) if position else 0.0,
+            pending_buy_exposure,
+            open_sell_reserved,
+        ):
+            session.add(
+                ExecutionIntentRecord(
                     intent_id=intent.intent_id,
+                    plan_id=intent.plan_id,
+                    instrument_id=intent.instrument_id,
+                    run_mode=intent.run_mode,
+                    state_version=intent.state_version,
                     status=IntentStatus.REJECTED,
                     reason="CAPACITY_BLOCKED",
+                    created_at=now,
                 )
-            if plan.order_type is OrderType.LIMIT:
-                return await self._reserve_limit(
-                    session, intent, plan, account, position, quantity, now
-                )
-            return await self._fill_market(
-                session, intent, plan, account, position, quantity, price, now
             )
+            return ExecutionResult(
+                intent_id=intent.intent_id,
+                status=IntentStatus.REJECTED,
+                reason="CAPACITY_BLOCKED",
+            )
+        if plan.order_type is OrderType.LIMIT:
+            return await self._reserve_limit(
+                session, intent, plan, account, position, quantity, now
+            )
+        return await self._fill_market(
+            session, intent, plan, account, position, quantity, price, now
+        )
+
+    async def _risk_gate_reason(
+        self,
+        session: AsyncSession,
+        intent: ExecutionIntent,
+        side: OrderSide,
+        now: datetime,
+    ) -> str | None:
+        """Admit risk-increasing BUY only. Risk-reducing exits are never blocked here."""
+        if self.risk_gate is None or side is not OrderSide.BUY:
+            return None
+        return await self.risk_gate.evaluate(
+            session,
+            run_mode=intent.run_mode,
+            instrument_id=intent.instrument_id,
+            side=side,
+            plan_id=intent.plan_id,
+            now=now,
+        )
+
+    async def _risk_gate_reason_for_order(
+        self,
+        session: AsyncSession,
+        order: PaperOrderRecord,
+        now: datetime,
+    ) -> str | None:
+        """Admit risk-increasing limit BUY fills only; SELL risk reduction is never gated."""
+        if self.risk_gate is None or order.side != OrderSide.BUY:
+            return None
+        return await self.risk_gate.evaluate(
+            session,
+            run_mode=order.run_mode,
+            instrument_id=order.instrument_id,
+            side=OrderSide(order.side),
+            plan_id=order.plan_id,
+            now=now,
+        )
 
     def _revalidate(
         self,
@@ -809,6 +881,146 @@ class PaperExecutionService:
         session.add(order)
         return await self._settle_order(session, account, position, order, price, now)
 
+    async def execute_risk_reducing_exit(
+        self,
+        *,
+        intent_id: str,
+        plan_id: str,
+        instrument_id: str,
+        run_mode: RunMode,
+        quantity: float,
+        exit_reason: str,
+        now: datetime | None = None,
+        on_settled: Callable[[AsyncSession, PaperOrderRecord, str], Awaitable[None]] | None = None,
+        session: AsyncSession | None = None,
+    ) -> ExecutionResult:
+        """G4 risk-reducing SELL at the current executable Best Bid.
+
+        Stop/TP are trigger prices only: the fill always uses a fresh BBO bid, never the stop,
+        the take-profit or a snapshot price. Nothing is fabricated when data is stale or when
+        the position is already flat.
+        """
+        now = now or datetime.now(UTC)
+        if session is not None:
+            return await self._risk_reducing_exit_once(
+                intent_id=intent_id,
+                plan_id=plan_id,
+                instrument_id=instrument_id,
+                run_mode=run_mode,
+                quantity=quantity,
+                exit_reason=exit_reason,
+                now=now,
+                on_settled=on_settled,
+                session=session,
+            )
+        async with self.sessions() as inner, inner.begin():
+            return await self._risk_reducing_exit_once(
+                intent_id=intent_id,
+                plan_id=plan_id,
+                instrument_id=instrument_id,
+                run_mode=run_mode,
+                quantity=quantity,
+                exit_reason=exit_reason,
+                now=now,
+                on_settled=on_settled,
+                session=inner,
+            )
+
+    async def _risk_reducing_exit_once(
+        self,
+        *,
+        intent_id: str,
+        plan_id: str,
+        instrument_id: str,
+        run_mode: RunMode,
+        quantity: float,
+        exit_reason: str,
+        now: datetime,
+        on_settled: Callable[[AsyncSession, PaperOrderRecord, str], Awaitable[None]] | None,
+        session: AsyncSession,
+    ) -> ExecutionResult:
+        existing = await session.scalar(
+            select(PaperOrderRecord).where(PaperOrderRecord.intent_id == intent_id)
+        )
+        if existing:
+            fill = await session.scalar(
+                select(FillRecord).where(FillRecord.intent_id == intent_id)
+            )
+            return ExecutionResult(
+                intent_id=intent_id,
+                status=IntentStatus.EXECUTED,
+                reason="duplicate_intent",
+                order_id=existing.order_id,
+                fill_id=fill.fill_id if fill else None,
+            )
+        bbo = await self.bbo_for(instrument_id)
+        if bbo.instrument_id != instrument_id or not self._is_fresh_bbo(bbo, now):
+            return ExecutionResult(
+                intent_id=intent_id,
+                status=IntentStatus.REJECTED,
+                reason="CORE_MARKET_DATA_STALE",
+            )
+        account = await session.scalar(
+            select(AccountRecord).where(AccountRecord.run_mode == run_mode).with_for_update()
+        )
+        if account is None:
+            raise RuntimeError("account_not_bootstrapped")
+        positions = list(
+            (
+                await session.scalars(
+                    select(PositionRecord)
+                    .where(PositionRecord.run_mode == run_mode)
+                    .with_for_update()
+                )
+            ).all()
+        )
+        position = next(
+            (item for item in positions if item.instrument_id == instrument_id), None
+        )
+        if position is None or position.quantity <= 1e-12 or quantity <= 1e-12:
+            return ExecutionResult(
+                intent_id=intent_id, status=IntentStatus.REJECTED, reason="POSITION_NOT_OPEN"
+            )
+        price = bbo.bid * (1 - self.slippage_bps / 10_000)
+        order = PaperOrderRecord(
+            order_id=stable_id("order", intent_id),
+            intent_id=intent_id,
+            plan_id=plan_id,
+            instrument_id=instrument_id,
+            run_mode=run_mode,
+            side=OrderSide.SELL,
+            order_type=OrderType.MARKET,
+            status=OrderStatus.OPEN,
+            quantity=min(quantity, position.quantity),
+            limit_price=None,
+            reserved_cash=0,
+            reserved_quantity=0,
+            created_at=now,
+        )
+        session.add(
+            ExecutionIntentRecord(
+                intent_id=intent_id,
+                plan_id=plan_id,
+                instrument_id=instrument_id,
+                run_mode=run_mode,
+                state_version=0,
+                status=IntentStatus.EXECUTED,
+                reason=exit_reason,
+                created_at=now,
+            )
+        )
+        session.add(order)
+        return await self._settle_order(
+            session,
+            account,
+            position,
+            order,
+            price,
+            now,
+            exit_reason=exit_reason,
+            on_settled=on_settled,
+        )
+
     async def _settle_order(
         self,
         session: AsyncSession,
@@ -817,6 +1029,9 @@ class PaperExecutionService:
         order: PaperOrderRecord,
         price: float,
         now: datetime,
+        *,
+        exit_reason: str | None = None,
+        on_settled: Callable[[AsyncSession, PaperOrderRecord, str], Awaitable[None]] | None = None,
     ) -> ExecutionResult:
         """Persist one all-or-none fill and every G3 settlement record atomically."""
         if order.status != OrderStatus.OPEN:
@@ -881,10 +1096,11 @@ class PaperExecutionService:
                 position.quantity = 0
                 position.average_cost = 0
                 if trade_id:
+                    values: dict[str, object] = {"status": "CLOSED", "closed_at": now}
+                    if exit_reason is not None:
+                        values["exit_reason"] = exit_reason
                     await session.execute(
-                        update(TradeRecord)
-                        .where(TradeRecord.trade_id == trade_id)
-                        .values(status="CLOSED", closed_at=now)
+                        update(TradeRecord).where(TradeRecord.trade_id == trade_id).values(**values)
                     )
             cash_delta, entry_type = gross - fee, "SELL_FILL"
         order.status = OrderStatus.FILLED
@@ -931,6 +1147,8 @@ class PaperExecutionService:
                     created_at=now,
                 )
             )
+        if on_settled is not None:
+            await on_settled(session, order, fill_id)
         if self.after_settlement:
             self.after_settlement()
         return ExecutionResult(
@@ -971,6 +1189,27 @@ class PaperExecutionService:
         self, order_id: str, bbo: BestBidAsk, now: datetime
     ) -> ExecutionResult | None:
         async with self.sessions() as session, session.begin():
+            # Preview without a row lock so the G4 gate can take the global runtime-control lock
+            # first. Every caller then re-reads the order with FOR UPDATE before mutating it,
+            # and the gate's lock makes the preview observation atomic against control changes.
+            preview = await session.scalar(
+                select(PaperOrderRecord).where(PaperOrderRecord.order_id == order_id)
+            )
+            if (
+                preview is None
+                or preview.status != OrderStatus.OPEN
+                or preview.order_type != OrderType.LIMIT
+                or preview.instrument_id != bbo.instrument_id
+            ):
+                return None
+            gate_reason = await self._risk_gate_reason_for_order(session, preview, now)
+            if gate_reason is not None:
+                return ExecutionResult(
+                    intent_id=preview.intent_id,
+                    status=IntentStatus.EXECUTED,
+                    reason=gate_reason,
+                    order_id=preview.order_id,
+                )
             order = await session.scalar(
                 select(PaperOrderRecord)
                 .where(PaperOrderRecord.order_id == order_id)
@@ -1103,52 +1342,69 @@ class PaperExecutionService:
                 return "BUY_PRICE_OUTSIDE_ENTRY_ZONE"
         return None
 
-    async def cancel_order(self, order_id: str, now: datetime | None = None) -> OrderCancelResult:
-        """Cancel an OPEN order and release its reservation in the same transaction."""
+    async def cancel_order(
+        self,
+        order_id: str,
+        now: datetime | None = None,
+        *,
+        session: AsyncSession | None = None,
+    ) -> OrderCancelResult:
+        """Cancel an OPEN order and release its reservation in the same transaction.
+
+        When `session` is supplied the caller owns the transaction, which lets G4 cancel every
+        risk-increasing order and flip the runtime control state in one atomic commit.
+        """
         now = now or datetime.now(UTC)
-        async with self.sessions() as session, session.begin():
-            order = await session.scalar(
-                select(PaperOrderRecord)
-                .where(PaperOrderRecord.order_id == order_id)
-                .with_for_update()
-            )
-            if order is None:
-                raise ValueError("order_not_found")
-            if order.status != OrderStatus.OPEN:
-                return OrderCancelResult(
-                    order_id=order_id,
-                    status=OrderStatus(order.status),
-                    cancelled=False,
-                    reason="order_not_open",
-                )
-            account = await session.scalar(
-                select(AccountRecord)
-                .where(AccountRecord.run_mode == order.run_mode)
-                .with_for_update()
-            )
-            if account is None:
-                raise RuntimeError("account_not_bootstrapped")
-            if account.reserved_cash + 1e-12 < order.reserved_cash:
-                raise RuntimeError("reserved_cash_underflow")
-            account.reserved_cash -= order.reserved_cash
-            if abs(account.reserved_cash) <= 1e-12:
-                account.reserved_cash = 0.0
-            account.updated_at = now
-            order.status = OrderStatus.CANCELLED
-            order.reserved_cash = 0.0
-            order.reserved_quantity = 0.0
-            session.add(
-                OutboxRecord(
-                    outbox_id=stable_id("outbox", "ORDER_CANCELLED", order.order_id),
-                    aggregate_id=order.order_id,
-                    event_type="ORDER_CANCELLED",
-                    payload={"instrument_id": order.instrument_id},
-                    created_at=now,
-                )
-            )
+        if session is not None:
+            return await self._cancel_order_once(order_id, now, session)
+        async with self.sessions() as inner, inner.begin():
+            return await self._cancel_order_once(order_id, now, inner)
+
+    async def _cancel_order_once(
+        self, order_id: str, now: datetime, session: AsyncSession
+    ) -> OrderCancelResult:
+        order = await session.scalar(
+            select(PaperOrderRecord)
+            .where(PaperOrderRecord.order_id == order_id)
+            .with_for_update()
+        )
+        if order is None:
+            raise ValueError("order_not_found")
+        if order.status != OrderStatus.OPEN:
             return OrderCancelResult(
-                order_id=order_id, status=OrderStatus.CANCELLED, cancelled=True
+                order_id=order_id,
+                status=OrderStatus(order.status),
+                cancelled=False,
+                reason="order_not_open",
             )
+        account = await session.scalar(
+            select(AccountRecord)
+            .where(AccountRecord.run_mode == order.run_mode)
+            .with_for_update()
+        )
+        if account is None:
+            raise RuntimeError("account_not_bootstrapped")
+        if account.reserved_cash + 1e-12 < order.reserved_cash:
+            raise RuntimeError("reserved_cash_underflow")
+        account.reserved_cash -= order.reserved_cash
+        if abs(account.reserved_cash) <= 1e-12:
+            account.reserved_cash = 0.0
+        account.updated_at = now
+        order.status = OrderStatus.CANCELLED
+        order.reserved_cash = 0.0
+        order.reserved_quantity = 0.0
+        session.add(
+            OutboxRecord(
+                outbox_id=stable_id("outbox", "ORDER_CANCELLED", order.order_id),
+                aggregate_id=order.order_id,
+                event_type="ORDER_CANCELLED",
+                payload={"instrument_id": order.instrument_id},
+                created_at=now,
+            )
+        )
+        return OrderCancelResult(
+            order_id=order_id, status=OrderStatus.CANCELLED, cancelled=True
+        )
 
     async def reconciliation(self, run_mode: RunMode) -> dict[str, Any]:
         """Return G3 accounting invariants and diagnostics without attempting repair."""

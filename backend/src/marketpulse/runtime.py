@@ -17,6 +17,17 @@ class HealthRegistry:
     def snapshot(self) -> dict[str, dict[str, object]]:
         return dict(self.checks)
 
+    def status(self, name: str, default: str = "HEALTHY") -> str:
+        entry = self.checks.get(name)
+        return str(entry["status"]) if entry else default
+
+    def blocking(self, names: frozenset[str] | set[str] | tuple[str, ...]) -> list[str]:
+        """Names whose status is not healthy. Used by the G4 risk gate for admission control."""
+        return [name for name in names if self.status(name) != "HEALTHY"]
+
+    def all_healthy(self, names: frozenset[str] | set[str] | tuple[str, ...]) -> bool:
+        return not self.blocking(names)
+
 
 @dataclass
 class GlobalRuntimeState:
