@@ -256,7 +256,7 @@ class RecoveryManager:
             SystemState.EMERGENCY_STOP,
             SystemState.ERROR,
         ):
-            cancelled = await self._cancel_risk_increasing_buys(run_mode, orders, now)
+            cancelled = await self._cancel_risk_increasing_buys(orders, now)
             if cancelled:
                 report.steps.append(f"CANCEL_RISK_INCREASING:{len(cancelled)}")
         await self.state_service.transition(
@@ -369,7 +369,7 @@ class RecoveryManager:
         )
 
     async def _cancel_risk_increasing_buys(
-        self, run_mode: RunMode, orders: list[PaperOrderRecord], now: datetime
+        self, orders: list[PaperOrderRecord], now: datetime
     ) -> list[str]:
         """Cancel every OPEN BUY that can no longer fill in the final non-running state."""
         cancelled: list[str] = []
