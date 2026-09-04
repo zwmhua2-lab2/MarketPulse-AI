@@ -1,0 +1,22 @@
+{
+  "name": "marketpulse-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc -b && vite build",
+    "generate:api": "openapi-typescript http://127.0.0.1:8000/openapi.json -o src/api/generated.ts"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "latest",
+    "openapi-typescript": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "typescript": "latest",
+    "vite": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest"
+  },
+  "devDependencies": {}
+}
