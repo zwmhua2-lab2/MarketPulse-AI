@@ -201,6 +201,7 @@ class Harness:
                 PositionEventRecord,
                 IncidentRecord,
                 SymbolControlRecord,
+                SymbolStateStore,
                 RuntimeControlRecord,
             ):
                 await session.execute(delete(table))
@@ -1532,3 +1533,325 @@ def test_reconciliation_detects_stale_risk_increasing_buy():
     assert report.invariants["closed_position_no_stale_intent"] is False
     stale = report.details["closed_position_stale_intents"]
     assert any(item["reason"] == "BUY_AFTER_CLOSED_LIFECYCLE" for item in stale)
+
+
+# ==============================================================================
+# Post-Review Fix #2 regression tests
+# ==============================================================================
+
+
+def test_recovery_cancels_buy_when_current_ask_left_entry_zone():
+    async def case():
+        h = Harness()
+        await h.boot()
+        plan = await open_limit_buy(h, notional=20, limit=95)
+        async with SESSIONS() as session:
+            order = await session.scalar(
+                select(PaperOrderRecord).where(PaperOrderRecord.plan_id == plan.plan_id)
+            )
+            reserved_before = order.reserved_cash
+        h2 = Harness()
+        h2.quotes = {"SOL-USDT": (120.0, 121.0)}
+        report = await h2.recovery.recover(
+            RunMode.REPLAY, bbo_for=h2.bbo_for, now=h2.clock.now()
+        )
+        async with SESSIONS() as session:
+            order = await session.get(PaperOrderRecord, order.order_id)
+            account = await session.scalar(
+                select(AccountRecord).where(AccountRecord.run_mode == RunMode.REPLAY)
+            )
+            fills = list(
+                (await session.scalars(select(FillRecord).where(FillRecord.order_id == order.order_id))).all()
+            )
+        return report, reserved_before, order, account, fills
+
+    report, reserved_before, order, account, fills = asyncio.run(case())
+    assert reserved_before > 0
+    assert order.status == OrderStatus.CANCELLED and order.reserved_cash == 0
+    assert account.reserved_cash == 0 and account.cash_balance == pytest.approx(1000.0)
+    assert fills == []
+    revalidation = next(item for item in report.order_revalidation if item["order_id"] == order.order_id)
+    assert "BUY_PRICE_OUTSIDE_ENTRY_ZONE" in revalidation["issues"]
+
+
+def test_recovery_cancels_buy_when_stop_already_breached():
+    async def case():
+        h = Harness()
+        await h.boot()
+        h.quotes["SOL-USDT"] = (99.0, 100.0)
+        plan = make_plan(
+            "SOL-USDT",
+            notional=20,
+            stop=80,
+            tp=140,
+            entry_zone=PriceZone(lower=70, upper=120),
+            order_type=OrderType.LIMIT,
+        )
+        await persist_trade_plan(SESSIONS, plan)
+        result = await h.execution.execute(intent_for(plan), plan, NOW)
+        assert result.status is IntentStatus.EXECUTED
+        h2 = Harness()
+        h2.quotes = {"SOL-USDT": (78.0, 79.0)}
+        report = await h2.recovery.recover(
+            RunMode.REPLAY, bbo_for=h2.bbo_for, now=h2.clock.now()
+        )
+        async with SESSIONS() as session:
+            order = await session.get(PaperOrderRecord, result.order_id)
+            account = await session.scalar(
+                select(AccountRecord).where(AccountRecord.run_mode == RunMode.REPLAY)
+            )
+            position = await session.scalar(
+                select(PositionRecord).where(
+                    PositionRecord.run_mode == RunMode.REPLAY,
+                    PositionRecord.instrument_id == "SOL-USDT",
+                )
+            )
+        return report, order, account, position
+
+    report, order, account, position = asyncio.run(case())
+    assert order.status == OrderStatus.CANCELLED
+    assert account.reserved_cash == 0
+    assert position is None or position.quantity == 0
+    revalidation = next(item for item in report.order_revalidation if item["order_id"] == order.order_id)
+    assert "BUY_STOP_LOSS_BREACHED" in revalidation["issues"]
+
+
+def test_recovery_cancels_open_buy_for_persisted_symbol_block():
+    async def case():
+        h = Harness()
+        await h.boot()
+        plan = await open_limit_buy(h, notional=20, limit=95)
+        async with SESSIONS() as session, session.begin():
+            session.add(
+                SymbolControlRecord(
+                    control_id=stable_id("sctl", RunMode.REPLAY, "SOL-USDT"),
+                    run_mode=RunMode.REPLAY,
+                    instrument_id="SOL-USDT",
+                    blocked=True,
+                    reason="persisted_block",
+                    updated_at=NOW,
+                    payload={},
+                )
+            )
+        h2 = Harness()
+        h2.quotes = {"SOL-USDT": (99.0, 100.0)}
+        report = await h2.recovery.recover(
+            RunMode.REPLAY, bbo_for=h2.bbo_for, now=h2.clock.now()
+        )
+        async with SESSIONS() as session:
+            order = await session.scalar(
+                select(PaperOrderRecord).where(PaperOrderRecord.plan_id == plan.plan_id)
+            )
+            account = await session.scalar(
+                select(AccountRecord).where(AccountRecord.run_mode == RunMode.REPLAY)
+            )
+        return report, order, account
+
+    report, order, account = asyncio.run(case())
+    assert order.status == OrderStatus.CANCELLED and account.reserved_cash == 0
+    revalidation = next(item for item in report.order_revalidation if item["order_id"] == order.order_id)
+    assert "SYMBOL_BLOCKED" in revalidation["issues"]
+
+
+def test_reevaluation_atomic_guard_blocks_post_check_plan_race():
+    async def case():
+        h = Harness()
+        await h.boot()
+        plan, _ = await open_position(h, notional=50, bid=99, ask=100, stop=80, tp=140)
+        h.review_provider._response = PositionReevaluation(
+            action=ReevaluationAction.UPDATE_STOP, reason="old response", stop_loss=90.0
+        )
+        checked = asyncio.Event()
+        release = asyncio.Event()
+        original_detect = h.reevaluation._detect_stale
+
+        async def pass_then_pause(*args, **kwargs):
+            reasons = await original_detect(*args, **kwargs)
+            assert reasons == []
+            checked.set()
+            await release.wait()
+            return reasons
+
+        h.reevaluation._detect_stale = pass_then_pause
+        evaluate_task = asyncio.create_task(
+            h.reevaluation.evaluate(
+                RunMode.REPLAY,
+                "SOL-USDT",
+                await h.bbo_for("SOL-USDT"),
+                now=NOW,
+                force=True,
+            )
+        )
+        await checked.wait()
+        newer = derive_followup_plan(
+            plan, now=NOW, plan_version=plan.plan_version + 1, stop_loss=85.0
+        )
+        await h.plans.replace(previous=plan, next_plan=newer, now=NOW)
+        release.set()
+        outcome = await evaluate_task
+        async with SESSIONS() as session:
+            active = await load_active_plan(session, RunMode.REPLAY, "SOL-USDT")
+            position = await session.scalar(
+                select(PositionRecord).where(
+                    PositionRecord.run_mode == RunMode.REPLAY,
+                    PositionRecord.instrument_id == "SOL-USDT",
+                )
+            )
+            account = await session.scalar(
+                select(AccountRecord).where(AccountRecord.run_mode == RunMode.REPLAY)
+            )
+            decision = await session.scalar(
+                select(AIDecisionRecord).where(AIDecisionRecord.run_mode == RunMode.REPLAY)
+            )
+        return outcome, newer, active, position, account, decision
+
+    outcome, newer, active, position, account, decision = asyncio.run(case())
+    assert outcome.action is ReevaluationAction.HOLD and not outcome.applied
+    assert outcome.reason.startswith("STALE_DECISION")
+    assert active.plan_id == newer.plan_id and active.stop_loss == 85.0
+    assert position.quantity == pytest.approx(50 / 100.05)
+    assert account.cash_balance == pytest.approx(949.95) and account.reserved_cash == 0
+    assert decision.status == DecisionStatus.STALE_DECISION.value
+
+
+def test_reevaluation_uses_action_clock_after_provider_delay():
+    async def case():
+        h = Harness()
+        await h.boot()
+        await open_position(h, notional=50, bid=99, ask=100, stop=80, tp=140)
+
+        async def delayed_response(snapshot):
+            h.clock.advance(16 * 60)
+            return PositionReevaluation(
+                action=ReevaluationAction.ADD, reason="late add", intended_notional=20.0
+            )
+
+        h.review_provider._response = delayed_response
+        outcome = await h.reevaluation.evaluate(
+            RunMode.REPLAY, "SOL-USDT", await h.bbo_for("SOL-USDT"), now=NOW, force=True
+        )
+        async with SESSIONS() as session:
+            orders = list(
+                (
+                    await session.scalars(
+                        select(PaperOrderRecord).where(
+                            PaperOrderRecord.run_mode == RunMode.REPLAY,
+                            PaperOrderRecord.instrument_id == "SOL-USDT",
+                        )
+                    )
+                ).all()
+            )
+            decision = await session.scalar(
+                select(AIDecisionRecord).where(AIDecisionRecord.run_mode == RunMode.REPLAY)
+            )
+        return outcome, orders, decision
+
+    outcome, orders, decision = asyncio.run(case())
+    assert outcome.action is ReevaluationAction.HOLD and not outcome.applied
+    assert "plan_expired_at_action" in outcome.reason
+    assert len(orders) == 1  # only the original position-opening BUY; zero delayed ADD
+    assert decision.created_at == NOW + timedelta(minutes=16)
+
+
+def test_recovery_bbo_exception_with_open_position_persists_incident():
+    async def case():
+        h = Harness()
+        await h.boot()
+        await open_position(h, notional=50, bid=99, ask=100, stop=80, tp=140)
+        h2 = Harness()
+
+        async def failing_bbo(_instrument):
+            raise RuntimeError("provider_down")
+
+        report = await h2.recovery.recover(
+            RunMode.REPLAY, bbo_for=failing_bbo, now=h2.clock.now()
+        )
+        async with SESSIONS() as session:
+            incident = await session.scalar(
+                select(IncidentRecord).where(
+                    IncidentRecord.incident_type == IncidentType.CORE_DATA_STALE,
+                    IncidentRecord.instrument_id == "SOL-USDT",
+                    IncidentRecord.status == "OPEN",
+                )
+            )
+            position = await session.scalar(
+                select(PositionRecord).where(
+                    PositionRecord.run_mode == RunMode.REPLAY,
+                    PositionRecord.instrument_id == "SOL-USDT",
+                )
+            )
+            order_ids = list(
+                (
+                    await session.scalars(
+                        select(PaperOrderRecord.order_id).where(
+                            PaperOrderRecord.run_mode == RunMode.REPLAY
+                        )
+                    )
+                ).all()
+            )
+            fills = list(
+                (
+                    await session.scalars(
+                        select(FillRecord).where(FillRecord.order_id.in_(order_ids))
+                    )
+                ).all()
+            )
+        return report, h2, incident, position, fills
+
+    report, h2, incident, position, fills = asyncio.run(case())
+    assert incident is not None
+    assert h2.health.status(HealthComponent.CORE_MARKET_DATA.value) == HealthStatus.UNAVAILABLE
+    assert report.final_system_state is SystemState.DATA_DEGRADED and not report.ok
+    assert position.quantity > 0
+    assert len(fills) == 1  # only the original paper fill; recovery fabricated nothing
+
+
+def test_safe_mode_recovery_resolves_only_after_durable_checks_pass():
+    async def case():
+        h = Harness()
+        await h.boot()
+        await h.control.enter_safe_mode(
+            RunMode.REPLAY,
+            "transient_recovery_failure",
+            incident_type=IncidentType.RECOVERY_FAILED,
+            now=NOW,
+        )
+        outcome = await h.control.safe_mode_recovery(RunMode.REPLAY, now=NOW)
+        async with SESSIONS() as session:
+            incident = await session.scalar(
+                select(IncidentRecord).where(
+                    IncidentRecord.incident_type == IncidentType.RECOVERY_FAILED
+                )
+            )
+        return outcome, incident
+
+    outcome, incident = asyncio.run(case())
+    assert outcome.accepted
+    assert outcome.system_state is SystemState.PAUSED
+    assert outcome.operator_state is OperatorState.PAUSED
+    assert incident.status == "RESOLVED"
+
+
+def test_reevaluation_rejects_plan_update_with_breached_stop():
+    async def case():
+        h = Harness()
+        await h.boot()
+        original, _ = await open_position(
+            h, notional=50, bid=99, ask=100, stop=80, tp=140
+        )
+        h.review_provider._response = PositionReevaluation(
+            action=ReevaluationAction.UPDATE_STOP,
+            reason="invalid stop",
+            stop_loss=101.0,
+        )
+        outcome = await h.reevaluation.evaluate(
+            RunMode.REPLAY, "SOL-USDT", await h.bbo_for("SOL-USDT"), now=NOW, force=True
+        )
+        async with SESSIONS() as session:
+            active = await load_active_plan(session, RunMode.REPLAY, "SOL-USDT")
+        return outcome, original, active
+
+    outcome, original, active = asyncio.run(case())
+    assert not outcome.applied
+    assert outcome.reason == "PLAN_VALIDATION_FAILED:stop_already_breached"
+    assert active.plan_id == original.plan_id and active.stop_loss == 80

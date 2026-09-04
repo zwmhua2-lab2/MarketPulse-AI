@@ -16,6 +16,10 @@ from .models import PositionEventType
 DEFAULT_PLAN_TTL = timedelta(minutes=15)
 
 
+class StalePlanError(RuntimeError):
+    """The expected plan is no longer the current ACTIVE plan."""
+
+
 def derive_followup_plan(
     previous: TradePlan,
     *,
@@ -90,24 +94,27 @@ class PlanManager:
         now: datetime,
         cancel_stale_risk_increasing: bool,
     ) -> tuple[TradePlan, list[str]]:
-        await session.execute(
+        if (
+            previous.run_mode != next_plan.run_mode
+            or previous.instrument_id != next_plan.instrument_id
+            or next_plan.plan_version != previous.plan_version + 1
+        ):
+            raise ValueError("replacement_plan_scope_or_version_invalid")
+
+        replaced = await session.execute(
             update(TradePlanRecord)
             .where(
                 TradePlanRecord.plan_id == previous.plan_id,
+                TradePlanRecord.run_mode == previous.run_mode,
+                TradePlanRecord.instrument_id == previous.instrument_id,
+                TradePlanRecord.plan_version == previous.plan_version,
                 TradePlanRecord.status == PlanStatus.ACTIVE,
             )
             .values(status=PlanStatus.REPLACED)
+            .returning(TradePlanRecord.plan_id)
         )
-        # Any other ACTIVE plan for this symbol would violate the one-active-plan invariant.
-        await session.execute(
-            update(TradePlanRecord)
-            .where(
-                TradePlanRecord.run_mode == next_plan.run_mode,
-                TradePlanRecord.instrument_id == next_plan.instrument_id,
-                TradePlanRecord.status == PlanStatus.ACTIVE,
-            )
-            .values(status=PlanStatus.REPLACED)
-        )
+        if replaced.scalar_one_or_none() is None:
+            raise StalePlanError("expected_active_plan_changed")
         session.add(
             TradePlanRecord(
                 plan_id=next_plan.plan_id,
@@ -124,6 +131,9 @@ class PlanManager:
                 payload=next_plan.model_dump(mode="json"),
             )
         )
+        # Surface the partial-unique-index conflict inside the caller-owned transaction. The
+        # caller can then roll the whole stale action back instead of overwriting a newer plan.
+        await session.flush()
         cancelled: list[str] = []
         if cancel_stale_risk_increasing:
             cancelled = await self.cancel_stale_risk_increasing(
@@ -198,15 +208,20 @@ class PlanManager:
 
 
 async def load_active_plan(
-    session: AsyncSession, run_mode: RunMode, instrument_id: str
+    session: AsyncSession,
+    run_mode: RunMode,
+    instrument_id: str,
+    *,
+    for_update: bool = False,
 ) -> TradePlan | None:
-    record = await session.scalar(
-        select(TradePlanRecord).where(
+    statement = select(TradePlanRecord).where(
             TradePlanRecord.run_mode == run_mode,
             TradePlanRecord.instrument_id == instrument_id,
             TradePlanRecord.status == PlanStatus.ACTIVE,
         )
-    )
+    if for_update:
+        statement = statement.with_for_update()
+    record = await session.scalar(statement)
     if record is None:
         return None
     try:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta
 from typing import Any
@@ -13,6 +14,7 @@ from marketpulse.db.models import (
     PaperOrderRecord,
     PositionRecord,
     RuntimeControlRecord,
+    SymbolControlRecord,
     SymbolStateStore,
     TradePlanRecord,
 )
@@ -23,12 +25,14 @@ from marketpulse.g3.models import (
     OrderStatus,
     PlanStatus,
     RunMode,
+    TradePlan,
 )
 from marketpulse.g3.service import PaperExecutionService
 from marketpulse.runtime import HealthRegistry
 
 from .incidents import IncidentManager
 from .models import (
+    RISK_BLOCKING_COMPONENTS,
     HealthComponent,
     HealthStatus,
     IncidentType,
@@ -145,6 +149,9 @@ class RecoveryManager:
 
         # Fresh market data for every active symbol.
         quotes: dict[str, BestBidAsk] = {}
+        open_position_symbols = {
+            position.instrument_id for position in positions if position.quantity > 0
+        }
         fresh_all = True
         for instrument_id in active_symbols:
             try:
@@ -163,6 +170,14 @@ class RecoveryManager:
                     instrument_id=instrument_id,
                     error=type(exc).__name__,
                 )
+                if instrument_id in open_position_symbols:
+                    await self.incidents.open(
+                        incident_type=IncidentType.CORE_DATA_STALE,
+                        run_mode=run_mode,
+                        reason="recovery_bbo_provider_failure",
+                        instrument_id=instrument_id,
+                        payload={"error": type(exc).__name__},
+                    )
                 fresh_all = False
                 continue
             fresh_all = False
@@ -171,6 +186,14 @@ class RecoveryManager:
                 HealthStatus.UNAVAILABLE.value,
                 instrument_id=instrument_id,
             )
+            if instrument_id in open_position_symbols:
+                await self.incidents.open(
+                    incident_type=IncidentType.CORE_DATA_STALE,
+                    run_mode=run_mode,
+                    reason="recovery_bbo_unusable",
+                    instrument_id=instrument_id,
+                    payload={"received_at": quote.received_at.isoformat()},
+                )
         if not active_symbols:
             fresh_all = True
         if fresh_all and active_symbols:
@@ -232,12 +255,14 @@ class RecoveryManager:
         # Decide the final effective state. Operator intent, the persisted SAFE_MODE latch, and
         # unresolved blocking incidents all win over a silent promotion to RUNNING.
         blocking_incidents = await self.incidents.blocking(run_mode)
+        health_blocking = self.health.blocking(RISK_BLOCKING_COMPONENTS)
         final_state = await self._final_state(
             control.operator_state,
             pre_system_state,
             reconciliation.ok,
             fresh_all,
             bool(blocking_incidents),
+            health_blocking,
         )
         report.final_system_state = final_state
         if not reconciliation.ok:
@@ -283,7 +308,6 @@ class RecoveryManager:
         quotes: dict[str, BestBidAsk],
         now: datetime,
     ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-        plans_by_id = {plan.plan_id: plan for plan in plans}
         versions = {state.instrument_id: state.state_version for state in symbol_states}
         plan_revalidation: list[dict[str, Any]] = []
         order_revalidation: list[dict[str, Any]] = []
@@ -301,31 +325,85 @@ class RecoveryManager:
         for order in orders:
             if order.status != OrderStatus.OPEN:
                 continue
-            plan = plans_by_id.get(order.plan_id)
-            issues: list[str] = []
-            if plan is None:
-                issues.append("PLAN_MISSING")
-            else:
-                issues.extend(self._plan_issues(plan, versions, now))
-                if plan.instrument_id != order.instrument_id or plan.run_mode != order.run_mode:
-                    issues.append("PLAN_SCOPE_MISMATCH")
-                if order.side == OrderSide.BUY:
-                    quote = quotes.get(order.instrument_id)
+            async with self.sessions() as session, session.begin():
+                # RECOVERING is only a transient fill block. Lock it first for concurrency safety,
+                # then evaluate durable business facts without calling SystemRiskGate.
+                await self.state_service.load(run_mode, session=session, for_update=True)
+                current_order = await session.scalar(
+                    select(PaperOrderRecord)
+                    .where(PaperOrderRecord.order_id == order.order_id)
+                    .with_for_update()
+                )
+                if current_order is None or current_order.status != OrderStatus.OPEN:
+                    continue
+                plan = await session.scalar(
+                    select(TradePlanRecord)
+                    .where(TradePlanRecord.plan_id == current_order.plan_id)
+                    .with_for_update()
+                )
+                issues: list[str] = []
+                quote = quotes.get(current_order.instrument_id)
+                plan_model: TradePlan | None = None
+                if plan is None:
+                    issues.append("PLAN_MISSING")
+                else:
+                    issues.extend(self._plan_issues(plan, versions, now))
+                    if (
+                        plan.instrument_id != current_order.instrument_id
+                        or plan.run_mode != current_order.run_mode
+                    ):
+                        issues.append("PLAN_SCOPE_MISMATCH")
+                    try:
+                        plan_model = TradePlan.model_validate(plan.payload)
+                    except Exception:  # noqa: BLE001 - corrupt durable plan must fail closed
+                        issues.append("PLAN_PAYLOAD_INVALID")
+
+                if current_order.side == OrderSide.BUY:
+                    blocked = await session.scalar(
+                        select(SymbolControlRecord).where(
+                            SymbolControlRecord.run_mode == run_mode,
+                            SymbolControlRecord.instrument_id == current_order.instrument_id,
+                            SymbolControlRecord.blocked.is_(True),
+                        )
+                    )
+                    if blocked is not None:
+                        issues.append("SYMBOL_BLOCKED")
                     if quote is None or not self._bbo_fresh(quote, now):
                         issues.append("BBO_NOT_FRESH")
-            if issues and order.side == OrderSide.BUY:
-                # Stale risk-increasing orders must be cancelled so reservations are never frozen.
-                await self.execution.cancel_order(order.order_id, now)
-                issues.append("CANCELLED")
-            order_revalidation.append(
-                {
-                    "order_id": order.order_id,
-                    "instrument_id": order.instrument_id,
-                    "side": order.side,
-                    "issues": issues,
-                    "cancelled": "CANCELLED" in issues,
-                }
-            )
+                    elif quote.instrument_id != current_order.instrument_id:
+                        issues.append("BBO_INSTRUMENT_MISMATCH")
+                    elif plan_model is not None:
+                        if not plan_model.entry_zone.contains(quote.ask):
+                            issues.append("BUY_PRICE_OUTSIDE_ENTRY_ZONE")
+                        if quote.ask <= plan_model.stop_loss:
+                            issues.append("BUY_STOP_LOSS_BREACHED")
+                        try:
+                            issues.extend(
+                                await self.execution.revalidate_open_buy_capacity(
+                                    current_order, quote, now, session=session
+                                )
+                            )
+                        except Exception as exc:  # noqa: BLE001 - recovery must fail closed
+                            issues.append(
+                                f"G3_CAPACITY_REVALIDATION_FAILED:{type(exc).__name__}"
+                            )
+                issues = list(dict.fromkeys(issues))
+                if issues and current_order.side == OrderSide.BUY:
+                    # Cancellation and reservation release share this locked transaction.
+                    result = await self.execution.cancel_order(
+                        current_order.order_id, now, session=session
+                    )
+                    if result.cancelled:
+                        issues.append("CANCELLED")
+                order_revalidation.append(
+                    {
+                        "order_id": current_order.order_id,
+                        "instrument_id": current_order.instrument_id,
+                        "side": current_order.side,
+                        "issues": issues,
+                        "cancelled": "CANCELLED" in issues,
+                    }
+                )
         return plan_revalidation, order_revalidation
 
     @staticmethod
@@ -348,6 +426,8 @@ class RecoveryManager:
         if not (
             isinstance(lower, (int, float))
             and isinstance(upper, (int, float))
+            and math.isfinite(lower)
+            and math.isfinite(upper)
             and lower <= upper
         ):
             issues.append("entry_zone_invalid")
@@ -355,6 +435,10 @@ class RecoveryManager:
         if not (
             isinstance(stop, (int, float))
             and isinstance(take_profit, (int, float))
+            and isinstance(lower, (int, float))
+            and isinstance(upper, (int, float))
+            and math.isfinite(stop)
+            and math.isfinite(take_profit)
             and stop < take_profit
         ):
             issues.append("protection_invalid")
@@ -388,6 +472,7 @@ class RecoveryManager:
         reconciliation_ok: bool,
         fresh_all: bool,
         has_blocking_incidents: bool,
+        health_blocking: list[str],
     ) -> SystemState:
         operator = OperatorState(operator_state)
         pre_system = SystemState(pre_system_state)
@@ -405,6 +490,14 @@ class RecoveryManager:
         if pre_system is SystemState.PAUSED or operator is OperatorState.PAUSED:
             return SystemState.PAUSED
         if pre_system is SystemState.ERROR:
+            return SystemState.ERROR
+        if any(
+            component in health_blocking
+            for component in (
+                HealthComponent.DATABASE.value,
+                HealthComponent.EXECUTION.value,
+            )
+        ):
             return SystemState.ERROR
         if not fresh_all:
             return SystemState.DATA_DEGRADED

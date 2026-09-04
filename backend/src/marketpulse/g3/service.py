@@ -1342,6 +1342,62 @@ class PaperExecutionService:
                 return "BUY_PRICE_OUTSIDE_ENTRY_ZONE"
         return None
 
+    async def revalidate_open_buy_capacity(
+        self,
+        order: PaperOrderRecord,
+        bbo: BestBidAsk,
+        now: datetime,
+        *,
+        session: AsyncSession,
+    ) -> list[str]:
+        """Re-evaluate G3 cash/capacity facts for one recovered OPEN BUY.
+
+        The caller owns the transaction and order lock. This deliberately excludes the G4
+        runtime-state gate because RECOVERING is a transient fill block, not a cancellation
+        reason. It reuses the same account/position/equity mathematics as the fill path.
+        """
+        issues: list[str] = []
+        if order.side != OrderSide.BUY or order.status != OrderStatus.OPEN:
+            return issues
+        account = await session.scalar(
+            select(AccountRecord)
+            .where(AccountRecord.run_mode == order.run_mode)
+            .with_for_update()
+        )
+        if account is None:
+            return ["ACCOUNT_MISSING"]
+        positions = list(
+            (
+                await session.scalars(
+                    select(PositionRecord)
+                    .where(PositionRecord.run_mode == order.run_mode)
+                    .with_for_update()
+                )
+            ).all()
+        )
+        equity_and_marks = await self._execution_equity(account, positions, bbo, now)
+        if equity_and_marks is None:
+            return ["CORE_POSITION_MARK_STALE"]
+        equity, marks = equity_and_marks
+        position = next(
+            (item for item in positions if item.instrument_id == order.instrument_id), None
+        )
+        pending_exposure = await self._open_buy_exposure(
+            session, order.run_mode, order.instrument_id
+        )
+        position_value = (
+            position.quantity * marks.get(order.instrument_id, 0.0) if position else 0.0
+        )
+        if order.limit_price is None:
+            issues.append("LIMIT_PRICE_MISSING")
+        if bbo.ask * order.quantity > equity * 0.10 + 1e-12:
+            issues.append("SINGLE_ORDER_CAP_EXCEEDED")
+        if position_value + pending_exposure > equity * 0.20 + 1e-12:
+            issues.append("SYMBOL_EXPOSURE_CAP_EXCEEDED")
+        if account.reserved_cash + 1e-12 < order.reserved_cash:
+            issues.append("RESERVATION_MISSING")
+        return issues
+
     async def cancel_order(
         self,
         order_id: str,

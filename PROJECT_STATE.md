@@ -34,7 +34,7 @@ Acceptance Group 4 — Position Safety + Recovery
 
 ## In Progress
 
-- G4 已实现并完成真实 PostgreSQL 验证，等待人工 Acceptance。
+- G4 Post-Review Fix #2 已实现并完成真实 PostgreSQL 验证，等待下一轮人工 Acceptance。
 
 ## Blocked
 
@@ -62,8 +62,8 @@ Acceptance Group 4 — Position Safety + Recovery
 
 ## Group 4 Result
 
-- G4 PostgreSQL 场景测试（`test_group4.py`）覆盖 A–U 全部验收场景 + 失败注入 + 8 个 Post-Review 回归场景（P0-1 stale 守卫 ×2 / P0-2 SAFE_MODE 锁存 ×2 / P0-3 严格 revalidation / P1-1 DataQuality.FRESH / P1-2 active_symbols / P1-3 reconciliation stale BUY）：`32 passed`。
-- 全量 `pytest backend/tests`：`59 passed`（G1 1 + G2 5 + G3 21 + G4 32）。
+- G4 PostgreSQL 场景测试（`test_group4.py`）覆盖 A–U、失败注入、Post-Review Fix #1 与 Fix #2 回归：`40 passed`。
+- 全量 `pytest backend/tests`：`67 passed`，2 个既有 FastAPI/Starlette deprecation warning。
 - `ruff check backend/src backend/tests scripts` / `compileall` / `git diff --check`：PASS。
 - `alembic current` / `alembic heads`：`20260905_0004 (head)`。
 - Restart smoke（`scripts/g4_verify_runtime.py setup/recover`）：两进程 PostgreSQL 重建 → `RUNNING`、`active_symbols=['BTC-USDT']`、`reconciliation_ok=True`。
@@ -76,6 +76,15 @@ Acceptance Group 4 — Position Safety + Recovery
 - P1-1：Recovery 与 Orchestrator 的 BBO 新鲜度判断加入 `DataQuality.FRESH`。
 - P1-2：`active_symbols` 仅来自 OPEN Order / quantity>0 Position / ACTIVE Plan。
 - P1-3：Reconciliation 不变量 #10 增测 closed lifecycle 后残留的风险增加 BUY（`BUY_AFTER_CLOSED_LIFECYCLE`）。
+
+### Post-Review Fix #2
+
+- P0-1 Recovery §33：OPEN BUY 在恢复事务内重验 current Fresh Best Ask、entry zone、stop breach、persisted symbol block 与 G3 cash/capacity；失效订单原子 cancel 并释放 Reservation，不 retroactive fill。
+- P0-2 AI TOCTOU：provider 后使用 action-time clock 与重新获取的 executable BBO；最终 stale facts（state_version、expected active plan/version、position/trade lifecycle）在 PostgreSQL 行锁事务内校验并保持到 mutation commit。
+- `PlanManager.replace()` 改为 expected-current conditional update；旧 plan 非当前 ACTIVE 时返回 stale，保留 `uq_trade_plans_one_active`，不再 replace symbol 下所有 ACTIVE plan。
+- P1 Recovery BBO failure：OPEN Position 的 exception/missing/unusable BBO 持久化 `CORE_DATA_STALE` Incident，Health 标记 UNAVAILABLE，恢复落在非 RUNNING。
+- 修复 SAFE_MODE recovery 的 blocking-incident 可达性：仅在 health/reconciliation 与 position protection durable facts 通过后，于同一控制事务 resolve 并落到 PAUSED。
+- 新增 8 个真实 PostgreSQL 回归测试；真实 AI Provider 因 `OPENAI_API_KEY=MISSING` 为 `DEFERRED / NOT VERIFIED`。
 
 ## Acceptance Record
 

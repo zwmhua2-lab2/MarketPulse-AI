@@ -181,6 +181,7 @@ class PositionProtectionService:
         quantity: float | None = None,
         trigger: ProtectionTrigger = ProtectionTrigger.NONE,
         now: datetime | None = None,
+        session: AsyncSession | None = None,
     ) -> ProtectionOutcome:
         """One atomic transaction: cancel pending adds, exit at fresh bid, write audit events."""
         now = now or self.clock.now()
@@ -196,89 +197,126 @@ class PositionProtectionService:
                 instrument_id=instrument_id, triggered=False, reason="CORE_MARKET_DATA_STALE"
             )
 
-        async with self.sessions() as session, session.begin():
-            position = await session.scalar(
-                select(PositionRecord)
-                .where(
-                    PositionRecord.run_mode == run_mode,
-                    PositionRecord.instrument_id == instrument_id,
-                )
-                .with_for_update()
-            )
-            if position is None or position.quantity <= TOLERANCE:
-                return ProtectionOutcome(
-                    instrument_id=instrument_id, triggered=False, reason="NO_POSITION"
-                )
-            plan = await load_active_plan(session, run_mode, instrument_id)
-            plan_id = plan.plan_id if plan else ""
-            plan_version = plan.plan_version if plan else 0
-
-            # A stop-loss or force-close must invalidate every pending risk-increasing BUY first,
-            # otherwise a stale add limit order could re-open the position after the exit.
-            cancelled = await self._cancel_risk_increasing(session, run_mode, instrument_id, now)
-
-            exit_quantity = position.quantity if quantity is None else min(quantity, position.quantity)
-            intent_id = stable_id(
-                "exit", run_mode, instrument_id, plan_id, plan_version, exit_reason, exit_quantity
-            )
-
-            async def on_settled(
-                inner: AsyncSession, order: PaperOrderRecord, fill_id: str
-            ) -> None:
-                self._add_event(
-                    inner,
-                    run_mode=run_mode,
-                    instrument_id=instrument_id,
-                    position_id=position.position_id,
-                    plan_id=plan_id or None,
-                    order_id=order.order_id,
-                    fill_id=fill_id,
-                    event_type=event_type,
-                    dedupe_key=f"protection:{plan_id}:{plan_version}:{exit_reason}:{intent_id}",
-                    payload={
-                        "trigger": trigger.value,
-                        "exit_reason": exit_reason,
-                        "quantity": order.quantity,
-                        "best_bid": quote.bid,
-                        "stop_loss": plan.stop_loss if plan else None,
-                        "take_profit": plan.take_profit if plan else None,
-                        "cancelled_order_ids": cancelled,
-                    },
-                    now=now,
-                )
-                self._add_event(
-                    inner,
-                    run_mode=run_mode,
-                    instrument_id=instrument_id,
-                    position_id=position.position_id,
-                    plan_id=plan_id or None,
-                    order_id=order.order_id,
-                    fill_id=fill_id,
-                    event_type=PositionEventType.CLOSE,
-                    dedupe_key=f"close:{intent_id}",
-                    payload={"exit_reason": exit_reason, "quantity": order.quantity},
-                    now=now,
-                )
-
-            result: ExecutionResult = await self.execution.execute_risk_reducing_exit(
-                intent_id=intent_id,
-                plan_id=plan_id,
-                instrument_id=instrument_id,
-                run_mode=run_mode,
-                quantity=exit_quantity,
+        if session is not None:
+            return await self._close_position_in(
+                session,
+                run_mode,
+                instrument_id,
+                quote,
                 exit_reason=exit_reason,
+                event_type=event_type,
+                quantity=quantity,
+                trigger=trigger,
                 now=now,
-                on_settled=on_settled,
-                session=session,
             )
-            if result.status is not IntentStatus.EXECUTED:
-                return ProtectionOutcome(
-                    instrument_id=instrument_id,
-                    triggered=False,
-                    trigger=trigger,
-                    reason=result.reason or "EXIT_REJECTED",
-                    cancelled_order_ids=cancelled,
-                )
+        async with self.sessions() as inner, inner.begin():
+            return await self._close_position_in(
+                inner,
+                run_mode,
+                instrument_id,
+                quote,
+                exit_reason=exit_reason,
+                event_type=event_type,
+                quantity=quantity,
+                trigger=trigger,
+                now=now,
+            )
+
+    async def _close_position_in(
+        self,
+        session: AsyncSession,
+        run_mode: RunMode,
+        instrument_id: str,
+        quote: BestBidAsk,
+        *,
+        exit_reason: ExitReason,
+        event_type: PositionEventType,
+        quantity: float | None,
+        trigger: ProtectionTrigger,
+        now: datetime,
+    ) -> ProtectionOutcome:
+        position = await session.scalar(
+            select(PositionRecord)
+            .where(
+                PositionRecord.run_mode == run_mode,
+                PositionRecord.instrument_id == instrument_id,
+            )
+            .with_for_update()
+        )
+        if position is None or position.quantity <= TOLERANCE:
+            return ProtectionOutcome(
+                instrument_id=instrument_id, triggered=False, reason="NO_POSITION"
+            )
+        plan = await load_active_plan(session, run_mode, instrument_id)
+        plan_id = plan.plan_id if plan else ""
+        plan_version = plan.plan_version if plan else 0
+
+        # A stop-loss or force-close must invalidate every pending risk-increasing BUY first,
+        # otherwise a stale add limit order could re-open the position after the exit.
+        cancelled = await self._cancel_risk_increasing(session, run_mode, instrument_id, now)
+
+        exit_quantity = position.quantity if quantity is None else min(quantity, position.quantity)
+        intent_id = stable_id(
+            "exit", run_mode, instrument_id, plan_id, plan_version, exit_reason, exit_quantity
+        )
+
+        async def on_settled(
+            inner: AsyncSession, order: PaperOrderRecord, fill_id: str
+        ) -> None:
+            self._add_event(
+                inner,
+                run_mode=run_mode,
+                instrument_id=instrument_id,
+                position_id=position.position_id,
+                plan_id=plan_id or None,
+                order_id=order.order_id,
+                fill_id=fill_id,
+                event_type=event_type,
+                dedupe_key=f"protection:{plan_id}:{plan_version}:{exit_reason}:{intent_id}",
+                payload={
+                    "trigger": trigger.value,
+                    "exit_reason": exit_reason,
+                    "quantity": order.quantity,
+                    "best_bid": quote.bid,
+                    "stop_loss": plan.stop_loss if plan else None,
+                    "take_profit": plan.take_profit if plan else None,
+                    "cancelled_order_ids": cancelled,
+                },
+                now=now,
+            )
+            self._add_event(
+                inner,
+                run_mode=run_mode,
+                instrument_id=instrument_id,
+                position_id=position.position_id,
+                plan_id=plan_id or None,
+                order_id=order.order_id,
+                fill_id=fill_id,
+                event_type=PositionEventType.CLOSE,
+                dedupe_key=f"close:{intent_id}",
+                payload={"exit_reason": exit_reason, "quantity": order.quantity},
+                now=now,
+            )
+
+        result: ExecutionResult = await self.execution.execute_risk_reducing_exit(
+            intent_id=intent_id,
+            plan_id=plan_id,
+            instrument_id=instrument_id,
+            run_mode=run_mode,
+            quantity=exit_quantity,
+            exit_reason=exit_reason,
+            now=now,
+            on_settled=on_settled,
+            session=session,
+        )
+        if result.status is not IntentStatus.EXECUTED:
+            return ProtectionOutcome(
+                instrument_id=instrument_id,
+                triggered=False,
+                trigger=trigger,
+                reason=result.reason or "EXIT_REJECTED",
+                cancelled_order_ids=cancelled,
+            )
         return ProtectionOutcome(
             instrument_id=instrument_id,
             triggered=True,
@@ -300,6 +338,7 @@ class PositionProtectionService:
         event_type: PositionEventType,
         quantity: float | None = None,
         now: datetime | None = None,
+        session: AsyncSession | None = None,
     ) -> ProtectionOutcome:
         """Shared exit path for AI REDUCE / AI CLOSE and recovery stop breaches."""
         return await self.close_position(
@@ -310,6 +349,7 @@ class PositionProtectionService:
             event_type=event_type,
             quantity=quantity,
             now=now,
+            session=session,
         )
 
     # ------------------------------------------------------------------ helpers

@@ -6,6 +6,7 @@ from typing import Any
 from uuid import uuid4
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from marketpulse.clock import Clock, SystemClock
@@ -17,9 +18,12 @@ from marketpulse.db.models import (
     PositionEventRecord,
     PositionRecord,
     SignalTimelineRecord,
+    SymbolStateStore,
+    TradeRecord,
 )
 from marketpulse.g3.models import (
     BestBidAsk,
+    DataQuality,
     DecisionSnapshot,
     DecisionStatus,
     ExecutionIntent,
@@ -45,7 +49,7 @@ from .models import (
     ReevaluationAction,
     ReevaluationOutcome,
 )
-from .planning import PlanManager, derive_followup_plan, load_active_plan
+from .planning import PlanManager, StalePlanError, derive_followup_plan, load_active_plan
 from .protection import PositionProtectionService
 from .provider import (
     REVIEW_PROMPT_VERSION,
@@ -153,7 +157,7 @@ class PositionReevaluationService:
         now: datetime | None = None,
         force: bool = False,
     ) -> ReevaluationOutcome:
-        now = now or self.clock.now()
+        snapshot_now = now or self.clock.now()
         async with self.sessions() as session:
             position = await session.scalar(
                 select(PositionRecord).where(
@@ -185,7 +189,14 @@ class PositionReevaluationService:
                     reason="NO_ACTIVE_PLAN",
                 )
             snapshot = await self._build_snapshot(
-                session, run_mode, instrument_id, position, plan, bbo, triggering_event, now
+                session,
+                run_mode,
+                instrument_id,
+                position,
+                plan,
+                bbo,
+                triggering_event,
+                snapshot_now,
             )
             session.add(
                 DecisionSnapshotRecord(
@@ -204,7 +215,8 @@ class PositionReevaluationService:
 
         prompt = PositionReviewPromptBuilder().build(snapshot)
         review, error = await self._call_provider(snapshot, prompt)
-        await self._persist_decision(snapshot, review, error)
+        action_now = self.clock.now()
+        await self._persist_decision(snapshot, review, error, action_now)
         if review is None:
             self.health.set(
                 HealthComponent.AI_AUXILIARY.value,
@@ -229,12 +241,45 @@ class PositionReevaluationService:
             HealthStatus.HEALTHY.value,
             instrument_id=instrument_id,
         )
+        action_bbo = bbo
+        if review.action in {
+            ReevaluationAction.ADD,
+            ReevaluationAction.REDUCE,
+            ReevaluationAction.CLOSE,
+            ReevaluationAction.UPDATE_STOP,
+            ReevaluationAction.UPDATE_TP,
+            ReevaluationAction.UPDATE_INVALIDATION,
+            ReevaluationAction.REPLACE_PLAN,
+        }:
+            try:
+                action_bbo = await self.execution.bbo_for(instrument_id)
+            except Exception as exc:  # noqa: BLE001 - execution-time market data must fail closed
+                self.health.set(
+                    HealthComponent.CORE_MARKET_DATA.value,
+                    HealthStatus.UNAVAILABLE.value,
+                    instrument_id=instrument_id,
+                    error=type(exc).__name__,
+                )
+                await self.incidents.open(
+                    incident_type=IncidentType.CORE_DATA_STALE,
+                    run_mode=run_mode,
+                    reason="reevaluation_action_bbo_unavailable",
+                    instrument_id=instrument_id,
+                )
+                return ReevaluationOutcome(
+                    instrument_id=instrument_id,
+                    action=review.action,
+                    applied=False,
+                    reason="CORE_MARKET_DATA_UNAVAILABLE",
+                    snapshot_id=snapshot.snapshot_id,
+                    previous_plan_id=plan.plan_id,
+                )
         # P0-1: the AI response is only authoritative for the frozen snapshot it was built from.
         # Re-verify durable facts from PostgreSQL before any programmatic action; if the world
         # moved during the call, the verdict is STALE and must change nothing.
         stale_reasons = await self._detect_stale(run_mode, instrument_id, plan, snapshot)
         if stale_reasons:
-            await self._record_stale_decision(snapshot, review, stale_reasons, now)
+            await self._record_stale_decision(snapshot, review, stale_reasons, action_now)
             return ReevaluationOutcome(
                 instrument_id=instrument_id,
                 action=ReevaluationAction.HOLD,
@@ -242,7 +287,9 @@ class PositionReevaluationService:
                 reason="STALE_DECISION:" + ",".join(stale_reasons),
                 snapshot_id=snapshot.snapshot_id,
             )
-        return await self._dispatch(run_mode, instrument_id, plan, review, snapshot, bbo, now)
+        return await self._dispatch(
+            run_mode, instrument_id, plan, review, snapshot, action_bbo, action_now
+        )
 
     # ------------------------------------------------------------------ provider
 
@@ -270,6 +317,7 @@ class PositionReevaluationService:
         snapshot: DecisionSnapshot,
         review: PositionReevaluation | None,
         error: str | None,
+        now: datetime,
     ) -> str:
         decision_id = stable_id("predecision", snapshot.snapshot_id, self.model)
         async with self.sessions() as session, session.begin():
@@ -291,7 +339,7 @@ class PositionReevaluationService:
                     raw_prompt="",
                     raw_response=review.model_dump(mode="json") if review else {},
                     error=error,
-                    created_at=self.clock.now(),
+                    created_at=now,
                 )
             )
         return decision_id
@@ -345,32 +393,118 @@ class PositionReevaluationService:
         review: PositionReevaluation,
         stale_reasons: list[str],
         now: datetime,
+        *,
+        session: AsyncSession | None = None,
     ) -> None:
         """Persist a stale verdict on the existing audit chain; never a repair, never a side effect."""
+        if session is not None:
+            await self._record_stale_decision_in(
+                session, snapshot, review, stale_reasons, now
+            )
+            return
+        async with self.sessions() as inner, inner.begin():
+            await self._record_stale_decision_in(
+                inner, snapshot, review, stale_reasons, now
+            )
+
+    async def _record_stale_decision_in(
+        self,
+        session: AsyncSession,
+        snapshot: DecisionSnapshot,
+        review: PositionReevaluation,
+        stale_reasons: list[str],
+        now: datetime,
+    ) -> None:
         decision_id = stable_id("predecision", snapshot.snapshot_id, self.model)
-        async with self.sessions() as session, session.begin():
-            decision = await session.scalar(
-                select(AIDecisionRecord).where(AIDecisionRecord.decision_id == decision_id)
+        decision = await session.scalar(
+            select(AIDecisionRecord).where(AIDecisionRecord.decision_id == decision_id)
+        )
+        if decision is not None:
+            decision.status = DecisionStatus.STALE_DECISION
+            decision.error = f"stale:{','.join(stale_reasons)}"
+        self._add_event(
+            session,
+            run_mode=snapshot.run_mode,
+            instrument_id=snapshot.instrument_id,
+            plan_id=None,
+            order_id=None,
+            fill_id=None,
+            event_type=PositionEventType.AI_REEVALUATION,
+            dedupe_key=f"stale:{snapshot.snapshot_id}",
+            payload={
+                "action": review.action.value,
+                "reason": review.reason,
+                "stale_reasons": stale_reasons,
+            },
+            now=now,
+        )
+
+    async def _locked_stale_reasons(
+        self,
+        session: AsyncSession,
+        run_mode: RunMode,
+        instrument_id: str,
+        plan: TradePlan,
+        snapshot: DecisionSnapshot,
+        now: datetime,
+    ) -> list[str]:
+        """Lock every expected durable fact until the caller's mutation commits."""
+        # Runtime control is always first, matching the G4 risk gate/control lock order.
+        await self.risk_gate.state_service.load(run_mode, session=session, for_update=True)
+        state = await session.scalar(
+            select(SymbolStateStore)
+            .where(SymbolStateStore.instrument_id == instrument_id)
+            .with_for_update()
+        )
+        current_version = (
+            state.state_version
+            if state is not None
+            else int(await self.execution.state_version_for(instrument_id))
+        )
+        reasons: list[str] = []
+        if current_version != snapshot.state_version:
+            reasons.append(f"state_version:{snapshot.state_version}->{current_version}")
+
+        current_plan = await load_active_plan(
+            session, run_mode, instrument_id, for_update=True
+        )
+        if current_plan is None:
+            reasons.append("active_plan_removed")
+        elif current_plan.plan_id != plan.plan_id or current_plan.plan_version != plan.plan_version:
+            reasons.append(
+                f"plan:{plan.plan_id}:{plan.plan_version}"
+                f"->{current_plan.plan_id}:{current_plan.plan_version}"
             )
-            if decision is not None:
-                decision.status = DecisionStatus.STALE_DECISION
-                decision.error = f"stale:{','.join(stale_reasons)}"
-            self._add_event(
-                session,
-                run_mode=snapshot.run_mode,
-                instrument_id=snapshot.instrument_id,
-                plan_id=None,
-                order_id=None,
-                fill_id=None,
-                event_type=PositionEventType.AI_REEVALUATION,
-                dedupe_key=f"stale:{snapshot.snapshot_id}",
-                payload={
-                    "action": review.action.value,
-                    "reason": review.reason,
-                    "stale_reasons": stale_reasons,
-                },
-                now=now,
+        elif now >= current_plan.expires_at:
+            reasons.append("plan_expired_at_action")
+
+        position = await session.scalar(
+            select(PositionRecord)
+            .where(
+                PositionRecord.run_mode == run_mode,
+                PositionRecord.instrument_id == instrument_id,
             )
+            .with_for_update()
+        )
+        snap_position = snapshot.trading_context.get("position") or {}
+        if position is None:
+            reasons.append("position_removed")
+        elif (
+            position.position_id != snap_position.get("position_id")
+            or position.trade_id != snap_position.get("trade_id")
+            or abs(position.quantity - float(snap_position.get("quantity", 0.0))) > 1e-12
+        ):
+            reasons.append("position_lifecycle_changed")
+        expected_trade_id = snap_position.get("trade_id")
+        if expected_trade_id:
+            trade = await session.scalar(
+                select(TradeRecord)
+                .where(TradeRecord.trade_id == expected_trade_id)
+                .with_for_update()
+            )
+            if trade is None or trade.status != "OPEN":
+                reasons.append("trade_lifecycle_changed")
+        return reasons
 
     # ------------------------------------------------------------------ snapshot
 
@@ -505,6 +639,102 @@ class PositionReevaluationService:
         bbo: BestBidAsk,
         now: datetime,
     ) -> ReevaluationOutcome:
+        try:
+            async with self.sessions() as session, session.begin():
+                action_now = self.clock.now()
+                stale_reasons = await self._locked_stale_reasons(
+                    session, run_mode, instrument_id, plan, snapshot, action_now
+                )
+                if stale_reasons:
+                    await self._record_stale_decision(
+                        snapshot, review, stale_reasons, action_now, session=session
+                    )
+                    return ReevaluationOutcome(
+                        instrument_id=instrument_id,
+                        action=ReevaluationAction.HOLD,
+                        applied=False,
+                        reason="STALE_DECISION:" + ",".join(stale_reasons),
+                        snapshot_id=snapshot.snapshot_id,
+                        previous_plan_id=plan.plan_id,
+                    )
+                if review.action in {
+                    ReevaluationAction.ADD,
+                    ReevaluationAction.REDUCE,
+                    ReevaluationAction.CLOSE,
+                    ReevaluationAction.UPDATE_STOP,
+                    ReevaluationAction.UPDATE_TP,
+                    ReevaluationAction.UPDATE_INVALIDATION,
+                    ReevaluationAction.REPLACE_PLAN,
+                } and not self._action_bbo_fresh(bbo, instrument_id, action_now):
+                    self._add_event(
+                        session,
+                        run_mode=run_mode,
+                        instrument_id=instrument_id,
+                        plan_id=plan.plan_id,
+                        order_id=None,
+                        fill_id=None,
+                        event_type=PositionEventType.RISK_BLOCKED,
+                        dedupe_key=f"action_bbo_stale:{snapshot.snapshot_id}",
+                        payload={"action": review.action.value, "reason": "CORE_MARKET_DATA_STALE"},
+                        now=action_now,
+                    )
+                    return ReevaluationOutcome(
+                        instrument_id=instrument_id,
+                        action=review.action,
+                        applied=False,
+                        reason="CORE_MARKET_DATA_STALE",
+                        snapshot_id=snapshot.snapshot_id,
+                        previous_plan_id=plan.plan_id,
+                    )
+                return await self._dispatch_in(
+                    session,
+                    run_mode,
+                    instrument_id,
+                    plan,
+                    review,
+                    snapshot,
+                    bbo,
+                    action_now,
+                )
+        except IntegrityError as exc:
+            if "uq_trade_plans_one_active" not in str(exc):
+                raise
+            return await self._stale_conflict_outcome(snapshot, review, plan)
+        except StalePlanError:
+            # A concurrent plan replacement can win after the preliminary read but before this
+            # transaction. The CAS/unique constraint rolls the old action back; audit it as stale.
+            return await self._stale_conflict_outcome(snapshot, review, plan)
+
+    async def _stale_conflict_outcome(
+        self,
+        snapshot: DecisionSnapshot,
+        review: PositionReevaluation,
+        plan: TradePlan,
+    ) -> ReevaluationOutcome:
+        stale_now = self.clock.now()
+        await self._record_stale_decision(
+            snapshot, review, ["active_plan_conflict"], stale_now
+        )
+        return ReevaluationOutcome(
+            instrument_id=snapshot.instrument_id,
+            action=ReevaluationAction.HOLD,
+            applied=False,
+            reason="STALE_DECISION:active_plan_conflict",
+            snapshot_id=snapshot.snapshot_id,
+            previous_plan_id=plan.plan_id,
+        )
+
+    async def _dispatch_in(
+        self,
+        session: AsyncSession,
+        run_mode: RunMode,
+        instrument_id: str,
+        plan: TradePlan,
+        review: PositionReevaluation,
+        snapshot: DecisionSnapshot,
+        bbo: BestBidAsk,
+        now: datetime,
+    ) -> ReevaluationOutcome:
         action = review.action
         base = ReevaluationOutcome(
             instrument_id=instrument_id,
@@ -515,7 +745,8 @@ class PositionReevaluationService:
             previous_plan_id=plan.plan_id,
         )
         if action is ReevaluationAction.HOLD:
-            await self._record(
+            self._record_in(
+                session,
                 run_mode,
                 instrument_id,
                 plan.plan_id,
@@ -526,10 +757,12 @@ class PositionReevaluationService:
             return base.model_copy(update={"applied": True})
 
         if action is ReevaluationAction.ADD:
-            return await self._add(run_mode, instrument_id, plan, review, snapshot, bbo, now)
+            return await self._add(
+                session, run_mode, instrument_id, plan, review, snapshot, bbo, now
+            )
 
         if action is ReevaluationAction.REDUCE:
-            quantity = await self._position_quantity(run_mode, instrument_id)
+            quantity = await self._position_quantity(run_mode, instrument_id, session=session)
             quantity = quantity * (review.reduce_pct or 0.0)
             outcome = await self.protection.risk_reducing_exit(
                 run_mode,
@@ -539,8 +772,10 @@ class PositionReevaluationService:
                 event_type=PositionEventType.REDUCE,
                 quantity=quantity,
                 now=now,
+                session=session,
             )
-            await self._record(
+            self._record_in(
+                session,
                 run_mode,
                 instrument_id,
                 plan.plan_id,
@@ -571,8 +806,10 @@ class PositionReevaluationService:
                 exit_reason=ExitReason.AI_CLOSE,
                 event_type=PositionEventType.CLOSE,
                 now=now,
+                session=session,
             )
-            await self._record(
+            self._record_in(
+                session,
                 run_mode,
                 instrument_id,
                 plan.plan_id,
@@ -595,8 +832,11 @@ class PositionReevaluationService:
             )
 
         if action is ReevaluationAction.CANCEL_ADD:
-            cancelled = await self._cancel_adds(run_mode, instrument_id, now)
-            await self._record(
+            cancelled = await self._cancel_adds(
+                run_mode, instrument_id, now, session=session
+            )
+            self._record_in(
+                session,
                 run_mode,
                 instrument_id,
                 plan.plan_id,
@@ -606,10 +846,13 @@ class PositionReevaluationService:
             )
             return base.model_copy(update={"applied": True, "cancelled_order_ids": cancelled})
 
-        return await self._update_plan(run_mode, instrument_id, plan, review, now)
+        return await self._update_plan(
+            session, run_mode, instrument_id, plan, review, bbo, now
+        )
 
     async def _add(
         self,
+        session: AsyncSession,
         run_mode: RunMode,
         instrument_id: str,
         plan: TradePlan,
@@ -626,11 +869,17 @@ class PositionReevaluationService:
             snapshot_id=snapshot.snapshot_id,
             previous_plan_id=plan.plan_id,
         )
-        allowed, gate_reason = await self.risk_gate.check(
-            run_mode, instrument_id, plan_id=plan.plan_id, now=now
+        gate_reason = await self.risk_gate.evaluate(
+            session,
+            run_mode=run_mode,
+            instrument_id=instrument_id,
+            side=OrderSide.BUY,
+            plan_id=plan.plan_id,
+            now=now,
         )
-        if not allowed:
-            await self._record(
+        if gate_reason is not None:
+            self._record_in(
+                session,
                 run_mode,
                 instrument_id,
                 plan.plan_id,
@@ -639,7 +888,7 @@ class PositionReevaluationService:
                 now,
             )
             return base.model_copy(update={"reason": gate_reason})
-        state_version = int(await self.execution.state_version_for(instrument_id))
+        state_version = snapshot.state_version
         next_plan = derive_followup_plan(
             plan,
             now=now,
@@ -661,33 +910,32 @@ class PositionReevaluationService:
         )
         # One transaction: plan replacement + buy execution. A rejection rolls the plan back so
         # an ADD can never leave the position without its stop-loss / take-profit.
-        async with self.sessions() as session, session.begin():
-            _, cancelled = await self.plans.replace(
-                previous=plan,
-                next_plan=next_plan,
-                event_type=PositionEventType.PLAN_REPLACED,
-                now=now,
-                session=session,
-            )
-            result = await self.execution.execute(intent, next_plan, now, session=session)
-            if result.status is not IntentStatus.EXECUTED:
-                raise RuntimeError(f"add_not_executed:{result.reason}")
-            self._add_event(
-                session,
-                run_mode=run_mode,
-                instrument_id=instrument_id,
-                plan_id=next_plan.plan_id,
-                order_id=result.order_id,
-                fill_id=result.fill_id,
-                event_type=PositionEventType.ADD,
-                dedupe_key=f"add:{intent.intent_id}",
-                payload={
-                    "reason": review.reason,
-                    "notional": review.intended_notional,
-                    "cancelled_order_ids": cancelled,
-                },
-                now=now,
-            )
+        _, cancelled = await self.plans.replace(
+            previous=plan,
+            next_plan=next_plan,
+            event_type=PositionEventType.PLAN_REPLACED,
+            now=now,
+            session=session,
+        )
+        result = await self.execution.execute(intent, next_plan, now, session=session)
+        if result.status is not IntentStatus.EXECUTED:
+            raise RuntimeError(f"add_not_executed:{result.reason}")
+        self._add_event(
+            session,
+            run_mode=run_mode,
+            instrument_id=instrument_id,
+            plan_id=next_plan.plan_id,
+            order_id=result.order_id,
+            fill_id=result.fill_id,
+            event_type=PositionEventType.ADD,
+            dedupe_key=f"add:{intent.intent_id}",
+            payload={
+                "reason": review.reason,
+                "notional": review.intended_notional,
+                "cancelled_order_ids": cancelled,
+            },
+            now=now,
+        )
         return base.model_copy(
             update={
                 "applied": True,
@@ -700,10 +948,12 @@ class PositionReevaluationService:
 
     async def _update_plan(
         self,
+        session: AsyncSession,
         run_mode: RunMode,
         instrument_id: str,
         plan: TradePlan,
         review: PositionReevaluation,
+        bbo: BestBidAsk,
         now: datetime,
     ) -> ReevaluationOutcome:
         changes: dict[str, Any] = {}
@@ -728,11 +978,30 @@ class PositionReevaluationService:
         next_plan = derive_followup_plan(
             plan, now=now, plan_version=plan.plan_version + 1, **changes
         )
+        plan_errors = self._plan_business_errors(next_plan, bbo)
+        if plan_errors:
+            self._record_in(
+                session,
+                run_mode,
+                instrument_id,
+                plan.plan_id,
+                PositionEventType.RISK_BLOCKED,
+                {"action": review.action.value, "reason": ",".join(plan_errors)},
+                now,
+            )
+            return ReevaluationOutcome(
+                instrument_id=instrument_id,
+                action=review.action,
+                applied=False,
+                reason="PLAN_VALIDATION_FAILED:" + ",".join(plan_errors),
+                previous_plan_id=plan.plan_id,
+            )
         _, cancelled = await self.plans.replace(
             previous=plan,
             next_plan=next_plan,
             event_type=event_type,
             now=now,
+            session=session,
         )
         return ReevaluationOutcome(
             instrument_id=instrument_id,
@@ -746,41 +1015,51 @@ class PositionReevaluationService:
 
     # ------------------------------------------------------------------ helpers
 
-    async def _position_quantity(self, run_mode: RunMode, instrument_id: str) -> float:
-        async with self.sessions() as session:
-            value = await session.scalar(
-                select(func.coalesce(PositionRecord.quantity, 0.0)).where(
-                    PositionRecord.run_mode == run_mode,
-                    PositionRecord.instrument_id == instrument_id,
-                )
+    async def _position_quantity(
+        self,
+        run_mode: RunMode,
+        instrument_id: str,
+        *,
+        session: AsyncSession,
+    ) -> float:
+        value = await session.scalar(
+            select(func.coalesce(PositionRecord.quantity, 0.0)).where(
+                PositionRecord.run_mode == run_mode,
+                PositionRecord.instrument_id == instrument_id,
             )
+        )
         return float(value or 0.0)
 
     async def _cancel_adds(
-        self, run_mode: RunMode, instrument_id: str, now: datetime
+        self,
+        run_mode: RunMode,
+        instrument_id: str,
+        now: datetime,
+        *,
+        session: AsyncSession,
     ) -> list[str]:
-        async with self.sessions() as session, session.begin():
-            orders = list(
-                (
-                    await session.scalars(
-                        select(PaperOrderRecord).where(
-                            PaperOrderRecord.run_mode == run_mode,
-                            PaperOrderRecord.instrument_id == instrument_id,
-                            PaperOrderRecord.side == OrderSide.BUY,
-                            PaperOrderRecord.status == OrderStatus.OPEN,
-                        )
+        orders = list(
+            (
+                await session.scalars(
+                    select(PaperOrderRecord).where(
+                        PaperOrderRecord.run_mode == run_mode,
+                        PaperOrderRecord.instrument_id == instrument_id,
+                        PaperOrderRecord.side == OrderSide.BUY,
+                        PaperOrderRecord.status == OrderStatus.OPEN,
                     )
-                ).all()
-            )
-            cancelled: list[str] = []
-            for order in orders:
-                result = await self.execution.cancel_order(order.order_id, now, session=session)
-                if result.cancelled:
-                    cancelled.append(order.order_id)
+                )
+            ).all()
+        )
+        cancelled: list[str] = []
+        for order in orders:
+            result = await self.execution.cancel_order(order.order_id, now, session=session)
+            if result.cancelled:
+                cancelled.append(order.order_id)
         return cancelled
 
-    async def _record(
+    def _record_in(
         self,
+        session: AsyncSession,
         run_mode: RunMode,
         instrument_id: str,
         plan_id: str | None,
@@ -788,19 +1067,38 @@ class PositionReevaluationService:
         payload: dict[str, Any],
         now: datetime,
     ) -> None:
-        async with self.sessions() as session, session.begin():
-            self._add_event(
-                session,
-                run_mode=run_mode,
-                instrument_id=instrument_id,
-                plan_id=plan_id,
-                order_id=None,
-                fill_id=None,
-                event_type=event_type,
-                dedupe_key=stable_id("pevt", event_type, run_mode, instrument_id, now.isoformat()),
-                payload=payload,
-                now=now,
-            )
+        self._add_event(
+            session,
+            run_mode=run_mode,
+            instrument_id=instrument_id,
+            plan_id=plan_id,
+            order_id=None,
+            fill_id=None,
+            event_type=event_type,
+            dedupe_key=stable_id("pevt", event_type, run_mode, instrument_id, now.isoformat()),
+            payload=payload,
+            now=now,
+        )
+
+    @staticmethod
+    def _action_bbo_fresh(bbo: BestBidAsk, instrument_id: str, now: datetime) -> bool:
+        return (
+            bbo.instrument_id == instrument_id
+            and bbo.tradable
+            and bbo.data_quality is DataQuality.FRESH
+            and (now - bbo.received_at.astimezone()).total_seconds() <= 5.0
+        )
+
+    @staticmethod
+    def _plan_business_errors(plan: TradePlan, bbo: BestBidAsk) -> list[str]:
+        errors: list[str] = []
+        if plan.entry_zone.lower > plan.entry_zone.upper or plan.stop_loss >= plan.take_profit:
+            errors.append("plan_price_relationship_invalid")
+        if bbo.bid <= plan.stop_loss:
+            errors.append("stop_already_breached")
+        if bbo.bid >= plan.take_profit:
+            errors.append("take_profit_already_breached")
+        return errors
 
     @staticmethod
     def _add_event(

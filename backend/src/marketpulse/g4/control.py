@@ -12,10 +12,12 @@ from marketpulse.db.models import (
     OutboxRecord,
     PaperOrderRecord,
     PositionEventRecord,
+    PositionRecord,
     SymbolControlRecord,
     SymbolStateStore,
+    TradePlanRecord,
 )
-from marketpulse.g3.models import BestBidAsk, OrderSide, OrderStatus, RunMode
+from marketpulse.g3.models import BestBidAsk, OrderSide, OrderStatus, PlanStatus, RunMode
 from marketpulse.g3.service import PaperExecutionService, stable_id
 from marketpulse.runtime import HealthRegistry
 
@@ -116,20 +118,57 @@ class SystemControlService:
             return self._outcome("resume", record, True, None)
 
     async def _resume_gate(
-        self, session: AsyncSession, run_mode: RunMode, now: datetime
+        self,
+        session: AsyncSession,
+        run_mode: RunMode,
+        now: datetime,
+        *,
+        allow_recoverable_incidents: bool = False,
     ) -> str | None:
         degraded = self.health.blocking(RISK_BLOCKING_COMPONENTS)
         if degraded:
             component, *_ = sorted(degraded)
             return f"HEALTH_{component}_{self.health.status(component)}"
         blocking = await self.incidents.blocking(run_mode, session=session)
-        if blocking:
+        if blocking and not allow_recoverable_incidents:
             return f"INCIDENT_{blocking[0].incident_type}"
         report = await self.reconcile(run_mode)
         if not report.ok:
             return f"RECONCILIATION_FAILED:{','.join(report.diagnostics[:3])}"
         if self.health.status(HealthComponent.CORE_MARKET_DATA.value) != HealthStatus.HEALTHY.value:
             return "CORE_MARKET_DATA_NOT_FRESH"
+        return None
+
+    async def _safe_mode_incident_gate(
+        self, session: AsyncSession, run_mode: RunMode, now: datetime
+    ) -> str | None:
+        """Prove each blocking incident's durable condition is gone before resolving it."""
+        blocking = await self.incidents.blocking(run_mode, session=session)
+        for incident in blocking:
+            if incident.incident_type != IncidentType.POSITION_UNPROTECTED:
+                # ACCOUNT_INTEGRITY_ERROR and RECOVERY_FAILED are covered by the health and
+                # reconciliation checks in _resume_gate.
+                continue
+            positions = list(
+                (
+                    await session.scalars(
+                        select(PositionRecord).where(
+                            PositionRecord.run_mode == run_mode,
+                            PositionRecord.quantity > 0,
+                        )
+                    )
+                ).all()
+            )
+            for position in positions:
+                plan = await session.scalar(
+                    select(TradePlanRecord).where(
+                        TradePlanRecord.run_mode == run_mode,
+                        TradePlanRecord.instrument_id == position.instrument_id,
+                        TradePlanRecord.status == PlanStatus.ACTIVE,
+                    )
+                )
+                if plan is None or now >= plan.expires_at:
+                    return f"INCIDENT_{incident.incident_type}"
         return None
 
     # ------------------------------------------------------------------ emergency
@@ -295,7 +334,11 @@ class SystemControlService:
             control = await self.state_service.load(run_mode, session=session)
             if control.system_state != SystemState.SAFE_MODE:
                 return self._outcome("safe_mode_recovery", control, False, "not_in_safe_mode")
-            gate_reason = await self._resume_gate(session, run_mode, now)
+            gate_reason = await self._resume_gate(
+                session, run_mode, now, allow_recoverable_incidents=True
+            )
+            if gate_reason is None:
+                gate_reason = await self._safe_mode_incident_gate(session, run_mode, now)
             if gate_reason is not None:
                 return self._outcome("safe_mode_recovery", control, False, gate_reason)
 
@@ -303,6 +346,13 @@ class SystemControlService:
             control = await self.state_service.load(run_mode, session=session, for_update=True)
             if control.system_state != SystemState.SAFE_MODE:
                 return self._outcome("safe_mode_recovery", control, False, "not_in_safe_mode")
+            gate_reason = await self._resume_gate(
+                session, run_mode, now, allow_recoverable_incidents=True
+            )
+            if gate_reason is None:
+                gate_reason = await self._safe_mode_incident_gate(session, run_mode, now)
+            if gate_reason is not None:
+                return self._outcome("safe_mode_recovery", control, False, gate_reason)
             record = await self.state_service.transition(
                 run_mode,
                 operator_state=OperatorState.PAUSED,

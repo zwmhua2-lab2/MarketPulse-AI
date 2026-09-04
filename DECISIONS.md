@@ -13,3 +13,5 @@
 - G4 以 PostgreSQL 为 Restart Recovery 唯一事实源；Recovery 不依赖内存 Queue，Reconciliation 是 Detector 而非 Repair Engine。
 - G4 AI 重估值响应对冻结 snapshot 有效；provider 返回后、任何 programmatic action 前必须重验 state_version / active plan(version) / position lifecycle，任一变化判 STALE 并零副作用（不得 ADD/REDUCE/CLOSE/UPDATE_*/REPLACE_PLAN，保留 SL/TP，不改 Position/Account/Plan，按审计链记 stale decision）。
 - G4 重启恢复不得以 STARTING/RECOVERING 覆盖重启前持久化的 SAFE_MODE；未解决的 blocking incident（POSITION_UNPROTECTED / RECOVERY_FAILED / ACCOUNT_INTEGRITY_ERROR）不得静默进入 RUNNING，须显式 safe-mode recovery → PAUSED → 人工 Resume。
+- G4 AI response 的最终 stale 校验与 mutation 共用 PostgreSQL 事务：先锁 runtime control，再锁 durable state/expected active plan/position/trade；Plan replacement 只允许 expected-current CAS，继续由 `uq_trade_plans_one_active` 兜底，冲突视为 STALE 且旧 response 零副作用。
+- G4 Recovery 不把 transient `RECOVERING` 当作取消原因；OPEN BUY 改按 current Fresh BBO、entry/stop、symbol block 与 G3 capacity durable facts 判定，永久失效才原子 cancel + release reservation。
