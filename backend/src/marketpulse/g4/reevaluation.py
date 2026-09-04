@@ -229,6 +229,19 @@ class PositionReevaluationService:
             HealthStatus.HEALTHY.value,
             instrument_id=instrument_id,
         )
+        # P0-1: the AI response is only authoritative for the frozen snapshot it was built from.
+        # Re-verify durable facts from PostgreSQL before any programmatic action; if the world
+        # moved during the call, the verdict is STALE and must change nothing.
+        stale_reasons = await self._detect_stale(run_mode, instrument_id, plan, snapshot)
+        if stale_reasons:
+            await self._record_stale_decision(snapshot, review, stale_reasons, now)
+            return ReevaluationOutcome(
+                instrument_id=instrument_id,
+                action=ReevaluationAction.HOLD,
+                applied=False,
+                reason="STALE_DECISION:" + ",".join(stale_reasons),
+                snapshot_id=snapshot.snapshot_id,
+            )
         return await self._dispatch(run_mode, instrument_id, plan, review, snapshot, bbo, now)
 
     # ------------------------------------------------------------------ provider
@@ -282,6 +295,82 @@ class PositionReevaluationService:
                 )
             )
         return decision_id
+
+    async def _detect_stale(
+        self,
+        run_mode: RunMode,
+        instrument_id: str,
+        plan: TradePlan,
+        snapshot: DecisionSnapshot,
+    ) -> list[str]:
+        """Re-verify durable facts after the AI call and before any programmatic action.
+
+        The AI verdict is only valid for the immutable snapshot it was built from. If the symbol
+        state version, the active plan identity/version, or the position lifecycle changed during
+        the call, the response is STALE and must not modify Position / Account / Plan.
+        """
+        reasons: list[str] = []
+        current_version = int(await self.execution.state_version_for(instrument_id))
+        if current_version != snapshot.state_version:
+            reasons.append(f"state_version:{snapshot.state_version}->{current_version}")
+        async with self.sessions() as session:
+            current_plan = await load_active_plan(session, run_mode, instrument_id)
+            if current_plan is None:
+                reasons.append("active_plan_removed")
+            elif current_plan.plan_id != plan.plan_id or current_plan.plan_version != plan.plan_version:
+                reasons.append(
+                    f"plan:{plan.plan_id}:{plan.plan_version}"
+                    f"->{current_plan.plan_id}:{current_plan.plan_version}"
+                )
+            position = await session.scalar(
+                select(PositionRecord).where(
+                    PositionRecord.run_mode == run_mode,
+                    PositionRecord.instrument_id == instrument_id,
+                )
+            )
+            snap_position = snapshot.trading_context.get("position") or {}
+            if position is None:
+                reasons.append("position_removed")
+            elif (
+                position.position_id != snap_position.get("position_id")
+                or position.trade_id != snap_position.get("trade_id")
+                or abs(position.quantity - float(snap_position.get("quantity", 0.0))) > 1e-12
+            ):
+                reasons.append("position_lifecycle_changed")
+        return reasons
+
+    async def _record_stale_decision(
+        self,
+        snapshot: DecisionSnapshot,
+        review: PositionReevaluation,
+        stale_reasons: list[str],
+        now: datetime,
+    ) -> None:
+        """Persist a stale verdict on the existing audit chain; never a repair, never a side effect."""
+        decision_id = stable_id("predecision", snapshot.snapshot_id, self.model)
+        async with self.sessions() as session, session.begin():
+            decision = await session.scalar(
+                select(AIDecisionRecord).where(AIDecisionRecord.decision_id == decision_id)
+            )
+            if decision is not None:
+                decision.status = DecisionStatus.STALE_DECISION
+                decision.error = f"stale:{','.join(stale_reasons)}"
+            self._add_event(
+                session,
+                run_mode=snapshot.run_mode,
+                instrument_id=snapshot.instrument_id,
+                plan_id=None,
+                order_id=None,
+                fill_id=None,
+                event_type=PositionEventType.AI_REEVALUATION,
+                dedupe_key=f"stale:{snapshot.snapshot_id}",
+                payload={
+                    "action": review.action.value,
+                    "reason": review.reason,
+                    "stale_reasons": stale_reasons,
+                },
+                now=now,
+            )
 
     # ------------------------------------------------------------------ snapshot
 

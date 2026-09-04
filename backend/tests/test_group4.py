@@ -18,12 +18,14 @@ from marketpulse.db.models import (
     PositionRecord,
     RuntimeControlRecord,
     SymbolControlRecord,
+    SymbolStateStore,
     TradePlanRecord,
     TradeRecord,
 )
 from marketpulse.g3.models import (
     BestBidAsk,
     DataQuality,
+    DecisionStatus,
     ExecutionIntent,
     IntentStatus,
     OrderSide,
@@ -43,11 +45,12 @@ from marketpulse.g4.models import (
     HealthStatus,
     IncidentType,
     OperatorState,
+    PositionEventType,
     PositionReevaluation,
     ReevaluationAction,
     SystemState,
 )
-from marketpulse.g4.planning import PlanManager, load_active_plan
+from marketpulse.g4.planning import PlanManager, derive_followup_plan, load_active_plan
 from marketpulse.g4.protection import PositionProtectionService
 from marketpulse.g4.provider import DeterministicFakePositionReviewProvider
 from marketpulse.g4.reconciliation import reconcile
@@ -1248,3 +1251,284 @@ def test_plan_replace_failure_rolls_back():
 
     active = asyncio.run(case())
     assert len(active) == 1  # old plan untouched, no half-replaced state
+
+
+# ==============================================================================
+# Post-Review Fix regression tests (P0-1 / P0-2 / P0-3 / P1-1 / P1-2 / P1-3)
+# ==============================================================================
+
+
+def test_reevaluation_state_version_change_is_stale():
+    async def case():
+        h = Harness()
+        await h.boot()
+        await open_position(h, notional=50, bid=99, ask=100, stop=80, tp=140)
+
+        async def mutate_during_call(snapshot):
+            # A durable fact (symbol state version) moved while the AI was thinking.
+            h.state_version += 1
+            return PositionReevaluation(action=ReevaluationAction.ADD, reason="add", intended_notional=20.0)
+
+        h.review_provider._response = mutate_during_call
+        outcome = await h.reevaluation.evaluate(
+            RunMode.REPLAY, "SOL-USDT", await h.bbo_for("SOL-USDT"), now=NOW, force=True
+        )
+        async with SESSIONS() as session:
+            position = await session.scalar(
+                select(PositionRecord).where(
+                    PositionRecord.run_mode == RunMode.REPLAY,
+                    PositionRecord.instrument_id == "SOL-USDT",
+                )
+            )
+            decision = await session.scalar(
+                select(AIDecisionRecord).where(AIDecisionRecord.run_mode == RunMode.REPLAY)
+            )
+            stale_events = list(
+                (
+                    await session.scalars(
+                        select(PositionEventRecord).where(
+                            PositionEventRecord.run_mode == RunMode.REPLAY,
+                            PositionEventRecord.event_type == PositionEventType.AI_REEVALUATION,
+                        )
+                    )
+                ).all()
+            )
+        return outcome, position, decision, stale_events
+
+    outcome, position, decision, stale_events = asyncio.run(case())
+    assert outcome.action is ReevaluationAction.HOLD
+    assert not outcome.applied
+    assert outcome.reason.startswith("STALE_DECISION")
+    assert position.quantity > 0  # the ADD was dropped, position unchanged
+    assert decision.status == DecisionStatus.STALE_DECISION.value
+    assert any(e.payload and e.payload.get("stale_reasons") for e in stale_events)
+
+
+def test_reevaluation_active_plan_replaced_is_stale():
+    async def case():
+        h = Harness()
+        await h.boot()
+        plan, _ = await open_position(h, notional=50, bid=99, ask=100, stop=80, tp=140)
+
+        async def mutate_during_call(snapshot):
+            # Another actor replaced the active plan during the AI call.
+            next_plan = derive_followup_plan(
+                plan, now=NOW, plan_version=plan.plan_version + 1, stop_loss=85.0
+            )
+            await h.plans.replace(
+                previous=plan,
+                next_plan=next_plan,
+                event_type=PositionEventType.PLAN_REPLACED,
+                now=NOW,
+            )
+            return PositionReevaluation(action=ReevaluationAction.ADD, reason="add", intended_notional=20.0)
+
+        h.review_provider._response = mutate_during_call
+        outcome = await h.reevaluation.evaluate(
+            RunMode.REPLAY, "SOL-USDT", await h.bbo_for("SOL-USDT"), now=NOW, force=True
+        )
+        async with SESSIONS() as session:
+            position = await session.scalar(
+                select(PositionRecord).where(
+                    PositionRecord.run_mode == RunMode.REPLAY,
+                    PositionRecord.instrument_id == "SOL-USDT",
+                )
+            )
+            active_plans = list(
+                (
+                    await session.scalars(
+                        select(TradePlanRecord).where(
+                            TradePlanRecord.run_mode == RunMode.REPLAY,
+                            TradePlanRecord.instrument_id == "SOL-USDT",
+                            TradePlanRecord.status == PlanStatus.ACTIVE,
+                        )
+                    )
+                ).all()
+            )
+        return outcome, position, len(active_plans)
+
+    outcome, position, active_count = asyncio.run(case())
+    assert outcome.action is ReevaluationAction.HOLD
+    assert not outcome.applied
+    assert outcome.reason.startswith("STALE_DECISION")
+    assert position.quantity > 0
+    assert active_count == 1  # only the replacement plan; no stale ADD applied
+
+
+def test_restart_preserves_persisted_safe_mode_latch():
+    async def case():
+        h = Harness()
+        await h.boot()
+        await open_position(h, notional=50, bid=99, ask=100, stop=80, tp=140)
+        # Persist SAFE_MODE directly (no blocking incident) so only the latch is exercised.
+        await h.state_service.transition(
+            RunMode.REPLAY, system_state=SystemState.SAFE_MODE, reason="manual_safe_mode"
+        )
+        h2 = Harness()
+        h2.quotes = {"SOL-USDT": (99.0, 100.0)}
+        report = await h2.recovery.recover(RunMode.REPLAY, bbo_for=h2.bbo_for, now=h2.clock.now())
+        async with SESSIONS() as session:
+            control = await session.scalar(
+                select(RuntimeControlRecord).where(RuntimeControlRecord.run_mode == RunMode.REPLAY)
+            )
+        return report, control
+
+    report, control = asyncio.run(case())
+    assert report.final_system_state is SystemState.SAFE_MODE
+    assert control.system_state == SystemState.SAFE_MODE.value
+    assert not report.ok
+
+
+def test_restart_unprotected_position_enters_safe_mode():
+    async def case():
+        h = Harness()
+        await h.boot()
+        await open_position(h, notional=50, bid=99, ask=100, stop=80, tp=140)
+        # Remove the active plan so the open position has no protection.
+        async with SESSIONS() as session, session.begin():
+            await session.execute(
+                update(TradePlanRecord)
+                .where(
+                    TradePlanRecord.run_mode == RunMode.REPLAY,
+                    TradePlanRecord.instrument_id == "SOL-USDT",
+                )
+                .values(status=PlanStatus.REPLACED)
+            )
+        h2 = Harness()
+        h2.quotes = {"SOL-USDT": (99.0, 100.0)}
+        report = await h2.recovery.recover(RunMode.REPLAY, bbo_for=h2.bbo_for, now=h2.clock.now())
+        async with SESSIONS() as session:
+            control = await session.scalar(
+                select(RuntimeControlRecord).where(RuntimeControlRecord.run_mode == RunMode.REPLAY)
+            )
+            incident = await session.scalar(
+                select(IncidentRecord).where(
+                    IncidentRecord.incident_type == IncidentType.POSITION_UNPROTECTED,
+                    IncidentRecord.status == "OPEN",
+                )
+            )
+        return report, control, incident
+
+    report, control, incident = asyncio.run(case())
+    assert report.final_system_state is SystemState.SAFE_MODE
+    assert control.system_state == SystemState.SAFE_MODE.value
+    assert incident is not None
+    assert not report.ok
+
+
+def test_recovery_stale_quality_bbo_lands_data_degraded():
+    async def case():
+        h = Harness()
+        await h.boot()
+        await open_position(h, notional=50, bid=99, ask=100, stop=80, tp=140)
+        h2 = Harness()
+
+        async def stale_bbo_for(instrument):
+            # Fresh timestamp but stale data quality: must NOT be treated as fresh.
+            return BestBidAsk(
+                instrument_id=instrument,
+                bid=99,
+                ask=100,
+                received_at=h2.clock.now(),
+                data_quality=DataQuality.STALE,
+            )
+
+        report = await h2.recovery.recover(RunMode.REPLAY, bbo_for=stale_bbo_for, now=h2.clock.now())
+        return report
+
+    report = asyncio.run(case())
+    assert report.final_system_state is SystemState.DATA_DEGRADED
+    assert not report.ok
+
+
+def test_recovery_cancels_stale_open_buy_and_releases_reservation():
+    async def case():
+        h = Harness()
+        await h.boot()
+        await open_position(h, notional=50, bid=99, ask=100, stop=80, tp=140)
+        add_plan = await open_limit_buy(h, notional=20, limit=95, version=7)
+        # Bump the symbol state version so the add plan's state_version is stale.
+        async with SESSIONS() as session, session.begin():
+            await session.merge(
+                SymbolStateStore(
+                    instrument_id="SOL-USDT",
+                    symbol="SOL-USDT",
+                    state="ACTIVE",
+                    state_version=8,
+                )
+            )
+            add_order = await session.scalar(
+                select(PaperOrderRecord).where(PaperOrderRecord.plan_id == add_plan.plan_id)
+            )
+            reserved_before = add_order.reserved_cash
+        h2 = Harness()
+        h2.quotes = {"SOL-USDT": (99.0, 100.0)}
+        report = await h2.recovery.recover(RunMode.REPLAY, bbo_for=h2.bbo_for, now=h2.clock.now())
+        async with SESSIONS() as session:
+            add_order_after = await session.scalar(
+                select(PaperOrderRecord).where(PaperOrderRecord.plan_id == add_plan.plan_id)
+            )
+            account = await session.scalar(
+                select(AccountRecord).where(AccountRecord.run_mode == RunMode.REPLAY)
+            )
+        return report, reserved_before, add_order_after, account
+
+    _report, reserved_before, add_order_after, account = asyncio.run(case())
+    assert reserved_before > 0
+    assert add_order_after.status == OrderStatus.CANCELLED
+    assert account.reserved_cash == 0  # reservation released, cash not frozen
+
+
+def test_recovery_active_symbols_exclude_historical_closed():
+    async def case():
+        h = Harness()
+        await h.boot()
+        await open_position(h, "SOL-USDT", notional=50, bid=99, ask=100, stop=80, tp=140)
+        # Fully close the position, then replace the plan so no active risk fact remains.
+        h.quotes["SOL-USDT"] = (79.0, 80.0)
+        await h.protection.evaluate(RunMode.REPLAY, "SOL-USDT", await h.bbo_for("SOL-USDT"), now=NOW)
+        async with SESSIONS() as session, session.begin():
+            await session.execute(
+                update(TradePlanRecord)
+                .where(
+                    TradePlanRecord.run_mode == RunMode.REPLAY,
+                    TradePlanRecord.instrument_id == "SOL-USDT",
+                )
+                .values(status=PlanStatus.REPLACED)
+            )
+        h2 = Harness()
+        h2.quotes = {}
+        report = await h2.recovery.recover(RunMode.REPLAY, bbo_for=h2.bbo_for, now=h2.clock.now())
+        return report
+
+    report = asyncio.run(case())
+    assert "SOL-USDT" not in report.active_symbols
+
+
+def test_reconciliation_detects_stale_risk_increasing_buy():
+    async def case():
+        h = Harness()
+        await h.boot()
+        await open_position(h, notional=50, bid=99, ask=100, stop=80, tp=140)
+        await open_limit_buy(h, notional=20, limit=95)
+        # Simulate a crash where the position closed but the stale add BUY was never cancelled.
+        original_cancel = h.protection._cancel_risk_increasing
+
+        async def noop_cancel(session, run_mode, instrument_id, now):
+            return []
+
+        h.protection._cancel_risk_increasing = noop_cancel
+        h.quotes["SOL-USDT"] = (98.0, 99.0)
+        outcome = await h.control.manual_close(
+            RunMode.REPLAY, "SOL-USDT", await h.bbo_for("SOL-USDT"), now=NOW
+        )
+        h.protection._cancel_risk_increasing = original_cancel
+        report = await h.reconcile(RunMode.REPLAY)
+        return outcome, report
+
+    outcome, report = asyncio.run(case())
+    assert outcome.triggered  # position fully closed
+    assert not report.ok
+    assert report.invariants["closed_position_no_stale_intent"] is False
+    stale = report.details["closed_position_stale_intents"]
+    assert any(item["reason"] == "BUY_AFTER_CLOSED_LIFECYCLE" for item in stale)

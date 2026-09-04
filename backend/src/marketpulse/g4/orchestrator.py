@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from marketpulse.clock import Clock, SystemClock
-from marketpulse.g3.models import BestBidAsk, RunMode
+from marketpulse.g3.models import BestBidAsk, DataQuality, RunMode
 from marketpulse.g3.service import PaperExecutionService
 from marketpulse.runtime import HealthRegistry
 
@@ -91,7 +91,11 @@ class SafetyRuntime:
         }
 
     def _mark_freshness(self, bbo: BestBidAsk, now: datetime) -> bool:
-        fresh = bbo.tradable and (now - bbo.received_at.astimezone(UTC)).total_seconds() <= 5.0
+        fresh = (
+            bbo.tradable
+            and bbo.data_quality is DataQuality.FRESH
+            and (now - bbo.received_at.astimezone(UTC)).total_seconds() <= 5.0
+        )
         self.health.set(
             HealthComponent.CORE_MARKET_DATA.value,
             HealthStatus.HEALTHY.value if fresh else HealthStatus.UNAVAILABLE.value,

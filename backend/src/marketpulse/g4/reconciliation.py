@@ -139,15 +139,31 @@ async def reconcile(
         diagnostics.append("emergency_stop_open_buy_present")
     details["emergency_open_buy_order_ids"] = emergency_open_buys
 
-    # 10. A closed position must not retain a stale risk-increasing / unbacked sell intent.
+    # 10. A closed position / closed lifecycle must not retain a stale risk-increasing BUY or an
+    # unbacked sell intent.
     positions_by_instrument = {position.instrument_id: position for position in positions}
+    open_trade_instruments = {
+        trade.instrument_id for trade in trades if trade.status != "CLOSED"
+    }
+    closed_trade_instruments = {
+        trade.instrument_id for trade in trades if trade.status == "CLOSED"
+    }
+    closed_lifecycle_instruments = closed_trade_instruments - open_trade_instruments
     stale_closed_intents: list[dict[str, Any]] = []
     for order in open_orders:
         position = positions_by_instrument.get(order.instrument_id)
         quantity = position.quantity if position else 0.0
         if order.side == OrderSide.SELL and quantity <= TOLERANCE:
             stale_closed_intents.append({"order_id": order.order_id, "reason": "SELL_WITHOUT_POSITION"})
-    invariants["closed_position_no_stale_sell_intent"] = not stale_closed_intents
+        elif (
+            order.side == OrderSide.BUY
+            and quantity <= TOLERANCE
+            and order.instrument_id in closed_lifecycle_instruments
+        ):
+            stale_closed_intents.append(
+                {"order_id": order.order_id, "reason": "BUY_AFTER_CLOSED_LIFECYCLE"}
+            )
+    invariants["closed_position_no_stale_intent"] = not stale_closed_intents
     if stale_closed_intents:
         diagnostics.append("closed_position_stale_intent")
     details["closed_position_stale_intents"] = stale_closed_intents

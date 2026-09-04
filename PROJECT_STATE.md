@@ -62,10 +62,20 @@ Acceptance Group 4 — Position Safety + Recovery
 
 ## Group 4 Result
 
-- G4 PostgreSQL 场景测试（`test_group4.py`）覆盖 A–U 全部验收场景 + 失败注入：`24 passed`。
-- 全量 `pytest backend/tests`：`51 passed`（G1 1 + G2 5 + G3 21 + G4 24）。
+- G4 PostgreSQL 场景测试（`test_group4.py`）覆盖 A–U 全部验收场景 + 失败注入 + 8 个 Post-Review 回归场景（P0-1 stale 守卫 ×2 / P0-2 SAFE_MODE 锁存 ×2 / P0-3 严格 revalidation / P1-1 DataQuality.FRESH / P1-2 active_symbols / P1-3 reconciliation stale BUY）：`32 passed`。
+- 全量 `pytest backend/tests`：`59 passed`（G1 1 + G2 5 + G3 21 + G4 32）。
 - `ruff check backend/src backend/tests scripts` / `compileall` / `git diff --check`：PASS。
 - `alembic current` / `alembic heads`：`20260905_0004 (head)`。
+- Restart smoke（`scripts/g4_verify_runtime.py setup/recover`）：两进程 PostgreSQL 重建 → `RUNNING`、`active_symbols=['BTC-USDT']`、`reconciliation_ok=True`。
+
+### Post-Review Fix #1
+
+- P0-1：AI 重估值在 provider 返回后、dispatch 前重验 DB 的 state_version / active plan(plan_id+version) / position lifecycle，变化判 STALE，记 `AIDecisionRecord.status=STALE_DECISION` + `PositionEvent(AI_REEVALUATION)`，返回 HOLD 零副作用。
+- P0-2：Recovery 捕获重启前 `system_state` 锁存 SAFE_MODE；未解决 blocking incident 不得进入 RUNNING。
+- P0-3：Recovery `_revalidate` 严格 §33（TTL / state_version / entry / stop-invalidation / BBO freshness），final state 非 RUNNING（SAFE_MODE/EMERGENCY_STOP/ERROR）取消残留 OPEN BUY 并释放 Reservation。
+- P1-1：Recovery 与 Orchestrator 的 BBO 新鲜度判断加入 `DataQuality.FRESH`。
+- P1-2：`active_symbols` 仅来自 OPEN Order / quantity>0 Position / ACTIVE Plan。
+- P1-3：Reconciliation 不变量 #10 增测 closed lifecycle 后残留的风险增加 BUY（`BUY_AFTER_CLOSED_LIFECYCLE`）。
 
 ## Acceptance Record
 
