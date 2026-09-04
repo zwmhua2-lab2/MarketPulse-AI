@@ -862,9 +862,9 @@ class PaperExecutionService:
                     )
                 )
             else:
-                position.average_cost = (
-                    (position.quantity * position.average_cost) + gross
-                ) / (position.quantity + order.quantity)
+                position.average_cost = ((position.quantity * position.average_cost) + gross) / (
+                    position.quantity + order.quantity
+                )
                 position.quantity += order.quantity
                 position.updated_at = now
             cash_delta, entry_type = -(gross + fee), "BUY_FILL"
@@ -990,10 +990,21 @@ class PaperExecutionService:
                     reason="LIMIT_PRICE_MISSING",
                     order_id=order.order_id,
                 )
+            plan_record = await session.scalar(
+                select(TradePlanRecord)
+                .where(TradePlanRecord.plan_id == order.plan_id)
+                .with_for_update()
+            )
+            plan_guard_reason = await self._limit_fill_plan_guard(order, plan_record, bbo, now)
+            if plan_guard_reason is not None:
+                return ExecutionResult(
+                    intent_id=order.intent_id,
+                    status=IntentStatus.EXECUTED,
+                    reason=plan_guard_reason,
+                    order_id=order.order_id,
+                )
             price = bbo.ask if order.side == OrderSide.BUY else bbo.bid
-            eligible = (
-                order.side == OrderSide.BUY and price <= order.limit_price
-            ) or (
+            eligible = (order.side == OrderSide.BUY and price <= order.limit_price) or (
                 order.side == OrderSide.SELL and price >= order.limit_price
             )
             if not eligible:
@@ -1053,9 +1064,46 @@ class PaperExecutionService:
                 )
             return await self._settle_order(session, account, position, order, price, now)
 
-    async def cancel_order(
-        self, order_id: str, now: datetime | None = None
-    ) -> OrderCancelResult:
+    async def _limit_fill_plan_guard(
+        self,
+        order: PaperOrderRecord,
+        plan_record: TradePlanRecord | None,
+        bbo: BestBidAsk,
+        now: datetime,
+    ) -> str | None:
+        """Fail closed on any order/plan drift before a risk-changing limit fill."""
+        if plan_record is None:
+            return "PLAN_MISSING"
+        if (
+            plan_record.run_mode != order.run_mode
+            or plan_record.instrument_id != order.instrument_id
+        ):
+            return "PLAN_ORDER_MISMATCH"
+        if plan_record.status != PlanStatus.ACTIVE:
+            return "PLAN_NOT_ACTIVE"
+        if now >= plan_record.expires_at:
+            return "PLAN_EXPIRED"
+        if await self.state_version_for(order.instrument_id) != plan_record.state_version:
+            return "STATE_VERSION_CHANGED"
+        try:
+            plan = TradePlan.model_validate(plan_record.payload)
+        except Exception:  # noqa: BLE001 - invalid durable plan evidence must fail closed
+            return "PLAN_PAYLOAD_INVALID"
+        if (
+            plan.plan_id != plan_record.plan_id
+            or plan.run_mode != order.run_mode
+            or plan.instrument_id != order.instrument_id
+        ):
+            return "PLAN_PAYLOAD_MISMATCH"
+        if order.side == OrderSide.BUY:
+            price = bbo.ask
+            if price <= plan.stop_loss:
+                return "BUY_STOP_LOSS_BREACHED"
+            if not plan.entry_zone.contains(price):
+                return "BUY_PRICE_OUTSIDE_ENTRY_ZONE"
+        return None
+
+    async def cancel_order(self, order_id: str, now: datetime | None = None) -> OrderCancelResult:
         """Cancel an OPEN order and release its reservation in the same transaction."""
         now = now or datetime.now(UTC)
         async with self.sessions() as session, session.begin():
@@ -1119,9 +1167,9 @@ class PaperExecutionService:
             fills = list(
                 (
                     await session.scalars(
-                        select(FillRecord).join(
-                            PaperOrderRecord, FillRecord.order_id == PaperOrderRecord.order_id
-                        ).where(PaperOrderRecord.run_mode == run_mode)
+                        select(FillRecord)
+                        .join(PaperOrderRecord, FillRecord.order_id == PaperOrderRecord.order_id)
+                        .where(PaperOrderRecord.run_mode == run_mode)
                     )
                 ).all()
             )
