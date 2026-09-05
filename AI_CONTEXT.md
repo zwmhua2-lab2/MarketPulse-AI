@@ -9,13 +9,13 @@
 | 字段 | 值 |
 |---|---|
 | Project | MarketPulse AI（BTC/ETH 量化纸面交易终端，Modular Monolith） |
-| Current Acceptance Group | G5-2 IMPLEMENTED / WAITING REVIEW（Trading Replay Integration） |
+| Current Acceptance Group | G5-2 ACCEPTED（Trading Replay Integration） |
 | Accepted Main Source | Git `main` / `origin/main`；须在任务 preflight 按 CIP-02 实时读取，不以文档静态 SHA 为准 |
-| Current State | `G5-2 IMPLEMENTED / WAITING REVIEW` |
-| Last Accepted Group | G5-1（Deterministic Replay Foundation） |
+| Current State | `G5-2 ACCEPTED` / `READY FOR G5-3 DESIGN` |
+| Last Accepted Group | G5-2（Trading Replay Integration） |
 
 - G1–G4 acceptance 状态：`ACCEPTED` / `ACCEPTED` / `ACCEPTED` / `ACCEPTED`。
-- G5-0 acceptance 状态：`ACCEPTED`（G5 feature implementation = NOT STARTED）。
+- G5-0 / G5-1 / G5-2 acceptance 状态：`ACCEPTED`；G5-3 = `NOT STARTED`。
 
 ## 2. Source of Truth（事实源优先级，从高到低）
 

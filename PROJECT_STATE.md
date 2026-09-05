@@ -2,7 +2,7 @@
 
 ## Current Group
 
-Acceptance Group 5 — G5-2 Trading Replay Integration（IMPLEMENTED / WAITING REVIEW）
+Acceptance Group 5 — G5-2 Trading Replay Integration（ACCEPTED）
 
 ## GitHub Repository
 
@@ -11,7 +11,7 @@ Acceptance Group 5 — G5-2 Trading Replay Integration（IMPLEMENTED / WAITING R
 - Visibility: `PRIVATE`
 - Default Branch: `main`
 - Accepted Main Source: Git `main` / `origin/main` — read actual SHA at task preflight（CIP-02）
-- Current Development Status: `G5-2 IMPLEMENTED / WAITING REVIEW`
+- Current Development Status: `G5-2 ACCEPTED`
 
 ## Branch / Source
 
@@ -134,7 +134,9 @@ Acceptance Group 5 — G5-2 Trading Replay Integration（IMPLEMENTED / WAITING R
 - 定向真实 PostgreSQL 集成覆盖 primary identity/dirty workspace 拒绝、未来 BBO 不可见、G3 缺失 record fail-closed、真实 Kline G2 SETUP 完成后才进入 G3、已有 Position 的 BookTicker G2→G4 且不触发 G3、最近 20 条 Timeline 的截断/正序、真实 G2 SETUP→G3→Risk→BUY Fill→G4 HOLD→SL protective SELL→closed Trade/Ledger、G2/G3/G4 历史业务时间及 outbound HTTP construction guard。
 - 验证：G5-2 `7 passed`；full backend `88 passed, 1 warning`；Ruff、compileall、`git diff --check` 通过；Alembic current/heads=`20260905_0004 (head)`。
 - Schema migration：未新增；Live、OKX、真实 AI、Performance Analytics、G5-3：未实现/未调用。
-- 状态：`G5-2 IMPLEMENTED / WAITING REVIEW`；不得自行 Acceptance 或 merge `main`。
+- 状态：`G5-2 ACCEPTED`（人工 Acceptance 正式确认；Implementation Acceptance Basis = `2a7d0c858c70f21215a090ee3b583d341cfd84b4`）。
+- Acceptance Closeout（2026-09-06）：Reviewer Result = `ACCEPTED`；Review Fix #1 = `VERIFIED`。详见 `dev_log/2026-09-06-group5-2.md`「Formal Acceptance Record」。
+- 当前 Accepted Baseline：以 Git `main` / `origin/main` 为准（CIP-02 preflight 实时读取），不以本文静态 SHA 为准。
 
 ### Group 4 Acceptance
 
