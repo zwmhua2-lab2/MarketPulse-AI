@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import itertools
-from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -195,8 +194,6 @@ class ScannerPipeline:
         runtime: EventRuntime,
         rolling: RollingFeatureEngine | None = None,
         clock: Clock | None = None,
-        on_apply: Callable[[MarketEvent, FeatureSnapshot, ApplyOutcome], Awaitable[None]]
-        | None = None,
     ) -> None:
         self.scanner = scanner
         self.runtime = runtime
@@ -207,7 +204,6 @@ class ScannerPipeline:
         self.last_detected_events: tuple[MarketEvent, ...] = ()
         # Read-only replay handoff: the exact feature fact already calculated for this frame.
         self.last_features: FeatureSnapshot | None = None
-        self.on_apply = on_apply
 
     async def ingest(
         self, market_event: NormalizedMarketEvent, auxiliary: AuxiliaryContext | None = None
@@ -258,6 +254,4 @@ class ScannerPipeline:
             versioned_event = event.model_copy(update={"state_version": current_version})
             outcome = await self.runtime.publish(versioned_event, features, action)
             outcomes.append(outcome)
-            if self.on_apply is not None:
-                await self.on_apply(versioned_event, features, outcome)
         return outcomes

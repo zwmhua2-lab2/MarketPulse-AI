@@ -17,10 +17,17 @@ from marketpulse.clock import ReplayClock
 from marketpulse.config import Settings
 from marketpulse.db.models import (
     AccountRecord,
+    AIDecisionRecord,
+    DecisionSnapshotRecord,
+    ExecutionIntentRecord,
+    FillRecord,
     PaperOrderRecord,
+    PositionEventRecord,
     PositionRecord,
     SignalTimelineRecord,
     StrategyCandidateRecord,
+    TradePlanRecord,
+    TradeRecord,
 )
 from marketpulse.g2.models import (
     DirectionBias,
@@ -408,6 +415,17 @@ class ReplayTradingResult:
     replay_database: str
     primary_counts_before: dict[str, int]
     primary_counts_after: dict[str, int]
+    processed_frames: int
+    snapshot_ids: tuple[str, ...]
+    decisions: tuple[tuple[str, str], ...]
+    plans: tuple[tuple[str, str], ...]
+    intents: tuple[tuple[str, str], ...]
+    orders: tuple[tuple[str, str, str], ...]
+    fills: tuple[tuple[str, str, float, float, float], ...]
+    final_account: tuple[float, float, float] | None
+    final_positions: tuple[tuple[str, float, float, float], ...]
+    trades: tuple[tuple[str, str, str | None], ...]
+    position_events: tuple[tuple[str, str, dict], ...]
     setup_snapshot_ids: tuple[str, ...]
     plan_ids: tuple[str, ...]
     buy_order_ids: tuple[str, ...]
@@ -464,6 +482,17 @@ class ReplayTradingRunner:
                 replay_database=result.replay_database,
                 primary_counts_before=result.primary_counts_before,
                 primary_counts_after=primary_after,
+                processed_frames=result.processed_frames,
+                snapshot_ids=result.snapshot_ids,
+                decisions=result.decisions,
+                plans=result.plans,
+                intents=result.intents,
+                orders=result.orders,
+                fills=result.fills,
+                final_account=result.final_account,
+                final_positions=result.final_positions,
+                trades=result.trades,
+                position_events=result.position_events,
                 setup_snapshot_ids=result.setup_snapshot_ids,
                 plan_ids=result.plan_ids,
                 buy_order_ids=result.buy_order_ids,
@@ -540,48 +569,6 @@ class ReplayTradingRunner:
         buy_fill_ids: list[str] = []
         safety_results: list[dict[str, object]] = []
 
-        async def on_apply(event, features, applied) -> None:
-            transition = applied.transition
-            if (
-                transition is None
-                or transition.to_state != "SETUP"
-                or transition.result != "APPLIED"
-            ):
-                return
-            snapshot, plan = await self._process_setup(
-                sessions,
-                runtime,
-                market,
-                builder,
-                workflow,
-                execution,
-                event,
-                features,
-                applied.state,
-                transition,
-            )
-            setup_snapshot_ids.append(snapshot.snapshot_id)
-            if plan is None:
-                return
-            plan_ids.append(plan.plan_id)
-            intent = ExecutionIntent(
-                intent_id=stable_id(
-                    "replay-intent", plan.plan_id, plan.state_version, clock.now().isoformat()
-                ),
-                plan_id=plan.plan_id,
-                instrument_id=plan.instrument_id,
-                run_mode=RunMode.REPLAY,
-                state_version=plan.state_version,
-                created_at=clock.now(),
-            )
-            execution_result = await execution.execute(intent, plan, now=clock.now())
-            if execution_result.order_id:
-                buy_order_ids.append(execution_result.order_id)
-            if execution_result.fill_id:
-                buy_fill_ids.append(execution_result.fill_id)
-
-        pipeline.on_apply = on_apply
-
         await execution.bootstrap_account(RunMode.REPLAY)
         await state_service.ensure(RunMode.REPLAY)
         health.set(HealthComponent.DATABASE.value, HealthStatus.HEALTHY.value)
@@ -601,7 +588,7 @@ class ReplayTradingRunner:
                     )
                     await self._ensure_running(state_service)
 
-                await pipeline.ingest(frame.market_event, auxiliary=frame.auxiliary)
+                outcomes = await pipeline.ingest(frame.market_event, auxiliary=frame.auxiliary)
                 if isinstance(frame.market_event, NormalizedBookTicker):
                     outcome = await safety.on_market_data(
                         RunMode.REPLAY,
@@ -609,15 +596,65 @@ class ReplayTradingRunner:
                         now=clock.now(),
                     )
                     safety_results.append(outcome)
+                features = pipeline.last_features
+                if features is None:
+                    raise RuntimeError("ScannerPipeline did not retain frame features")
+                for applied in outcomes:
+                    transition = applied.transition
+                    if (
+                        transition is None
+                        or transition.to_state != "SETUP"
+                        or transition.result != "APPLIED"
+                    ):
+                        continue
+                    event = next(
+                        candidate
+                        for candidate in pipeline.last_detected_events
+                        if candidate.event_id == applied.event_id
+                    )
+                    snapshot, plan = await self._process_setup(
+                        sessions,
+                        runtime,
+                        market,
+                        builder,
+                        workflow,
+                        execution,
+                        event,
+                        features,
+                        applied.state,
+                        transition,
+                    )
+                    setup_snapshot_ids.append(snapshot.snapshot_id)
+                    if plan is None:
+                        continue
+                    plan_ids.append(plan.plan_id)
+                    intent = ExecutionIntent(
+                        intent_id=stable_id(
+                            "replay-intent", plan.plan_id, plan.state_version, clock.now().isoformat()
+                        ),
+                        plan_id=plan.plan_id,
+                        instrument_id=plan.instrument_id,
+                        run_mode=RunMode.REPLAY,
+                        state_version=plan.state_version,
+                        created_at=clock.now(),
+                    )
+                    execution_result = await execution.execute(intent, plan, now=clock.now())
+                    if execution_result.order_id:
+                        buy_order_ids.append(execution_result.order_id)
+                    if execution_result.fill_id:
+                        buy_fill_ids.append(execution_result.fill_id)
         finally:
             await runtime.stop()
         if runtime.worker_exceptions:
             raise runtime.worker_exceptions[0]
+        facts = await self._trading_facts(sessions)
         return ReplayTradingResult(
             primary_database=primary_name,
             replay_database=replay_name,
             primary_counts_before=primary_counts,
             primary_counts_after=primary_counts,
+            processed_frames=len(source.frames),
+            **facts,
             setup_snapshot_ids=tuple(setup_snapshot_ids),
             plan_ids=tuple(plan_ids),
             buy_order_ids=tuple(buy_order_ids),
@@ -626,6 +663,86 @@ class ReplayTradingRunner:
             g3_provider_calls=self.g3_provider.calls,
             g4_provider_calls=self.g4_provider.calls,
         )
+
+    @staticmethod
+    async def _trading_facts(
+        sessions: async_sessionmaker[AsyncSession],
+    ) -> dict[str, object]:
+        """Extract the durable trading facts produced by this replay workspace."""
+        async with sessions() as session:
+            snapshots = list(
+                (await session.scalars(select(DecisionSnapshotRecord).order_by(DecisionSnapshotRecord.snapshot_id))).all()
+            )
+            decisions = list(
+                (await session.scalars(select(AIDecisionRecord).order_by(AIDecisionRecord.decision_id))).all()
+            )
+            plans = list(
+                (await session.scalars(select(TradePlanRecord).order_by(TradePlanRecord.plan_id))).all()
+            )
+            intents = list(
+                (await session.scalars(select(ExecutionIntentRecord).order_by(ExecutionIntentRecord.intent_id))).all()
+            )
+            orders = list(
+                (await session.scalars(select(PaperOrderRecord).order_by(PaperOrderRecord.order_id))).all()
+            )
+            fills = list(
+                (await session.scalars(select(FillRecord).order_by(FillRecord.fill_id))).all()
+            )
+            account = await session.scalar(select(AccountRecord).where(AccountRecord.run_mode == RunMode.REPLAY))
+            positions = list(
+                (await session.scalars(select(PositionRecord).order_by(PositionRecord.instrument_id))).all()
+            )
+            trades = list(
+                (await session.scalars(select(TradeRecord).order_by(TradeRecord.trade_id))).all()
+            )
+            position_events = list(
+                (await session.scalars(select(PositionEventRecord).order_by(PositionEventRecord.event_id))).all()
+            )
+        return {
+            "snapshot_ids": tuple(record.snapshot_id for record in snapshots),
+            "decisions": tuple((record.decision_id, record.status) for record in decisions),
+            "plans": tuple((record.plan_id, record.status) for record in plans),
+            "intents": tuple((record.intent_id, record.status) for record in intents),
+            "orders": tuple((record.order_id, record.side, record.status) for record in orders),
+            "fills": tuple(
+                (record.fill_id, record.order_id, record.price, record.quantity, record.fee)
+                for record in fills
+            ),
+            "final_account": (
+                (account.cash_balance, account.reserved_cash, account.realized_pnl)
+                if account is not None
+                else None
+            ),
+            "final_positions": tuple(
+                (record.instrument_id, record.quantity, record.average_cost, record.realized_pnl)
+                for record in positions
+            ),
+            "trades": tuple((record.trade_id, record.status, record.exit_reason) for record in trades),
+            "position_events": tuple(
+                (record.event_id, record.event_type, record.payload) for record in position_events
+            ),
+        }
+
+    @staticmethod
+    async def _latest_timeline(
+        session: AsyncSession, instrument_id: str
+    ) -> list[SignalTimelineRecord]:
+        """Return the latest persisted G2 timeline window in chronological order."""
+        records = list(
+            (
+                await session.scalars(
+                    select(SignalTimelineRecord)
+                    .where(SignalTimelineRecord.instrument_id == instrument_id)
+                    .order_by(
+                        SignalTimelineRecord.event_time.desc(),
+                        SignalTimelineRecord.timeline_id.desc(),
+                    )
+                    .limit(20)
+                )
+            ).all()
+        )
+        records.reverse()
+        return records
 
     @staticmethod
     async def _state_version(runtime: EventRuntime, instrument_id: str) -> int:
@@ -681,16 +798,7 @@ class ReplayTradingRunner:
                     )
                 ).all()
             )
-            timeline_records = list(
-                (
-                    await session.scalars(
-                        select(SignalTimelineRecord)
-                        .where(SignalTimelineRecord.instrument_id == transition.instrument_id)
-                        .order_by(SignalTimelineRecord.event_time, SignalTimelineRecord.timeline_id)
-                        .limit(20)
-                    )
-                ).all()
-            )
+            timeline_records = await self._latest_timeline(session, transition.instrument_id)
             account = await session.scalar(
                 select(AccountRecord).where(AccountRecord.run_mode == RunMode.REPLAY)
             )

@@ -12,18 +12,29 @@ from marketpulse.config import Settings
 from marketpulse.db.models import (
     AccountRecord,
     AIDecisionRecord,
+    DecisionSnapshotRecord,
+    DerivedObservationRecord,
+    ExecutionIntentRecord,
     FillRecord,
     LedgerEntryRecord,
+    MarketEventRecord,
+    OutboxRecord,
     PaperOrderRecord,
     PositionEventRecord,
     PositionRecord,
+    RuntimeControlRecord,
+    SignalTimelineRecord,
+    StateTransitionRecord,
+    StrategyCandidateRecord,
     TradePlanRecord,
     TradeRecord,
 )
+from marketpulse.g2.runtime import ScannerPipeline
 from marketpulse.g2.scanner import ScannerConfig
 from marketpulse.g3.models import AIAnalysis, Direction, PriceZone, RunMode
 from marketpulse.g3.service import stable_id
 from marketpulse.g4.models import PositionReevaluation, ReevaluationAction
+from marketpulse.g4.orchestrator import SafetyRuntime
 from marketpulse.g5.replay import (
     ReplayAIRecordMissing,
     ReplayBBOUnavailable,
@@ -154,7 +165,7 @@ def _kline(ordinal: int, offset: int, *, high: float, low: float, close: float) 
 def _source(*, include_stop: bool = True) -> ReplayEventSource:
     frames = [
         _book(0, 0, bid=99.0, ask=100.0),
-        _trade(1, 1, 100.0),
+        _trade(1, 1, 105.0),
         _kline(2, 2, high=101.0, low=99.0, close=100.0),
         _kline(3, 3, high=102.0, low=99.0, close=101.0),
         _kline(4, 4, high=103.0, low=99.0, close=102.0),
@@ -194,7 +205,12 @@ async def _expected_ids(source: ReplayEventSource) -> tuple[str, str]:
         for frame in result.trace.frames
         if any(event.transition_id == setup.transition_id for event in frame.events)
     )
-    review_state_version = setup_frame.events[-1].state_version
+    review_state_version = max(
+        event.state_version
+        for frame in result.trace.frames
+        if frame.input_ordinal <= 6
+        for event in frame.events
+    )
     snapshot_id = stable_id(
         "snap",
         RunMode.REPLAY,
@@ -230,7 +246,14 @@ async def _rows(url: str):
     try:
         async with sessions() as session:
             return {
+                "snapshots": list((await session.scalars(select(DecisionSnapshotRecord))).all()),
+                "market_events": list((await session.scalars(select(MarketEventRecord))).all()),
+                "timeline": list((await session.scalars(select(SignalTimelineRecord))).all()),
+                "transitions": list((await session.scalars(select(StateTransitionRecord))).all()),
+                "candidates": list((await session.scalars(select(StrategyCandidateRecord))).all()),
+                "observations": list((await session.scalars(select(DerivedObservationRecord))).all()),
                 "plans": list((await session.scalars(select(TradePlanRecord))).all()),
+                "intents": list((await session.scalars(select(ExecutionIntentRecord))).all()),
                 "orders": list((await session.scalars(select(PaperOrderRecord))).all()),
                 "fills": list((await session.scalars(select(FillRecord))).all()),
                 "positions": list((await session.scalars(select(PositionRecord))).all()),
@@ -239,6 +262,10 @@ async def _rows(url: str):
                 "events": list((await session.scalars(select(PositionEventRecord))).all()),
                 "decisions": list((await session.scalars(select(AIDecisionRecord))).all()),
                 "accounts": list((await session.scalars(select(AccountRecord))).all()),
+                "runtime_controls": list(
+                    (await session.scalars(select(RuntimeControlRecord))).all()
+                ),
+                "outbox": list((await session.scalars(select(OutboxRecord))).all()),
             }
     finally:
         await engine.dispose()
@@ -263,6 +290,133 @@ def test_replay_market_state_never_observes_a_future_bbo():
         asyncio.run(state.bbo_for("ETH-USDT"))
     state.ingest(_book(1, 2, bid=101.0, ask=102.0).market_event)
     assert asyncio.run(state.bbo_for("ETH-USDT")).received_at == START + timedelta(seconds=2)
+
+
+def test_latest_twenty_timeline_records_are_selected_in_chronological_order():
+    async def scenario(url: str) -> list[SignalTimelineRecord]:
+        engine = create_async_engine(url, poolclass=NullPool)
+        sessions = async_sessionmaker(engine, expire_on_commit=False)
+        try:
+            async with sessions() as session, session.begin():
+                session.add_all(
+                    SignalTimelineRecord(
+                        timeline_id=f"timeline-{index:02d}",
+                        event_id=f"event-{index:02d}",
+                        symbol="ETH-USDT",
+                        instrument_id="ETH-USDT",
+                        signal_type="BREAKOUT",
+                        event_time=START + timedelta(seconds=index),
+                        received_time=START + timedelta(seconds=index),
+                        price=100.0 + index,
+                        context={},
+                        strength=0.5,
+                        lifecycle_action="START",
+                        symbol_state="WATCHING",
+                        state_version=index,
+                        config_version="timeline-regression",
+                    )
+                    for index in range(21)
+                )
+            async with sessions() as session:
+                return await ReplayTradingRunner._latest_timeline(session, "ETH-USDT")
+        finally:
+            await engine.dispose()
+
+    with _replay_database() as (_, replay_url):
+        timeline = asyncio.run(scenario(replay_url))
+
+    assert [record.event_id for record in timeline] == [
+        f"event-{index:02d}" for index in range(1, 21)
+    ]
+
+
+def test_reachable_g2_g3_g4_frame_ordering_without_bookticker_setup(monkeypatch):
+    source = _source(include_stop=False)
+    g3_id, g4_id = asyncio.run(_expected_ids(source))
+    call_order: list[tuple[str, datetime]] = []
+    original_ingest = ScannerPipeline.ingest
+    original_safety = SafetyRuntime.on_market_data
+    original_process_setup = ReplayTradingRunner._process_setup
+
+    async def observed_ingest(self, market_event, auxiliary=None):
+        outcomes = await original_ingest(self, market_event, auxiliary=auxiliary)
+        call_order.append(("G2_COMPLETE", market_event.received_time))
+        return outcomes
+
+    async def observed_safety(self, run_mode, bbo, *, force_reevaluation=False, now=None):
+        call_order.append(("G4_SAFETY", bbo.received_at))
+        return await original_safety(
+            self,
+            run_mode,
+            bbo,
+            force_reevaluation=force_reevaluation,
+            now=now,
+        )
+
+    async def observed_process_setup(
+        self,
+        sessions,
+        runtime,
+        market,
+        builder,
+        workflow,
+        execution,
+        event,
+        features,
+        state,
+        transition,
+    ):
+        call_order.append(("G3_PROCESS_SETUP", event.event_time))
+        return await original_process_setup(
+            self,
+            sessions,
+            runtime,
+            market,
+            builder,
+            workflow,
+            execution,
+            event,
+            features,
+            state,
+            transition,
+        )
+
+    monkeypatch.setattr(ScannerPipeline, "ingest", observed_ingest)
+    monkeypatch.setattr(SafetyRuntime, "on_market_data", observed_safety)
+    monkeypatch.setattr(ReplayTradingRunner, "_process_setup", observed_process_setup)
+    setup_trace = next(
+        frame
+        for frame in asyncio.run(ReplayG2Runner(SCANNER).run(source)).trace.frames
+        if any(event.transition_to == "SETUP" for event in frame.events)
+    )
+    setup_input = next(frame for frame in source.frames if frame.ordinal == setup_trace.input_ordinal)
+    assert isinstance(setup_input.market_event, NormalizedKline)
+
+    hold = PositionReevaluation(
+        action=ReevaluationAction.HOLD,
+        reason="recorded hold",
+        confidence=1.0,
+    )
+    with _replay_database() as (_, replay_url):
+        result = asyncio.run(
+            _runner(replay_url, g3={g3_id: _g3_analysis()}, g4={g4_id: hold}).run(source)
+        )
+        rows = asyncio.run(_rows(replay_url))
+
+    setup_time = setup_trace.processing_time
+    existing_position_book_time = START + timedelta(seconds=6)
+    book_times = {START, existing_position_book_time}
+    assert result.g3_provider_calls == result.g4_provider_calls == 1
+    assert rows["positions"][0].quantity > 0
+    assert call_order.index(("G2_COMPLETE", setup_time)) < call_order.index(
+        ("G3_PROCESS_SETUP", setup_time)
+    )
+    assert call_order.index(("G2_COMPLETE", existing_position_book_time)) < call_order.index(
+        ("G4_SAFETY", existing_position_book_time)
+    )
+    assert not {
+        moment for phase, moment in call_order if phase == "G3_PROCESS_SETUP"
+    }.intersection(book_times)
 
 
 def test_g3_record_miss_fails_closed_without_plan_or_position_mutation():
@@ -299,6 +453,40 @@ def test_real_postgres_replay_g2_to_g4_stop_exit_is_isolated_and_historical(monk
     assert result.replay_database == replay_name
     assert result.primary_counts_after == result.primary_counts_before
     assert result.setup_snapshot_ids == (g3_id,)
+    assert result.processed_frames == 8
+    assert result.snapshot_ids == tuple(
+        record.snapshot_id for record in sorted(rows["snapshots"], key=lambda item: item.snapshot_id)
+    )
+    assert result.decisions == tuple(
+        (record.decision_id, record.status) for record in sorted(rows["decisions"], key=lambda item: item.decision_id)
+    )
+    assert result.plans == tuple(
+        (record.plan_id, record.status) for record in sorted(rows["plans"], key=lambda item: item.plan_id)
+    )
+    assert result.intents == tuple(
+        (record.intent_id, record.status) for record in sorted(rows["intents"], key=lambda item: item.intent_id)
+    )
+    assert {side for _, side, _ in result.orders} == {"BUY", "SELL"}
+    assert {order_id for _, order_id, _, _, _ in result.fills} == {
+        order_id for order_id, _, _ in result.orders
+    }
+    assert result.final_account == (
+        rows["accounts"][0].cash_balance,
+        rows["accounts"][0].reserved_cash,
+        rows["accounts"][0].realized_pnl,
+    )
+    assert result.final_positions == (
+        (
+            rows["positions"][0].instrument_id,
+            rows["positions"][0].quantity,
+            rows["positions"][0].average_cost,
+            rows["positions"][0].realized_pnl,
+        ),
+    )
+    assert result.trades == (
+        (rows["trades"][0].trade_id, rows["trades"][0].status, rows["trades"][0].exit_reason),
+    )
+    assert any(event_type == "SL_TRIGGERED" for _, event_type, _ in result.position_events)
     assert result.g3_provider_calls == 1
     assert result.g4_provider_calls == 1
     assert len(result.plan_ids) == len(result.buy_order_ids) == len(result.buy_fill_ids) == 1
@@ -310,7 +498,17 @@ def test_real_postgres_replay_g2_to_g4_stop_exit_is_isolated_and_historical(monk
     assert any(decision.model == "replay-recorded-g4" for decision in rows["decisions"])
     assert any(event.event_type == "SL_TRIGGERED" for event in rows["events"])
     business_times = [
+        *(record.event_time for record in rows["market_events"]),
+        *(record.received_time for record in rows["market_events"]),
+        *(record.event_time for record in rows["timeline"]),
+        *(record.received_time for record in rows["timeline"]),
+        *(record.event_time for record in rows["transitions"]),
+        *(record.created_at for record in rows["candidates"]),
+        *(record.event_time for record in rows["observations"]),
+        *(record.created_at for record in rows["snapshots"]),
+        *(record.created_at for record in rows["decisions"]),
         *(record.created_at for record in rows["plans"]),
+        *(record.created_at for record in rows["intents"]),
         *(record.created_at for record in rows["orders"]),
         *(record.created_at for record in rows["fills"]),
         *(record.created_at for record in rows["ledgers"]),
@@ -319,9 +517,16 @@ def test_real_postgres_replay_g2_to_g4_stop_exit_is_isolated_and_historical(monk
         *(record.closed_at for record in rows["trades"] if record.closed_at is not None),
         *(record.updated_at for record in rows["accounts"]),
         *(record.updated_at for record in rows["positions"]),
+        *(record.updated_at for record in rows["runtime_controls"]),
+        *(record.heartbeat_at for record in rows["runtime_controls"]),
+        *(record.created_at for record in rows["outbox"]),
     ]
     assert business_times
     assert all(START <= value <= START + timedelta(seconds=7) for value in business_times)
+    assert all(
+        record.expires_at == record.created_at + timedelta(minutes=5)
+        for record in rows["plans"]
+    )
 
 
 def test_missing_recorded_g4_review_is_hold_safe_and_never_calls_real_ai():
