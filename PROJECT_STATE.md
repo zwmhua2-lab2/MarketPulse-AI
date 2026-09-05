@@ -2,7 +2,7 @@
 
 ## Current Group
 
-Acceptance Group 4 — Position Safety + Recovery
+Acceptance Group 5 — （G5-0 已 ACCEPTED；G5 feature 未开始）
 
 ## GitHub Repository
 
@@ -10,8 +10,8 @@ Acceptance Group 4 — Position Safety + Recovery
 - GitHub Repository URL: https://github.com/zwmhua2-lab2/MarketPulse-AI
 - Visibility: `PRIVATE`
 - Default Branch: `main`
-- Latest Accepted Source Commit: `534dfad0f072553f18b8b687c20a48bf9914ee14`
-- Current Development Status: `G4 ACCEPTED / READY FOR G5`
+- Accepted Main SHA: `c366d078e86d2ee5637c81a88cc7773686646556`
+- Current Development Status: `G5 initialized / G5-0 complete / G5 feature implementation not started`
 
 ## Branch / Source
 
@@ -34,7 +34,8 @@ Acceptance Group 4 — Position Safety + Recovery
 
 ## In Progress
 
-- 无。G4 已正式 `ACCEPTED`，等待 G5 任务启动。
+- G5-0（上下文初始化）已完成：落地 `AI_CONTEXT.md`；`AGENTS.md` 为工程工作纪律与 Context Isolation Protocol（CIP-01～CIP-10）的正式入口。
+- G5 feature（Replay）实现尚未开始，等待 G5 Acceptance Batch 定义。
 
 ## Blocked
 
@@ -101,10 +102,19 @@ Acceptance Group 4 — Position Safety + Recovery
 - 新增 PostgreSQL 回归覆盖利润锁定止损的 Safe Mode Recovery → `PAUSED`、随后 manual Resume → `RUNNING`，以及 `stop_loss >= take_profit` 仍拒绝；corrupt payload、identity mismatch、expired、duplicate ACTIVE 行为不变。
 - 本次验证：G4 `45 passed`、G3 `10 passed`、全量 `72 passed, 1 warning`；Ruff、compileall、`git diff --check`、Alembic current/heads 与 paper-only Restart Smoke 均通过。
 
+## Group 5-0 Result
+
+- G5-0（Repository Context + Context Isolation Protocol）已完成。
+- 落地 `AI_CONTEXT.md`（上下文入口 / Context Index）；`AGENTS.md` 为工程工作纪律与 Context Isolation Protocol（CIP-01～CIP-10）的正式入口。
+- Accepted Main SHA = `c366d078e86d2ee5637c81a88cc7773686646556`（当前 main HEAD）；G4 implementation acceptance basis = `534dfad0f072553f18b8b687c20a48bf9914ee14`（G4 源码）。
+- 无业务代码 / schema / API / UI / Runtime 修改；未实现 Replay / ReplayClock Engine。
+- 状态：`G5-0 ACCEPTED`；G5 feature implementation 尚未开始（NOT STARTED）。
+
 ## Acceptance Record
 
 - Group 1 = `ACCEPTED`；Group 2 = `ACCEPTED`；Group 3 = `ACCEPTED`；Group 4 = `ACCEPTED`。
 - G3 Post-Acceptance Fix = `ACCEPTED`。
+- Group 5-0 = `ACCEPTED`（G5 feature implementation NOT STARTED）。
 
 ### Group 4 Acceptance
 
@@ -112,4 +122,4 @@ Acceptance Group 4 — Position Safety + Recovery
 - G4 implementation acceptance basis = `534dfad0f072553f18b8b687c20a48bf9914ee14`。
 - Position Safety + Recovery 已正式 `ACCEPTED`。
 - Real AI Provider = `DEFERRED / NOT VERIFIED`（原因：`OPENAI_API_KEY` 缺失，无 `.env`；测试用 deterministic Fake Provider）。此项 non-blocking。
-- Current next state = `READY FOR G5`（G5 尚未开始）。
+- Current next state = `G5 initialized / G5-0 complete`（G5 feature implementation not started）。
