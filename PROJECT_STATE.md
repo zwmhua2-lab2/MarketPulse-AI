@@ -2,7 +2,7 @@
 
 ## Current Group
 
-Acceptance Group 5 — G5-1 Deterministic Replay Foundation（IMPLEMENTED / WAITING REVIEW）
+Acceptance Group 5 — G5-1 Deterministic Replay Foundation（ACCEPTED）
 
 ## GitHub Repository
 
@@ -11,7 +11,7 @@ Acceptance Group 5 — G5-1 Deterministic Replay Foundation（IMPLEMENTED / WAIT
 - Visibility: `PRIVATE`
 - Default Branch: `main`
 - Accepted Main SHA: `82faf76cde1ddb99e15c6c524709df446ff8c78f`
-- Current Development Status: `G5-1 IMPLEMENTED / WAITING REVIEW`
+- Current Development Status: `G5-1 ACCEPTED / READY FOR G5-2 DESIGN`
 
 ## Branch / Source
 
@@ -34,7 +34,8 @@ Acceptance Group 5 — G5-1 Deterministic Replay Foundation（IMPLEMENTED / WAIT
 
 ## In Progress
 
-- G5-1（Deterministic Replay Foundation）已实现，等待人工 Review / Acceptance。
+- 无。G5-1 已正式 `ACCEPTED`。
+- G5-2 = `NOT STARTED`；Current next state = `READY FOR G5-2 DESIGN`。
 
 ## Blocked
 
