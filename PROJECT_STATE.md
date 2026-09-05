@@ -10,13 +10,15 @@ Acceptance Group 5 — G5-1 Deterministic Replay Foundation（ACCEPTED）
 - GitHub Repository URL: https://github.com/zwmhua2-lab2/MarketPulse-AI
 - Visibility: `PRIVATE`
 - Default Branch: `main`
-- Accepted Main SHA: `82faf76cde1ddb99e15c6c524709df446ff8c78f`
+- Accepted Main Source: Git `main` / `origin/main` — read actual SHA at task preflight（CIP-02）
 - Current Development Status: `G5-1 ACCEPTED / READY FOR G5-2 DESIGN`
 
 ## Branch / Source
 
-- Branch: `g5-deterministic-replay-foundation`
-- Task Base / Accepted Main SHA: `82faf76cde1ddb99e15c6c524709df446ff8c78f`
+- Current Accepted Branch: `main`
+- Last Accepted Group Branch: `g5-deterministic-replay-foundation`（历史证据，保留未删）
+- Accepted Main Source: Git `main` / `origin/main` — read actual SHA at task preflight（CIP-02）
+- G5-1 Implementation Acceptance Basis: `34da62a0cc9dbe95b95faadb770fbd06179a6975`
 - Migration Head: `20260905_0004`（`alembic current/heads` 一致）
 - Real AI Provider Status: `DEFERRED`（`OPENAI_API_KEY=MISSING`；测试用 deterministic Fake Provider）
 

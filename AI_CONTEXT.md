@@ -10,7 +10,7 @@
 |---|---|
 | Project | MarketPulse AI（BTC/ETH 量化纸面交易终端，Modular Monolith） |
 | Current Acceptance Group | G5-1 ACCEPTED（Deterministic Replay Foundation） |
-| Accepted Main SHA | `82faf76cde1ddb99e15c6c524709df446ff8c78f` |
+| Accepted Main Source | Git `main` / `origin/main`；须在任务 preflight 按 CIP-02 实时读取，不以文档静态 SHA 为准 |
 | Current State | `G5-1 ACCEPTED / READY FOR G5-2 DESIGN` |
 | Last Accepted Group | G5-1（Deterministic Replay Foundation） |
 

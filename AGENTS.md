@@ -50,6 +50,8 @@ AI 开始任务前必须重新从仓库读取事实。旧聊天、旧模型记�
 
 每个 Acceptance Batch 必须绑定 `Accepted Main SHA` 与 `Task Base SHA`。执行前实际读取 `git rev-parse HEAD`，不得仅相信任务描述中的 SHA。
 
+**Accepted Main SHA 必须从 Git 实时读取**（`git rev-parse main` / `git rev-parse origin/main` 或对应 remote truth）。状态文档 / 任务文档中的 SHA 只是 Task Base 或 historical evidence，不能覆盖实际 Git ref；不得把文档中的静态 SHA 当作「当前 main」。
+
 ### CIP-03｜SHA Delta Check
 
 若 `Current HEAD != Task Base SHA`，必须先检查 `git log` / `git diff` 判断差异来源。未经确认的 baseline drift（基线漂移）不得直接继续开发。尤其禁止：自动 reset / 自动 rebase / 自动覆盖他人修改 / 把未知 commit 当作自己的工作继续开发。
