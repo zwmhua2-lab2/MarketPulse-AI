@@ -10,8 +10,8 @@ Acceptance Group 4 — Position Safety + Recovery
 - GitHub Repository URL: https://github.com/zwmhua2-lab2/MarketPulse-AI
 - Visibility: `PRIVATE`
 - Default Branch: `main`
-- Latest Accepted Source Commit: `ab70a72b80be3a4529835b8a3dced773a7f2e986`
-- Current Development Status: `G4 IMPLEMENTED / WAITING REVIEW`
+- Latest Accepted Source Commit: `534dfad0f072553f18b8b687c20a48bf9914ee14`
+- Current Development Status: `G4 ACCEPTED / READY FOR G5`
 
 ## Branch / Source
 
@@ -34,7 +34,7 @@ Acceptance Group 4 — Position Safety + Recovery
 
 ## In Progress
 
-- G4 Post-Review Fix #4 已实现，等待人工 Acceptance；状态仍为 `G4 IMPLEMENTED / WAITING REVIEW`。
+- 无。G4 已正式 `ACCEPTED`，等待 G5 任务启动。
 
 ## Blocked
 
@@ -103,6 +103,13 @@ Acceptance Group 4 — Position Safety + Recovery
 
 ## Acceptance Record
 
-- Group 1 = `ACCEPTED`；Group 2 = `ACCEPTED`；Group 3 = `ACCEPTED`。
+- Group 1 = `ACCEPTED`；Group 2 = `ACCEPTED`；Group 3 = `ACCEPTED`；Group 4 = `ACCEPTED`。
 - G3 Post-Acceptance Fix = `ACCEPTED`。
-- Group 4 = 待人工 Acceptance（当前 `G4 IMPLEMENTED / WAITING REVIEW`）。
+
+### Group 4 Acceptance
+
+- Acceptance Result = `PASS WITH NON-BLOCKING NOTES`。
+- G4 implementation acceptance basis = `534dfad0f072553f18b8b687c20a48bf9914ee14`。
+- Position Safety + Recovery 已正式 `ACCEPTED`。
+- Real AI Provider = `DEFERRED / NOT VERIFIED`（原因：`OPENAI_API_KEY` 缺失，无 `.env`；测试用 deterministic Fake Provider）。此项 non-blocking。
+- Current next state = `READY FOR G5`（G5 尚未开始）。
