@@ -248,18 +248,16 @@ async def load_active_plan(
     return plan
 
 
-def plan_business_errors(
-    plan: TradePlan, *, long_position_average_cost: float | None = None
-) -> list[str]:
+def plan_business_errors(plan: TradePlan) -> list[str]:
     """Shared executable plan checks; invalidation text intentionally remains advisory."""
     errors: list[str] = []
-    if plan.entry_zone.lower > plan.entry_zone.upper or plan.stop_loss >= plan.take_profit:
-        errors.append("plan_price_relationship_invalid")
-    if long_position_average_cost is not None and (
-        not math.isfinite(long_position_average_cost)
-        or not (plan.stop_loss < long_position_average_cost < plan.take_profit)
+    if (
+        plan.entry_zone.lower > plan.entry_zone.upper
+        or not math.isfinite(plan.stop_loss)
+        or not math.isfinite(plan.take_profit)
+        or plan.stop_loss >= plan.take_profit
     ):
-        errors.append("long_position_protection_invalid")
+        errors.append("plan_price_relationship_invalid")
     return errors
 
 
@@ -268,7 +266,6 @@ async def load_valid_long_active_plan(
     run_mode: RunMode,
     instrument_id: str,
     *,
-    average_cost: float,
     now: datetime,
     for_update: bool = False,
 ) -> TradePlan | None:
@@ -278,6 +275,6 @@ async def load_valid_long_active_plan(
     )
     if plan is None or now >= plan.expires_at:
         return None
-    if plan_business_errors(plan, long_position_average_cost=average_cost):
+    if plan_business_errors(plan):
         return None
     return plan

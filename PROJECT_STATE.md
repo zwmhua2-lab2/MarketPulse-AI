@@ -34,7 +34,7 @@ Acceptance Group 4 — Position Safety + Recovery
 
 ## In Progress
 
-- G4 Post-Review Fix #3 已实现，等待人工 Acceptance；状态仍为 `G4 IMPLEMENTED / WAITING REVIEW`。
+- G4 Post-Review Fix #4 已实现，等待人工 Acceptance；状态仍为 `G4 IMPLEMENTED / WAITING REVIEW`。
 
 ## Blocked
 
@@ -62,8 +62,8 @@ Acceptance Group 4 — Position Safety + Recovery
 
 ## Group 4 Result
 
-- G4 PostgreSQL 场景测试（`test_group4.py`）覆盖 A–U、失败注入、Post-Review Fix #1–#3 回归：`44 passed`。
-- 全量 `pytest backend/tests`：`71 passed`，2 个既有 FastAPI/Starlette deprecation warning。
+- G4 PostgreSQL 场景测试（`test_group4.py`）覆盖 A–U、失败注入、Post-Review Fix #1–#4 回归：`45 passed`。
+- 全量 `pytest backend/tests`：`72 passed`，1 个既有 FastAPI/Starlette deprecation warning。
 - `ruff check backend/src backend/tests scripts` / `compileall` / `git diff --check`：PASS。
 - `alembic current` / `alembic heads`：`20260905_0004 (head)`。
 - Restart smoke（`scripts/g4_verify_runtime.py setup/recover`）：两进程 PostgreSQL 重建 → `RUNNING`、`active_symbols=['BTC-USDT']`、`reconciliation_ok=True`。
@@ -93,6 +93,13 @@ Acceptance Group 4 — Position Safety + Recovery
 - `safe_mode_recovery()` 仅在 durable protection、reconciliation、health 与 fresh core-data gate 均通过后，resolve blocking incident 并落到 `PAUSED`；随后 manual Resume 才可进入 `RUNNING`。
 - 新增 4 个真实 PostgreSQL 回归：corrupt payload / payload identity mismatch 拒绝、可解析但 LONG protection relationship 非法拒绝、修复为有效 plan 后恢复到 `PAUSED` 并 resolve incident、错误手工 resolve Incident 后 Resume 仍拒绝直至有效保护和健康条件恢复。
 - PENDING PRODUCT DECISION：V1 是否正式定义 `TradePlan.invalidation` 为 AI/human-readable advisory text，而 `stop_loss` 为唯一 machine-enforceable hard invalidation；本轮保持冻结现状，未开发自然语言 invalidation parser。
+
+### Post-Review Fix #4
+
+- OPEN LONG durable protection 不再要求 `stop_loss < average_cost < take_profit`；利润锁定止损（例如 cost=100、stop=110、TP=140）在 Fresh bid=120 时是有效保护。
+- 保持 fail-closed：ACTIVE row 必须唯一、payload 可解析且身份一致、TTL 有效、entry zone 合法、SL/TP 有限且 `stop_loss < take_profit`。
+- 新增 PostgreSQL 回归覆盖利润锁定止损的 Safe Mode Recovery → `PAUSED`、随后 manual Resume → `RUNNING`，以及 `stop_loss >= take_profit` 仍拒绝；corrupt payload、identity mismatch、expired、duplicate ACTIVE 行为不变。
+- 本次验证：G4 `45 passed`、G3 `10 passed`、全量 `72 passed, 1 warning`；Ruff、compileall、`git diff --check`、Alembic current/heads 与 paper-only Restart Smoke 均通过。
 
 ## Acceptance Record
 

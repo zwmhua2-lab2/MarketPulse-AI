@@ -1879,7 +1879,47 @@ def test_safe_mode_recovery_rejects_corrupt_active_plan_payload_for_open_positio
     assert incident is not None
 
 
-def test_safe_mode_recovery_rejects_parsed_plan_with_invalid_long_protection_relation():
+def test_safe_mode_recovery_accepts_profit_lock_stop_above_long_average_cost():
+    async def case():
+        h = Harness()
+        await h.boot()
+        plan, _ = await open_position(h, notional=50, bid=99, ask=99.95, stop=80, tp=140)
+        h.quotes["SOL-USDT"] = (120.0, 121.0)
+        await h.control.enter_safe_mode(
+            RunMode.REPLAY,
+            "position_protection_invalid",
+            incident_type=IncidentType.POSITION_UNPROTECTED,
+            instrument_id="SOL-USDT",
+            now=NOW,
+        )
+        profit_lock_payload = plan.model_dump(mode="json")
+        profit_lock_payload["stop_loss"] = 110.0
+        async with SESSIONS() as session, session.begin():
+            await session.execute(
+                update(TradePlanRecord)
+                .where(TradePlanRecord.plan_id == plan.plan_id)
+                .values(payload=profit_lock_payload)
+            )
+        outcome = await h.control.safe_mode_recovery(RunMode.REPLAY, now=NOW)
+        async with SESSIONS() as session:
+            control = await session.scalar(
+                select(RuntimeControlRecord).where(RuntimeControlRecord.run_mode == RunMode.REPLAY)
+            )
+            position = await session.scalar(
+                select(PositionRecord).where(
+                    PositionRecord.run_mode == RunMode.REPLAY,
+                    PositionRecord.instrument_id == "SOL-USDT",
+                )
+            )
+        return outcome, control, position
+
+    outcome, control, position = asyncio.run(case())
+    assert outcome.accepted and outcome.system_state is SystemState.PAUSED
+    assert control.system_state == SystemState.PAUSED.value
+    assert position.average_cost == pytest.approx(100.0)
+
+
+def test_safe_mode_recovery_rejects_parsed_plan_with_invalid_stop_take_profit_relation():
     async def case():
         h = Harness()
         await h.boot()
@@ -1892,7 +1932,7 @@ def test_safe_mode_recovery_rejects_parsed_plan_with_invalid_long_protection_rel
             now=NOW,
         )
         invalid_payload = plan.model_dump(mode="json")
-        invalid_payload["stop_loss"] = 110.0
+        invalid_payload["stop_loss"] = 140.0
         async with SESSIONS() as session, session.begin():
             await session.execute(
                 update(TradePlanRecord)
@@ -1952,7 +1992,7 @@ def test_safe_mode_recovery_resolves_position_unprotected_after_valid_plan_resto
     assert incident.status == "RESOLVED"
 
 
-def test_manual_resume_requires_current_valid_protection_after_safe_mode_recovery():
+def test_manual_resume_accepts_profit_lock_stop_after_safe_mode_recovery():
     async def case():
         h = Harness()
         await h.boot()
@@ -1965,37 +2005,30 @@ def test_manual_resume_requires_current_valid_protection_after_safe_mode_recover
             now=NOW,
         )
         recovered = await h.control.safe_mode_recovery(RunMode.REPLAY, now=NOW)
-        invalid_payload = plan.model_dump(mode="json")
-        invalid_payload["stop_loss"] = 110.0
+        profit_lock_payload = plan.model_dump(mode="json")
+        profit_lock_payload["stop_loss"] = 110.0
         async with SESSIONS() as session, session.begin():
             await session.execute(
                 update(TradePlanRecord)
                 .where(TradePlanRecord.plan_id == plan.plan_id)
-                .values(payload=invalid_payload)
+                .values(payload=profit_lock_payload)
             )
-            # Simulate an erroneous manual incident resolution: Resume must still inspect facts.
+            # Resume must inspect durable facts, not only the resolved incident flag.
             await session.execute(
                 update(IncidentRecord)
                 .where(IncidentRecord.incident_type == IncidentType.POSITION_UNPROTECTED)
                 .values(status="RESOLVED", resolved_at=NOW)
             )
-        unprotected = await h.control.resume(RunMode.REPLAY, now=NOW)
-        async with SESSIONS() as session, session.begin():
-            await session.execute(
-                update(TradePlanRecord)
-                .where(TradePlanRecord.plan_id == plan.plan_id)
-                .values(payload=plan.model_dump(mode="json"))
-            )
         h.health.set(HealthComponent.CORE_MARKET_DATA.value, HealthStatus.UNAVAILABLE.value)
         stale_core_data = await h.control.resume(RunMode.REPLAY, now=NOW)
         h.health.set(HealthComponent.CORE_MARKET_DATA.value, HealthStatus.HEALTHY.value)
+        h.quotes["SOL-USDT"] = (120.0, 121.0)
         assert (await h.reconcile(RunMode.REPLAY)).ok
         resumed = await h.control.resume(RunMode.REPLAY, now=NOW)
-        return recovered, unprotected, stale_core_data, resumed
+        return recovered, stale_core_data, resumed
 
-    recovered, unprotected, stale_core_data, resumed = asyncio.run(case())
+    recovered, stale_core_data, resumed = asyncio.run(case())
     assert recovered.accepted and recovered.system_state is SystemState.PAUSED
-    assert not unprotected.accepted and unprotected.reason == "POSITION_UNPROTECTED"
     assert not stale_core_data.accepted
     assert stale_core_data.reason == "HEALTH_CORE_MARKET_DATA_UNAVAILABLE"
     assert resumed.accepted and resumed.system_state is SystemState.RUNNING

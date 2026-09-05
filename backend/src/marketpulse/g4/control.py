@@ -161,7 +161,6 @@ class SystemControlService:
                 session,
                 run_mode,
                 position.instrument_id,
-                average_cost=position.average_cost,
                 now=now,
             )
             if plan is None:
