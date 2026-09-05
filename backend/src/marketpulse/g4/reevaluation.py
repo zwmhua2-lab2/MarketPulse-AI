@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 from datetime import datetime, timedelta
 from typing import Any
 from uuid import uuid4
@@ -137,6 +138,7 @@ class PositionReevaluationService:
         schema_version: str = REVIEW_SCHEMA_VERSION,
         timeout_seconds: float | None = None,
         clock: Clock | None = None,
+        snapshot_id_factory: Callable[[RunMode, str, int, str, datetime], str] | None = None,
     ) -> None:
         self.sessions = sessions
         self.provider = provider
@@ -151,6 +153,7 @@ class PositionReevaluationService:
         self.schema_version = schema_version
         self.timeout_seconds = timeout_seconds
         self.clock = clock or SystemClock()
+        self.snapshot_id_factory = snapshot_id_factory
         self.meaningful = MeaningfulEventGate()
 
     async def evaluate(
@@ -338,7 +341,9 @@ class PositionReevaluationService:
                     schema_version=self.schema_version,
                     model=self.model,
                     status=(
-                        DecisionStatus.VALID if review is not None else DecisionStatus.INVALID_SCHEMA
+                        DecisionStatus.VALID
+                        if review is not None
+                        else DecisionStatus.INVALID_SCHEMA
                         if error and error.startswith("AI_ERROR")
                         else DecisionStatus.INVALID_BUSINESS
                     ),
@@ -371,7 +376,10 @@ class PositionReevaluationService:
             current_plan = await load_active_plan(session, run_mode, instrument_id)
             if current_plan is None:
                 reasons.append("active_plan_removed")
-            elif current_plan.plan_id != plan.plan_id or current_plan.plan_version != plan.plan_version:
+            elif (
+                current_plan.plan_id != plan.plan_id
+                or current_plan.plan_version != plan.plan_version
+            ):
                 reasons.append(
                     f"plan:{plan.plan_id}:{plan.plan_version}"
                     f"->{current_plan.plan_id}:{current_plan.plan_version}"
@@ -404,14 +412,10 @@ class PositionReevaluationService:
     ) -> None:
         """Persist a stale verdict on the existing audit chain; never a repair, never a side effect."""
         if session is not None:
-            await self._record_stale_decision_in(
-                session, snapshot, review, stale_reasons, now
-            )
+            await self._record_stale_decision_in(session, snapshot, review, stale_reasons, now)
             return
         async with self.sessions() as inner, inner.begin():
-            await self._record_stale_decision_in(
-                inner, snapshot, review, stale_reasons, now
-            )
+            await self._record_stale_decision_in(inner, snapshot, review, stale_reasons, now)
 
     async def _record_stale_decision_in(
         self,
@@ -471,9 +475,7 @@ class PositionReevaluationService:
         if current_version != snapshot.state_version:
             reasons.append(f"state_version:{snapshot.state_version}->{current_version}")
 
-        current_plan = await load_active_plan(
-            session, run_mode, instrument_id, for_update=True
-        )
+        current_plan = await load_active_plan(session, run_mode, instrument_id, for_update=True)
         if current_plan is None:
             reasons.append("active_plan_removed")
         elif current_plan.plan_id != plan.plan_id or current_plan.plan_version != plan.plan_version:
@@ -582,8 +584,12 @@ class PositionReevaluationService:
             ],
             "account_context": await self._account_context(session, run_mode),
         }
-        snapshot_id = stable_id(
-            "snap", run_mode, instrument_id, state_version, triggering_event, uuid4().hex
+        snapshot_id = (
+            self.snapshot_id_factory(run_mode, instrument_id, state_version, triggering_event, now)
+            if self.snapshot_id_factory is not None
+            else stable_id(
+                "snap", run_mode, instrument_id, state_version, triggering_event, uuid4().hex
+            )
         )
         return DecisionSnapshot(
             snapshot_id=snapshot_id,
@@ -718,9 +724,7 @@ class PositionReevaluationService:
         plan: TradePlan,
     ) -> ReevaluationOutcome:
         stale_now = self.clock.now()
-        await self._record_stale_decision(
-            snapshot, review, ["active_plan_conflict"], stale_now
-        )
+        await self._record_stale_decision(snapshot, review, ["active_plan_conflict"], stale_now)
         return ReevaluationOutcome(
             instrument_id=snapshot.instrument_id,
             action=ReevaluationAction.HOLD,
@@ -838,9 +842,7 @@ class PositionReevaluationService:
             )
 
         if action is ReevaluationAction.CANCEL_ADD:
-            cancelled = await self._cancel_adds(
-                run_mode, instrument_id, now, session=session
-            )
+            cancelled = await self._cancel_adds(run_mode, instrument_id, now, session=session)
             self._record_in(
                 session,
                 run_mode,
@@ -852,9 +854,7 @@ class PositionReevaluationService:
             )
             return base.model_copy(update={"applied": True, "cancelled_order_ids": cancelled})
 
-        return await self._update_plan(
-            session, run_mode, instrument_id, plan, review, bbo, now
-        )
+        return await self._update_plan(session, run_mode, instrument_id, plan, review, bbo, now)
 
     async def _add(
         self,

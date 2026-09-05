@@ -9,9 +9,9 @@
 | 字段 | 值 |
 |---|---|
 | Project | MarketPulse AI（BTC/ETH 量化纸面交易终端，Modular Monolith） |
-| Current Acceptance Group | G5-1 ACCEPTED（Deterministic Replay Foundation） |
+| Current Acceptance Group | G5-2 IMPLEMENTED / WAITING REVIEW（Trading Replay Integration） |
 | Accepted Main Source | Git `main` / `origin/main`；须在任务 preflight 按 CIP-02 实时读取，不以文档静态 SHA 为准 |
-| Current State | `G5-1 ACCEPTED / READY FOR G5-2 DESIGN` |
+| Current State | `G5-2 IMPLEMENTED / WAITING REVIEW` |
 | Last Accepted Group | G5-1（Deterministic Replay Foundation） |
 
 - G1–G4 acceptance 状态：`ACCEPTED` / `ACCEPTED` / `ACCEPTED` / `ACCEPTED`。
@@ -51,8 +51,8 @@
 
 | 字段 | 值 |
 |---|---|
-| Current Group | G5-1 |
-| Previous accepted boundary | G4 |
+| Current Group | G5-2 |
+| Previous accepted boundary | G5-1 |
 
 - G4 **没有**提前实现完整 Replay / ReplayClock Engine。
 - 仓库中仅存在：`Clock` Protocol 的 `ReplayClock` 实现（`backend/src/marketpulse/clock.py`）与 `RunMode.REPLAY` 枚举（`config.py`）——这是既有 Clock 边界，**不是**完整回放引擎。
@@ -79,5 +79,5 @@
 
 - G5-0 `ACCEPTED`：`AI_CONTEXT.md` 为上下文入口；`AGENTS.md` 为工程工作纪律与 Context Isolation Protocol（CIP-01～CIP-10）的正式入口。
 - G5-1 `ACCEPTED`：Deterministic Replay Foundation 已验收，implementation acceptance basis = `34da62a0cc9dbe95b95faadb770fbd06179a6975`。
-- 下一步 = G5-2 Trading Replay Integration DESIGN（G5-2 = `NOT STARTED`，须另行授权，不得提前定义或实现）。
+- G5-2 Trading Replay Integration 已实现，状态为 `IMPLEMENTED / WAITING REVIEW`；等待人工 Review，不得自行 merge `main` 或进入 G5-3。
 - 具体 In Progress / Blocked 状态见 `PROJECT_STATE.md`。

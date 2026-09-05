@@ -11,6 +11,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from marketpulse.clock import Clock, SystemClock
 from marketpulse.db.models import (
     AccountRecord,
     AIDecisionRecord,
@@ -71,6 +72,9 @@ def redact(value: Any) -> Any:
 class DecisionSnapshotBuilder:
     version = "g3-v1"
 
+    def __init__(self, clock: Clock | None = None) -> None:
+        self.clock = clock or SystemClock()
+
     def build(
         self,
         *,
@@ -84,7 +88,7 @@ class DecisionSnapshotBuilder:
         trading_context: dict[str, Any],
         now: datetime | None = None,
     ) -> DecisionSnapshot:
-        now = now or datetime.now(UTC)
+        now = now or self.clock.now()
         strategies = [
             StrategyContext(
                 candidate_id=item.candidate_id,
@@ -223,10 +227,14 @@ class BoundedAITaskQueue:
 
 class TradePlanManager:
     def __init__(
-        self, ttl: timedelta = timedelta(minutes=5), single_order_cap: float = 0.10
+        self,
+        ttl: timedelta = timedelta(minutes=5),
+        single_order_cap: float = 0.10,
+        clock: Clock | None = None,
     ) -> None:
         self.ttl = ttl
         self.single_order_cap = single_order_cap
+        self.clock = clock or SystemClock()
         self._active: dict[tuple[RunMode, str], TradePlan] = {}
 
     def from_analysis(
@@ -243,7 +251,7 @@ class TradePlanManager:
         errors = DecisionValidator().business_errors(snapshot, analysis)
         if errors:
             raise ValueError(",".join(errors))
-        now = now or datetime.now(UTC)
+        now = now or self.clock.now()
         key = (snapshot.run_mode, snapshot.instrument_id)
         previous = self._active.get(key)
         if previous and previous.status is PlanStatus.ACTIVE:
@@ -320,9 +328,11 @@ class DecisionService:
         model: str,
         prompt_version: str = "g3-v1",
         schema_version: str = "g3-v1",
+        clock: Clock | None = None,
     ) -> None:
         self.sessions, self.provider, self.model = sessions, provider, model
         self.prompt_version, self.schema_version = prompt_version, schema_version
+        self.clock = clock or SystemClock()
 
     async def decide(
         self,
@@ -338,7 +348,9 @@ class DecisionService:
             try:
                 response = await self.provider.analyze(snapshot, prompt)
                 break
-            except Exception as exc:  # noqa: BLE001 - provider failures are persisted fail-closed
+            except Exception as exc:
+                if getattr(exc, "replay_record_missing", False):
+                    raise
                 error = type(exc).__name__
                 if attempt == retries:
                     break
@@ -379,7 +391,7 @@ class DecisionService:
                     raw_prompt=prompt,
                     raw_response=redact(response.model_dump(mode="json")) if response else {},
                     error=error,
-                    created_at=datetime.now(UTC),
+                    created_at=self.clock.now(),
                 )
             )
         return decision_id, status, response
@@ -434,6 +446,7 @@ class PaperExecutionService:
         slippage_bps: float = 5,
         freshness_ttl: timedelta = timedelta(seconds=5),
         risk_gate: RiskGate | None = None,
+        clock: Clock | None = None,
     ) -> None:
         self.sessions, self.bbo_for, self.state_version_for = sessions, bbo_for, state_version_for
         self.initial_balance, self.fee_rate, self.slippage_bps, self.freshness_ttl = (
@@ -444,10 +457,11 @@ class PaperExecutionService:
         )
         # G4 injects the system risk gate; `None` preserves the accepted G3 standalone behaviour.
         self.risk_gate = risk_gate
+        self.clock = clock or SystemClock()
         self.after_settlement: Callable[[], None] | None = None
 
     async def bootstrap_account(self, run_mode: RunMode) -> None:
-        now = datetime.now(UTC)
+        now = self.clock.now()
         async with self.sessions() as session, session.begin():
             if not await session.scalar(
                 select(AccountRecord).where(AccountRecord.run_mode == run_mode)
@@ -472,7 +486,7 @@ class PaperExecutionService:
         session: AsyncSession | None = None,
     ) -> ExecutionResult:
         """Execute one intent. When `session` is supplied the caller owns the transaction."""
-        now = now or datetime.now(UTC)
+        now = now or self.clock.now()
         if session is not None:
             return await self._execute_once(intent, plan, now, session=session)
         try:
@@ -553,9 +567,7 @@ class PaperExecutionService:
                 intent_id=intent.intent_id, status=IntentStatus.REJECTED, reason=reason
             )
         account = await session.scalar(
-            select(AccountRecord)
-            .where(AccountRecord.run_mode == intent.run_mode)
-            .with_for_update()
+            select(AccountRecord).where(AccountRecord.run_mode == intent.run_mode).with_for_update()
         )
         if account is None:
             raise RuntimeError("account_not_bootstrapped")
@@ -576,9 +588,7 @@ class PaperExecutionService:
         position = next(
             (item for item in positions if item.instrument_id == intent.instrument_id), None
         )
-        limit_price = (
-            plan.entry_zone.lower if plan.side is OrderSide.BUY else plan.entry_zone.upper
-        )
+        limit_price = plan.entry_zone.lower if plan.side is OrderSide.BUY else plan.entry_zone.upper
         if plan.order_type is OrderType.LIMIT:
             price = limit_price
         quantity = plan.intended_notional / price
@@ -900,7 +910,7 @@ class PaperExecutionService:
         the take-profit or a snapshot price. Nothing is fabricated when data is stale or when
         the position is already flat.
         """
-        now = now or datetime.now(UTC)
+        now = now or self.clock.now()
         if session is not None:
             return await self._risk_reducing_exit_once(
                 intent_id=intent_id,
@@ -943,9 +953,7 @@ class PaperExecutionService:
             select(PaperOrderRecord).where(PaperOrderRecord.intent_id == intent_id)
         )
         if existing:
-            fill = await session.scalar(
-                select(FillRecord).where(FillRecord.intent_id == intent_id)
-            )
+            fill = await session.scalar(select(FillRecord).where(FillRecord.intent_id == intent_id))
             return ExecutionResult(
                 intent_id=intent_id,
                 status=IntentStatus.EXECUTED,
@@ -974,9 +982,7 @@ class PaperExecutionService:
                 )
             ).all()
         )
-        position = next(
-            (item for item in positions if item.instrument_id == instrument_id), None
-        )
+        position = next((item for item in positions if item.instrument_id == instrument_id), None)
         if position is None or position.quantity <= 1e-12 or quantity <= 1e-12:
             return ExecutionResult(
                 intent_id=intent_id, status=IntentStatus.REJECTED, reason="POSITION_NOT_OPEN"
@@ -1162,7 +1168,7 @@ class PaperExecutionService:
         self, run_mode: RunMode, bbo: BestBidAsk, now: datetime | None = None
     ) -> list[ExecutionResult]:
         """Process eligible OPEN limit orders once; database order status is authoritative."""
-        now = now or datetime.now(UTC)
+        now = now or self.clock.now()
         if not self._is_fresh_bbo(bbo, now):
             return []
         async with self.sessions() as session:
@@ -1360,9 +1366,7 @@ class PaperExecutionService:
         if order.side != OrderSide.BUY or order.status != OrderStatus.OPEN:
             return issues
         account = await session.scalar(
-            select(AccountRecord)
-            .where(AccountRecord.run_mode == order.run_mode)
-            .with_for_update()
+            select(AccountRecord).where(AccountRecord.run_mode == order.run_mode).with_for_update()
         )
         if account is None:
             return ["ACCOUNT_MISSING"]
@@ -1410,7 +1414,7 @@ class PaperExecutionService:
         When `session` is supplied the caller owns the transaction, which lets G4 cancel every
         risk-increasing order and flip the runtime control state in one atomic commit.
         """
-        now = now or datetime.now(UTC)
+        now = now or self.clock.now()
         if session is not None:
             return await self._cancel_order_once(order_id, now, session)
         async with self.sessions() as inner, inner.begin():
@@ -1420,9 +1424,7 @@ class PaperExecutionService:
         self, order_id: str, now: datetime, session: AsyncSession
     ) -> OrderCancelResult:
         order = await session.scalar(
-            select(PaperOrderRecord)
-            .where(PaperOrderRecord.order_id == order_id)
-            .with_for_update()
+            select(PaperOrderRecord).where(PaperOrderRecord.order_id == order_id).with_for_update()
         )
         if order is None:
             raise ValueError("order_not_found")
@@ -1434,9 +1436,7 @@ class PaperExecutionService:
                 reason="order_not_open",
             )
         account = await session.scalar(
-            select(AccountRecord)
-            .where(AccountRecord.run_mode == order.run_mode)
-            .with_for_update()
+            select(AccountRecord).where(AccountRecord.run_mode == order.run_mode).with_for_update()
         )
         if account is None:
             raise RuntimeError("account_not_bootstrapped")
@@ -1458,9 +1458,7 @@ class PaperExecutionService:
                 created_at=now,
             )
         )
-        return OrderCancelResult(
-            order_id=order_id, status=OrderStatus.CANCELLED, cancelled=True
-        )
+        return OrderCancelResult(order_id=order_id, status=OrderStatus.CANCELLED, cancelled=True)
 
     async def reconciliation(self, run_mode: RunMode) -> dict[str, Any]:
         """Return G3 accounting invariants and diagnostics without attempting repair."""

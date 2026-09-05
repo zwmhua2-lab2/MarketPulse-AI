@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     host: str = "127.0.0.1"
     port: int = 8000
     database_url: str = "postgresql+asyncpg://marketpulse:marketpulse@127.0.0.1:5432/marketpulse"
+    replay_database_url: str | None = None
     session_secret: SecretStr = SecretStr("dev-only-change-this-secret")
     admin_username: str = "admin"
     admin_password: SecretStr = SecretStr("dev-only-change-this-password")

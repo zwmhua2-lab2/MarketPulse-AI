@@ -2,7 +2,7 @@
 
 ## Current Group
 
-Acceptance Group 5 — G5-1 Deterministic Replay Foundation（ACCEPTED）
+Acceptance Group 5 — G5-2 Trading Replay Integration（IMPLEMENTED / WAITING REVIEW）
 
 ## GitHub Repository
 
@@ -11,7 +11,7 @@ Acceptance Group 5 — G5-1 Deterministic Replay Foundation（ACCEPTED）
 - Visibility: `PRIVATE`
 - Default Branch: `main`
 - Accepted Main Source: Git `main` / `origin/main` — read actual SHA at task preflight（CIP-02）
-- Current Development Status: `G5-1 ACCEPTED / READY FOR G5-2 DESIGN`
+- Current Development Status: `G5-2 IMPLEMENTED / WAITING REVIEW`
 
 ## Branch / Source
 
@@ -36,8 +36,7 @@ Acceptance Group 5 — G5-1 Deterministic Replay Foundation（ACCEPTED）
 
 ## In Progress
 
-- 无。G5-1 已正式 `ACCEPTED`。
-- G5-2 = `NOT STARTED`；Current next state = `READY FOR G5-2 DESIGN`。
+- G5-2 Trading Replay Integration 已实现，等待人工 Review；不得自行 merge `main`。
 
 ## Blocked
 
@@ -126,6 +125,16 @@ Acceptance Group 5 — G5-1 Deterministic Replay Foundation（ACCEPTED）
 - 新增 G5-1 定向测试，覆盖 received-time clock、稳定同时间顺序、回退 fail-fast、三种 Normalized event、双跑 canonical trace、历史 timestamp、真实 G2 非空链路与 processing timeline 变化。
 - 验证：G5-1 `9 passed`；G1/G2 `15 passed`；G3 `10 passed`；G4 `45 passed`；full backend `81 passed, 1 warning`；Ruff、compileall、`git diff --check` 通过。
 - 状态：`G5-1 IMPLEMENTED / WAITING REVIEW`（未自行 Acceptance，未 merge `main`）。
+
+## Group 5-2 Result
+
+- G5-2（Trading Replay Integration）实现：独立 PostgreSQL Replay workspace、`RunMode.REPLAY`、`ReplayWorkspaceGuard`、`ReplayMarketState` 与 Recorded G3/G4 provider；复用 Postgres G2、G3 Decision/Plan/Paper Execution、G4 Risk Gate/Safety/Protection/Re-evaluation。
+- Replay Workspace Guard 真实比较 primary/replay `current_database()`、验证 `alembic_version=20260905_0004`，并对关键 G2/G3/G4 business tables 的残留数据 fail closed；runner 在前后比较 primary row counts。
+- Replay business timestamps 通过 `ReplayClock` 注入 G3 Snapshot/Decision/Plan/Execution 与既有 G4 path；G4 默认随机 review snapshot ID 保持不变，Replay path 单独注入稳定 ID factory 以严格匹配 recorded review。
+- 定向真实 PostgreSQL 集成覆盖 primary identity/dirty workspace 拒绝、未来 BBO 不可见、G3 缺失 record fail-closed、真实 G2 SETUP→G3→Risk→BUY Fill→G4 HOLD→SL protective SELL→closed Trade/Ledger、历史业务时间及 outbound HTTP construction guard。
+- 验证：G5-2 `5 passed`；G1/G2/G5-1 `24 passed`；G3/G4 `55 passed`；full backend `86 passed, 1 warning`；Ruff、compileall、`git diff --check` 通过；Alembic current/heads=`20260905_0004 (head)`。
+- Schema migration：未新增；Live、OKX、真实 AI、Performance Analytics、G5-3：未实现/未调用。
+- 状态：`G5-2 IMPLEMENTED / WAITING REVIEW`；不得自行 Acceptance 或 merge `main`。
 
 ### Group 4 Acceptance
 
