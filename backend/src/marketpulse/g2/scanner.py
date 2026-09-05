@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime
+
+from marketpulse.clock import Clock, SystemClock
 
 from .models import EventType, FeatureSnapshot, MarketEvent, deterministic_id
 
@@ -22,11 +24,12 @@ class ScannerConfig:
 class OpportunityScanner:
     """Independent market-fact detectors. It deliberately has no trade direction output."""
 
-    def __init__(self, config: ScannerConfig | None = None) -> None:
+    def __init__(self, config: ScannerConfig | None = None, clock: Clock | None = None) -> None:
         self.config = config or ScannerConfig()
+        self.clock = clock or SystemClock()
 
     def scan(self, features: FeatureSnapshot, received_time: datetime | None = None, state_version: int = 0) -> list[MarketEvent]:
-        received_time = received_time or datetime.now(UTC)
+        received_time = received_time or self.clock.now()
         candidates: list[tuple[EventType, float, dict[str, object]]] = []
         candidates.extend(self._price(features))
         candidates.extend(self._volume(features))

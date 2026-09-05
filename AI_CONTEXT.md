@@ -9,9 +9,9 @@
 | 字段 | 值 |
 |---|---|
 | Project | MarketPulse AI（BTC/ETH 量化纸面交易终端，Modular Monolith） |
-| Current Acceptance Group | G5（G5-0 上下文初始化已完成） |
-| Accepted Main SHA | `c366d078e86d2ee5637c81a88cc7773686646556` |
-| Current State | `G5 initialized / G5-0 complete / G5 feature implementation not started` |
+| Current Acceptance Group | G5-1（Deterministic Replay Foundation） |
+| Accepted Main SHA | `82faf76cde1ddb99e15c6c524709df446ff8c78f` |
+| Current State | `G5-1 IMPLEMENTED / WAITING REVIEW` |
 | Last Accepted Group | G4（Position Safety + Recovery） |
 
 - G1–G4 acceptance 状态：`ACCEPTED` / `ACCEPTED` / `ACCEPTED` / `ACCEPTED`。
@@ -51,7 +51,7 @@
 
 | 字段 | 值 |
 |---|---|
-| Current Group | G5 |
+| Current Group | G5-1 |
 | Previous accepted boundary | G4 |
 
 - G4 **没有**提前实现完整 Replay / ReplayClock Engine。
@@ -78,6 +78,6 @@
 ## 6. Next Step Entry（下一步工作入口）
 
 - G5-0 `ACCEPTED`：`AI_CONTEXT.md` 为上下文入口；`AGENTS.md` 为工程工作纪律与 Context Isolation Protocol（CIP-01～CIP-10）的正式入口。
-- 下一步 = G5 feature Acceptance Batch 设计 / G5-1（Replay 相关）。G5 feature implementation 尚未开始，不得提前定义或实现 G5-1。
-- 在 `main`（`c366d07`）基础上创建 G5 Group branch。
+- G5-1 已在 `g5-deterministic-replay-foundation` 实现，Task Base 为 `82faf76cde1ddb99e15c6c524709df446ff8c78f`，等待人工 Review / Acceptance；不得 merge `main`。
+- G5-1 只覆盖确定性 G2 回放基础；下一步为 G5-2 Trading Replay Integration，须待 G5-1 acceptance 后另行授权。
 - 具体 In Progress / Blocked 状态见 `PROJECT_STATE.md`。

@@ -2,7 +2,7 @@
 
 ## Current Group
 
-Acceptance Group 5 — （G5-0 已 ACCEPTED；G5 feature 未开始）
+Acceptance Group 5 — G5-1 Deterministic Replay Foundation（IMPLEMENTED / WAITING REVIEW）
 
 ## GitHub Repository
 
@@ -10,8 +10,8 @@ Acceptance Group 5 — （G5-0 已 ACCEPTED；G5 feature 未开始）
 - GitHub Repository URL: https://github.com/zwmhua2-lab2/MarketPulse-AI
 - Visibility: `PRIVATE`
 - Default Branch: `main`
-- Accepted Main SHA: `c366d078e86d2ee5637c81a88cc7773686646556`
-- Current Development Status: `G5 initialized / G5-0 complete / G5 feature implementation not started`
+- Accepted Main SHA: `82faf76cde1ddb99e15c6c524709df446ff8c78f`
+- Current Development Status: `G5-1 IMPLEMENTED / WAITING REVIEW`
 
 ## Branch / Source
 
@@ -34,8 +34,7 @@ Acceptance Group 5 — （G5-0 已 ACCEPTED；G5 feature 未开始）
 
 ## In Progress
 
-- G5-0（上下文初始化）已完成：落地 `AI_CONTEXT.md`；`AGENTS.md` 为工程工作纪律与 Context Isolation Protocol（CIP-01～CIP-10）的正式入口。
-- G5 feature（Replay）实现尚未开始，等待 G5 Acceptance Batch 定义。
+- G5-1（Deterministic Replay Foundation）已实现，等待人工 Review / Acceptance。
 
 ## Blocked
 
@@ -115,6 +114,15 @@ Acceptance Group 5 — （G5-0 已 ACCEPTED；G5 feature 未开始）
 - Group 1 = `ACCEPTED`；Group 2 = `ACCEPTED`；Group 3 = `ACCEPTED`；Group 4 = `ACCEPTED`。
 - G3 Post-Acceptance Fix = `ACCEPTED`。
 - Group 5-0 = `ACCEPTED`（G5 feature implementation NOT STARTED）。
+
+## Group 5-1 Result
+
+- G5-1（Deterministic Replay Foundation）实现：已验证 ordered normalized input，以 `received_time` 推进 `ReplayClock`，并复用既有 G2 Rolling → Scanner → Lifecycle → State Machine → Strategy → EventRuntime 链路。
+- 每次 replay 使用全新的 `InMemoryG2Repository`；未修改 PostgreSQL schema，未向 PostgreSQL G2 tables 写入 replay 数据。
+- `OpportunityScanner`、`ScannerPipeline` 与 `StrategyEngine` 允许注入 Clock，默认仍使用 `SystemClock`；Replay business timestamps 使用同一个 `ReplayClock`。
+- 新增 G5-1 定向测试，覆盖 received-time clock、稳定同时间顺序、回退 fail-fast、三种 Normalized event、双跑 canonical trace、历史 timestamp、真实 G2 非空链路与 processing timeline 变化。
+- 验证：G5-1 `9 passed`；G1/G2 `15 passed`；G3 `10 passed`；G4 `45 passed`；full backend `81 passed, 1 warning`；Ruff、compileall、`git diff --check` 通过。
+- 状态：`G5-1 IMPLEMENTED / WAITING REVIEW`（未自行 Acceptance，未 merge `main`）。
 
 ### Group 4 Acceptance
 

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from marketpulse.clock import Clock, SystemClock
 
 from .models import (
     DirectionBias,
@@ -17,6 +17,9 @@ class StrategyEngine:
 
     version = "g2-v1"
 
+    def __init__(self, clock: Clock | None = None) -> None:
+        self.clock = clock or SystemClock()
+
     def candidates(self, features: FeatureSnapshot, event: MarketEvent, state_version: int) -> list[StrategyCandidate]:
         return [
             self._trend_pullback(features, event, state_version),
@@ -26,7 +29,7 @@ class StrategyEngine:
         ]
 
     def _candidate(self, name: str, applicable: bool, strength: float, bias: DirectionBias, features: FeatureSnapshot, event: MarketEvent, state_version: int, support: list[str], contradiction: list[str], invalidation: str, expected: str) -> StrategyCandidate:
-        return StrategyCandidate(candidate_id=deterministic_id("sc", event.event_id, name, self.version), strategy_id=name, strategy_version=self.version, applicable=applicable, strength=round(max(0.0, min(1.0, strength)), 6), setup_type=name, direction_bias=bias, entry_context={"current_price": features.current_price, "retest_area": features.structure.retest_area.model_dump(mode="json") if features.structure.retest_area else None}, supporting_evidence=support, contradicting_evidence=contradiction, invalidation_hint=invalidation, expected_behavior=expected, instrument_id=features.instrument_id, symbol=features.symbol, event_id=event.event_id, state_version=state_version, config_version=event.config_version, created_at=datetime.now(UTC))
+        return StrategyCandidate(candidate_id=deterministic_id("sc", event.event_id, name, self.version), strategy_id=name, strategy_version=self.version, applicable=applicable, strength=round(max(0.0, min(1.0, strength)), 6), setup_type=name, direction_bias=bias, entry_context={"current_price": features.current_price, "retest_area": features.structure.retest_area.model_dump(mode="json") if features.structure.retest_area else None}, supporting_evidence=support, contradicting_evidence=contradiction, invalidation_hint=invalidation, expected_behavior=expected, instrument_id=features.instrument_id, symbol=features.symbol, event_id=event.event_id, state_version=state_version, config_version=event.config_version, created_at=self.clock.now())
 
     def _trend_pullback(self, features: FeatureSnapshot, event: MarketEvent, state_version: int) -> StrategyCandidate:
         bullish = (features.short_return or 0) > 0 and (features.buy_sell_imbalance or 0) > 0

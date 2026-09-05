@@ -3,9 +3,9 @@ from __future__ import annotations
 import asyncio
 import itertools
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from typing import Protocol
 
+from marketpulse.clock import Clock
 from marketpulse.market_data.models import AuxiliaryContext, NormalizedMarketEvent
 
 from .models import (
@@ -117,25 +117,28 @@ class EventRuntime:
 class ScannerPipeline:
     """Connect normalized G1 events to rolling features, scanner facts, and G2 runtime."""
 
-    def __init__(self, scanner: OpportunityScanner, runtime: EventRuntime, rolling: RollingFeatureEngine | None = None) -> None:
+    def __init__(self, scanner: OpportunityScanner, runtime: EventRuntime, rolling: RollingFeatureEngine | None = None, clock: Clock | None = None) -> None:
         self.scanner = scanner
         self.runtime = runtime
         self.rolling = rolling or RollingFeatureEngine()
+        self.clock = clock or scanner.clock
         self.lifecycle = SignalLifecycle()
         self._btc_returns: dict[str, float] = {}
+        self.last_detected_events: tuple[MarketEvent, ...] = ()
 
     async def ingest(self, market_event: NormalizedMarketEvent, auxiliary: AuxiliaryContext | None = None) -> list[ApplyOutcome]:
         btc_return = self._btc_returns.get("BTC-USDT")
         features = self.rolling.ingest(market_event, auxiliary=auxiliary, btc_return=btc_return)
         if features.symbol == "BTC-USDT" and features.short_return is not None:
             self._btc_returns["BTC-USDT"] = features.short_return
-        events = self.scanner.scan(features, state_version=0)
+        events = self.scanner.scan(features, received_time=self.clock.now(), state_version=0)
         detected_types = {event.event_type for event in events}
         for active_type in self.lifecycle.active_types(features.instrument_id) - detected_types:
             previous_event_id = self.lifecycle.normalize(features.instrument_id, active_type)
             if previous_event_id:
-                now = datetime.now(UTC)
+                now = self.clock.now()
                 events.append(MarketEvent(event_id=deterministic_id("normalized", previous_event_id, market_event.event_time.isoformat()), symbol=features.symbol, instrument_id=features.instrument_id, market_type=features.market_type, event_type=active_type, event_time=market_event.event_time, received_time=now, source="g2.signal_lifecycle", strength=0, priority=0, state_version=0, config_version=self.scanner.config.version, payload={"normalized_from_event_id": previous_event_id}))
+        self.last_detected_events = tuple(events)
         outcomes = []
         for event in events:
             action = LifecycleAction.NORMALIZED if event.source == "g2.signal_lifecycle" else self.lifecycle.action_for(event)
