@@ -15,9 +15,8 @@ from marketpulse.db.models import (
     PositionRecord,
     SymbolControlRecord,
     SymbolStateStore,
-    TradePlanRecord,
 )
-from marketpulse.g3.models import BestBidAsk, OrderSide, OrderStatus, PlanStatus, RunMode
+from marketpulse.g3.models import BestBidAsk, OrderSide, OrderStatus, RunMode
 from marketpulse.g3.service import PaperExecutionService, stable_id
 from marketpulse.runtime import HealthRegistry
 
@@ -35,6 +34,7 @@ from .models import (
     ReconciliationReport,
     SystemState,
 )
+from .planning import load_valid_long_active_plan
 from .protection import PositionProtectionService
 from .risk_gate import SystemRiskGate
 from .state import SystemStateService, effective_state
@@ -137,6 +137,35 @@ class SystemControlService:
             return f"RECONCILIATION_FAILED:{','.join(report.diagnostics[:3])}"
         if self.health.status(HealthComponent.CORE_MARKET_DATA.value) != HealthStatus.HEALTHY.value:
             return "CORE_MARKET_DATA_NOT_FRESH"
+        protection_reason = await self._open_position_protection_gate(session, run_mode, now)
+        if protection_reason is not None:
+            return protection_reason
+        return None
+
+    async def _open_position_protection_gate(
+        self, session: AsyncSession, run_mode: RunMode, now: datetime
+    ) -> str | None:
+        """Do not trust an incident flag or raw row as proof an OPEN LONG is protected."""
+        positions = list(
+            (
+                await session.scalars(
+                    select(PositionRecord).where(
+                        PositionRecord.run_mode == run_mode,
+                        PositionRecord.quantity > 0,
+                    )
+                )
+            ).all()
+        )
+        for position in positions:
+            plan = await load_valid_long_active_plan(
+                session,
+                run_mode,
+                position.instrument_id,
+                average_cost=position.average_cost,
+                now=now,
+            )
+            if plan is None:
+                return "POSITION_UNPROTECTED"
         return None
 
     async def _safe_mode_incident_gate(
@@ -149,26 +178,9 @@ class SystemControlService:
                 # ACCOUNT_INTEGRITY_ERROR and RECOVERY_FAILED are covered by the health and
                 # reconciliation checks in _resume_gate.
                 continue
-            positions = list(
-                (
-                    await session.scalars(
-                        select(PositionRecord).where(
-                            PositionRecord.run_mode == run_mode,
-                            PositionRecord.quantity > 0,
-                        )
-                    )
-                ).all()
-            )
-            for position in positions:
-                plan = await session.scalar(
-                    select(TradePlanRecord).where(
-                        TradePlanRecord.run_mode == run_mode,
-                        TradePlanRecord.instrument_id == position.instrument_id,
-                        TradePlanRecord.status == PlanStatus.ACTIVE,
-                    )
-                )
-                if plan is None or now >= plan.expires_at:
-                    return f"INCIDENT_{incident.incident_type}"
+            protection_reason = await self._open_position_protection_gate(session, run_mode, now)
+            if protection_reason is not None:
+                return f"INCIDENT_{incident.incident_type}"
         return None
 
     # ------------------------------------------------------------------ emergency

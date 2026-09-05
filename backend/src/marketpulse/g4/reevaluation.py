@@ -49,7 +49,13 @@ from .models import (
     ReevaluationAction,
     ReevaluationOutcome,
 )
-from .planning import PlanManager, StalePlanError, derive_followup_plan, load_active_plan
+from .planning import (
+    PlanManager,
+    StalePlanError,
+    derive_followup_plan,
+    load_active_plan,
+    plan_business_errors,
+)
 from .protection import PositionProtectionService
 from .provider import (
     REVIEW_PROMPT_VERSION,
@@ -1091,9 +1097,7 @@ class PositionReevaluationService:
 
     @staticmethod
     def _plan_business_errors(plan: TradePlan, bbo: BestBidAsk) -> list[str]:
-        errors: list[str] = []
-        if plan.entry_zone.lower > plan.entry_zone.upper or plan.stop_loss >= plan.take_profit:
-            errors.append("plan_price_relationship_invalid")
+        errors = plan_business_errors(plan)
         if bbo.bid <= plan.stop_loss:
             errors.append("stop_already_breached")
         if bbo.bid >= plan.take_profit:

@@ -34,7 +34,7 @@ Acceptance Group 4 — Position Safety + Recovery
 
 ## In Progress
 
-- G4 Post-Review Fix #2 已实现并完成真实 PostgreSQL 验证，等待下一轮人工 Acceptance。
+- G4 Post-Review Fix #3 已实现，等待人工 Acceptance；状态仍为 `G4 IMPLEMENTED / WAITING REVIEW`。
 
 ## Blocked
 
@@ -62,8 +62,8 @@ Acceptance Group 4 — Position Safety + Recovery
 
 ## Group 4 Result
 
-- G4 PostgreSQL 场景测试（`test_group4.py`）覆盖 A–U、失败注入、Post-Review Fix #1 与 Fix #2 回归：`40 passed`。
-- 全量 `pytest backend/tests`：`67 passed`，2 个既有 FastAPI/Starlette deprecation warning。
+- G4 PostgreSQL 场景测试（`test_group4.py`）覆盖 A–U、失败注入、Post-Review Fix #1–#3 回归：`44 passed`。
+- 全量 `pytest backend/tests`：`71 passed`，2 个既有 FastAPI/Starlette deprecation warning。
 - `ruff check backend/src backend/tests scripts` / `compileall` / `git diff --check`：PASS。
 - `alembic current` / `alembic heads`：`20260905_0004 (head)`。
 - Restart smoke（`scripts/g4_verify_runtime.py setup/recover`）：两进程 PostgreSQL 重建 → `RUNNING`、`active_symbols=['BTC-USDT']`、`reconciliation_ok=True`。
@@ -85,6 +85,14 @@ Acceptance Group 4 — Position Safety + Recovery
 - P1 Recovery BBO failure：OPEN Position 的 exception/missing/unusable BBO 持久化 `CORE_DATA_STALE` Incident，Health 标记 UNAVAILABLE，恢复落在非 RUNNING。
 - 修复 SAFE_MODE recovery 的 blocking-incident 可达性：仅在 health/reconciliation 与 position protection durable facts 通过后，于同一控制事务 resolve 并落到 PAUSED。
 - 新增 8 个真实 PostgreSQL 回归测试；真实 AI Provider 因 `OPENAI_API_KEY=MISSING` 为 `DEFERRED / NOT VERIFIED`。
+
+### Post-Review Fix #3
+
+- `load_active_plan()` 现只在恰好一条 ACTIVE row、payload 可由 `TradePlan.model_validate` 加载，且 payload 与 durable row 的 plan identity / run_mode / instrument / version / status / timestamps 一致时返回计划；否则 fail closed。
+- 共用的 plan business validation 检查 entry-zone、SL/TP 与当前 LONG `average_cost` 的保护关系（`stop_loss < average_cost < take_profit`）；Safe Mode Recovery 与普通 Resume 都以此证明 OPEN Position 真实受保护，不能以 raw/corrupt row 或错误 RESOLVED Incident 放行。
+- `safe_mode_recovery()` 仅在 durable protection、reconciliation、health 与 fresh core-data gate 均通过后，resolve blocking incident 并落到 `PAUSED`；随后 manual Resume 才可进入 `RUNNING`。
+- 新增 4 个真实 PostgreSQL 回归：corrupt payload / payload identity mismatch 拒绝、可解析但 LONG protection relationship 非法拒绝、修复为有效 plan 后恢复到 `PAUSED` 并 resolve incident、错误手工 resolve Incident 后 Resume 仍拒绝直至有效保护和健康条件恢复。
+- PENDING PRODUCT DECISION：V1 是否正式定义 `TradePlan.invalidation` 为 AI/human-readable advisory text，而 `stop_loss` 为唯一 machine-enforceable hard invalidation；本轮保持冻结现状，未开发自然语言 invalidation parser。
 
 ## Acceptance Record
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -214,17 +215,69 @@ async def load_active_plan(
     *,
     for_update: bool = False,
 ) -> TradePlan | None:
+    """Load exactly one durable ACTIVE plan whose serialized identity still agrees with its row."""
     statement = select(TradePlanRecord).where(
-            TradePlanRecord.run_mode == run_mode,
-            TradePlanRecord.instrument_id == instrument_id,
-            TradePlanRecord.status == PlanStatus.ACTIVE,
-        )
+        TradePlanRecord.run_mode == run_mode,
+        TradePlanRecord.instrument_id == instrument_id,
+        TradePlanRecord.status == PlanStatus.ACTIVE,
+    )
     if for_update:
         statement = statement.with_for_update()
-    record = await session.scalar(statement)
-    if record is None:
+    records = list((await session.scalars(statement)).all())
+    if len(records) != 1:
         return None
+    record = records[0]
     try:
-        return TradePlan.model_validate(record.payload)
+        plan = TradePlan.model_validate(record.payload)
     except Exception:  # noqa: BLE001 - a corrupt durable plan must fail closed, never guess
         return None
+    if (
+        plan.plan_id != record.plan_id
+        or plan.snapshot_id != record.snapshot_id
+        or plan.decision_id != record.decision_id
+        or plan.instrument_id != record.instrument_id
+        or plan.symbol != record.symbol
+        or plan.run_mode != record.run_mode
+        or plan.state_version != record.state_version
+        or plan.plan_version != record.plan_version
+        or plan.status != record.status
+        or plan.created_at != record.created_at
+        or plan.expires_at != record.expires_at
+    ):
+        return None
+    return plan
+
+
+def plan_business_errors(
+    plan: TradePlan, *, long_position_average_cost: float | None = None
+) -> list[str]:
+    """Shared executable plan checks; invalidation text intentionally remains advisory."""
+    errors: list[str] = []
+    if plan.entry_zone.lower > plan.entry_zone.upper or plan.stop_loss >= plan.take_profit:
+        errors.append("plan_price_relationship_invalid")
+    if long_position_average_cost is not None and (
+        not math.isfinite(long_position_average_cost)
+        or not (plan.stop_loss < long_position_average_cost < plan.take_profit)
+    ):
+        errors.append("long_position_protection_invalid")
+    return errors
+
+
+async def load_valid_long_active_plan(
+    session: AsyncSession,
+    run_mode: RunMode,
+    instrument_id: str,
+    *,
+    average_cost: float,
+    now: datetime,
+    for_update: bool = False,
+) -> TradePlan | None:
+    """Return an executable ACTIVE plan only when it genuinely protects the current LONG."""
+    plan = await load_active_plan(
+        session, run_mode, instrument_id, for_update=for_update
+    )
+    if plan is None or now >= plan.expires_at:
+        return None
+    if plan_business_errors(plan, long_position_average_cost=average_cost):
+        return None
+    return plan
