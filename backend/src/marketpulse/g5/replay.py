@@ -50,24 +50,28 @@ class ReplayEventSource:
 @dataclass(frozen=True)
 class ReplayEventTrace:
     event_id: str
+    timeline_id: str
     lifecycle_action: LifecycleAction
     transition_id: str
     transition_from: str
     transition_to: str
     state_version: int
     candidate_ids: tuple[str, ...]
+    candidate_created_at: tuple[datetime, ...]
     candidate_applicable: tuple[bool, ...]
     candidate_direction_bias: tuple[DirectionBias, ...]
 
     def canonical(self) -> tuple[object, ...]:
         return (
             self.event_id,
+            self.timeline_id,
             self.lifecycle_action.value,
             self.transition_id,
             self.transition_from,
             self.transition_to,
             self.state_version,
             self.candidate_ids,
+            tuple(item.isoformat() for item in self.candidate_created_at),
             self.candidate_applicable,
             tuple(item.value for item in self.candidate_direction_bias),
         )
@@ -148,7 +152,12 @@ class ReplayG2Runner:
                         instrument_id=frame.market_event.instrument_id,
                         detected_event_ids=tuple(event.event_id for event in pipeline.last_detected_events),
                         events=tuple(
-                            self._event_trace(timeline.lifecycle_action, transition, candidates)
+                            self._event_trace(
+                                timeline.lifecycle_action,
+                                transition,
+                                timeline.timeline_id,
+                                candidates,
+                            )
                             for timeline, transition in zip(timelines, repository.transitions[timeline_offset:], strict=True)
                         ),
                     )
@@ -163,17 +172,20 @@ class ReplayG2Runner:
     def _event_trace(
         lifecycle_action: LifecycleAction,
         transition: StateTransition,
+        timeline_id: str,
         candidates: list[StrategyCandidate],
     ) -> ReplayEventTrace:
         event_candidates = [item for item in candidates if item.event_id == transition.event_id]
         return ReplayEventTrace(
             event_id=transition.event_id,
+            timeline_id=timeline_id,
             lifecycle_action=lifecycle_action,
             transition_id=transition.transition_id,
             transition_from=transition.from_state.value,
             transition_to=transition.to_state.value,
             state_version=transition.state_version,
             candidate_ids=tuple(item.candidate_id for item in event_candidates),
+            candidate_created_at=tuple(item.created_at for item in event_candidates),
             candidate_applicable=tuple(item.applicable for item in event_candidates),
             candidate_direction_bias=tuple(item.direction_bias for item in event_candidates),
         )

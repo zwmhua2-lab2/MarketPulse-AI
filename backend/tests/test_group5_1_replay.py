@@ -124,6 +124,30 @@ def test_same_replay_twice_has_identical_canonical_trace():
     second = asyncio.run(_runner().run(source))
 
     assert first.trace.canonical() == second.trace.canonical()
+    first_events = tuple(event for frame in first.trace.frames for event in frame.events)
+    second_events = tuple(event for frame in second.trace.frames for event in frame.events)
+
+    assert [event.event_id for event in first_events] == [event.event_id for event in second_events]
+    assert [event.timeline_id for event in first_events] == [event.timeline_id for event in second_events]
+    assert [
+        (event.transition_id, event.transition_from, event.transition_to, event.state_version)
+        for event in first_events
+    ] == [
+        (event.transition_id, event.transition_from, event.transition_to, event.state_version)
+        for event in second_events
+    ]
+    assert [event.candidate_ids for event in first_events] == [
+        event.candidate_ids for event in second_events
+    ]
+    assert [event.candidate_created_at for event in first_events] == [
+        event.candidate_created_at for event in second_events
+    ]
+    assert [event.candidate_applicable for event in first_events] == [
+        event.candidate_applicable for event in second_events
+    ]
+    assert [event.candidate_direction_bias for event in first_events] == [
+        event.candidate_direction_bias for event in second_events
+    ]
 
 
 def test_replay_business_timestamps_are_historical_not_wall_clock():
@@ -131,9 +155,14 @@ def test_replay_business_timestamps_are_historical_not_wall_clock():
     result = asyncio.run(_runner().run(source))
 
     business_timestamps = [event.received_time for event in result.repository.events.values()]
-    business_timestamps.extend(candidate.created_at for candidate in result.repository.candidates)
+    candidate_timestamps = [candidate.created_at for candidate in result.repository.candidates]
+    business_timestamps.extend(candidate_timestamps)
     assert business_timestamps
     assert all(timestamp.date() == HISTORICAL_START.date() for timestamp in business_timestamps)
+    assert candidate_timestamps
+    assert set(candidate_timestamps) <= {
+        frame.market_event.received_time for frame in source.frames
+    }
 
 
 def test_real_g2_chain_emits_events_transition_and_candidates():

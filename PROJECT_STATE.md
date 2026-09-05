@@ -15,8 +15,8 @@ Acceptance Group 5 — G5-1 Deterministic Replay Foundation（IMPLEMENTED / WAIT
 
 ## Branch / Source
 
-- Branch: `g4-position-safety-recovery`
-- Base main SHA: `15dd0f1ebdf9c8f79af81ba1aab5078bf0f99844`
+- Branch: `g5-deterministic-replay-foundation`
+- Task Base / Accepted Main SHA: `82faf76cde1ddb99e15c6c524709df446ff8c78f`
 - Migration Head: `20260905_0004`（`alembic current/heads` 一致）
 - Real AI Provider Status: `DEFERRED`（`OPENAI_API_KEY=MISSING`；测试用 deterministic Fake Provider）
 
