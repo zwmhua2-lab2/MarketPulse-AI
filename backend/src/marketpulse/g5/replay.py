@@ -75,6 +75,7 @@ from marketpulse.market_data.models import (
 from marketpulse.runtime import HealthRegistry
 
 from .canonical import capture_workspace_snapshot
+from .evaluation import ReplayEvaluationReport, evaluate_replay_workspace
 
 
 class ReplayOrderingError(ValueError):
@@ -436,6 +437,7 @@ class ReplayTradingResult:
     g3_provider_calls: int
     g4_provider_calls: int
     workspace_digest: str
+    evaluation: ReplayEvaluationReport | None = None
 
 
 class ReplayTradingRunner:
@@ -478,6 +480,9 @@ class ReplayTradingRunner:
                 source, replay, primary_name, replay_name, primary_before
             )
             snapshot = await capture_workspace_snapshot(replay, _REPLAY_BUSINESS_TABLES)
+            evaluation = await evaluate_replay_workspace(
+                replay, workspace_digest=snapshot.digest()
+            )
             primary_after = await guard.counts(primary)
             if primary_after != primary_before:
                 raise ReplayWorkspaceIsolationError("primary database changed during replay")
@@ -505,6 +510,7 @@ class ReplayTradingRunner:
                 g3_provider_calls=result.g3_provider_calls,
                 g4_provider_calls=result.g4_provider_calls,
                 workspace_digest=snapshot.digest(),
+                evaluation=evaluation,
             )
         finally:
             await primary.dispose()

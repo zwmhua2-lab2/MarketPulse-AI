@@ -9,13 +9,15 @@
 | 字段 | 值 |
 |---|---|
 | Project | MarketPulse AI（BTC/ETH 量化纸面交易终端，Modular Monolith） |
-| Current Acceptance Group | G5-3 END-TO-END DETERMINISM（ACCEPTED） |
+| Current Acceptance Group | G5-4 DETERMINISTIC REPLAY EVALUATION（IMPLEMENTED / WAITING REVIEW） |
 | Accepted Main Source | Git `main` / `origin/main`；须在任务 preflight 按 CIP-02 实时读取，不以文档静态 SHA 为准 |
-| Current State | `G5-3 ACCEPTED`（G5 overall = NOT ACCEPTED；G5-4 NOT STARTED） |
+| Current State | `G5-4 IMPLEMENTED / WAITING REVIEW`（G5 overall = NOT ACCEPTED） |
 | Last Accepted Group | G5-3（End-to-End Determinism） |
+| Current Group Branch | `g5-replay-evaluation`（未 merge `main`） |
 
 - G1–G4 acceptance 状态：`ACCEPTED` / `ACCEPTED` / `ACCEPTED` / `ACCEPTED`。
-- G5-0 / G5-1 / G5-2 / G5-3 acceptance 状态：`ACCEPTED`；G5 overall = `NOT ACCEPTED`（G5-4 NOT STARTED）。
+- G5-0 / G5-1 / G5-2 / G5-3 acceptance 状态：`ACCEPTED`。
+- G5-4 = `IMPLEMENTED / WAITING REVIEW`（未 Acceptance）；G5 overall = `NOT ACCEPTED`。
 
 ## 2. Source of Truth（事实源优先级，从高到低）
 
@@ -51,9 +53,9 @@
 
 | 字段 | 值 |
 |---|---|
-| Current Group | G5-3（ACCEPTED） |
-| Previous accepted boundary | G5-2 |
-| Next Group | G5-4（NOT STARTED；本次 Acceptance Closeout 不进入） |
+| Current Group | G5-4（IMPLEMENTED / WAITING REVIEW） |
+| Previous accepted boundary | G5-3（ACCEPTED） |
+| Next Group | G5-5（未开始；G5-4 未经人工 Acceptance PASS 不得开始） |
 
 - G4 **没有**提前实现完整 Replay / ReplayClock Engine。
 - 仓库中仅存在：`Clock` Protocol 的 `ReplayClock` 实现（`backend/src/marketpulse/clock.py`）与 `RunMode.REPLAY` 枚举（`config.py`）——这是既有 Clock 边界，**不是**完整回放引擎。
@@ -82,5 +84,10 @@
 - G5-1 `ACCEPTED`：Deterministic Replay Foundation 已验收，implementation acceptance basis = `34da62a0cc9dbe95b95faadb770fbd06179a6975`。
 - G5-2 Trading Replay Integration = `ACCEPTED`（Implementation Acceptance Basis = `2a7d0c858c70f21215a090ee3b583d341cfd84b4`；详见 `dev_log/2026-09-06-group5-2.md`「Formal Acceptance Record」）。
 - G5-3 End-to-End Determinism = `ACCEPTED`（2026-09-06 Formal Acceptance Closeout；Implementation Acceptance Basis = `f4c07333600f605cbcc5e34b591659feb1b1f318`；Review Fix #1 = VERIFIED；详见 `dev_log/2026-09-06-group5-3.md`「Formal Acceptance Record」）。
-- G5 overall = `NOT ACCEPTED`（G5-4 NOT STARTED；不得自行开始 G5-4 implementation）。
+- G5-3 End-to-End Determinism = `ACCEPTED`（2026-09-06 Formal Acceptance Closeout；Implementation Acceptance Basis = `f4c07333600f605cbcc5e34b591659feb1b1f318`；Review Fix #1 = VERIFIED；详见 `dev_log/2026-09-06-group5-3.md`「Formal Acceptance Record」）。
+- G5-4 Deterministic Replay Evaluation = `IMPLEMENTED / WAITING REVIEW`（branch `g5-replay-evaluation`；Design Commit `517d7d5`；详见 `dev_log/2026-09-06-group5-4.md`）。
+  - 关键事实源：`backend/src/marketpulse/g5/evaluation.py`（新增）、`backend/src/marketpulse/g5/replay.py`（additive `evaluation` 字段与评估步骤）、`backend/src/marketpulse/g5/canonical.py`（未修改）。
+  - G5-4 冻结边界：不持久化 Evaluation Report、不引入 `replay_run_id` / `backtest_id`、不新增 schema、
+    不修改 G3 accounting semantics、不做 MFE/MAE/drawdown/equity curve/win rate/expectancy/R-multiple/Sharpe/Sortino/profit factor。
+- G5 overall = `NOT ACCEPTED`（G5-4 未经人工 Acceptance PASS；不得自行开始 G5-5）。
 - 具体 In Progress / Blocked 状态见 `PROJECT_STATE.md`。

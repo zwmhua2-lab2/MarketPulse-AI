@@ -2,7 +2,7 @@
 
 ## Current Group
 
-Acceptance Group 5 — G5-3 End-to-End Determinism（ACCEPTED）
+Acceptance Group 5 — G5-4 Deterministic Replay Evaluation（IMPLEMENTED / WAITING REVIEW）
 
 ## GitHub Repository
 
@@ -36,7 +36,7 @@ Acceptance Group 5 — G5-3 End-to-End Determinism（ACCEPTED）
 
 ## In Progress
 
-- 无（G5-3 已 ACCEPTED；G5-4 未开始，本次 Acceptance Closeout 不进入 G5-4 implementation）。
+- G5-4（Deterministic Replay Evaluation）已实现并自测通过，等待人工 Acceptance Review；未 merge `main`，未自宣 ACCEPTED。
 
 ## Blocked
 
@@ -117,7 +117,8 @@ Acceptance Group 5 — G5-3 End-to-End Determinism（ACCEPTED）
 - G3 Post-Acceptance Fix = `ACCEPTED`。
 - Group 5-0 = `ACCEPTED`（G5 feature implementation NOT STARTED）。
 - Group 5-3 = `ACCEPTED`（2026-09-06 Formal Acceptance Closeout；Implementation Acceptance Basis = `f4c07333600f605cbcc5e34b591659feb1b1f318`；Review Fix #1 = VERIFIED）。
-- G5 overall = `NOT ACCEPTED`（G5-4 NOT STARTED）。
+- G5-4 = `IMPLEMENTED / WAITING REVIEW`（未 Acceptance）。
+- G5 overall = `NOT ACCEPTED`。
 
 ## Group 5-1 Result
 
@@ -167,3 +168,34 @@ Acceptance Group 5 — G5-3 End-to-End Determinism（ACCEPTED）
 - P0-2：`g5/canonical.py::canonicalize_value` 从「typed value 折叠 string」改为无歧义类型标记编码（`["null"]`/`["bool",v]`/`["int",v]`/`["str",v]`/`["float",hex]`/`["decimal",str]`/`["datetime",UTC ISO]`/`["enum",...]`/`["object",[[k,v]...]]`/`["array",[...]]`），`first_snapshot_difference` 感知 tagged 结构保持语义 path，主键列值保持原始可哈希标量。新增碰撞回归（float vs 相同 hex 文本、Decimal vs 相同串、datetime vs 相同 ISO 文本、`["float",...]` vs 真实 float、shape-like-marker object vs 真实值）。无 schema 变更。
 - 验证：G5-3 `5 passed`、G4 `49 passed`、G5-2 `7 passed`、全量 `97 passed, 2 warnings`；Ruff/compileall/`git diff --check` 通过；Alembic primary=`20260905_0004 (head)`；DigestA=`487c96806b7666ab565f26f2796a42ec689d82eec36b68e799d090dea18b4694`、DigestC=`171c2ff9dafe836744997ab4f5f621c1f4d09c5c2c9c7e18e16a772a2f13ab97`（A==B、A!=C）；recorded G4 HOLD 真实消费（`model=replay-recorded-g4`、`error=None`）；PYTHONHASHSEED 0/12345 跨进程 digest 一致。
 - 状态：Review Fix #1 = `VERIFIED`；G5-3 已随 2026-09-06 Formal Acceptance Closeout 整体 `ACCEPTED`（见上）。
+
+## Group 5-4 Result
+
+- G5-4（Deterministic Replay Evaluation）实现：新增 `g5/evaluation.py`（`ReplayEvaluationReport`、
+  `ReplayEvaluationError`、`evaluate_replay_workspace(...)`）；`ReplayTradingResult` additive 增补
+  `evaluation` 字段；`ReplayTradingRunner.run()` 增补
+  `capture workspace → workspace_digest → evaluate durable workspace → verify primary unchanged`。
+- Evaluation 只从 Replay PostgreSQL durable facts 读取；所有 float 聚合为 primary-key 排序 +
+  `math.fsum()`；读取事务为 `REPEATABLE READ, READ ONLY`；`evaluation_digest` 复用 G5-3
+  `canonicalize_value()`，输入排除 `workspace_digest` 与自身。
+- 会计语义：`account_realized_pnl`（仅 SELL realized，已扣 SELL fee）、`total_fees`（BUY+SELL fill fee）、
+  `ledger_cash_delta`（全部 ledger cash 变动）三项分别报告，未创建 `profit` / `net_profit` 合并字段；
+  未修改 G3 settlement semantics。
+- 验证：G5-4 `7 passed`；G5-3+G5-2+G5-1 `21 passed`；G1/G2+G3 `25 passed`；G4 `49 passed`；
+  全量 `104 passed, 1 warning`；Ruff / compileall / `git diff --check` 通过；
+  Alembic primary `current`/`heads` = `20260905_0004 (head)`。
+- Determinism：三独立 PostgreSQL workspace A(89)/B(89)/C(88) 证明
+  `Evaluation(A)==Evaluation(B)`、`EvaluationDigest(A)==EvaluationDigest(B)`、
+  `WorkspaceDigest(A)==WorkspaceDigest(B)`、`EvaluationDigest(A)!=EvaluationDigest(C)`；
+  workspace digest 与 G5-3 文档值一致（说明未改变 G5-3 行为）。
+- 经济敏感性（A/C）：`sell_filled_notional`、`total_fees`、`ledger_cash_delta`、
+  `account_realized_pnl`、`final_cash_balance` 五项均真实变化；A/B/C 生命周期仍合法
+  （`closed_trade_count=1`、`open_trade_count=0`、`exit_reason=(('STOP_LOSS', 1),)`）。
+- Fail-closed 证据：test-local 篡改 fill fee → `ReplayEvaluationError`
+  （`accounting inconsistency: fill fees do not match ledger fees`）。
+- Open-position 证据：protective exit 前结束的独立场景 `open_position_count=1`、
+  `open_quantity=9.995002498750624`、`open_trade_count=1`、`closed_trade_count=0`、`is_flat=False`。
+- 隔离证据：primary counts 前后一致；outbound HTTP client 构造 `0`；Real AI / OKX 调用 `0`。
+- Schema migration：未新增；`replay_run_id` / `backtest_id`：未引入；Evaluation Report：未持久化。
+- 状态：`G5-4 IMPLEMENTED / WAITING REVIEW`；G5 overall = `NOT ACCEPTED`；未 merge `main`。
+  详见 `dev_log/2026-09-06-group5-4.md`。
