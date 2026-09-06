@@ -304,12 +304,78 @@ def test_canonicalization_is_lossless_and_deterministic_for_required_types():
 
     normalized = canonicalize_value(value)
 
-    assert list(normalized) == ["a", "z"]
-    assert normalized["a"] == "2024-01-02T01:30:00.000000+00:00"
-    assert normalized["z"] == [None, True, 7, "text", "1.2300", (0.1).hex(), "REPLAY"]
+    assert normalized == [
+        "object",
+        [
+            ["a", ["datetime", "2024-01-02T01:30:00.000000+00:00"]],
+            [
+                "z",
+                [
+                    "array",
+                    [
+                        ["null"],
+                        ["bool", True],
+                        ["int", 7],
+                        ["str", "text"],
+                        ["decimal", "1.2300"],
+                        ["float", (0.1).hex()],
+                        ["enum", ["str", "REPLAY"]],
+                    ],
+                ],
+            ],
+        ],
+    ]
+
+
+def test_canonicalization_is_injective_across_source_types():
+    local_time = datetime(2024, 1, 2, 9, 30, tzinfo=UTC)
+
+    assert canonicalize_value(1.0) != canonicalize_value("0x1.0000000000000p+0")
+    assert canonicalize_value(Decimal("1.2300")) != canonicalize_value("1.2300")
+    assert canonicalize_value(local_time) != canonicalize_value("2024-01-02T09:30:00.000000+00:00")
+    assert canonicalize_value(["float", "0x1.0000000000000p+0"]) != canonicalize_value(1.0)
+    # A source JSON object shaped like a type marker must remain distinct from a real value.
+    assert canonicalize_value({"type": "bool", "value": True}) != canonicalize_value(True)
+    # A source string that looks like a tagged marker must not collide with a real tagged value.
+    assert canonicalize_value("float") != canonicalize_value(1.0)
+
+
+def test_canonicalization_preserves_ordering_precision_and_utc():
+    local_time = datetime(2024, 1, 2, 9, 30, tzinfo=timezone(timedelta(hours=8)))
+    value = {
+        "z_keys": {"b": 1, "a": 2, "c": 3},
+        "array": [Decimal("1.2300"), 0.1, local_time],
+    }
+
+    normalized = canonicalize_value(value)
+
+    # Top-level dict keys are sorted deterministically ("array" < "z_keys").
+    assert normalized[0] == "object"
+    pairs = dict(normalized[1])
+    assert list(pairs) == ["array", "z_keys"]
+    # Array ordering preserved, Decimal exact, float hex exact, UTC normalization.
+    assert pairs["array"] == [
+        "array",
+        [
+            ["decimal", "1.2300"],
+            ["float", (0.1).hex()],
+            ["datetime", "2024-01-02T01:30:00.000000+00:00"],
+        ],
+    ]
+    # Nested dict keys sorted deterministically.
+    assert pairs["z_keys"] == [
+        "object",
+        [
+            ["a", ["int", 2]],
+            ["b", ["int", 1]],
+            ["c", ["int", 3]],
+        ],
+    ]
 
 
 def test_canonical_diff_reports_table_primary_key_and_nested_json_path():
+    payload_a = canonicalize_value({"economics": {"realized_pnl": 0.1}})
+    payload_b = canonicalize_value({"economics": {"realized_pnl": 1.5}})
     run_a = CanonicalWorkspaceSnapshot(
         tables=(
             CanonicalTable(
@@ -318,7 +384,7 @@ def test_canonical_diff_reports_table_primary_key_and_nested_json_path():
                 rows=(
                     CanonicalRow(
                         primary_key=(("position_id", "position-1"),),
-                        values=(("payload", {"economics": {"realized_pnl": "0x1.0p+0"}}),),
+                        values=(("payload", payload_a),),
                     ),
                 ),
             ),
@@ -332,7 +398,7 @@ def test_canonical_diff_reports_table_primary_key_and_nested_json_path():
                 rows=(
                     CanonicalRow(
                         primary_key=(("position_id", "position-1"),),
-                        values=(("payload", {"economics": {"realized_pnl": "0x1.8p+0"}}),),
+                        values=(("payload", payload_b),),
                     ),
                 ),
             ),
@@ -345,8 +411,8 @@ def test_canonical_diff_reports_table_primary_key_and_nested_json_path():
     assert difference.table == "positions"
     assert difference.primary_key == (("position_id", "position-1"),)
     assert difference.path == "$values.payload.economics.realized_pnl"
-    assert difference.run_a_value == "0x1.0p+0"
-    assert difference.run_b_value == "0x1.8p+0"
+    assert difference.run_a_value == ["float", (0.1).hex()]
+    assert difference.run_b_value == ["float", (1.5).hex()]
 
 
 def test_end_to_end_replay_determinism_uses_three_independent_postgres_workspaces(monkeypatch):

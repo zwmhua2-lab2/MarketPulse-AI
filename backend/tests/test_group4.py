@@ -2186,3 +2186,109 @@ def test_reevaluation_snapshot_orders_timeline_and_open_orders_deterministically
     # created_at ascending, then order_id ascending; ord-b and ord-c share created_at.
     assert ascending[1] == ("ord-a", "ord-b", "ord-c")
     assert descending[1] == ascending[1]
+
+
+# ==============================================================================
+# G5-3 Review Fix #1 — deterministic OPEN BUY cancellation ordering
+# ==============================================================================
+
+
+def _insert_two_open_buys(plan_id: str, *, created_at: datetime) -> list[PaperOrderRecord]:
+    """Insert two OPEN BUY orders with equal created_at and insertion order opposite canonical.
+
+    order_id ASC is the deterministic tie-break; inserting ("ord-b", "ord-a") means a heap-order
+    scan would yield the wrong list unless the query orders by (created_at ASC, order_id ASC).
+    """
+    return [
+        PaperOrderRecord(
+            order_id=order_id,
+            intent_id=f"intent-{order_id}",
+            plan_id=plan_id,
+            instrument_id="SOL-USDT",
+            run_mode=RunMode.REPLAY.value,
+            side=OrderSide.BUY.value,
+            order_type=OrderType.LIMIT.value,
+            status=OrderStatus.OPEN.value,
+            quantity=1.0,
+            limit_price=95.0,
+            reserved_cash=95.0,
+            reserved_quantity=0.0,
+            created_at=created_at,
+        )
+        for order_id in ("ord-b", "ord-a")
+    ]
+
+
+async def _cancelled_order_ids(event_type: PositionEventType) -> list[str]:
+    async with SESSIONS() as session:
+        event = await session.scalar(
+            select(PositionEventRecord).where(
+                PositionEventRecord.run_mode == RunMode.REPLAY,
+                PositionEventRecord.instrument_id == "SOL-USDT",
+                PositionEventRecord.event_type == event_type.value,
+            )
+        )
+        return event.payload.get("cancelled_order_ids", [])
+
+
+async def _seed_two_open_buys(plan_id: str, *, created_at: datetime) -> None:
+    """Insert two OPEN BUY orders and reserve their cash on the account, atomically."""
+    async with SESSIONS() as session, session.begin():
+        rows = _insert_two_open_buys(plan_id, created_at=created_at)
+        session.add_all(rows)
+        account = await session.scalar(
+            select(AccountRecord).where(AccountRecord.run_mode == RunMode.REPLAY)
+        )
+        account.reserved_cash += sum(row.reserved_cash for row in rows)
+
+
+def test_protection_exit_cancels_open_buys_in_created_at_then_order_id_order():
+    async def case():
+        h = Harness()
+        await h.boot()
+        plan, _ = await open_position(h, notional=50, bid=99, ask=100, stop=80, tp=140)
+        await _seed_two_open_buys(plan.plan_id, created_at=NOW)
+        # Move the bid below stop: STOP_LOSS triggers _cancel_risk_increasing.
+        h.quotes["SOL-USDT"] = (79.0, 80.0)
+        await h.protection.evaluate(
+            RunMode.REPLAY, "SOL-USDT", await h.bbo_for("SOL-USDT"), now=NOW
+        )
+        return await _cancelled_order_ids(PositionEventType.SL_TRIGGERED)
+
+    cancelled = asyncio.run(case())
+    assert cancelled == ["ord-a", "ord-b"]
+
+
+def test_recorded_cancel_add_cancels_open_buys_in_deterministic_order():
+    async def case():
+        h = Harness()
+        await h.boot()
+        plan, _ = await open_position(h, notional=50, bid=99, ask=100, stop=80, tp=140)
+        h.review_provider = DeterministicFakePositionReviewProvider(
+            PositionReevaluation(action=ReevaluationAction.CANCEL_ADD, reason="cancel-add")
+        )
+        h.reevaluation.provider = h.review_provider
+        await _seed_two_open_buys(plan.plan_id, created_at=NOW)
+        await h.reevaluation.evaluate(
+            RunMode.REPLAY, "SOL-USDT", await h.bbo_for("SOL-USDT"), now=NOW, force=True
+        )
+        return await _cancelled_order_ids(PositionEventType.CANCEL_ADD)
+
+    cancelled = asyncio.run(case())
+    assert cancelled == ["ord-a", "ord-b"]
+
+
+def test_plan_replacement_cancels_stale_open_buys_in_deterministic_order():
+    async def case():
+        h = Harness()
+        await h.boot()
+        plan, _ = await open_position(h, notional=50, bid=99, ask=100, stop=80, tp=140)
+        next_plan = derive_followup_plan(
+            plan, now=NOW, plan_version=2, stop_loss=85.0, take_profit=145.0
+        )
+        await _seed_two_open_buys(plan.plan_id, created_at=NOW)
+        await h.plans.replace(previous=plan, next_plan=next_plan, now=NOW)
+        return await _cancelled_order_ids(PositionEventType.PLAN_REPLACED)
+
+    cancelled = asyncio.run(case())
+    assert cancelled == ["ord-a", "ord-b"]

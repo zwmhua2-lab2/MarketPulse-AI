@@ -77,29 +77,45 @@ class CanonicalDifference:
 
 
 def canonicalize_value(value: Any) -> object:
-    """Normalize a PostgreSQL value recursively without precision-reducing casts."""
+    """Normalize a PostgreSQL value into an unambiguous type-tagged canonical form.
 
-    if value is None or isinstance(value, (bool, int, str)):
-        return value
+    Every supported source type maps to a tagged list whose first element is the
+    type marker, so a source JSON value can never collide with a canonical value of
+    a different type. The encoding is injective across all supported types: no two
+    distinct source values of distinct types share a canonical representation.
+    """
+
+    if value is None:
+        return ["null"]
+    if isinstance(value, bool):
+        # bool is a subclass of int; check it first to preserve the type.
+        return ["bool", value]
+    if isinstance(value, int):
+        return ["int", value]
+    if isinstance(value, str):
+        return ["str", value]
+    if isinstance(value, float):
+        return ["float", value.hex()]
+    if isinstance(value, Decimal):
+        return ["decimal", str(value)]
     if isinstance(value, datetime):
         if value.tzinfo is None:
             raise CanonicalizationError("datetime values must be timezone-aware")
-        return value.astimezone(UTC).isoformat(timespec="microseconds")
-    if isinstance(value, Decimal):
-        return str(value)
-    if isinstance(value, float):
-        return value.hex()
+        return ["datetime", value.astimezone(UTC).isoformat(timespec="microseconds")]
     if isinstance(value, Enum):
-        return canonicalize_value(value.value)
+        return ["enum", canonicalize_value(value.value)]
     if isinstance(value, Mapping):
         if not all(isinstance(key, str) for key in value):
             raise CanonicalizationError("JSON object keys must be strings")
-        return {
-            key: canonicalize_value(value[key])
-            for key in sorted(value)
-        }
+        return [
+            "object",
+            [
+                [key, canonicalize_value(value[key])]
+                for key in sorted(value)
+            ],
+        ]
     if isinstance(value, (list, tuple)):
-        return [canonicalize_value(item) for item in value]
+        return ["array", [canonicalize_value(item) for item in value]]
     raise CanonicalizationError(
         f"unsupported durable value type for canonicalization: {type(value).__name__}"
     )
@@ -145,7 +161,7 @@ async def _capture_table(connection: AsyncConnection, table_name: str) -> Canoni
             for column in sorted(row)
         )
         primary_key = tuple(
-            (column, canonicalize_value(row[column]))
+            (column, row[column])
             for column in primary_key_columns
         )
         rows.append(CanonicalRow(primary_key=primary_key, values=values))
@@ -221,6 +237,23 @@ def _first_table_difference(
     return None
 
 
+_TAGGED_SCALARS = frozenset(
+    {"null", "bool", "int", "str", "float", "decimal", "datetime", "enum"}
+)
+
+
+def _tagged_kind(value: object) -> str | None:
+    """Return the canonical type marker for a tagged list, or None for plain values."""
+    if (
+        isinstance(value, list)
+        and value
+        and isinstance(value[0], str)
+        and value[0] in {"object", "array", *_TAGGED_SCALARS}
+    ):
+        return "scalar" if value[0] in _TAGGED_SCALARS else value[0]
+    return None
+
+
 def _first_value_difference(
     run_a: object, run_b: object, path: str
 ) -> tuple[str, object, object] | None:
@@ -240,6 +273,35 @@ def _first_value_difference(
                 return difference
         return None
     if isinstance(run_a, list):
+        kind_a = _tagged_kind(run_a)
+        kind_b = _tagged_kind(run_b)
+        if kind_a == "scalar" or kind_b == "scalar":
+            # A tagged scalar is a leaf: compare it whole, keeping the semantic path.
+            if run_a != run_b:
+                return path, run_a, run_b
+            return None
+        if kind_a == "object" and kind_b == "object":
+            pairs_a = {key: value for key, value in run_a[1]}
+            pairs_b = {key: value for key, value in run_b[1]}
+            for key in sorted(set(pairs_a) | set(pairs_b)):
+                next_path = f"{path}.{key}"
+                if key not in pairs_a:
+                    return next_path, None, pairs_b[key]
+                if key not in pairs_b:
+                    return next_path, pairs_a[key], None
+                difference = _first_value_difference(pairs_a[key], pairs_b[key], next_path)
+                if difference is not None:
+                    return difference
+            return None
+        if kind_a == "array" and kind_b == "array":
+            items_a, items_b = run_a[1], run_b[1]
+            if len(items_a) != len(items_b):
+                return f"{path}.length", len(items_a), len(items_b)
+            for index, (value_a, value_b) in enumerate(zip(items_a, items_b, strict=True)):
+                difference = _first_value_difference(value_a, value_b, f"{path}[{index}]")
+                if difference is not None:
+                    return difference
+            return None
         if len(run_a) != len(run_b):
             return f"{path}.length", len(run_a), len(run_b)
         for index, (value_a, value_b) in enumerate(zip(run_a, run_b, strict=True)):

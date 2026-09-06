@@ -380,11 +380,16 @@ class PositionProtectionService:
         orders = list(
             (
                 await session.scalars(
-                    select(PaperOrderRecord).where(
+                    select(PaperOrderRecord)
+                    .where(
                         PaperOrderRecord.run_mode == run_mode,
                         PaperOrderRecord.instrument_id == instrument_id,
                         PaperOrderRecord.side == OrderSide.BUY,
                         PaperOrderRecord.status == OrderStatus.OPEN,
+                    )
+                    .order_by(
+                        PaperOrderRecord.created_at.asc(),
+                        PaperOrderRecord.order_id.asc(),
                     )
                 )
             ).all()
