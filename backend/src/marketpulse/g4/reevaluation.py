@@ -533,7 +533,10 @@ class PositionReevaluationService:
                 await session.scalars(
                     select(SignalTimelineRecord)
                     .where(SignalTimelineRecord.instrument_id == instrument_id)
-                    .order_by(SignalTimelineRecord.event_time.desc())
+                    .order_by(
+                        SignalTimelineRecord.event_time.desc(),
+                        SignalTimelineRecord.timeline_id.desc(),
+                    )
                     .limit(20)
                 )
             ).all()
@@ -541,11 +544,13 @@ class PositionReevaluationService:
         open_orders = list(
             (
                 await session.scalars(
-                    select(PaperOrderRecord).where(
+                    select(PaperOrderRecord)
+                    .where(
                         PaperOrderRecord.run_mode == run_mode,
                         PaperOrderRecord.instrument_id == instrument_id,
                         PaperOrderRecord.status == OrderStatus.OPEN,
                     )
+                    .order_by(PaperOrderRecord.created_at.asc(), PaperOrderRecord.order_id.asc())
                 )
             ).all()
         )

@@ -2,7 +2,7 @@
 
 ## Current Group
 
-Acceptance Group 5 — G5-2 Trading Replay Integration（ACCEPTED）
+Acceptance Group 5 — G5-3 End-to-End Determinism（IMPLEMENTED / WAITING REVIEW）
 
 ## GitHub Repository
 
@@ -11,7 +11,7 @@ Acceptance Group 5 — G5-2 Trading Replay Integration（ACCEPTED）
 - Visibility: `PRIVATE`
 - Default Branch: `main`
 - Accepted Main Source: Git `main` / `origin/main` — read actual SHA at task preflight（CIP-02）
-- Current Development Status: `G5-2 ACCEPTED`
+- Current Development Status: `G5-3 IMPLEMENTED / WAITING REVIEW`
 
 ## Branch / Source
 
@@ -36,7 +36,7 @@ Acceptance Group 5 — G5-2 Trading Replay Integration（ACCEPTED）
 
 ## In Progress
 
-- G5-2 Trading Replay Integration 已实现，等待人工 Review；不得自行 merge `main`。
+- G5-3 End-to-End Determinism 已实现，等待人工 Review；不得自行 merge `main`。
 
 ## Blocked
 
@@ -145,3 +145,13 @@ Acceptance Group 5 — G5-2 Trading Replay Integration（ACCEPTED）
 - Position Safety + Recovery 已正式 `ACCEPTED`。
 - Real AI Provider = `DEFERRED / NOT VERIFIED`（原因：`OPENAI_API_KEY` 缺失，无 `.env`；测试用 deterministic Fake Provider）。此项 non-blocking。
 - Current next state = `G5 initialized / G5-0 complete`（G5 feature implementation not started）。
+
+## Group 5-3 Result
+
+- G5-3（End-to-End Determinism）实现：新增 `g5/canonical.py`（22 表 canonical durable workspace snapshot + SHA-256 digest + 诊断 diff）、`ReplayTradingResult.workspace_digest` 增补；三独立 PostgreSQL workspace（Run A/B/C）证明 `snapshot(A)==snapshot(B)`、`Digest(A)==Digest(B)`、`Digest(A)!=Digest(C)`（C 变异 protective-stop bid 89→88），经济差异定位到 `fills.fee` 与 SELL fill price。
+- 本批同时按 Reviewer 授权对已验收 G4 做最小确定性修正：SignalTimeline `event_time DESC, timeline_id DESC LIMIT 20`（reversed 后 `event_time ASC, timeline_id ASC`）、OPEN orders `created_at ASC, order_id ASC`；并修正 G5-2 fixture t6 review 触发器为 `state_version_changed`、加固 recorded G4 HOLD 消费断言。
+- 验证：G5-3 `3 passed`、G5-2 `7 passed`、G4 `46 passed`、full backend `92 passed, 2 warnings`；Ruff / compileall / `git diff --check` 通过；Alembic primary 与 disposable replay `current`/`heads` = `20260905_0004`；PYTHONHASHSEED 0/12345 跨进程 digest 一致。
+- 审计残留（REVIEWER DECISION）：3 处取消 OPEN BUY 未排序查询（`g4/protection.py:373`、`g4/reevaluation.py:1044`、`g4/planning.py:170`），本轮 fixture 不产生差异，未越权修复。
+- Schema migration：未新增；Live、OKX、真实 AI、Performance Analytics、G5-4：未实现/未调用。
+- 状态：`G5-3 IMPLEMENTED / WAITING REVIEW`（未自行 Acceptance，未 merge `main`）。
+- 详见 `dev_log/2026-09-06-group5-3.md`。

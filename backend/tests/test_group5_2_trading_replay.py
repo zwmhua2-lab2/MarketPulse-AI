@@ -223,10 +223,29 @@ async def _expected_ids(source: ReplayEventSource) -> tuple[str, str]:
         RunMode.REPLAY,
         "ETH-USDT",
         review_state_version,
-        "no_previous_evaluation",
+        "state_version_changed",
         START + timedelta(seconds=6),
     )
     return snapshot_id, review_id
+
+
+def _recorded_g4_hold_was_consumed(rows: dict[str, list]) -> bool:
+    """True only when the recorded G4 HOLD was really consumed, not the safe fallback.
+
+    Recorded record present  -> real recorded HOLD (error is None)
+    Recorded record absent   -> ReplayPositionReviewRecordMissing -> safe HOLD fallback
+    """
+    recorded = [
+        decision for decision in rows["decisions"] if decision.model == "replay-recorded-g4"
+    ]
+    return (
+        len(recorded) == 1
+        and recorded[0].error is None
+        and not any(
+            decision.error == "AI_ERROR:ReplayPositionReviewRecordMissing"
+            for decision in rows["decisions"]
+        )
+    )
 
 
 def _runner(
@@ -408,6 +427,7 @@ def test_reachable_g2_g3_g4_frame_ordering_without_bookticker_setup(monkeypatch)
     book_times = {START, existing_position_book_time}
     assert result.g3_provider_calls == result.g4_provider_calls == 1
     assert rows["positions"][0].quantity > 0
+    assert _recorded_g4_hold_was_consumed(rows)
     assert call_order.index(("G2_COMPLETE", setup_time)) < call_order.index(
         ("G3_PROCESS_SETUP", setup_time)
     )
@@ -496,6 +516,7 @@ def test_real_postgres_replay_g2_to_g4_stop_exit_is_isolated_and_historical(monk
     assert rows["trades"][0].status == "CLOSED"
     assert rows["trades"][0].exit_reason == "STOP_LOSS"
     assert any(decision.model == "replay-recorded-g4" for decision in rows["decisions"])
+    assert _recorded_g4_hold_was_consumed(rows)
     assert any(event.event_type == "SL_TRIGGERED" for event in rows["events"])
     business_times = [
         *(record.event_time for record in rows["market_events"]),

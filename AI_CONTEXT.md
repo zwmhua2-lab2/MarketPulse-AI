@@ -9,13 +9,13 @@
 | 字段 | 值 |
 |---|---|
 | Project | MarketPulse AI（BTC/ETH 量化纸面交易终端，Modular Monolith） |
-| Current Acceptance Group | G5-2 ACCEPTED（Trading Replay Integration） |
+| Current Acceptance Group | G5-3 END-TO-END DETERMINISM（IMPLEMENTED / WAITING REVIEW） |
 | Accepted Main Source | Git `main` / `origin/main`；须在任务 preflight 按 CIP-02 实时读取，不以文档静态 SHA 为准 |
-| Current State | `G5-2 ACCEPTED` / `READY FOR G5-3 DESIGN` |
+| Current State | `G5-3 IMPLEMENTED / WAITING REVIEW`（G5-2 ACCEPTED） |
 | Last Accepted Group | G5-2（Trading Replay Integration） |
 
 - G1–G4 acceptance 状态：`ACCEPTED` / `ACCEPTED` / `ACCEPTED` / `ACCEPTED`。
-- G5-0 / G5-1 / G5-2 acceptance 状态：`ACCEPTED`；G5-3 = `NOT STARTED`。
+- G5-0 / G5-1 / G5-2 acceptance 状态：`ACCEPTED`；G5-3 = `IMPLEMENTED / WAITING REVIEW`。
 
 ## 2. Source of Truth（事实源优先级，从高到低）
 
@@ -80,4 +80,5 @@
 - G5-0 `ACCEPTED`：`AI_CONTEXT.md` 为上下文入口；`AGENTS.md` 为工程工作纪律与 Context Isolation Protocol（CIP-01～CIP-10）的正式入口。
 - G5-1 `ACCEPTED`：Deterministic Replay Foundation 已验收，implementation acceptance basis = `34da62a0cc9dbe95b95faadb770fbd06179a6975`。
 - G5-2 Trading Replay Integration 已实现，状态为 `IMPLEMENTED / WAITING REVIEW`；等待人工 Review，不得自行 merge `main` 或进入 G5-3。
+- G5-3 End-to-End Determinism 已实现，状态为 `IMPLEMENTED / WAITING REVIEW`（branch `g5-end-to-end-determinism`）；等待人工 Review，不得自行 merge `main`。
 - 具体 In Progress / Blocked 状态见 `PROJECT_STATE.md`。

@@ -17,6 +17,7 @@ from marketpulse.db.models import (
     PositionEventRecord,
     PositionRecord,
     RuntimeControlRecord,
+    SignalTimelineRecord,
     SymbolControlRecord,
     SymbolStateStore,
     TradePlanRecord,
@@ -2057,3 +2058,131 @@ def test_reevaluation_rejects_plan_update_with_breached_stop():
     assert not outcome.applied
     assert outcome.reason == "PLAN_VALIDATION_FAILED:stop_already_breached"
     assert active.plan_id == original.plan_id and active.stop_loss == 80
+
+
+_ORDERING_INSTRUMENT = "SOL-USDT"
+_ORDERING_CONFIG_VERSION = "g4-ordering-regression"
+_ORDERING_ORDER_IDS = ("ord-a", "ord-b", "ord-c")
+
+
+def test_reevaluation_snapshot_orders_timeline_and_open_orders_deterministically():
+    """Equal event_time / equal created_at must not leave snapshot list order to the database."""
+
+    def timeline_rows(index_order: list[int]) -> list[SignalTimelineRecord]:
+        return [
+            SignalTimelineRecord(
+                timeline_id=f"tl-{index:02d}",
+                event_id=f"evt-{index:02d}",
+                symbol=_ORDERING_INSTRUMENT,
+                instrument_id=_ORDERING_INSTRUMENT,
+                signal_type="BREAKOUT",
+                # Index 21 deliberately shares event_time with index 20: the deterministic
+                # timeline_id tie-break has to decide, not PostgreSQL heap order.
+                event_time=NOW + timedelta(seconds=20 if index == 21 else index),
+                received_time=NOW + timedelta(seconds=index),
+                price=100.0,
+                context={},
+                strength=0.5,
+                lifecycle_action="START",
+                symbol_state="SETUP",
+                state_version=7,
+                config_version=_ORDERING_CONFIG_VERSION,
+            )
+            for index in index_order
+        ]
+
+    def open_orders(plan_id: str, insert_order: tuple[str, ...]) -> list[PaperOrderRecord]:
+        created_at = {
+            "ord-a": NOW,
+            "ord-b": NOW + timedelta(seconds=5),
+            "ord-c": NOW + timedelta(seconds=5),
+        }
+        return [
+            PaperOrderRecord(
+                order_id=order_id,
+                intent_id=f"intent-{order_id}",
+                plan_id=plan_id,
+                instrument_id=_ORDERING_INSTRUMENT,
+                run_mode=RunMode.REPLAY.value,
+                side=OrderSide.BUY.value,
+                order_type=OrderType.LIMIT.value,
+                status=OrderStatus.OPEN.value,
+                quantity=1.0,
+                limit_price=95.0,
+                reserved_cash=95.0,
+                reserved_quantity=0.0,
+                created_at=created_at[order_id],
+            )
+            for order_id in insert_order
+        ]
+
+    async def case(*, descending_insert: bool) -> tuple[tuple[str, ...], tuple[str, ...]]:
+        h = Harness()
+        await h.boot()
+        plan, _ = await open_position(
+            h, notional=50, bid=99, ask=100, stop=80, tp=140
+        )
+        index_order = list(range(25))
+        if descending_insert:
+            index_order.reverse()
+        async with SESSIONS() as session, session.begin():
+            await session.execute(
+                delete(SignalTimelineRecord).where(
+                    SignalTimelineRecord.config_version == _ORDERING_CONFIG_VERSION
+                )
+            )
+            session.add_all(timeline_rows(index_order))
+            session.add_all(open_orders(plan.plan_id, ("ord-c", "ord-a", "ord-b")))
+        await h.reevaluation.evaluate(
+            RunMode.REPLAY,
+            _ORDERING_INSTRUMENT,
+            await h.bbo_for(_ORDERING_INSTRUMENT),
+            now=NOW,
+            force=True,
+        )
+        async with SESSIONS() as session:
+            snapshots = list(
+                (
+                    await session.scalars(
+                        select(DecisionSnapshotRecord).where(
+                            DecisionSnapshotRecord.run_mode == RunMode.REPLAY,
+                            DecisionSnapshotRecord.instrument_id == _ORDERING_INSTRUMENT,
+                        )
+                    )
+                ).all()
+            )
+        reviews = [
+            record
+            for record in snapshots
+            if record.payload.get("trading_context", {}).get("triggering_event") == "MANUAL"
+        ]
+        assert len(reviews) == 1, f"expected exactly one review snapshot, got {len(reviews)}"
+        payload = reviews[0].payload
+        return (
+            tuple(item["event_id"] for item in payload["market_evolution"]["timeline"]),
+            tuple(item["order_id"] for item in payload["trading_context"]["open_orders"]),
+        )
+
+    async def scenario() -> tuple[
+        tuple[tuple[str, ...], tuple[str, ...]], tuple[tuple[str, ...], tuple[str, ...]]
+    ]:
+        try:
+            return await case(descending_insert=False), await case(descending_insert=True)
+        finally:
+            await Harness().clean()
+            async with SESSIONS() as session, session.begin():
+                await session.execute(
+                    delete(SignalTimelineRecord).where(
+                        SignalTimelineRecord.config_version == _ORDERING_CONFIG_VERSION
+                    )
+                )
+
+    ascending, descending = asyncio.run(scenario())
+
+    # The latest 20 of 25 timeline rows are kept (oldest five dropped) and the equal-event_time
+    # pair is ordered by timeline_id ascending after the production reverse step.
+    assert ascending[0] == tuple(f"evt-{index:02d}" for index in range(5, 25))
+    assert descending[0] == ascending[0]
+    # created_at ascending, then order_id ascending; ord-b and ord-c share created_at.
+    assert ascending[1] == ("ord-a", "ord-b", "ord-c")
+    assert descending[1] == ascending[1]
