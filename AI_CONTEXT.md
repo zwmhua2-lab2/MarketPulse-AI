@@ -9,13 +9,13 @@
 | 字段 | 值 |
 |---|---|
 | Project | MarketPulse AI（BTC/ETH 量化纸面交易终端，Modular Monolith） |
-| Current Acceptance Group | G5-3 END-TO-END DETERMINISM（IMPLEMENTED / WAITING REVIEW） |
+| Current Acceptance Group | G5-3 END-TO-END DETERMINISM（ACCEPTED） |
 | Accepted Main Source | Git `main` / `origin/main`；须在任务 preflight 按 CIP-02 实时读取，不以文档静态 SHA 为准 |
-| Current State | `G5-3 IMPLEMENTED / WAITING REVIEW`（G5-2 ACCEPTED） |
-| Last Accepted Group | G5-2（Trading Replay Integration） |
+| Current State | `G5-3 ACCEPTED`（G5 overall = NOT ACCEPTED；G5-4 NOT STARTED） |
+| Last Accepted Group | G5-3（End-to-End Determinism） |
 
 - G1–G4 acceptance 状态：`ACCEPTED` / `ACCEPTED` / `ACCEPTED` / `ACCEPTED`。
-- G5-0 / G5-1 / G5-2 acceptance 状态：`ACCEPTED`；G5-3 = `IMPLEMENTED / WAITING REVIEW`。
+- G5-0 / G5-1 / G5-2 / G5-3 acceptance 状态：`ACCEPTED`；G5 overall = `NOT ACCEPTED`（G5-4 NOT STARTED）。
 
 ## 2. Source of Truth（事实源优先级，从高到低）
 
@@ -51,8 +51,9 @@
 
 | 字段 | 值 |
 |---|---|
-| Current Group | G5-2 |
-| Previous accepted boundary | G5-1 |
+| Current Group | G5-3（ACCEPTED） |
+| Previous accepted boundary | G5-2 |
+| Next Group | G5-4（NOT STARTED；本次 Acceptance Closeout 不进入） |
 
 - G4 **没有**提前实现完整 Replay / ReplayClock Engine。
 - 仓库中仅存在：`Clock` Protocol 的 `ReplayClock` 实现（`backend/src/marketpulse/clock.py`）与 `RunMode.REPLAY` 枚举（`config.py`）——这是既有 Clock 边界，**不是**完整回放引擎。
@@ -79,6 +80,7 @@
 
 - G5-0 `ACCEPTED`：`AI_CONTEXT.md` 为上下文入口；`AGENTS.md` 为工程工作纪律与 Context Isolation Protocol（CIP-01～CIP-10）的正式入口。
 - G5-1 `ACCEPTED`：Deterministic Replay Foundation 已验收，implementation acceptance basis = `34da62a0cc9dbe95b95faadb770fbd06179a6975`。
-- G5-2 Trading Replay Integration 已实现，状态为 `IMPLEMENTED / WAITING REVIEW`；等待人工 Review，不得自行 merge `main` 或进入 G5-3。
-- G5-3 End-to-End Determinism 已实现，状态为 `IMPLEMENTED / WAITING REVIEW`（branch `g5-end-to-end-determinism`）；等待人工 Review，不得自行 merge `main`。
+- G5-2 Trading Replay Integration = `ACCEPTED`（Implementation Acceptance Basis = `2a7d0c858c70f21215a090ee3b583d341cfd84b4`；详见 `dev_log/2026-09-06-group5-2.md`「Formal Acceptance Record」）。
+- G5-3 End-to-End Determinism = `ACCEPTED`（2026-09-06 Formal Acceptance Closeout；Implementation Acceptance Basis = `f4c07333600f605cbcc5e34b591659feb1b1f318`；Review Fix #1 = VERIFIED；详见 `dev_log/2026-09-06-group5-3.md`「Formal Acceptance Record」）。
+- G5 overall = `NOT ACCEPTED`（G5-4 NOT STARTED；不得自行开始 G5-4 implementation）。
 - 具体 In Progress / Blocked 状态见 `PROJECT_STATE.md`。

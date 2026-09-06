@@ -2,7 +2,7 @@
 
 ## Current Group
 
-Acceptance Group 5 — G5-3 End-to-End Determinism（IMPLEMENTED / WAITING REVIEW）
+Acceptance Group 5 — G5-3 End-to-End Determinism（ACCEPTED）
 
 ## GitHub Repository
 
@@ -11,7 +11,7 @@ Acceptance Group 5 — G5-3 End-to-End Determinism（IMPLEMENTED / WAITING REVIE
 - Visibility: `PRIVATE`
 - Default Branch: `main`
 - Accepted Main Source: Git `main` / `origin/main` — read actual SHA at task preflight（CIP-02）
-- Current Development Status: `G5-3 IMPLEMENTED / WAITING REVIEW`
+- Current Development Status: `G5-3 ACCEPTED`（G5 overall = NOT ACCEPTED；G5-4 NOT STARTED）
 
 ## Branch / Source
 
@@ -36,7 +36,7 @@ Acceptance Group 5 — G5-3 End-to-End Determinism（IMPLEMENTED / WAITING REVIE
 
 ## In Progress
 
-- G5-3 End-to-End Determinism 已实现，等待人工 Review；不得自行 merge `main`。
+- 无（G5-3 已 ACCEPTED；G5-4 未开始，本次 Acceptance Closeout 不进入 G5-4 implementation）。
 
 ## Blocked
 
@@ -116,6 +116,8 @@ Acceptance Group 5 — G5-3 End-to-End Determinism（IMPLEMENTED / WAITING REVIE
 - Group 1 = `ACCEPTED`；Group 2 = `ACCEPTED`；Group 3 = `ACCEPTED`；Group 4 = `ACCEPTED`。
 - G3 Post-Acceptance Fix = `ACCEPTED`。
 - Group 5-0 = `ACCEPTED`（G5 feature implementation NOT STARTED）。
+- Group 5-3 = `ACCEPTED`（2026-09-06 Formal Acceptance Closeout；Implementation Acceptance Basis = `f4c07333600f605cbcc5e34b591659feb1b1f318`；Review Fix #1 = VERIFIED）。
+- G5 overall = `NOT ACCEPTED`（G5-4 NOT STARTED）。
 
 ## Group 5-1 Result
 
@@ -151,14 +153,17 @@ Acceptance Group 5 — G5-3 End-to-End Determinism（IMPLEMENTED / WAITING REVIE
 - G5-3（End-to-End Determinism）实现：新增 `g5/canonical.py`（22 表 canonical durable workspace snapshot + SHA-256 digest + 诊断 diff）、`ReplayTradingResult.workspace_digest` 增补；三独立 PostgreSQL workspace（Run A/B/C）证明 `snapshot(A)==snapshot(B)`、`Digest(A)==Digest(B)`、`Digest(A)!=Digest(C)`（C 变异 protective-stop bid 89→88），经济差异定位到 `fills.fee` 与 SELL fill price。
 - 本批同时按 Reviewer 授权对已验收 G4 做最小确定性修正：SignalTimeline `event_time DESC, timeline_id DESC LIMIT 20`（reversed 后 `event_time ASC, timeline_id ASC`）、OPEN orders `created_at ASC, order_id ASC`；并修正 G5-2 fixture t6 review 触发器为 `state_version_changed`、加固 recorded G4 HOLD 消费断言。
 - 验证：G5-3 `3 passed`、G5-2 `7 passed`、G4 `46 passed`、full backend `92 passed, 2 warnings`；Ruff / compileall / `git diff --check` 通过；Alembic primary 与 disposable replay `current`/`heads` = `20260905_0004`；PYTHONHASHSEED 0/12345 跨进程 digest 一致。
-- 审计残留（REVIEWER DECISION）：3 处取消 OPEN BUY 未排序查询（`g4/protection.py:373`、`g4/reevaluation.py:1044`、`g4/planning.py:170`），本轮 fixture 不产生差异，未越权修复。
+- 审计残留已关闭（Review Fix #1 = VERIFIED）：
+  - Review Fix #1 已解决三处 Replay-reachable OPEN BUY cancellation ordering（`g4/protection.py`、`g4/reevaluation.py`、`g4/planning.py`）；
+  - 三处均使用 `ORDER BY created_at ASC, order_id ASC`；
+  - canonical representation collision（typed value→string 折叠）已以无歧义类型标记编码解决；
+  - 无 remaining G5-3 determinism blocker。
 - Schema migration：未新增；Live、OKX、真实 AI、Performance Analytics、G5-4：未实现/未调用。
-- 状态：`G5-3 IMPLEMENTED / WAITING REVIEW`（未自行 Acceptance，未 merge `main`）。
-- 详见 `dev_log/2026-09-06-group5-3.md`。
+- 状态：`G5-3 ACCEPTED`（2026-09-06 Formal Acceptance Closeout；Implementation Acceptance Basis = `f4c07333600f605cbcc5e34b591659feb1b1f318`；Review Fix #1 = VERIFIED）。详见 `dev_log/2026-09-06-group5-3.md`「Formal Acceptance Record」。
 
 ### G5-3 Review Fix #1（Reviewer = CORRECTION REQUIRED）
 
 - P0-1：三处 Replay 可达取消 OPEN BUY 路径补 `ORDER BY created_at ASC, order_id ASC`（`g4/protection.py::_cancel_risk_increasing`、`g4/reevaluation.py::_cancel_adds`、`g4/planning.py::cancel_stale_risk_increasing`），仅确定性排序，不改取消资格/订单语义/reservation 释放/G4 业务规则/Risk。新增 3 个 PostgreSQL 回归验证持久化 `PositionEventRecord.payload["cancelled_order_ids"]` 稳定排序。
 - P0-2：`g5/canonical.py::canonicalize_value` 从「typed value 折叠 string」改为无歧义类型标记编码（`["null"]`/`["bool",v]`/`["int",v]`/`["str",v]`/`["float",hex]`/`["decimal",str]`/`["datetime",UTC ISO]`/`["enum",...]`/`["object",[[k,v]...]]`/`["array",[...]]`），`first_snapshot_difference` 感知 tagged 结构保持语义 path，主键列值保持原始可哈希标量。新增碰撞回归（float vs 相同 hex 文本、Decimal vs 相同串、datetime vs 相同 ISO 文本、`["float",...]` vs 真实 float、shape-like-marker object vs 真实值）。无 schema 变更。
 - 验证：G5-3 `5 passed`、G4 `49 passed`、G5-2 `7 passed`、全量 `97 passed, 2 warnings`；Ruff/compileall/`git diff --check` 通过；Alembic primary=`20260905_0004 (head)`；DigestA=`487c96806b7666ab565f26f2796a42ec689d82eec36b68e799d090dea18b4694`、DigestC=`171c2ff9dafe836744997ab4f5f621c1f4d09c5c2c9c7e18e16a772a2f13ab97`（A==B、A!=C）；recorded G4 HOLD 真实消费（`model=replay-recorded-g4`、`error=None`）；PYTHONHASHSEED 0/12345 跨进程 digest 一致。
-- 状态：仍 `G5-3 IMPLEMENTED / WAITING REVIEW`（非 ACCEPTED）。
+- 状态：Review Fix #1 = `VERIFIED`；G5-3 已随 2026-09-06 Formal Acceptance Closeout 整体 `ACCEPTED`（见上）。
