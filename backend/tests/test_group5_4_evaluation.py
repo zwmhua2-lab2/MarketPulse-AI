@@ -35,7 +35,7 @@ from marketpulse.market_data.models import (
     NormalizedTrade,
 )
 from sqlalchemy import select, text
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
 START = datetime(2024, 1, 2, 9, 30, tzinfo=UTC)
@@ -52,6 +52,34 @@ APPROVED_ECONOMIC_FIELDS = (
     "account_realized_pnl",
     "final_cash_balance",
 )
+
+
+#: Test-only instrumentation for R3: verify the REAL PostgreSQL transaction characteristics that
+#: ``evaluate_replay_workspace`` runs under. We monkeypatch ``AsyncSession.execute`` so the
+#: production ``SET TRANSACTION ...`` is observed in the exact same session/transaction path the
+#: production code uses, then read back the live ``transaction_isolation`` /
+#: ``transaction_read_only`` settings from that same transaction. No production business API is
+#: added for this; this is strictly test-only verification.
+_CAPTURED_TXN: dict[str, str] = {}
+
+_ORIGINAL_ASYNC_SESSION_EXECUTE = AsyncSession.execute
+
+
+async def _instrumented_async_session_execute(self, statement, *args, **kwargs):
+    result = await _ORIGINAL_ASYNC_SESSION_EXECUTE(self, statement, *args, **kwargs)
+    if (
+        "SET TRANSACTION ISOLATION LEVEL" in str(statement).upper()
+        and "transaction_isolation" not in _CAPTURED_TXN
+    ):
+        iso = (
+            await _ORIGINAL_ASYNC_SESSION_EXECUTE(self, text("SHOW transaction_isolation"))
+        ).scalar_one()
+        ro = (
+            await _ORIGINAL_ASYNC_SESSION_EXECUTE(self, text("SHOW transaction_read_only"))
+        ).scalar_one()
+        _CAPTURED_TXN["transaction_isolation"] = iso
+        _CAPTURED_TXN["transaction_read_only"] = ro
+    return result
 
 
 def _url_for(database_name: str) -> str:
@@ -295,6 +323,52 @@ async def _corrupt_first_fill_fee(url: str, *, delta: float) -> None:
         await engine.dispose()
 
 
+async def _corrupt_fill_order_id(url: str, *, to_order_id: str) -> None:
+    """Deliberate test-local corruption: point a fill at an order id absent from paper_orders.
+
+    The production path must NOT guess a side or fall back for a fill whose order is missing; it
+    must fail closed. ``fills.order_id`` has no FK at the model or migration layer, so this UPDATE
+    is durable within the isolated workspace.
+    """
+
+    engine = create_async_engine(url, poolclass=NullPool)
+    try:
+        async with engine.begin() as connection:
+            fill_id = (
+                await connection.execute(text("SELECT fill_id FROM fills ORDER BY fill_id LIMIT 1"))
+            ).scalar_one()
+            await connection.execute(
+                text("UPDATE fills SET order_id = :oid WHERE fill_id = :fill_id"),
+                {"oid": to_order_id, "fill_id": fill_id},
+            )
+    finally:
+        await engine.dispose()
+
+
+async def _corrupt_order_side(url: str, *, side: str) -> None:
+    """Deliberate test-local corruption: set a paper order side to an unsupported value.
+
+    The production path must NOT treat an unknown side as BUY/SELL; it must fail closed.
+    ``paper_orders.side`` has no CHECK constraint at the model or migration layer, so this UPDATE
+    is durable within the isolated workspace.
+    """
+
+    engine = create_async_engine(url, poolclass=NullPool)
+    try:
+        async with engine.begin() as connection:
+            order_id = (
+                await connection.execute(
+                    text("SELECT order_id FROM paper_orders ORDER BY order_id LIMIT 1")
+                )
+            ).scalar_one()
+            await connection.execute(
+                text("UPDATE paper_orders SET side = :side WHERE order_id = :order_id"),
+                {"side": side, "order_id": order_id},
+            )
+    finally:
+        await engine.dispose()
+
+
 async def _g4_decisions(url: str) -> list[tuple[str, str | None]]:
     engine = create_async_engine(url, poolclass=NullPool)
     sessions = async_sessionmaker(engine, expire_on_commit=False)
@@ -469,16 +543,38 @@ def test_flat_fixture_evaluation_state_and_cash_identity():
     assert report.final_reserved_cash == 0
     assert report.is_flat is True
     assert report.exit_reason_counts == (("STOP_LOSS", 1),)
-    # Accepted flat-fixture evidence only: with no open position and no reservation, every cash
-    # movement of this replay is a durable ledger cash delta. The two sides accumulate the same
-    # cash movements in different orders (sequential account updates vs. fsum over ledger rows),
-    # so they can differ by a few ULP; abs_tol=1e-9 is far below any real accounting difference
-    # and far above the IEEE-754 accumulation artifact (~1e-14 observed).
+    # Flat-fixture evidence: with no open position and no reservation, every cash movement of this
+    # replay is a durable ledger cash delta. The two sides accumulate the SAME cash movements but
+    # in DIFFERENT ORDERS (sequential account updates vs. ledger math.fsum over entry_id order),
+    # so they can legitimately differ by a few ULPs of IEEE-754 binary floating point.
+    #
+    # This is a BINARY FLOATING-POINT RECONCILIATION BOUND, NOT an accounting-mismatch tolerance.
+    # We therefore derive the tolerance from the machine precision (ulp) of the operands instead
+    # of an arbitrary fixed value. abs_tol=1e-9 was far above the real ULP artifact and far below
+    # any real accounting difference; the bound below is genuinely machine-precision-derived and
+    # may be tightened further if real evidence supports it, but must never regress to a fixed
+    # wide tolerance.
+    cash_change = report.final_cash_balance - INITIAL_CASH
+    abs_tol = 4 * max(
+        math.ulp(report.final_cash_balance),
+        math.ulp(INITIAL_CASH),
+        math.ulp(report.ledger_cash_delta),
+    )
+    actual_diff = abs(cash_change - report.ledger_cash_delta)
+    # Surface the real measured reconciliation bound so it can be recorded as evidence (R7).
+    print(
+        f"FLAT_CASH_RECON actual_diff={actual_diff!r} abs_tol={abs_tol!r} "
+        f"cash_change={cash_change!r} ledger_cash_delta={report.ledger_cash_delta!r}"
+    )
+    assert actual_diff <= abs_tol, (
+        f"binary float reconciliation bound exceeded: "
+        f"actual_diff={actual_diff!r} > abs_tol={abs_tol!r}"
+    )
     assert math.isclose(
-        report.final_cash_balance - INITIAL_CASH,
+        cash_change,
         report.ledger_cash_delta,
         rel_tol=0.0,
-        abs_tol=1e-9,
+        abs_tol=abs_tol,
     )
 
 
@@ -517,6 +613,76 @@ def test_fill_ledger_fee_mismatch_fails_closed():
             assert "fill fees do not match ledger fees" in str(exc)
         else:
             raise AssertionError("accounting fee mismatch must fail closed")
+
+
+def test_evaluation_uses_repeatable_read_read_only_transaction(monkeypatch):
+    """R3: prove the evaluation really runs inside REPEATABLE READ, READ ONLY on PostgreSQL.
+
+    We monkeypatch ``AsyncSession.execute`` so the production ``SET TRANSACTION ...`` is observed
+    in the exact same session/transaction path ``evaluate_replay_workspace`` uses, then read back
+    the live settings from that same transaction. This is real evidence, not a SQL-string assert.
+    """
+
+    monkeypatch.setattr(AsyncSession, "execute", _instrumented_async_session_execute)
+    _CAPTURED_TXN.clear()
+    source = _source(protective_stop_bid=89.0)
+    g3_records, g4_records = asyncio.run(_recorded_inputs(source))
+
+    with _replay_database("txn") as (_, url):
+        result = asyncio.run(
+            _runner(url, g3_records=g3_records, g4_records=g4_records).run(source)
+        )
+        assert result.evaluation is not None
+
+    assert _CAPTURED_TXN.get("transaction_isolation") == "repeatable read", _CAPTURED_TXN
+    assert _CAPTURED_TXN.get("transaction_read_only") == "on", _CAPTURED_TXN
+
+
+def test_missing_durable_order_fails_closed():
+    """R4: a fill whose order_id points at no durable order must fail closed."""
+
+    source = _source(protective_stop_bid=89.0)
+    g3_records, g4_records = asyncio.run(_recorded_inputs(source))
+
+    with _replay_database("missing_order") as (_, url):
+        result = asyncio.run(
+            _runner(url, g3_records=g3_records, g4_records=g4_records).run(source)
+        )
+        assert result.evaluation is not None
+        # Deliberate test-local corruption only: point a fill at an order id absent from
+        # paper_orders. Production must not guess a side or fall back; it must fail closed.
+        asyncio.run(_corrupt_fill_order_id(url, to_order_id="g5-4-nonexistent-order-id"))
+        try:
+            asyncio.run(_evaluate(url))
+        except ReplayEvaluationError as exc:
+            assert "has no durable order" in str(exc), str(exc)
+        else:
+            raise AssertionError("missing durable order must fail closed")
+
+
+def test_unknown_order_side_fails_closed():
+    """R5: an unsupported paper order side must fail closed, never be coerced to BUY/SELL."""
+
+    source = _source(protective_stop_bid=89.0)
+    g3_records, g4_records = asyncio.run(_recorded_inputs(source))
+
+    with _replay_database("bad_side") as (_, url):
+        result = asyncio.run(
+            _runner(url, g3_records=g3_records, g4_records=g4_records).run(source)
+        )
+        assert result.evaluation is not None
+        # Deliberate test-local corruption only: set a paper order side to an unsupported value.
+        # Production must not treat an unknown side as BUY/SELL; it must fail closed.
+        # NOTE: paper_orders.side is VARCHAR(8) with no CHECK constraint, so a non-BUY/SELL value
+        # must fit in 8 chars. "UNKNOWN" (7 chars) is unsupported and exercises the same fail-closed
+        # path the reviewer's INVALID_SIDE intends; no schema change is used.
+        asyncio.run(_corrupt_order_side(url, side="UNKNOWN"))
+        try:
+            asyncio.run(_evaluate(url))
+        except ReplayEvaluationError as exc:
+            assert "unsupported order side" in str(exc), str(exc)
+        else:
+            raise AssertionError("unknown order side must fail closed")
 
 
 def test_recorded_g4_hold_is_consumed_without_fallback():
