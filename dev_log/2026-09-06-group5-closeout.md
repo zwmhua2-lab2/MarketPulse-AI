@@ -75,3 +75,13 @@ Live Trading；G5-5 及后续功能。
 - 下一个动作：等待人工 / 设计决策启动 Next Group Design（G5-5 之前需先 design，未开始）。
 - frozen invariants 见 `AI_CONTEXT.md` 第 3 节；Source of Truth 优先级见 `AI_CONTEXT.md` 第 2 节。
 - 禁止依据旧聊天 / 模型记忆直接实现；新窗口须重新从 repository truth 建立 Context Pack。
+
+---
+
+## Post-Closeout Documentation Consistency Fix（2026-09-06）
+
+- initial closeout commit = `fccbb659489870f9205688bafc31d2eec4162122`（remote `main` / `g5-replay-evaluation` baseline，preflight `git ls-remote` 实时核对一致）。
+- Reviewer independently found stale current-state fields：`PROJECT_STATE.md` / `AI_CONTEXT.md` 仍残留 "G5-4 IMPLEMENTED / WAITING REVIEW"、"G5 overall = NOT ACCEPTED"、"g5-replay-evaluation 未 merge main" 等 current-state 文字。
+- no acceptance result changed：G5-4 = `ACCEPTED`；Group 5 = `ACCEPTED / COMPLETE`；Next Group Design = `NOT STARTED`。
+- `PROJECT_STATE.md` / `AI_CONTEXT.md` current truth synchronized；G5-0～G5-4 历史实施证据未重写。
+- no code / test / schema changes（纯文档修正）。

@@ -11,12 +11,12 @@ Acceptance Group 5 — ACCEPTED / COMPLETE
 - Visibility: `PRIVATE`
 - Default Branch: `main`
 - Accepted Main Source: Git `main` / `origin/main` — read actual SHA at task preflight（CIP-02）
-- Current Development Status: `G5-4 IMPLEMENTED / WAITING REVIEW`（G5 overall = NOT ACCEPTED）
+- Current Development Status: `G5 ACCEPTED / COMPLETE`
 
 ## Branch / Source
 
 - Current Accepted Branch: `main`
-- Current Group Branch: `g5-replay-evaluation`（未 merge `main`；Task Base = `8f55cfd786cefa07be315cc6555a61636a7c8a16`）
+- Current Group Branch: NONE / CLOSED（Group 5 已 closeout；`g5-replay-evaluation` = historical accepted branch，main 已 fast-forward 收编；Task Base = `8f55cfd786cefa07be315cc6555a61636a7c8a16`）
 - Last Accepted Group Branch: `g5-deterministic-replay-foundation`（历史证据，保留未删）
 - Accepted Main Source: Git `main` / `origin/main` — read actual SHA at task preflight（CIP-02）
 - G5-1 Implementation Acceptance Basis: `34da62a0cc9dbe95b95faadb770fbd06179a6975`
@@ -37,7 +37,7 @@ Acceptance Group 5 — ACCEPTED / COMPLETE
 
 ## In Progress
 
-- G5-4（Deterministic Replay Evaluation）已实现并自测通过，等待人工 Acceptance Review；未 merge `main`，未自宣 ACCEPTED。
+- 无（Group 5 = `ACCEPTED / COMPLETE`，无 in-progress 工作）。
 
 ## Blocked
 
@@ -198,5 +198,5 @@ Acceptance Group 5 — ACCEPTED / COMPLETE
   `open_quantity=9.995002498750624`、`open_trade_count=1`、`closed_trade_count=0`、`is_flat=False`。
 - 隔离证据：primary counts 前后一致；outbound HTTP client 构造 `0`；Real AI / OKX 调用 `0`。
 - Schema migration：未新增；`replay_run_id` / `backtest_id`：未引入；Evaluation Report：未持久化。
-- 状态：`G5-4 IMPLEMENTED / WAITING REVIEW`；G5 overall = `NOT ACCEPTED`；未 merge `main`。
+- 状态：`G5-4 ACCEPTED`（2026-09-06 Formal Acceptance Closeout；G5 overall = `ACCEPTED / COMPLETE`）。
   详见 `dev_log/2026-09-06-group5-4.md`。
