@@ -2,7 +2,7 @@
 
 ## Current Group
 
-Acceptance Group 5 — G5-4 Deterministic Replay Evaluation（IMPLEMENTED / WAITING REVIEW）
+Acceptance Group 5 — ACCEPTED / COMPLETE
 
 ## GitHub Repository
 
@@ -118,8 +118,8 @@ Acceptance Group 5 — G5-4 Deterministic Replay Evaluation（IMPLEMENTED / WAIT
 - G3 Post-Acceptance Fix = `ACCEPTED`。
 - Group 5-0 = `ACCEPTED`（G5 feature implementation NOT STARTED）。
 - Group 5-3 = `ACCEPTED`（2026-09-06 Formal Acceptance Closeout；Implementation Acceptance Basis = `f4c07333600f605cbcc5e34b591659feb1b1f318`；Review Fix #1 = VERIFIED）。
-- G5-4 = `IMPLEMENTED / WAITING REVIEW`（未 Acceptance）。
-- G5 overall = `NOT ACCEPTED`。
+- G5-4 = `ACCEPTED`（Formal Acceptance Closeout 2026-09-06；Production Implementation Basis = `8678b2927a2d029ac0767e49acc9e0732c329bfa`；Self Review Fix #1 Evidence = `fe610c1f23457ff11f2d5c8654e9de0aec4ff289`）。
+- G5 overall = `ACCEPTED / COMPLETE`。
 
 ## Group 5-1 Result
 

@@ -9,7 +9,7 @@
 | 字段 | 值 |
 |---|---|
 | Project | MarketPulse AI（BTC/ETH 量化纸面交易终端，Modular Monolith） |
-| Current Acceptance Group | G5-4 DETERMINISTIC REPLAY EVALUATION（IMPLEMENTED / WAITING REVIEW） |
+| Current Acceptance Group | Acceptance Group 5 — ACCEPTED / COMPLETE |
 | Accepted Main Source | Git `main` / `origin/main`；须在任务 preflight 按 CIP-02 实时读取，不以文档静态 SHA 为准 |
 | Current State | `G5-4 IMPLEMENTED / WAITING REVIEW`（G5 overall = NOT ACCEPTED） |
 | Last Accepted Group | G5-3（End-to-End Determinism） |
@@ -88,5 +88,5 @@
   - 关键事实源：`backend/src/marketpulse/g5/evaluation.py`（新增）、`backend/src/marketpulse/g5/replay.py`（additive `evaluation` 字段与评估步骤）、`backend/src/marketpulse/g5/canonical.py`（未修改）。
   - G5-4 冻结边界：不持久化 Evaluation Report、不引入 `replay_run_id` / `backtest_id`、不新增 schema、
     不修改 G3 accounting semantics、不做 MFE/MAE/drawdown/equity curve/win rate/expectancy/R-multiple/Sharpe/Sortino/profit factor。
-- G5 overall = `NOT ACCEPTED`（G5-4 未经人工 Acceptance PASS；不得自行开始 G5-5）。
+- G5 overall = `ACCEPTED / COMPLETE`（G5-4 已于 2026-09-06 Formal Acceptance Closeout）。Next Group Design = `NOT STARTED`（G5-5 未定义）。
 - 具体 In Progress / Blocked 状态见 `PROJECT_STATE.md`。
