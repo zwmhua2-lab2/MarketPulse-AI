@@ -11,11 +11,12 @@ Acceptance Group 5 — G5-4 Deterministic Replay Evaluation（IMPLEMENTED / WAIT
 - Visibility: `PRIVATE`
 - Default Branch: `main`
 - Accepted Main Source: Git `main` / `origin/main` — read actual SHA at task preflight（CIP-02）
-- Current Development Status: `G5-3 ACCEPTED`（G5 overall = NOT ACCEPTED；G5-4 NOT STARTED）
+- Current Development Status: `G5-4 IMPLEMENTED / WAITING REVIEW`（G5 overall = NOT ACCEPTED）
 
 ## Branch / Source
 
 - Current Accepted Branch: `main`
+- Current Group Branch: `g5-replay-evaluation`（未 merge `main`；Task Base = `8f55cfd786cefa07be315cc6555a61636a7c8a16`）
 - Last Accepted Group Branch: `g5-deterministic-replay-foundation`（历史证据，保留未删）
 - Accepted Main Source: Git `main` / `origin/main` — read actual SHA at task preflight（CIP-02）
 - G5-1 Implementation Acceptance Basis: `34da62a0cc9dbe95b95faadb770fbd06179a6975`

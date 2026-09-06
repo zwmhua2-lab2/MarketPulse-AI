@@ -84,7 +84,6 @@
 - G5-1 `ACCEPTED`：Deterministic Replay Foundation 已验收，implementation acceptance basis = `34da62a0cc9dbe95b95faadb770fbd06179a6975`。
 - G5-2 Trading Replay Integration = `ACCEPTED`（Implementation Acceptance Basis = `2a7d0c858c70f21215a090ee3b583d341cfd84b4`；详见 `dev_log/2026-09-06-group5-2.md`「Formal Acceptance Record」）。
 - G5-3 End-to-End Determinism = `ACCEPTED`（2026-09-06 Formal Acceptance Closeout；Implementation Acceptance Basis = `f4c07333600f605cbcc5e34b591659feb1b1f318`；Review Fix #1 = VERIFIED；详见 `dev_log/2026-09-06-group5-3.md`「Formal Acceptance Record」）。
-- G5-3 End-to-End Determinism = `ACCEPTED`（2026-09-06 Formal Acceptance Closeout；Implementation Acceptance Basis = `f4c07333600f605cbcc5e34b591659feb1b1f318`；Review Fix #1 = VERIFIED；详见 `dev_log/2026-09-06-group5-3.md`「Formal Acceptance Record」）。
 - G5-4 Deterministic Replay Evaluation = `IMPLEMENTED / WAITING REVIEW`（branch `g5-replay-evaluation`；Design Commit `517d7d5`；详见 `dev_log/2026-09-06-group5-4.md`）。
   - 关键事实源：`backend/src/marketpulse/g5/evaluation.py`（新增）、`backend/src/marketpulse/g5/replay.py`（additive `evaluation` 字段与评估步骤）、`backend/src/marketpulse/g5/canonical.py`（未修改）。
   - G5-4 冻结边界：不持久化 Evaluation Report、不引入 `replay_run_id` / `backtest_id`、不新增 schema、
