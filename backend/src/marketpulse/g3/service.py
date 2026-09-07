@@ -459,6 +459,12 @@ class PaperExecutionService:
         self.risk_gate = risk_gate
         self.clock = clock or SystemClock()
         self.after_settlement: Callable[[], None] | None = None
+        # `bbo_for` is an upstream-owned, in-process latest-market-state accessor.  Execution
+        # never performs exchange I/O itself.  A bounded lookup makes that boundary explicit:
+        # a miswired provider must fail closed rather than hold settlement locks indefinitely.
+        self.action_time_lookup_timeout = 0.25
+        # Test-only deterministic interleaving seam; production leaves it unset.
+        self.before_order_lock: Callable[[], Awaitable[None]] | None = None
 
     async def bootstrap_account(self, run_mode: RunMode) -> None:
         now = self.clock.now()
@@ -1167,9 +1173,9 @@ class PaperExecutionService:
     async def process_open_orders(
         self, run_mode: RunMode, bbo: BestBidAsk, now: datetime | None = None
     ) -> list[ExecutionResult]:
-        """Process eligible OPEN limit orders once; database order status is authoritative."""
-        now = now or self.clock.now()
-        if not self._is_fresh_bbo(bbo, now):
+        """Process candidate OPEN limits; final qualification uses action-time facts only."""
+        candidate_now = now or self.clock.now()
+        if not self._is_fresh_bbo(bbo, candidate_now):
             return []
         async with self.sessions() as session:
             order_ids = list(
@@ -1192,7 +1198,7 @@ class PaperExecutionService:
         return results
 
     async def _process_open_order(
-        self, order_id: str, bbo: BestBidAsk, now: datetime
+        self, order_id: str, bbo: BestBidAsk, now: datetime | None
     ) -> ExecutionResult | None:
         async with self.sessions() as session, session.begin():
             # Preview without a row lock so the G4 gate can take the global runtime-control lock
@@ -1208,7 +1214,11 @@ class PaperExecutionService:
                 or preview.instrument_id != bbo.instrument_id
             ):
                 return None
-            gate_reason = await self._risk_gate_reason_for_order(session, preview, now)
+            # Preserve the global G4 order: RuntimeControl -> Order -> Plan -> Account -> Positions.
+            # This is an ordering/admission preview only; the gate is evaluated again using
+            # action-time facts before settlement.
+            candidate_now = now or self.clock.now()
+            gate_reason = await self._risk_gate_reason_for_order(session, preview, candidate_now)
             if gate_reason is not None:
                 return ExecutionResult(
                     intent_id=preview.intent_id,
@@ -1216,9 +1226,12 @@ class PaperExecutionService:
                     reason=gate_reason,
                     order_id=preview.order_id,
                 )
+            if self.before_order_lock is not None:
+                await self.before_order_lock()
             order = await session.scalar(
                 select(PaperOrderRecord)
                 .where(PaperOrderRecord.order_id == order_id)
+                .execution_options(populate_existing=True)
                 .with_for_update()
             )
             if (
@@ -1238,25 +1251,13 @@ class PaperExecutionService:
             plan_record = await session.scalar(
                 select(TradePlanRecord)
                 .where(TradePlanRecord.plan_id == order.plan_id)
+                .execution_options(populate_existing=True)
                 .with_for_update()
             )
-            plan_guard_reason = await self._limit_fill_plan_guard(order, plan_record, bbo, now)
-            if plan_guard_reason is not None:
-                return ExecutionResult(
-                    intent_id=order.intent_id,
-                    status=IntentStatus.EXECUTED,
-                    reason=plan_guard_reason,
-                    order_id=order.order_id,
-                )
-            price = bbo.ask if order.side == OrderSide.BUY else bbo.bid
-            eligible = (order.side == OrderSide.BUY and price <= order.limit_price) or (
-                order.side == OrderSide.SELL and price >= order.limit_price
-            )
-            if not eligible:
-                return None
             account = await session.scalar(
                 select(AccountRecord)
                 .where(AccountRecord.run_mode == order.run_mode)
+                .execution_options(populate_existing=True)
                 .with_for_update()
             )
             if account is None:
@@ -1266,6 +1267,7 @@ class PaperExecutionService:
                     await session.scalars(
                         select(PositionRecord)
                         .where(PositionRecord.run_mode == order.run_mode)
+                        .execution_options(populate_existing=True)
                         .with_for_update()
                     )
                 ).all()
@@ -1273,7 +1275,49 @@ class PaperExecutionService:
             position = next(
                 (item for item in positions if item.instrument_id == order.instrument_id), None
             )
-            equity_and_marks = await self._execution_equity(account, positions, bbo, now)
+            action_bbos = await self._load_action_time_bbos(order.instrument_id, positions)
+            if action_bbos is None:
+                return ExecutionResult(
+                    intent_id=order.intent_id,
+                    status=IntentStatus.EXECUTED,
+                    reason="ACTION_TIME_BBO_UNAVAILABLE",
+                    order_id=order.order_id,
+                )
+            action_bbo = action_bbos[order.instrument_id]
+            state_version = await self._action_time_state_version(order.instrument_id)
+            if state_version is None:
+                return ExecutionResult(
+                    intent_id=order.intent_id,
+                    status=IntentStatus.EXECUTED,
+                    reason="ACTION_TIME_STATE_UNAVAILABLE",
+                    order_id=order.order_id,
+                )
+            # Capture the execution clock only after all bounded current-state lookups.  The
+            # following guards and the settlement write share this transaction and lock set.
+            action_now = now or self.clock.now()
+            gate_reason = await self._risk_gate_reason_for_order(session, order, action_now)
+            if gate_reason is not None:
+                return ExecutionResult(
+                    intent_id=order.intent_id,
+                    status=IntentStatus.EXECUTED,
+                    reason=gate_reason,
+                    order_id=order.order_id,
+                )
+            # The runtime-control row is now locked by this transaction.  Refresh time once
+            # more so final market/plan/capacity qualification is adjacent to settlement.
+            action_now = now or self.clock.now()
+            if action_bbo.instrument_id != order.instrument_id or not self._is_fresh_bbo(
+                action_bbo, action_now
+            ):
+                return ExecutionResult(
+                    intent_id=order.intent_id,
+                    status=IntentStatus.EXECUTED,
+                    reason="CORE_MARKET_DATA_STALE",
+                    order_id=order.order_id,
+                )
+            equity_and_marks = self._equity_from_action_time_bbos(
+                account, positions, action_bbos, action_now
+            )
             if equity_and_marks is None:
                 return ExecutionResult(
                     intent_id=order.intent_id,
@@ -1281,6 +1325,22 @@ class PaperExecutionService:
                     reason="CORE_POSITION_MARK_STALE",
                     order_id=order.order_id,
                 )
+            plan_guard_reason = self._limit_fill_plan_guard(
+                order, plan_record, action_bbo, action_now, state_version
+            )
+            if plan_guard_reason is not None:
+                return ExecutionResult(
+                    intent_id=order.intent_id,
+                    status=IntentStatus.EXECUTED,
+                    reason=plan_guard_reason,
+                    order_id=order.order_id,
+                )
+            price = action_bbo.ask if order.side == OrderSide.BUY else action_bbo.bid
+            eligible = (order.side == OrderSide.BUY and price <= order.limit_price) or (
+                order.side == OrderSide.SELL and price >= order.limit_price
+            )
+            if not eligible:
+                return None
             equity, marks = equity_and_marks
             if order.side == OrderSide.BUY:
                 pending_exposure = await self._open_buy_exposure(
@@ -1307,14 +1367,15 @@ class PaperExecutionService:
                     reason="SELL_RESERVATION_EXCEEDS_POSITION",
                     order_id=order.order_id,
                 )
-            return await self._settle_order(session, account, position, order, price, now)
+            return await self._settle_order(session, account, position, order, price, action_now)
 
-    async def _limit_fill_plan_guard(
+    def _limit_fill_plan_guard(
         self,
         order: PaperOrderRecord,
         plan_record: TradePlanRecord | None,
         bbo: BestBidAsk,
         now: datetime,
+        state_version: int,
     ) -> str | None:
         """Fail closed on any order/plan drift before a risk-changing limit fill."""
         if plan_record is None:
@@ -1328,7 +1389,7 @@ class PaperExecutionService:
             return "PLAN_NOT_ACTIVE"
         if now >= plan_record.expires_at:
             return "PLAN_EXPIRED"
-        if await self.state_version_for(order.instrument_id) != plan_record.state_version:
+        if state_version != plan_record.state_version:
             return "STATE_VERSION_CHANGED"
         try:
             plan = TradePlan.model_validate(plan_record.payload)
@@ -1347,6 +1408,70 @@ class PaperExecutionService:
             if not plan.entry_zone.contains(price):
                 return "BUY_PRICE_OUTSIDE_ENTRY_ZONE"
         return None
+
+    async def _load_action_time_bbo(self, instrument_id: str) -> BestBidAsk | None:
+        try:
+            return await asyncio.wait_for(
+                self.bbo_for(instrument_id), timeout=self.action_time_lookup_timeout
+            )
+        except TimeoutError:
+            return None
+        except Exception as exc:
+            if getattr(exc, "replay_record_missing", False):
+                raise
+            return None
+
+    async def _load_action_time_bbos(
+        self, instrument_id: str, positions: list[PositionRecord]
+    ) -> dict[str, BestBidAsk] | None:
+        instrument_ids = {instrument_id}
+        instrument_ids.update(
+            position.instrument_id for position in positions if position.quantity > 1e-12
+        )
+        quotes: dict[str, BestBidAsk] = {}
+        for current_instrument_id in sorted(instrument_ids):
+            quote = await self._load_action_time_bbo(current_instrument_id)
+            if quote is None:
+                return None
+            quotes[current_instrument_id] = quote
+        return quotes
+
+    async def _action_time_state_version(self, instrument_id: str) -> int | None:
+        try:
+            return await asyncio.wait_for(
+                self.state_version_for(instrument_id), timeout=self.action_time_lookup_timeout
+            )
+        except TimeoutError:
+            return None
+        except Exception as exc:
+            if getattr(exc, "replay_record_missing", False):
+                raise
+            return None
+
+    def _equity_from_action_time_bbos(
+        self,
+        account: AccountRecord,
+        positions: list[PositionRecord],
+        bbo_by_instrument: dict[str, BestBidAsk],
+        now: datetime,
+    ) -> tuple[float, dict[str, float]] | None:
+        marks: dict[str, float] = {}
+        for position in positions:
+            if position.quantity <= 1e-12:
+                continue
+            bbo = bbo_by_instrument.get(position.instrument_id)
+            if (
+                bbo is None
+                or bbo.instrument_id != position.instrument_id
+                or not self._is_fresh_bbo(bbo, now)
+            ):
+                return None
+            marks[position.instrument_id] = (bbo.bid + bbo.ask) / 2
+        return account.cash_balance + sum(
+            position.quantity * marks[position.instrument_id]
+            for position in positions
+            if position.quantity > 1e-12
+        ), marks
 
     async def revalidate_open_buy_capacity(
         self,

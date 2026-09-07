@@ -37,7 +37,9 @@ Acceptance Group 5 — ACCEPTED / COMPLETE
 
 ## In Progress
 
-- 无（Group 5 = `ACCEPTED / COMPLETE`，无 in-progress 工作）。
+- FG-A — G3 Execution Authority & Freshness：`IMPLEMENTED / WAITING REVIEW` on
+  `fix/fg-a-g3-execution-authority` (base `36401b26478a9892dc2ca0490f5c21ff24663636`);
+  this is a post-acceptance fix branch and does not alter G1–G5 acceptance history.
 
 ## Blocked
 

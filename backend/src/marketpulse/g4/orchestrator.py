@@ -54,7 +54,9 @@ class SafetyRuntime:
             protection = await self.protection.evaluate(run_mode, bbo.instrument_id, bbo, now=now)
             # Protection always runs before fills: a stop breach cancels pending adds first, so a
             # stale add limit order can never re-open a position that just closed.
-            await self.execution.process_open_orders(run_mode, bbo, now)
+            # `process_open_orders` obtains its own action-time clock immediately before the
+            # final settlement guards; this event timestamp is candidate-selection context only.
+            await self.execution.process_open_orders(run_mode, bbo)
             reevaluation: ReevaluationOutcome | None = None
             if self.reevaluation_enabled:
                 should, reason = self.reevaluation.meaningful.should_evaluate(

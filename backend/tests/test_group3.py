@@ -2,6 +2,7 @@ import asyncio
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from marketpulse.clock import ReplayClock
 from marketpulse.config import Settings
 from marketpulse.db.models import (
     AccountRecord,
@@ -733,10 +734,10 @@ def test_limit_sell_reservation_cancel_fill_and_oversell_protection():
 
     async def case():
         await _clean()
-        quote = BestBidAsk(instrument_id="SOL-USDT", bid=99, ask=100, received_at=NOW)
+        quote = [BestBidAsk(instrument_id="SOL-USDT", bid=99, ask=100, received_at=NOW)]
         service = PaperExecutionService(
             SESSIONS,
-            lambda _: asyncio.sleep(0, result=quote),
+            lambda _: asyncio.sleep(0, result=quote[0]),
             lambda _: asyncio.sleep(0, result=7),
             initial_balance=1000,
         )
@@ -801,6 +802,7 @@ def test_limit_sell_reservation_cancel_fill_and_oversell_protection():
             NOW,
         )
         match_bbo = BestBidAsk(instrument_id="SOL-USDT", bid=121, ask=122, received_at=NOW)
+        quote[0] = match_bbo
         filled = await service.process_open_orders(RunMode.REPLAY, match_bbo, NOW)
         async with SESSIONS() as session:
             order = await session.scalar(
@@ -941,8 +943,10 @@ def test_limit_fill_time_plan_state_and_buy_invalidation_guards():
         await _clean()
         version = [7]
 
+        current_bbo = [BestBidAsk(instrument_id="SOL-USDT", bid=99, ask=100, received_at=NOW)]
+
         async def bbo_for(_: str):
-            return BestBidAsk(instrument_id="SOL-USDT", bid=99, ask=100, received_at=NOW)
+            return current_bbo[0]
 
         service = PaperExecutionService(
             SESSIONS, bbo_for, lambda _: asyncio.sleep(0, result=version[0]), initial_balance=1000
@@ -966,6 +970,7 @@ def test_limit_fill_time_plan_state_and_buy_invalidation_guards():
             )
         version[0] = fill_version
         bbo = BestBidAsk(instrument_id="SOL-USDT", bid=fill_ask - 1, ask=fill_ask, received_at=at)
+        current_bbo[0] = bbo
         results = await service.process_open_orders(RunMode.REPLAY, bbo, at)
         async with SESSIONS() as session:
             order = await session.scalar(
@@ -1023,3 +1028,305 @@ def test_limit_fill_time_plan_state_and_buy_invalidation_guards():
     assert (
         order.status == OrderStatus.FILLED and account.reserved_cash == 0 and position.quantity > 0
     )
+
+
+def test_fg_a_cancel_wins_authoritative_order_reload_and_reservation_isolation():
+    """真实 PostgreSQL：Cancel 在 preview 后提交，locked read 必须以 durable row 为准。"""
+
+    class PreviewGate:
+        def __init__(self) -> None:
+            self.preview_seen = asyncio.Event()
+            self.continue_fill = asyncio.Event()
+            self.calls = 0
+
+        async def evaluate(self, session, **kwargs):
+            self.calls += 1
+            if self.calls == 1:
+                self.preview_seen.set()
+                await self.continue_fill.wait()
+
+    async def case():
+        await _clean()
+        quotes = {
+            "SOL-USDT": BestBidAsk(instrument_id="SOL-USDT", bid=99, ask=100, received_at=NOW),
+            "ETH-USDT": BestBidAsk(instrument_id="ETH-USDT", bid=99, ask=100, received_at=NOW),
+        }
+
+        async def bbo_for(instrument_id: str):
+            return quotes[instrument_id]
+
+        service = PaperExecutionService(
+            SESSIONS, bbo_for, lambda _: asyncio.sleep(0, result=7), initial_balance=1000
+        )
+        await service.bootstrap_account(RunMode.REPLAY)
+        plan_a = _plan("SOL-USDT", notional=50, order_type=OrderType.LIMIT)
+        plan_b = _plan("ETH-USDT", notional=60, order_type=OrderType.LIMIT)
+        opened_a = await _open_limit(
+            service,
+            ExecutionIntent(
+                intent_id="fg-a-cancel-a",
+                plan_id=plan_a.plan_id,
+                instrument_id="SOL-USDT",
+                run_mode=RunMode.REPLAY,
+                state_version=7,
+                created_at=NOW,
+            ),
+            plan_a,
+        )
+        opened_b = await _open_limit(
+            service,
+            ExecutionIntent(
+                intent_id="fg-a-cancel-b",
+                plan_id=plan_b.plan_id,
+                instrument_id="ETH-USDT",
+                run_mode=RunMode.REPLAY,
+                state_version=7,
+                created_at=NOW,
+            ),
+            plan_b,
+        )
+        gate = PreviewGate()
+        service.risk_gate = gate
+        fill_task = asyncio.create_task(
+            service.process_open_orders(RunMode.REPLAY, quotes["SOL-USDT"], NOW)
+        )
+        await asyncio.wait_for(gate.preview_seen.wait(), timeout=2)
+        cancelled = await service.cancel_order(opened_a.order_id, NOW)
+        gate.continue_fill.set()
+        results = await asyncio.wait_for(fill_task, timeout=2)
+        reconciliation = await service.reconciliation(RunMode.REPLAY)
+        async with SESSIONS() as session:
+            order_a = await session.get(PaperOrderRecord, opened_a.order_id)
+            order_b = await session.get(PaperOrderRecord, opened_b.order_id)
+            account = await session.scalar(
+                select(AccountRecord).where(AccountRecord.run_mode == RunMode.REPLAY)
+            )
+            fill_count = len(
+                (
+                    await session.scalars(
+                        select(FillRecord).where(FillRecord.order_id == opened_a.order_id)
+                    )
+                ).all()
+            )
+            trade_count = len(
+                (
+                    await session.scalars(
+                        select(TradeRecord).where(
+                            TradeRecord.run_mode == RunMode.REPLAY,
+                            TradeRecord.instrument_id == "SOL-USDT",
+                        )
+                    )
+                ).all()
+            )
+            ledger_count = len(
+                (
+                    await session.scalars(
+                        select(LedgerEntryRecord).where(
+                            LedgerEntryRecord.fill_id == stable_id("fill", "fg-a-cancel-a")
+                        )
+                    )
+                ).all()
+            )
+            outbox_count = sum(
+                record.payload.get("fill_id") == stable_id("fill", "fg-a-cancel-a")
+                for record in (await session.scalars(select(OutboxRecord))).all()
+            )
+            position_count = len(
+                (
+                    await session.scalars(
+                        select(PositionRecord).where(
+                            PositionRecord.run_mode == RunMode.REPLAY,
+                            PositionRecord.instrument_id == "SOL-USDT",
+                        )
+                    )
+                ).all()
+            )
+        return (
+            cancelled,
+            results,
+            order_a,
+            order_b,
+            account,
+            fill_count,
+            trade_count,
+            ledger_count,
+            outbox_count,
+            position_count,
+            reconciliation,
+        )
+
+    (
+        cancelled,
+        results,
+        order_a,
+        order_b,
+        account,
+        fill_count,
+        trade_count,
+        ledger_count,
+        outbox_count,
+        position_count,
+        reconciliation,
+    ) = asyncio.run(case())
+    assert cancelled.cancelled and results == []
+    assert order_a.status == OrderStatus.CANCELLED and order_a.reserved_cash == 0
+    assert order_b.status == OrderStatus.OPEN and order_b.reserved_cash > 0
+    assert account.reserved_cash == pytest.approx(order_b.reserved_cash)
+    assert fill_count == trade_count == ledger_count == outbox_count == position_count == 0
+    assert reconciliation["ok"] and reconciliation["reserved_cash_matches_open_buys"]
+
+
+def test_fg_a_action_time_clock_bbo_and_plan_guards_after_controlled_order_lock_wait():
+    """真实 PostgreSQL：候选事实在 order lock wait 后绝不能决定最终 Fill。"""
+
+    async def run_case(kind: str):
+        await _clean()
+        valid_fill_id = stable_id("fill", "fg-a-action-valid")
+        valid_order_id = stable_id("order", "fg-a-action-valid")
+        valid_position_id = stable_id("pos", RunMode.REPLAY, "SOL-USDT")
+        async with SESSIONS() as session, session.begin():
+            await session.execute(
+                delete(OutboxRecord).where(
+                    OutboxRecord.outbox_id.in_(
+                        (
+                            stable_id("outbox", "ORDER_FILLED", valid_order_id, valid_fill_id),
+                            stable_id(
+                                "outbox", "POSITION_CHANGED", valid_position_id, valid_fill_id
+                            ),
+                        )
+                    )
+                )
+            )
+        clock = ReplayClock(NOW)
+        quote = [BestBidAsk(instrument_id="SOL-USDT", bid=99, ask=100, received_at=NOW)]
+
+        async def bbo_for(_: str):
+            return quote[0]
+
+        service = PaperExecutionService(
+            SESSIONS,
+            bbo_for,
+            lambda _: asyncio.sleep(0, result=7),
+            initial_balance=1000,
+            freshness_ttl=timedelta(seconds=5),
+            clock=clock,
+        )
+        await service.bootstrap_account(RunMode.REPLAY)
+        plan = _plan("SOL-USDT", notional=50, order_type=OrderType.LIMIT)
+        opened = await _open_limit(
+            service,
+            ExecutionIntent(
+                intent_id=f"fg-a-action-{kind}",
+                plan_id=plan.plan_id,
+                instrument_id="SOL-USDT",
+                run_mode=RunMode.REPLAY,
+                state_version=7,
+                created_at=NOW,
+            ),
+            plan,
+        )
+        if kind == "plan_expired":
+            async with SESSIONS() as session, session.begin():
+                await session.execute(
+                    update(TradePlanRecord)
+                    .where(TradePlanRecord.plan_id == plan.plan_id)
+                    .values(expires_at=NOW + timedelta(seconds=1))
+                )
+
+        reached_order_lock = asyncio.Event()
+        release_order_lock = asyncio.Event()
+
+        async def before_order_lock():
+            reached_order_lock.set()
+            await release_order_lock.wait()
+
+        service.before_order_lock = before_order_lock
+        async with SESSIONS() as locking_session, locking_session.begin():
+            await locking_session.execute(
+                select(PaperOrderRecord)
+                .where(PaperOrderRecord.order_id == opened.order_id)
+                .with_for_update()
+            )
+            fill_task = asyncio.create_task(service.process_open_orders(RunMode.REPLAY, quote[0]))
+            await asyncio.wait_for(reached_order_lock.wait(), timeout=2)
+            if kind == "quote_stale":
+                clock.advance_to(NOW + timedelta(seconds=6))
+            elif kind == "plan_expired":
+                clock.advance_to(NOW + timedelta(seconds=2))
+                quote[0] = BestBidAsk(
+                    instrument_id="SOL-USDT", bid=99, ask=100, received_at=clock.now()
+                )
+            elif kind == "entry_outside":
+                clock.advance_to(NOW + timedelta(seconds=1))
+                quote[0] = BestBidAsk(
+                    instrument_id="SOL-USDT", bid=129, ask=130, received_at=clock.now()
+                )
+            elif kind == "stop_breached":
+                clock.advance_to(NOW + timedelta(seconds=1))
+                quote[0] = BestBidAsk(
+                    instrument_id="SOL-USDT", bid=79, ask=80, received_at=clock.now()
+                )
+            else:
+                quote[0] = BestBidAsk(
+                    instrument_id="SOL-USDT", bid=89, ask=90, received_at=clock.now()
+                )
+            release_order_lock.set()
+        results = await asyncio.wait_for(fill_task, timeout=2)
+        reconciliation = await service.reconciliation(RunMode.REPLAY)
+        async with SESSIONS() as session:
+            order = await session.get(PaperOrderRecord, opened.order_id)
+            account = await session.scalar(
+                select(AccountRecord).where(AccountRecord.run_mode == RunMode.REPLAY)
+            )
+            fills = list(
+                (
+                    await session.scalars(
+                        select(FillRecord).where(FillRecord.order_id == opened.order_id)
+                    )
+                ).all()
+            )
+            ledgers = list(
+                (
+                    await session.scalars(
+                        select(LedgerEntryRecord).where(
+                            LedgerEntryRecord.fill_id.in_([fill.fill_id for fill in fills])
+                        )
+                    )
+                ).all()
+            )
+            positions = list(
+                (
+                    await session.scalars(
+                        select(PositionRecord).where(
+                            PositionRecord.run_mode == RunMode.REPLAY,
+                            PositionRecord.instrument_id == "SOL-USDT",
+                        )
+                    )
+                ).all()
+            )
+        return results, order, account, fills, ledgers, positions, reconciliation
+
+    stale = asyncio.run(run_case("quote_stale"))
+    expired = asyncio.run(run_case("plan_expired"))
+    outside = asyncio.run(run_case("entry_outside"))
+    stop = asyncio.run(run_case("stop_breached"))
+    valid = asyncio.run(run_case("valid"))
+
+    for case, reason in (
+        (stale, "CORE_MARKET_DATA_STALE"),
+        (expired, "PLAN_EXPIRED"),
+        (outside, "BUY_PRICE_OUTSIDE_ENTRY_ZONE"),
+        (stop, "BUY_STOP_LOSS_BREACHED"),
+    ):
+        results, order, account, fills, ledgers, positions, reconciliation = case
+        assert len(results) == 1 and results[0].reason == reason
+        assert order.status == OrderStatus.OPEN and order.reserved_cash > 0
+        assert not fills and not ledgers and not positions
+        assert account.reserved_cash == pytest.approx(order.reserved_cash)
+        assert reconciliation["ok"]
+
+    results, order, account, fills, ledgers, positions, reconciliation = valid
+    assert len(results) == len(fills) == len(ledgers) == 1
+    assert fills[0].price == pytest.approx(90.0)
+    assert order.status == OrderStatus.FILLED and account.reserved_cash == 0
+    assert len(positions) == 1 and reconciliation["ok"]
