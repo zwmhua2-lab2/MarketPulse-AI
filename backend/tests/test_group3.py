@@ -579,7 +579,11 @@ def test_limit_buy_lifecycle_duplicate_cancel_and_settlement_rollback():
             return BestBidAsk(instrument_id=instrument, bid=bid, ask=ask, received_at=NOW)
 
         service = PaperExecutionService(
-            SESSIONS, bbo_for, lambda _: asyncio.sleep(0, result=7), initial_balance=1000
+            SESSIONS,
+            bbo_for,
+            lambda _: asyncio.sleep(0, result=7),
+            initial_balance=1000,
+            clock=ReplayClock(NOW),
         )
         await service.bootstrap_account(RunMode.REPLAY)
         plan = _plan("SOL-USDT", notional=50, order_type=OrderType.LIMIT)
@@ -740,6 +744,7 @@ def test_limit_sell_reservation_cancel_fill_and_oversell_protection():
             lambda _: asyncio.sleep(0, result=quote[0]),
             lambda _: asyncio.sleep(0, result=7),
             initial_balance=1000,
+            clock=ReplayClock(NOW),
         )
         await service.bootstrap_account(RunMode.REPLAY)
         buy_plan = _plan("SOL-USDT", notional=100)
@@ -854,7 +859,11 @@ def test_pending_buy_exposure_fee_reservation_equity_marks_and_reconciliation():
             )
 
         service = PaperExecutionService(
-            SESSIONS, bbo_for, lambda _: asyncio.sleep(0, result=7), initial_balance=1000
+            SESSIONS,
+            bbo_for,
+            lambda _: asyncio.sleep(0, result=7),
+            initial_balance=1000,
+            clock=ReplayClock(NOW),
         )
         await service.bootstrap_account(RunMode.REPLAY)
 
@@ -949,7 +958,11 @@ def test_limit_fill_time_plan_state_and_buy_invalidation_guards():
             return current_bbo[0]
 
         service = PaperExecutionService(
-            SESSIONS, bbo_for, lambda _: asyncio.sleep(0, result=version[0]), initial_balance=1000
+            SESSIONS,
+            bbo_for,
+            lambda _: asyncio.sleep(0, result=version[0]),
+            initial_balance=1000,
+            clock=ReplayClock(at),
         )
         await service.bootstrap_account(RunMode.REPLAY)
         plan = _plan("SOL-USDT", notional=50, order_type=OrderType.LIMIT)

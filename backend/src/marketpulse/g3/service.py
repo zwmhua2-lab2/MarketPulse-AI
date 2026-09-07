@@ -1294,7 +1294,7 @@ class PaperExecutionService:
                 )
             # Capture the execution clock only after all bounded current-state lookups.  The
             # following guards and the settlement write share this transaction and lock set.
-            action_now = now or self.clock.now()
+            action_now = self.clock.now()
             gate_reason = await self._risk_gate_reason_for_order(session, order, action_now)
             if gate_reason is not None:
                 return ExecutionResult(
@@ -1305,7 +1305,7 @@ class PaperExecutionService:
                 )
             # The runtime-control row is now locked by this transaction.  Refresh time once
             # more so final market/plan/capacity qualification is adjacent to settlement.
-            action_now = now or self.clock.now()
+            action_now = self.clock.now()
             if action_bbo.instrument_id != order.instrument_id or not self._is_fresh_bbo(
                 action_bbo, action_now
             ):

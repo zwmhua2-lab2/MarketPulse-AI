@@ -107,7 +107,7 @@ class Harness:
 
         self.bbo_for = bbo_for
         self.execution = PaperExecutionService(
-            SESSIONS, bbo_for, state_version_for, initial_balance=1000.0
+            SESSIONS, bbo_for, state_version_for, initial_balance=1000.0, clock=self.clock
         )
         self.risk_gate = SystemRiskGate(
             SESSIONS, self.state_service, self.incidents, self.health, clock=self.clock

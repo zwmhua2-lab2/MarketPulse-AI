@@ -66,6 +66,7 @@ checks could therefore use facts from before the actual mutation window.
 - `backend/src/marketpulse/g3/service.py`
 - `backend/src/marketpulse/g4/orchestrator.py`
 - `backend/tests/test_group3.py`
+- `backend/tests/test_group4.py`
 - `PROJECT_STATE.md`
 - `dev_log/2026-09-07-fg-a-g3-execution-authority.md`
 
@@ -160,7 +161,7 @@ local lookup silently.
 - `pytest backend/tests/test_group5_2_trading_replay.py -ra` → `7 passed`.
 - `pytest backend/tests/test_group5_3_determinism.py -ra` → `5 passed`.
 - `pytest backend/tests/test_group5_4_evaluation.py -ra` → `10 passed`.
-- `pytest backend/tests -ra` → `109 passed, 2 warnings in 149.83s`.
+- `pytest backend/tests -ra` → `109 passed, 2 warnings in 150.32s`.
 
 ## Context For Reviewer / Next AI
 
