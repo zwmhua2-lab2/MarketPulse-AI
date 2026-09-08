@@ -49,13 +49,20 @@ Two cross-symbol exits could therefore form `Position → Account` versus `Accou
 
 ## Canonical Lock Order
 
-Risk-reducing settlement is:
+> Historical / superseded by Acceptance Fix #1: the pre-fix `Account → Position` description
+> below did not include Protection-owned pending risk-increasing BUY cancellation and is not the
+> final F06 design.
 
-`RuntimeControl (AI authority path only) → AccountRecord → PositionRecord(s) → Plan/Order/audit writes`
+For the F06-relevant Protection / Cancel / Limit-Fill graph:
 
-G3 already used `AccountRecord → PositionRecord(s)`. FG-B makes G4 protection/manual close take
-the Account fence before its target Position lock. AI REDUCE/CLOSE acquires the same Account fence
-before stale-authority validation locks `PositionRecord`.
+`risk-increasing Order(s) → Plan where applicable → Account → Position(s)`
+
+For AI REDUCE/CLOSE:
+
+`RuntimeControl → risk-increasing Order(s) → SymbolState → Plan → Account → Position → Trade/audit`
+
+These are the F06-relevant lock graphs that eliminate the Account ↔ Order cycle; they are not a
+claim of an absolute global order for every database table.
 
 ## Implementation
 
@@ -66,8 +73,8 @@ before stale-authority validation locks `PositionRecord`.
   while authority is active. Replay therefore retains lifecycle-owned deterministic completion.
 - Existing G4 post-provider stale checks remain unchanged. A close during the provider wait makes
   the frozen position lifecycle stale, so the response records `STALE_DECISION` and has no action.
-- `PositionProtectionService` now acquires `AccountRecord FOR UPDATE` before `PositionRecord FOR
-  UPDATE`; its test-only barrier seam is unset in production.
+- `PositionProtectionService` first locks cancellable same-symbol risk-increasing Orders, then
+  takes the Account and Position fences; its test-only barrier seam is unset in production.
 - G3 settlement and paper accounting semantics are unchanged.
 
 ## Files Changed
@@ -91,7 +98,7 @@ The per-symbol lock serializes only the critical BBO safety sequence. The in-fli
 under that same lock, bounding a symbol to one provider call without an unbounded task queue. The
 provider wait is performed by the original caller, and `finally` always releases the authority.
 
-## Verification
+## Historical Pre-Acceptance Fix #1 Verification
 
 - Baseline G3+G4 before modification: `61 passed`.
 - FG-B targeted real PostgreSQL concurrency tests: `6 passed`.
@@ -131,22 +138,23 @@ caller per BBO, so no re-evaluation can outlive Replay's event lifecycle. G5-2/G
 
 ## Result
 
-FG-B IMPLEMENTATION COMPLETE — WAITING ACCEPTANCE
+FG-B ACCEPTED / COMPLETE
 
 ## Remaining
 
-Human / independent source acceptance and branch push remain required. FG-C is not started.
+No implementation or Acceptance Fix remains. FG-C = `NOT STARTED`.
 
 ## Known Risks
 
-The account-first settlement fence serializes risk-reducing exits within an account by design. This
-is the required deadlock-safety tradeoff; no throughput redesign was introduced.
+The final relevant F06 graph serializes conflicting cancellation/settlement work through the
+risk-increasing Order(s), then Account. This is a deadlock-safety fence, not a throughput redesign.
 
 ## Context For Next AI
 
 Review `SafetyRuntime`'s lock release before the caller-owned provider await, the in-flight claim
-and `finally` release, and the Account-before-Position order in both G4 protection and AI
-REDUCE/CLOSE stale authority. Confirm test barriers exercise actual PostgreSQL row locks.
+and `finally` release, and the final Order → Plan (where applicable) → Account → Position graph in
+both G4 protection and AI REDUCE/CLOSE stale authority. Confirm test barriers exercise actual
+PostgreSQL row locks.
 
 ## Evidence
 
@@ -167,9 +175,16 @@ or Limit Fill could therefore form `Account → Order` against `Order → Accoun
 
 ### Final Canonical Lock Order
 
-`RuntimeControl` (AI authority only) → risk-increasing `PaperOrderRecord` rows ordered by
-`created_at, order_id` → active Plan (AI authority stale check only) → `AccountRecord` →
-`PositionRecord(s)` → cancellation / settlement audit writes.
+Protection / Cancel / Limit-Fill relevant core order:
+
+`risk-increasing Order(s) → Plan where applicable → Account → Position(s)`
+
+AI REDUCE/CLOSE:
+
+`RuntimeControl → risk-increasing Order(s) → SymbolState → Plan → Account → Position → Trade/audit`
+
+This is the F06-relevant lock graph, not an asserted absolute global order for every database
+table. The concrete Order rows are `PaperOrderRecord`s ordered by `created_at, order_id`.
 
 Protection locks all cancellable same-symbol OPEN BUYs before Account, passes that durable locked
 set to cancellation, then calls unchanged G3 risk-reducing settlement. AI REDUCE/CLOSE acquires
@@ -210,4 +225,15 @@ the same pending BUY Order and Account. This is a deadlock-safety fence, not a t
 
 ### Acceptance Fix #1 Result
 
-FG-B ACCEPTANCE FIX #1 COMPLETE — WAITING ACCEPTANCE
+FG-B ACCEPTED / COMPLETE
+
+## Final Acceptance Record
+
+- Formal acceptance: FG-B Acceptance Fix #1 = `PASS`; F03 / F06 = `ACCEPTED / FIXED`.
+- Accepted implementation: `1c292b28e8e453b3c2e349b6b3b4f76c542341b1`.
+- FG-B concurrency: `10 passed`.
+- G5-1: `9 passed`; G5-2: `7 passed`; G5-3: `5 passed`; G5-4: `10 passed`.
+- Full backend: `118 passed, 1 warning`.
+- Ruff, `compileall`, and `git diff --check`: PASS.
+- Alembic `current` / `heads`: `20260905_0004 (head)`.
+- Next: FG-C = `NOT STARTED`.

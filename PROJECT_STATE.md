@@ -38,13 +38,14 @@ Acceptance Group 5 — ACCEPTED / COMPLETE
   `d574e242f3aa7c26658ed6cc780fd8f744dbf503`；isolated Final Gate PASS）。
 - C04 — Alembic Replay Test Isolation Fix：`ACCEPTED / COMPLETE`；无 production Alembic
   behavior 或 migration revision 修改。
+- FG-B — Protection Concurrency：`ACCEPTED / COMPLETE`（accepted implementation
+  `1c292b28e8e453b3c2e349b6b3b4f76c542341b1`；F03 / F06 = `ACCEPTED / FIXED`；
+  FG-C = `NOT STARTED`）。
 - Group 4（持仓安全与恢复）已实现：Position Protection（SL/TP/Protective Exit/幂等）、Position Re-evaluation（HOLD/ADD/REDUCE/CLOSE/CANCEL_ADD/UPDATE_STOP/UPDATE_TP/UPDATE_INVALIDATION/REPLACE_PLAN）、System Safety State、Control（Pause/Resume/Emergency Stop/Emergency Recovery/Symbol Block/Manual Close/Safe Mode）、Recovery Manager（PostgreSQL SoT + Restart Recovery + Reconciliation Gate + Plan/Order Revalidation + EXECUTION_GAP）、Health Registry 与 Incident Manager。
 
 ## In Progress
 
-- FG-B — Protection Concurrency：`IMPLEMENTED / WAITING ACCEPTANCE` on
-  `fix/fg-b-protection-concurrency` (base `352bbb68a8b7051ea398da45b46914d5e0ad49b5`).
-  F03/F06 implementation and self-verification are complete; no Acceptance is declared.
+- 无。FG-B 已完成 Acceptance Closeout；FG-C = `NOT STARTED`。
 
 ## Blocked
 
