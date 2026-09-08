@@ -36,7 +36,7 @@ from .models import (
     ProtectionOutcome,
     ProtectionTrigger,
 )
-from .planning import load_active_plan
+from .planning import load_valid_long_active_plan
 
 TOLERANCE = 1e-12
 
@@ -125,7 +125,9 @@ class PositionProtectionService:
                 return ProtectionOutcome(
                     instrument_id=instrument_id, triggered=False, reason="NO_POSITION"
                 )
-            plan = await load_active_plan(session, run_mode, instrument_id)
+            plan = await load_valid_long_active_plan(
+                session, run_mode, instrument_id, now=now
+            )
             if plan is None:
                 await self.incidents.open(
                     incident_type=IncidentType.POSITION_UNPROTECTED,
@@ -275,7 +277,7 @@ class PositionProtectionService:
             return ProtectionOutcome(
                 instrument_id=instrument_id, triggered=False, reason="NO_POSITION"
             )
-        plan = await load_active_plan(session, run_mode, instrument_id)
+        plan = await load_valid_long_active_plan(session, run_mode, instrument_id, now=now)
         plan_id = plan.plan_id if plan else ""
         plan_version = plan.plan_version if plan else 0
 

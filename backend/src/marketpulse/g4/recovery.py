@@ -95,6 +95,27 @@ class RecoveryManager:
             )
         last_heartbeat = pre.heartbeat_at if pre is not None else None
         pre_system_state = pre.system_state if pre is not None else SystemState.STARTING.value
+        # F05: SAFE_MODE is a durable safety latch that must survive a crash at ANY point in
+        # recovery — including after the transient STARTING/RECOVERING transitions have already
+        # overwritten `system_state`. Persist the latch into `payload` (which no transient
+        # transition touches) so a later recovery attempt still sees it.
+        safe_mode_latched = (
+            pre is not None
+            and (
+                pre.system_state == SystemState.SAFE_MODE.value
+                or bool((pre.payload or {}).get("safe_mode_latch"))
+            )
+        )
+        if safe_mode_latched:
+            # Normalize the in-memory pre-state so _final_state treats it as SAFE_MODE, and
+            # ensure the durable latch is written before any transient transition can erase it.
+            pre_system_state = SystemState.SAFE_MODE.value
+            if pre is not None and not bool((pre.payload or {}).get("safe_mode_latch")):
+                await self.state_service.transition(
+                    run_mode,
+                    reason="safe_mode_latch",
+                    payload={"safe_mode_latch": True},
+                )
         await self.state_service.transition(
             run_mode, system_state=SystemState.STARTING, reason="recovery_start", emit_outbox=False
         )

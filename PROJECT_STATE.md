@@ -45,7 +45,9 @@ Acceptance Group 5 — ACCEPTED / COMPLETE
 
 ## In Progress
 
-- 无。FG-B 已完成 Acceptance Closeout；FG-C = `NOT STARTED`。
+- FG-C — Safety Recovery Validity：`IMPLEMENTED / WAITING REVIEW`（branch
+  `fix/fg-c-safety-recovery-validity`；base
+  `8d4e8305088485095df241fb41111980179f6105`；F04 / F05 / C01 已实现并验证）。
 
 ## Blocked
 

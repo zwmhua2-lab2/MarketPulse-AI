@@ -80,6 +80,13 @@ class SystemControlService:
         now = now or self.clock.now()
         async with self.sessions() as session, session.begin():
             control = await self.state_service.load(run_mode, session=session, for_update=True)
+            # F04: EMERGENCY_STOP is the highest-priority operator latch. Pause must never
+            # silently downgrade it to PAUSED, otherwise a later resume() would bypass the
+            # emergency authority. Only emergency_recovery() may clear the emergency latch.
+            if control.operator_state == OperatorState.EMERGENCY_STOP:
+                return self._outcome(
+                    "pause", control, False, "emergency_stop_requires_recovery"
+                )
             if (
                 control.operator_state == OperatorState.PAUSED
                 and control.system_state == SystemState.PAUSED
@@ -371,6 +378,9 @@ class SystemControlService:
                 reason="safe_mode_recovery_validated",
                 session=session,
             )
+            # F05: clearing SAFE_MODE must clear the durable latch too, otherwise a later
+            # recovery would still see `safe_mode_latch` and wrongly re-latch SAFE_MODE.
+            record.payload = {k: v for k, v in record.payload.items() if k != "safe_mode_latch"}
             for incident_type in BLOCKING_INCIDENT_TYPES:
                 await self.incidents.resolve_type(
                     incident_type=incident_type, run_mode=run_mode, session=session
