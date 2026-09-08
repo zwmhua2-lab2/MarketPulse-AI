@@ -464,14 +464,10 @@ class PositionReevaluationService:
         # Runtime control is always first, matching the G4 risk gate/control lock order.
         await self.risk_gate.state_service.load(run_mode, session=session, for_update=True)
         if lock_risk_reducing_account:
-            # REDUCE/CLOSE subsequently call G3 settlement, whose canonical order is Account ->
-            # Position(s). Acquire that account fence before this stale-authority check locks the
-            # target PositionRecord, otherwise AI exits reintroduce the G4/G3 inversion.
-            account = await session.scalar(
-                select(AccountRecord).where(AccountRecord.run_mode == run_mode).with_for_update()
-            )
-            if account is None:
-                raise RuntimeError("account_not_bootstrapped")
+            # REDUCE/CLOSE must claim the same risk-increasing BUY Order(s) that Protection will
+            # cancel. G3 cancel/limit-fill paths are Order -> Plan -> Account -> Position(s), so
+            # taking Account first would recreate an Account -> Order inversion.
+            await self.protection._lock_risk_increasing_orders(session, run_mode, instrument_id)
         state = await session.scalar(
             select(SymbolStateStore)
             .where(SymbolStateStore.instrument_id == instrument_id)
@@ -496,6 +492,13 @@ class PositionReevaluationService:
             )
         elif now >= current_plan.expires_at:
             reasons.append("plan_expired_at_action")
+
+        if lock_risk_reducing_account:
+            account = await session.scalar(
+                select(AccountRecord).where(AccountRecord.run_mode == run_mode).with_for_update()
+            )
+            if account is None:
+                raise RuntimeError("account_not_bootstrapped")
 
         position = await session.scalar(
             select(PositionRecord)

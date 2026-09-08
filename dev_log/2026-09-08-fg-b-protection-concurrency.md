@@ -154,3 +154,60 @@ REDUCE/CLOSE stale authority. Confirm test barriers exercise actual PostgreSQL r
 - `E:\Temp\marketpulse-fg-b\g3-g4-after.txt`
 - `E:\Temp\marketpulse-fg-b\g5-after.txt`
 - `E:\Temp\marketpulse-fg-b\backend-full-after.txt`
+
+## Acceptance Fix #1 — Order / Account Lock Consistency
+
+### Account ↔ Order Root Cause
+
+The original FG-B account-first protection fence made `_close_position_in()` acquire
+`AccountRecord → PositionRecord`, then cancel pending BUYs through G3 `cancel_order()`.
+That cancellation locks `PaperOrderRecord → AccountRecord`; meanwhile G3 limit-fill uses
+`RuntimeControl → Order → Plan → Account → Positions`. A protective close and concurrent Cancel
+or Limit Fill could therefore form `Account → Order` against `Order → Account`.
+
+### Final Canonical Lock Order
+
+`RuntimeControl` (AI authority only) → risk-increasing `PaperOrderRecord` rows ordered by
+`created_at, order_id` → active Plan (AI authority stale check only) → `AccountRecord` →
+`PositionRecord(s)` → cancellation / settlement audit writes.
+
+Protection locks all cancellable same-symbol OPEN BUYs before Account, passes that durable locked
+set to cancellation, then calls unchanged G3 risk-reducing settlement. AI REDUCE/CLOSE acquires
+the same order set before its Account/Position stale-authority locks. G3 Cancel and LIMIT fill
+already start from Order, so no G3 transaction-architecture change was required.
+
+### Protection vs Cancel Evidence
+
+Real PostgreSQL barrier test holds Protection after it has locked the pending BUY Order, starts a
+concurrent `cancel_order()`, proves Cancel waits on Order, then releases both. The BUY is
+`CANCELLED` exactly once, reservation is zero once, and one protective SELL Fill/Ledger/closed
+Trade remains with reconciliation PASS.
+
+### Protection vs Limit Fill Evidence
+
+Real PostgreSQL barrier test overlaps SL protection with the actual G3 `process_open_orders()`
+LIMIT-fill path while the BUY is price-eligible. Limit fill waits on the same Order; after
+Protection cancels it, no stale BUY Fill occurs and the closed Position is not reopened.
+
+### AI REDUCE/CLOSE Evidence
+
+The AI CLOSE caller-owned transaction claims the pending BUY Order before Account. A concurrent
+Cancel waits on that Order, then the AI close completes once, cancels the BUY once, and leaves the
+Position flat with reconciliation PASS. Existing mixed Protection/AI REDUCE coverage remains in
+the FG-B suite.
+
+### Acceptance Fix #1 Verification
+
+- FG-B concurrency tests: `10 passed`.
+- G1–G4: PASS (included in full backend).
+- G5-1: `9 passed`; G5-2: `7 passed`; G5-3: `5 passed`; G5-4: `10 passed`.
+- Full backend: `118 passed, 1 warning` (existing FastAPI/Starlette TestClient deprecation).
+
+### Known Risk
+
+The canonical order intentionally serializes conflicting risk-reducing exit/cancellation work on
+the same pending BUY Order and Account. This is a deadlock-safety fence, not a throughput redesign.
+
+### Acceptance Fix #1 Result
+
+FG-B ACCEPTANCE FIX #1 COMPLETE — WAITING ACCEPTANCE

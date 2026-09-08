@@ -68,6 +68,9 @@ class PositionProtectionService:
         self.after_risk_reducing_account_lock: (
             Callable[[RunMode, str], Awaitable[None]] | None
         ) = None
+        self.after_risk_reducing_orders_lock: (
+            Callable[[RunMode, str], Awaitable[None]] | None
+        ) = None
 
     # ------------------------------------------------------------------ evaluation
 
@@ -245,9 +248,14 @@ class PositionProtectionService:
         trigger: ProtectionTrigger,
         now: datetime,
     ) -> ProtectionOutcome:
-        # Canonical risk-reducing settlement order is Account -> Position(s).  G3 acquires the
-        # same account row before its position set; taking Position first here would invert that
-        # order and can deadlock two cross-symbol exits.
+        # The complete canonical risk-reducing order is risk-increasing Order(s) -> Account ->
+        # Position(s). G3 cancel/limit-fill paths start with Order, so Account first here would
+        # invert their Order -> Account edge while protection cancels pending BUYs.
+        risk_increasing_orders = await self._lock_risk_increasing_orders(
+            session, run_mode, instrument_id
+        )
+        if self.after_risk_reducing_orders_lock is not None:
+            await self.after_risk_reducing_orders_lock(run_mode, instrument_id)
         account = await session.scalar(
             select(AccountRecord).where(AccountRecord.run_mode == run_mode).with_for_update()
         )
@@ -273,7 +281,9 @@ class PositionProtectionService:
 
         # A stop-loss or force-close must invalidate every pending risk-increasing BUY first,
         # otherwise a stale add limit order could re-open the position after the exit.
-        cancelled = await self._cancel_risk_increasing(session, run_mode, instrument_id, now)
+        cancelled = await self._cancel_risk_increasing(
+            session, run_mode, instrument_id, now, orders=risk_increasing_orders
+        )
 
         exit_quantity = position.quantity if quantity is None else min(quantity, position.quantity)
         intent_id = stable_id(
@@ -396,8 +406,26 @@ class PositionProtectionService:
         run_mode: RunMode,
         instrument_id: str,
         now: datetime,
+        *,
+        orders: list[PaperOrderRecord] | None = None,
     ) -> list[str]:
-        orders = list(
+        if orders is None:
+            orders = await self._lock_risk_increasing_orders(session, run_mode, instrument_id)
+        cancelled: list[str] = []
+        for order in orders:
+            result = await self.execution.cancel_order(order.order_id, now, session=session)
+            if result.cancelled:
+                cancelled.append(order.order_id)
+        return cancelled
+
+    async def _lock_risk_increasing_orders(
+        self,
+        session: AsyncSession,
+        run_mode: RunMode,
+        instrument_id: str,
+    ) -> list[PaperOrderRecord]:
+        """Lock cancellable BUYs before Account for the shared G3/G4 lock graph."""
+        return list(
             (
                 await session.scalars(
                     select(PaperOrderRecord)
@@ -411,15 +439,10 @@ class PositionProtectionService:
                         PaperOrderRecord.created_at.asc(),
                         PaperOrderRecord.order_id.asc(),
                     )
+                    .with_for_update()
                 )
             ).all()
         )
-        cancelled: list[str] = []
-        for order in orders:
-            result = await self.execution.cancel_order(order.order_id, now, session=session)
-            if result.cancelled:
-                cancelled.append(order.order_id)
-        return cancelled
 
     @staticmethod
     def _add_event(

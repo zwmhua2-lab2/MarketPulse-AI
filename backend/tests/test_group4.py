@@ -1553,6 +1553,223 @@ def test_fg_b_same_symbol_concurrent_protection_triggers_remain_exactly_once():
     assert len(fills) == 1 and position.quantity == 0 and report.ok
 
 
+def test_fg_b_protection_vs_cancel_uses_order_account_position_lock_order():
+    async def case():
+        h = Harness()
+        await h.boot()
+        await open_position(h, notional=50, bid=99, ask=100, stop=80, tp=140)
+        pending_plan = await open_limit_buy(h, notional=20, limit=95)
+        async with SESSIONS() as session:
+            pending = await session.scalar(
+                select(PaperOrderRecord).where(PaperOrderRecord.plan_id == pending_plan.plan_id)
+            )
+        h.quotes["SOL-USDT"] = (79.0, 80.0)
+        orders_locked = asyncio.Event()
+        release = asyncio.Event()
+
+        async def hold_after_orders(_run_mode, instrument_id):
+            if instrument_id == "SOL-USDT":
+                orders_locked.set()
+                await release.wait()
+
+        h.protection.after_risk_reducing_orders_lock = hold_after_orders
+        close = asyncio.create_task(
+            h.protection.evaluate(
+                RunMode.REPLAY, "SOL-USDT", await h.bbo_for("SOL-USDT"), now=NOW
+            )
+        )
+        await orders_locked.wait()
+        cancel = asyncio.create_task(h.execution.cancel_order(pending.order_id, NOW))
+        await asyncio.sleep(0)
+        assert not cancel.done()  # Protection owns Order before it can request Account.
+        release.set()
+        protection, cancellation = await asyncio.wait_for(
+            asyncio.gather(close, cancel), timeout=5
+        )
+        async with SESSIONS() as session:
+            order = await session.scalar(
+                select(PaperOrderRecord).where(PaperOrderRecord.order_id == pending.order_id)
+            )
+            account = await session.scalar(
+                select(AccountRecord).where(AccountRecord.run_mode == RunMode.REPLAY)
+            )
+            position = await session.scalar(
+                select(PositionRecord).where(
+                    PositionRecord.run_mode == RunMode.REPLAY,
+                    PositionRecord.instrument_id == "SOL-USDT",
+                )
+            )
+            trades = list(
+                (
+                    await session.scalars(
+                        select(TradeRecord).where(
+                            TradeRecord.run_mode == RunMode.REPLAY,
+                            TradeRecord.instrument_id == "SOL-USDT",
+                        )
+                    )
+                ).all()
+            )
+            sells = list(
+                (
+                    await session.scalars(
+                        select(FillRecord)
+                        .join(PaperOrderRecord, FillRecord.order_id == PaperOrderRecord.order_id)
+                        .where(
+                            PaperOrderRecord.run_mode == RunMode.REPLAY,
+                            PaperOrderRecord.instrument_id == "SOL-USDT",
+                            PaperOrderRecord.side == OrderSide.SELL,
+                        )
+                    )
+                ).all()
+            )
+            ledgers = list(
+                (
+                    await session.scalars(
+                        select(LedgerEntryRecord)
+                        .join(FillRecord, LedgerEntryRecord.fill_id == FillRecord.fill_id)
+                        .join(PaperOrderRecord, FillRecord.order_id == PaperOrderRecord.order_id)
+                        .where(
+                            PaperOrderRecord.run_mode == RunMode.REPLAY,
+                            PaperOrderRecord.instrument_id == "SOL-USDT",
+                            PaperOrderRecord.side == OrderSide.SELL,
+                        )
+                    )
+                ).all()
+            )
+        return protection, cancellation, order, account, position, trades, sells, ledgers, await h.reconcile(RunMode.REPLAY)
+
+    protection, cancellation, order, account, position, trades, sells, ledgers, report = asyncio.run(
+        case()
+    )
+    assert protection.triggered and not cancellation.cancelled
+    assert order.status == OrderStatus.CANCELLED and order.reserved_cash == 0
+    assert account.reserved_cash == 0 and position.quantity == 0
+    assert len(trades) == len(sells) == len(ledgers) == 1 and trades[0].status == "CLOSED"
+    assert report.ok
+
+
+def test_fg_b_protection_wins_against_concurrent_limit_fill_without_reopen():
+    async def case():
+        h = Harness()
+        await h.boot()
+        await open_position(h, notional=50, bid=99, ask=100, stop=80, tp=140)
+        pending_plan = await open_limit_buy(h, notional=20, limit=95)
+        h.quotes["SOL-USDT"] = (79.0, 80.0)  # SL and BUY limit eligibility are both present.
+        orders_locked = asyncio.Event()
+        release = asyncio.Event()
+
+        async def hold_after_orders(_run_mode, instrument_id):
+            if instrument_id == "SOL-USDT":
+                orders_locked.set()
+                await release.wait()
+
+        h.protection.after_risk_reducing_orders_lock = hold_after_orders
+        close = asyncio.create_task(
+            h.protection.evaluate(
+                RunMode.REPLAY, "SOL-USDT", await h.bbo_for("SOL-USDT"), now=NOW
+            )
+        )
+        await orders_locked.wait()
+        fill = asyncio.create_task(
+            h.execution.process_open_orders(RunMode.REPLAY, await h.bbo_for("SOL-USDT"), NOW)
+        )
+        await asyncio.sleep(0)
+        assert not fill.done()  # The fill path waits on the same Order, not an Account cycle.
+        release.set()
+        protection, fills = await asyncio.wait_for(asyncio.gather(close, fill), timeout=5)
+        async with SESSIONS() as session:
+            order = await session.scalar(
+                select(PaperOrderRecord).where(PaperOrderRecord.plan_id == pending_plan.plan_id)
+            )
+            position = await session.scalar(
+                select(PositionRecord).where(
+                    PositionRecord.run_mode == RunMode.REPLAY,
+                    PositionRecord.instrument_id == "SOL-USDT",
+                )
+            )
+            buy_fills = list(
+                (
+                    await session.scalars(
+                        select(FillRecord)
+                        .join(PaperOrderRecord, FillRecord.order_id == PaperOrderRecord.order_id)
+                        .where(
+                            PaperOrderRecord.run_mode == RunMode.REPLAY,
+                            PaperOrderRecord.instrument_id == "SOL-USDT",
+                            PaperOrderRecord.side == OrderSide.BUY,
+                        )
+                    )
+                ).all()
+            )
+        return protection, fills, order, position, buy_fills, await h.reconcile(RunMode.REPLAY)
+
+    protection, fills, order, position, buy_fills, report = asyncio.run(case())
+    assert protection.triggered and fills == []
+    assert order.status == OrderStatus.CANCELLED and position.quantity == 0
+    assert len(buy_fills) == 1  # only the original position entry; pending BUY never reopens it
+    assert report.ok
+
+
+def test_fg_b_ai_close_claims_pending_buy_order_before_account():
+    async def case():
+        h = Harness()
+        await h.boot()
+        await open_position(h, notional=50, bid=99, ask=100, stop=80, tp=140)
+        pending_plan = await open_limit_buy(h, notional=20, limit=95)
+        async with SESSIONS() as session:
+            pending = await session.scalar(
+                select(PaperOrderRecord).where(PaperOrderRecord.plan_id == pending_plan.plan_id)
+            )
+        claimed = asyncio.Event()
+        release = asyncio.Event()
+        original = h.protection._lock_risk_increasing_orders
+        calls = 0
+
+        async def hold_first_order_claim(session, run_mode, instrument_id):
+            nonlocal calls
+            orders = await original(session, run_mode, instrument_id)
+            calls += 1
+            if calls == 1:
+                claimed.set()
+                await release.wait()
+            return orders
+
+        h.protection._lock_risk_increasing_orders = hold_first_order_claim
+        h.review_provider._response = PositionReevaluation(
+            action=ReevaluationAction.CLOSE, reason="ai-close"
+        )
+        close = asyncio.create_task(
+            h.reevaluation.evaluate(
+                RunMode.REPLAY,
+                "SOL-USDT",
+                await h.bbo_for("SOL-USDT"),
+                now=NOW,
+                force=True,
+            )
+        )
+        await claimed.wait()
+        cancel = asyncio.create_task(h.execution.cancel_order(pending.order_id, NOW))
+        await asyncio.sleep(0)
+        assert not cancel.done()
+        release.set()
+        outcome, cancellation = await asyncio.wait_for(asyncio.gather(close, cancel), timeout=5)
+        async with SESSIONS() as session:
+            order = await session.scalar(
+                select(PaperOrderRecord).where(PaperOrderRecord.order_id == pending.order_id)
+            )
+            position = await session.scalar(
+                select(PositionRecord).where(
+                    PositionRecord.run_mode == RunMode.REPLAY,
+                    PositionRecord.instrument_id == "SOL-USDT",
+                )
+            )
+        return outcome, cancellation, order, position, calls, await h.reconcile(RunMode.REPLAY)
+
+    outcome, cancellation, order, position, calls, report = asyncio.run(case())
+    assert outcome.applied and outcome.action is ReevaluationAction.CLOSE
+    assert not cancellation.cancelled and order.status == OrderStatus.CANCELLED
+    assert position.quantity == 0 and calls >= 2 and report.ok
+
+
 # ==============================================================================
 # Failure injection — transaction rollback
 # ==============================================================================
@@ -1939,7 +2156,7 @@ def test_reconciliation_detects_stale_risk_increasing_buy():
         # Simulate a crash where the position closed but the stale add BUY was never cancelled.
         original_cancel = h.protection._cancel_risk_increasing
 
-        async def noop_cancel(session, run_mode, instrument_id, now):
+        async def noop_cancel(session, run_mode, instrument_id, now, *, orders=None):
             return []
 
         h.protection._cancel_risk_increasing = noop_cancel
