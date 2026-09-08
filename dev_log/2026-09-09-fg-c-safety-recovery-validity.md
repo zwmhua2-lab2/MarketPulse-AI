@@ -239,11 +239,11 @@ No production authority, schema, migration, F07/F09/F10/F11/N02, FG-D, or G5 beh
 
 ## Result
 
-FG-C ACCEPTANCE FIX #2 COMPLETE — WAITING ACCEPTANCE
+FG-C ACCEPTED / COMPLETE
 
 ## Remaining
 
-Human acceptance review. No merge to `main` until Acceptance PASS.
+No implementation or Acceptance Fix remains. FG-D / FG-E = `NOT STARTED`.
 
 ## Known Risks
 
@@ -263,3 +263,13 @@ idempotent.
 - `git diff --check` → PASS (Git emitted only the existing LF-to-CRLF working-copy warning).
 - `cd backend; PYTHONPATH=src; py -3.14 -m alembic current` / `heads` → both
   `20260905_0004 (head)`.
+
+## Final Acceptance Record
+
+- Formal acceptance: FG-C Acceptance Fix #2 = `PASS`；F04 / F05 / C01 = `ACCEPTED / FIXED`。
+- Accepted implementation: `39388acdd313d631e887a3d1786352bbee51caca`。
+- Closeout Final Regression（2026-09-09，在 accepted SHA 39388ac 的隔离 worktree 重跑）：
+  FG-C targeted `15 passed`；full backend `133 passed`（closeout 重跑 `2 warnings`，既有
+  FastAPI/Starlette deprecation，数量随收集环境在 1–2 间波动）；ruff、`compileall`、
+  `git diff --check` PASS；Alembic `current` / `heads` = `20260905_0004 (head)`。
+- `main` 已 fast-forward 收编 FG-C；`fix/fg-c-safety-recovery-validity` 保留为历史证据。

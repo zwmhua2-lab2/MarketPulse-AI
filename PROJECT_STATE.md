@@ -41,16 +41,16 @@ Acceptance Group 5 — ACCEPTED / COMPLETE
 - FG-B — Protection Concurrency：`ACCEPTED / COMPLETE`（accepted implementation
   `1c292b28e8e453b3c2e349b6b3b4f76c542341b1`；F03 / F06 = `ACCEPTED / FIXED`；
   FG-C = `NOT STARTED`）。
+- FG-C — Safety Recovery Validity：`ACCEPTED / COMPLETE`（accepted implementation
+  `39388acdd313d631e887a3d1786352bbee51caca`；F04 / F05 / C01 = `ACCEPTED / FIXED`；
+  Acceptance Fix #2 已验证 C01 Case G 的 OPEN-position 三方保护生命周期与 F05 Case 2/3/4
+  crash-boundary durable 证据；`state_version` 仅作为 risk-increasing freshness authority，
+  不参与 open-position protection lifetime）。
 - Group 4（持仓安全与恢复）已实现：Position Protection（SL/TP/Protective Exit/幂等）、Position Re-evaluation（HOLD/ADD/REDUCE/CLOSE/CANCEL_ADD/UPDATE_STOP/UPDATE_TP/UPDATE_INVALIDATION/REPLACE_PLAN）、System Safety State、Control（Pause/Resume/Emergency Stop/Emergency Recovery/Symbol Block/Manual Close/Safe Mode）、Recovery Manager（PostgreSQL SoT + Restart Recovery + Reconciliation Gate + Plan/Order Revalidation + EXECUTION_GAP）、Health Registry 与 Incident Manager。
 
 ## In Progress
 
-- FG-C — Safety Recovery Validity：`IMPLEMENTED / WAITING ACCEPTANCE`（branch
-  `fix/fg-c-safety-recovery-validity`；base
-  `8d4e8305088485095df241fb41111980179f6105`；F04 / F05 / C01 已实现并验证；Acceptance
-  Fix #2 已补齐 C01 Case G 的 OPEN-position 三方验证，以及 F05 Case 2/3/4 的 crash-boundary
-  exception 与 durable intermediate-state 证据；`state_version` 仍仅为 risk-increasing
-  freshness authority，不参与 open-position protection lifetime）。
+- 无。FG-C 已完成 Acceptance Closeout。
 
 ## Blocked
 
