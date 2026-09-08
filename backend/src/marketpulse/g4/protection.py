@@ -1,12 +1,18 @@
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from marketpulse.clock import Clock, SystemClock
-from marketpulse.db.models import PaperOrderRecord, PositionEventRecord, PositionRecord
+from marketpulse.db.models import (
+    AccountRecord,
+    PaperOrderRecord,
+    PositionEventRecord,
+    PositionRecord,
+)
 from marketpulse.g3.models import (
     BestBidAsk,
     DataQuality,
@@ -58,6 +64,10 @@ class PositionProtectionService:
         self.health = health
         self.clock = clock or SystemClock()
         self.freshness_ttl = freshness_ttl
+        # Test-only controlled-interleaving seam. Production leaves it unset.
+        self.after_risk_reducing_account_lock: (
+            Callable[[RunMode, str], Awaitable[None]] | None
+        ) = None
 
     # ------------------------------------------------------------------ evaluation
 
@@ -235,6 +245,16 @@ class PositionProtectionService:
         trigger: ProtectionTrigger,
         now: datetime,
     ) -> ProtectionOutcome:
+        # Canonical risk-reducing settlement order is Account -> Position(s).  G3 acquires the
+        # same account row before its position set; taking Position first here would invert that
+        # order and can deadlock two cross-symbol exits.
+        account = await session.scalar(
+            select(AccountRecord).where(AccountRecord.run_mode == run_mode).with_for_update()
+        )
+        if account is None:
+            raise RuntimeError("account_not_bootstrapped")
+        if self.after_risk_reducing_account_lock is not None:
+            await self.after_risk_reducing_account_lock(run_mode, instrument_id)
         position = await session.scalar(
             select(PositionRecord)
             .where(

@@ -16,8 +16,9 @@ from .reevaluation import PositionReevaluationService
 class SafetyRuntime:
     """Glue the market-data path onto protection, limit fills and re-evaluation.
 
-    Every symbol is serialized through one asyncio lock so SL / TP / manual close / fills cannot
-    interleave in-process; PostgreSQL row locks provide the cross-process guarantee.
+    Protection and limit fills are serialized per symbol. AI re-evaluation deliberately runs
+    outside that critical section: a slow provider must never delay a later protective BBO.
+    PostgreSQL row locks provide the cross-process guarantee.
     """
 
     def __init__(
@@ -37,6 +38,7 @@ class SafetyRuntime:
         self.clock = clock or SystemClock()
         self.reevaluation_enabled = reevaluation_enabled
         self._locks: dict[str, asyncio.Lock] = {}
+        self._reevaluation_inflight: set[tuple[RunMode, str]] = set()
 
     async def on_market_data(
         self,
@@ -49,6 +51,9 @@ class SafetyRuntime:
         """Market Event / Fresh BBO → protection → limit fills → re-evaluation."""
         now = now or self.clock.now()
         lock = self._locks.setdefault(bbo.instrument_id, asyncio.Lock())
+        reevaluation: ReevaluationOutcome | None = None
+        start_reevaluation = False
+        reevaluation_key = (run_mode, bbo.instrument_id)
         async with lock:
             fresh = self._mark_freshness(bbo, now)
             protection = await self.protection.evaluate(run_mode, bbo.instrument_id, bbo, now=now)
@@ -57,7 +62,6 @@ class SafetyRuntime:
             # `process_open_orders` obtains its own action-time clock immediately before the
             # final settlement guards; this event timestamp is candidate-selection context only.
             await self.execution.process_open_orders(run_mode, bbo)
-            reevaluation: ReevaluationOutcome | None = None
             if self.reevaluation_enabled:
                 should, reason = self.reevaluation.meaningful.should_evaluate(
                     run_mode,
@@ -67,24 +71,33 @@ class SafetyRuntime:
                     state_version=int(await self.execution.state_version_for(bbo.instrument_id)),
                     force=force_reevaluation,
                 )
-                if should:
-                    reevaluation = await self.reevaluation.evaluate(
-                        run_mode,
-                        bbo.instrument_id,
-                        bbo,
-                        triggering_event=reason,
-                        now=now,
-                        force=force_reevaluation,
-                    )
-                    self.reevaluation.meaningful.mark(
-                        run_mode,
-                        bbo.instrument_id,
-                        now=now,
-                        price=bbo.bid,
-                        state_version=int(
-                            await self.execution.state_version_for(bbo.instrument_id)
-                        ),
-                    )
+                if should and reevaluation_key not in self._reevaluation_inflight:
+                    # The active authority is claimed while protection remains serialized.  The
+                    # provider await below is outside this lock, so later BBOs still execute their
+                    # own SL/TP / limit-fill safety path and merely coalesce AI work.
+                    self._reevaluation_inflight.add(reevaluation_key)
+                    start_reevaluation = True
+        if start_reevaluation:
+            try:
+                # This is caller-owned work, not a detached task.  In particular Replay awaits
+                # it as part of its event lifecycle, preserving deterministic completion.
+                reevaluation = await self.reevaluation.evaluate(
+                    run_mode,
+                    bbo.instrument_id,
+                    bbo,
+                    triggering_event=reason,
+                    now=now,
+                    force=force_reevaluation,
+                )
+                self.reevaluation.meaningful.mark(
+                    run_mode,
+                    bbo.instrument_id,
+                    now=now,
+                    price=bbo.bid,
+                    state_version=int(await self.execution.state_version_for(bbo.instrument_id)),
+                )
+            finally:
+                self._reevaluation_inflight.discard(reevaluation_key)
         return {
             "instrument_id": bbo.instrument_id,
             "fresh": fresh,

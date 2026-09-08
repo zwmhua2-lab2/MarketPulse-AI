@@ -51,6 +51,7 @@ from marketpulse.g4.models import (
     ReevaluationAction,
     SystemState,
 )
+from marketpulse.g4.orchestrator import SafetyRuntime
 from marketpulse.g4.planning import PlanManager, derive_followup_plan, load_active_plan
 from marketpulse.g4.protection import PositionProtectionService
 from marketpulse.g4.provider import DeterministicFakePositionReviewProvider
@@ -147,6 +148,13 @@ class Harness:
             self.incidents,
             self.execution,
             self.health,
+            clock=self.clock,
+        )
+        self.safety = SafetyRuntime(
+            execution=self.execution,
+            protection=self.protection,
+            reevaluation=self.reevaluation,
+            health=self.health,
             clock=self.clock,
         )
         self.recovery = RecoveryManager(
@@ -471,6 +479,214 @@ def test_concurrent_duplicate_protection():
     assert len(triggered) == 1
     assert len(sell_fills) == 1
     assert position.quantity == 0
+
+
+# ==============================================================================
+# FG-B F03 — protection must not wait for AI
+# ==============================================================================
+
+
+def test_fg_b_slow_ai_does_not_delay_later_stop_loss_and_becomes_stale():
+    async def case():
+        h = Harness()
+        await h.boot()
+        await open_position(h, notional=50, bid=99, ask=100, stop=80, tp=140)
+        entered = asyncio.Event()
+        release = asyncio.Event()
+
+        async def slow_close(_snapshot):
+            entered.set()
+            await release.wait()
+            return PositionReevaluation(action=ReevaluationAction.CLOSE, reason="late-close")
+
+        h.review_provider._response = slow_close
+        first = asyncio.create_task(
+            h.safety.on_market_data(
+                RunMode.REPLAY, await h.bbo_for("SOL-USDT"), now=NOW, force_reevaluation=True
+            )
+        )
+        await entered.wait()
+        h.quotes["SOL-USDT"] = (79.0, 80.0)
+        protected = await h.safety.on_market_data(
+            RunMode.REPLAY, await h.bbo_for("SOL-USDT"), now=NOW
+        )
+        assert protected["protection"].triggered
+        assert not first.done()  # still blocked in the provider when SL has already settled
+        release.set()
+        first_result = await first
+        async with SESSIONS() as session:
+            position = await session.scalar(
+                select(PositionRecord).where(
+                    PositionRecord.run_mode == RunMode.REPLAY,
+                    PositionRecord.instrument_id == "SOL-USDT",
+                )
+            )
+            trade = await session.scalar(
+                select(TradeRecord).where(
+                    TradeRecord.run_mode == RunMode.REPLAY,
+                    TradeRecord.instrument_id == "SOL-USDT",
+                )
+            )
+            sell_orders = list(
+                (
+                    await session.scalars(
+                        select(PaperOrderRecord).where(
+                            PaperOrderRecord.run_mode == RunMode.REPLAY,
+                            PaperOrderRecord.instrument_id == "SOL-USDT",
+                            PaperOrderRecord.side == OrderSide.SELL,
+                        )
+                    )
+                ).all()
+            )
+            sell_fills = list(
+                (
+                    await session.scalars(
+                        select(FillRecord)
+                        .join(PaperOrderRecord, FillRecord.order_id == PaperOrderRecord.order_id)
+                        .where(
+                            PaperOrderRecord.run_mode == RunMode.REPLAY,
+                            PaperOrderRecord.instrument_id == "SOL-USDT",
+                            PaperOrderRecord.side == OrderSide.SELL,
+                        )
+                    )
+                ).all()
+            )
+            sell_ledgers = list(
+                (
+                    await session.scalars(
+                        select(LedgerEntryRecord)
+                        .join(FillRecord, LedgerEntryRecord.fill_id == FillRecord.fill_id)
+                        .join(PaperOrderRecord, FillRecord.order_id == PaperOrderRecord.order_id)
+                        .where(
+                            PaperOrderRecord.run_mode == RunMode.REPLAY,
+                            PaperOrderRecord.instrument_id == "SOL-USDT",
+                            PaperOrderRecord.side == OrderSide.SELL,
+                        )
+                    )
+                ).all()
+            )
+            close_events = list(
+                (
+                    await session.scalars(
+                        select(PositionEventRecord).where(
+                            PositionEventRecord.run_mode == RunMode.REPLAY,
+                            PositionEventRecord.instrument_id == "SOL-USDT",
+                            PositionEventRecord.event_type == PositionEventType.CLOSE,
+                        )
+                    )
+                ).all()
+            )
+            decision = await session.scalar(
+                select(AIDecisionRecord).where(AIDecisionRecord.run_mode == RunMode.REPLAY)
+            )
+        return first_result, position, trade, sell_orders, sell_fills, sell_ledgers, close_events, decision
+
+    first_result, position, trade, sell_orders, sell_fills, sell_ledgers, close_events, decision = (
+        asyncio.run(case())
+    )
+    stale = first_result["reevaluation"]
+    assert stale is not None and stale.reason.startswith("STALE_DECISION")
+    assert position.quantity == 0 and trade.status == "CLOSED"
+    assert len(sell_orders) == len(sell_fills) == len(sell_ledgers) == len(close_events) == 1
+    assert decision.status == DecisionStatus.STALE_DECISION.value
+
+
+def test_fg_b_slow_ai_does_not_delay_later_take_profit():
+    async def case():
+        h = Harness()
+        await h.boot()
+        await open_position(h, notional=50, bid=99, ask=100, stop=80, tp=140)
+        entered = asyncio.Event()
+        release = asyncio.Event()
+
+        async def slow_hold(_snapshot):
+            entered.set()
+            await release.wait()
+            return PositionReevaluation(action=ReevaluationAction.HOLD, reason="late-hold")
+
+        h.review_provider._response = slow_hold
+        first = asyncio.create_task(
+            h.safety.on_market_data(
+                RunMode.REPLAY, await h.bbo_for("SOL-USDT"), now=NOW, force_reevaluation=True
+            )
+        )
+        await entered.wait()
+        h.quotes["SOL-USDT"] = (141.0, 142.0)
+        protected = await h.safety.on_market_data(
+            RunMode.REPLAY, await h.bbo_for("SOL-USDT"), now=NOW
+        )
+        assert protected["protection"].triggered
+        assert not first.done()
+        release.set()
+        first_result = await first
+        async with SESSIONS() as session:
+            trade = await session.scalar(
+                select(TradeRecord).where(TradeRecord.run_mode == RunMode.REPLAY)
+            )
+            fills = list(
+                (
+                    await session.scalars(
+                        select(FillRecord)
+                        .join(PaperOrderRecord, FillRecord.order_id == PaperOrderRecord.order_id)
+                        .where(
+                            PaperOrderRecord.run_mode == RunMode.REPLAY,
+                            PaperOrderRecord.instrument_id == "SOL-USDT",
+                            PaperOrderRecord.side == OrderSide.SELL,
+                        )
+                    )
+                ).all()
+            )
+        return first_result, trade, fills
+
+    first_result, trade, fills = asyncio.run(case())
+    assert first_result["reevaluation"].reason.startswith("STALE_DECISION")
+    assert trade.status == "CLOSED" and trade.exit_reason == ExitReason.TAKE_PROFIT.value
+    assert len(fills) == 1
+
+
+def test_fg_b_ai_reevaluation_is_single_flight_during_bbo_burst():
+    async def case():
+        h = Harness()
+        await h.boot()
+        await open_position(h, notional=50, bid=99, ask=100, stop=80, tp=140)
+        entered = asyncio.Event()
+        release = asyncio.Event()
+
+        async def slow_hold(_snapshot):
+            entered.set()
+            await release.wait()
+            return PositionReevaluation(action=ReevaluationAction.HOLD, reason="late-hold")
+
+        h.review_provider._response = slow_hold
+        first = asyncio.create_task(
+            h.safety.on_market_data(
+                RunMode.REPLAY, await h.bbo_for("SOL-USDT"), now=NOW, force_reevaluation=True
+            )
+        )
+        await entered.wait()
+        quote = await h.bbo_for("SOL-USDT")
+        burst = await asyncio.gather(
+            *[
+                h.safety.on_market_data(
+                    RunMode.REPLAY,
+                    quote,
+                    now=NOW,
+                    force_reevaluation=True,
+                )
+                for _ in range(12)
+            ]
+        )
+        calls_while_blocked = h.review_provider.calls
+        inflight_while_blocked = set(h.safety._reevaluation_inflight)
+        release.set()
+        await first
+        return burst, calls_while_blocked, inflight_while_blocked, h.review_provider.calls, h.safety
+
+    burst, calls_while_blocked, inflight_while_blocked, calls_after_release, safety = asyncio.run(case())
+    assert len(burst) == 12 and all(item["reevaluation"] is None for item in burst)
+    assert calls_while_blocked == calls_after_release == 1
+    assert inflight_while_blocked == {(RunMode.REPLAY, "SOL-USDT")}
+    assert safety._reevaluation_inflight == set()
 
 
 # ==============================================================================
@@ -1128,6 +1344,213 @@ def test_concurrent_manual_close_vs_sl_closes_at_most_once():
     _, position, sell_fills = asyncio.run(case())
     assert position.quantity == 0
     assert len(sell_fills) == 1
+
+
+# ==============================================================================
+# FG-B F06 — canonical Account -> Position(s) risk-reducing lock order
+# ==============================================================================
+
+
+def test_fg_b_cross_symbol_protective_closes_complete_under_account_lock_interleaving():
+    async def case():
+        h = Harness()
+        await h.boot()
+        await open_position(h, "BTC-USDT", notional=50, bid=99, ask=100, stop=80, tp=140)
+        await open_position(h, "ETH-USDT", notional=50, bid=99, ask=100, stop=80, tp=140)
+        h.quotes["BTC-USDT"] = (79.0, 80.0)
+        h.quotes["ETH-USDT"] = (79.0, 80.0)
+        account_locked = asyncio.Event()
+        release = asyncio.Event()
+
+        async def hold_btc_account_lock(_run_mode, instrument_id):
+            if instrument_id == "BTC-USDT":
+                account_locked.set()
+                await release.wait()
+
+        h.protection.after_risk_reducing_account_lock = hold_btc_account_lock
+        btc = asyncio.create_task(
+            h.protection.evaluate(
+                RunMode.REPLAY, "BTC-USDT", await h.bbo_for("BTC-USDT"), now=NOW
+            )
+        )
+        await account_locked.wait()
+        eth = asyncio.create_task(
+            h.protection.evaluate(
+                RunMode.REPLAY, "ETH-USDT", await h.bbo_for("ETH-USDT"), now=NOW
+            )
+        )
+        await asyncio.sleep(0)
+        assert not eth.done()  # ETH cannot lock its Position before the shared Account fence.
+        release.set()
+        results = await asyncio.wait_for(asyncio.gather(btc, eth), timeout=5)
+        async with SESSIONS() as session:
+            positions = list(
+                (
+                    await session.scalars(
+                        select(PositionRecord).where(
+                            PositionRecord.run_mode == RunMode.REPLAY,
+                            PositionRecord.instrument_id.in_(("BTC-USDT", "ETH-USDT")),
+                        )
+                    )
+                ).all()
+            )
+            trades = list(
+                (
+                    await session.scalars(
+                        select(TradeRecord).where(
+                            TradeRecord.run_mode == RunMode.REPLAY,
+                            TradeRecord.instrument_id.in_(("BTC-USDT", "ETH-USDT")),
+                        )
+                    )
+                ).all()
+            )
+            fills = list(
+                (
+                    await session.scalars(
+                        select(FillRecord)
+                        .join(PaperOrderRecord, FillRecord.order_id == PaperOrderRecord.order_id)
+                        .where(
+                            PaperOrderRecord.run_mode == RunMode.REPLAY,
+                            PaperOrderRecord.side == OrderSide.SELL,
+                        )
+                    )
+                ).all()
+            )
+            ledgers = list(
+                (
+                    await session.scalars(
+                        select(LedgerEntryRecord)
+                        .join(FillRecord, LedgerEntryRecord.fill_id == FillRecord.fill_id)
+                        .join(PaperOrderRecord, FillRecord.order_id == PaperOrderRecord.order_id)
+                        .where(PaperOrderRecord.side == OrderSide.SELL)
+                    )
+                ).all()
+            )
+            account = await session.scalar(
+                select(AccountRecord).where(AccountRecord.run_mode == RunMode.REPLAY)
+            )
+        return results, positions, trades, fills, ledgers, account, await h.reconcile(RunMode.REPLAY)
+
+    results, positions, trades, fills, ledgers, account, report = asyncio.run(case())
+    assert all(item.triggered for item in results)
+    assert all(item.quantity == 0 for item in positions)
+    assert all(item.status == "CLOSED" for item in trades)
+    assert len(fills) == len(ledgers) == 2
+    assert account.cash_balance > 0 and account.reserved_cash == 0
+    assert report.ok
+
+
+def test_fg_b_mixed_protection_and_ai_reduce_share_canonical_lock_order():
+    async def case():
+        h = Harness()
+        await h.boot()
+        await open_position(h, "BTC-USDT", notional=50, bid=99, ask=100, stop=80, tp=140)
+        await open_position(h, "ETH-USDT", notional=50, bid=99, ask=100, stop=80, tp=140)
+        h.quotes["BTC-USDT"] = (79.0, 80.0)
+        account_locked = asyncio.Event()
+        release = asyncio.Event()
+
+        async def hold_btc_account_lock(_run_mode, instrument_id):
+            if instrument_id == "BTC-USDT":
+                account_locked.set()
+                await release.wait()
+
+        h.protection.after_risk_reducing_account_lock = hold_btc_account_lock
+        h.review_provider._response = PositionReevaluation(
+            action=ReevaluationAction.REDUCE, reason="reduce", reduce_pct=0.5
+        )
+        btc = asyncio.create_task(
+            h.protection.evaluate(
+                RunMode.REPLAY, "BTC-USDT", await h.bbo_for("BTC-USDT"), now=NOW
+            )
+        )
+        await account_locked.wait()
+        ai_reduce = asyncio.create_task(
+            h.reevaluation.evaluate(
+                RunMode.REPLAY,
+                "ETH-USDT",
+                await h.bbo_for("ETH-USDT"),
+                now=NOW,
+                force=True,
+            )
+        )
+        await asyncio.sleep(0)
+        assert not ai_reduce.done()
+        release.set()
+        protection, reduction = await asyncio.wait_for(asyncio.gather(btc, ai_reduce), timeout=5)
+        async with SESSIONS() as session:
+            btc_position = await session.scalar(
+                select(PositionRecord).where(
+                    PositionRecord.run_mode == RunMode.REPLAY,
+                    PositionRecord.instrument_id == "BTC-USDT",
+                )
+            )
+            eth_position = await session.scalar(
+                select(PositionRecord).where(
+                    PositionRecord.run_mode == RunMode.REPLAY,
+                    PositionRecord.instrument_id == "ETH-USDT",
+                )
+            )
+            sells = list(
+                (
+                    await session.scalars(
+                        select(FillRecord)
+                        .join(PaperOrderRecord, FillRecord.order_id == PaperOrderRecord.order_id)
+                        .where(
+                            PaperOrderRecord.run_mode == RunMode.REPLAY,
+                            PaperOrderRecord.instrument_id.in_(("BTC-USDT", "ETH-USDT")),
+                            PaperOrderRecord.side == OrderSide.SELL,
+                        )
+                    )
+                ).all()
+            )
+        return protection, reduction, btc_position, eth_position, sells, await h.reconcile(RunMode.REPLAY)
+
+    protection, reduction, btc_position, eth_position, sells, report = asyncio.run(case())
+    assert protection.triggered
+    assert reduction.applied and reduction.action is ReevaluationAction.REDUCE
+    assert btc_position.quantity == 0
+    assert 0 < eth_position.quantity < 50 / 100.05
+    assert len(sells) == 2 and report.ok
+
+
+def test_fg_b_same_symbol_concurrent_protection_triggers_remain_exactly_once():
+    async def case():
+        h = Harness()
+        await h.boot()
+        await open_position(h, notional=50, bid=99, ask=100, stop=80, tp=140)
+        h.safety.reevaluation_enabled = False
+        stop = BestBidAsk(instrument_id="SOL-USDT", bid=79, ask=80, received_at=NOW)
+        take_profit = BestBidAsk(instrument_id="SOL-USDT", bid=141, ask=142, received_at=NOW)
+        outcomes = await asyncio.gather(
+            h.safety.on_market_data(RunMode.REPLAY, stop, now=NOW),
+            h.safety.on_market_data(RunMode.REPLAY, take_profit, now=NOW),
+        )
+        async with SESSIONS() as session:
+            fills = list(
+                (
+                    await session.scalars(
+                        select(FillRecord)
+                        .join(PaperOrderRecord, FillRecord.order_id == PaperOrderRecord.order_id)
+                        .where(
+                            PaperOrderRecord.run_mode == RunMode.REPLAY,
+                            PaperOrderRecord.instrument_id == "SOL-USDT",
+                            PaperOrderRecord.side == OrderSide.SELL,
+                        )
+                    )
+                ).all()
+            )
+            position = await session.scalar(
+                select(PositionRecord).where(
+                    PositionRecord.run_mode == RunMode.REPLAY,
+                    PositionRecord.instrument_id == "SOL-USDT",
+                )
+            )
+        return outcomes, fills, position, await h.reconcile(RunMode.REPLAY)
+
+    outcomes, fills, position, report = asyncio.run(case())
+    assert sum(item["protection"].triggered for item in outcomes) == 1
+    assert len(fills) == 1 and position.quantity == 0 and report.ok
 
 
 # ==============================================================================

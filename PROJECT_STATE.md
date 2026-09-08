@@ -42,7 +42,9 @@ Acceptance Group 5 — ACCEPTED / COMPLETE
 
 ## In Progress
 
-- 无。FG-A 与 C04 已完成 Acceptance Closeout；FG-B `NOT STARTED`。
+- FG-B — Protection Concurrency：`IMPLEMENTED / WAITING ACCEPTANCE` on
+  `fix/fg-b-protection-concurrency` (base `352bbb68a8b7051ea398da45b46914d5e0ad49b5`).
+  F03/F06 implementation and self-verification are complete; no Acceptance is declared.
 
 ## Blocked
 

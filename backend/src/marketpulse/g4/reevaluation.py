@@ -457,10 +457,21 @@ class PositionReevaluationService:
         plan: TradePlan,
         snapshot: DecisionSnapshot,
         now: datetime,
+        *,
+        lock_risk_reducing_account: bool = False,
     ) -> list[str]:
         """Lock every expected durable fact until the caller's mutation commits."""
         # Runtime control is always first, matching the G4 risk gate/control lock order.
         await self.risk_gate.state_service.load(run_mode, session=session, for_update=True)
+        if lock_risk_reducing_account:
+            # REDUCE/CLOSE subsequently call G3 settlement, whose canonical order is Account ->
+            # Position(s). Acquire that account fence before this stale-authority check locks the
+            # target PositionRecord, otherwise AI exits reintroduce the G4/G3 inversion.
+            account = await session.scalar(
+                select(AccountRecord).where(AccountRecord.run_mode == run_mode).with_for_update()
+            )
+            if account is None:
+                raise RuntimeError("account_not_bootstrapped")
         state = await session.scalar(
             select(SymbolStateStore)
             .where(SymbolStateStore.instrument_id == instrument_id)
@@ -660,7 +671,14 @@ class PositionReevaluationService:
             async with self.sessions() as session, session.begin():
                 action_now = self.clock.now()
                 stale_reasons = await self._locked_stale_reasons(
-                    session, run_mode, instrument_id, plan, snapshot, action_now
+                    session,
+                    run_mode,
+                    instrument_id,
+                    plan,
+                    snapshot,
+                    action_now,
+                    lock_risk_reducing_account=review.action
+                    in {ReevaluationAction.REDUCE, ReevaluationAction.CLOSE},
                 )
                 if stale_reasons:
                     await self._record_stale_decision(
