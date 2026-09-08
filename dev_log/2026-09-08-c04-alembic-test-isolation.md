@@ -88,14 +88,23 @@ priority 为 `UNCHANGED BY CONSTRUCTION`。`git diff -- backend/alembic/env.py` 
 
 ## Result
 
-C04 FIX COMPLETE — WAITING ACCEPTANCE
+C04 ACCEPTED / COMPLETE
 
 ## Remaining
 
-独立 Acceptance Review 仍需要。FG-A Closeout 状态：
-`STILL BLOCKED — WAITING C04 ACCEPTANCE`。
+无 C04 implementation 或 acceptance 残留。FG-A Closeout 由独立 Final Gate 继续完成。
+
+## Formal Acceptance Record
+
+- Acceptance Result: `ACCEPTED / PASS`。
+- Accepted SHA: `d574e242f3aa7c26658ed6cc780fd8f744dbf503`。
+- Reviewer: `Human / Independent Source Review`。
+- Scope confirmation: 仅三份 G5 test migration helper 与本 dev_log；无 production
+  Alembic、migration revision、Replay business behavior 或 schema 修改。
+- Production Alembic semantics: `UNCHANGED BY CONSTRUCTION`；
+  `backend/alembic/env.py` 未修改。
 
 ## Context For Next AI
 
 从 `fix/c04-alembic-test-isolation` 审查三处 scoped environment restore 与 C04
-evidence；不得将本 test infrastructure fix 视为 FG-A Closeout authorization。
+evidence；C04 已接受，但不得将其扩展为任何新的 G5 或 FG-B work authorization。

@@ -33,13 +33,16 @@ Acceptance Group 5 — ACCEPTED / COMPLETE
 - Group 2 已完成人工 Acceptance Review #2，正式结果为 `PASS WITH NON-BLOCKING NOTES`。
 - Group 3 已完成人工 Acceptance Review #3，正式结果为 `PASS WITH NON-BLOCKING NOTES`。
 - G3 Post-Acceptance Fix 与 Fix2 已人工验收，`PASS WITH NON-BLOCKING NOTES`。
+- FG-A — G3 Execution Authority & Freshness：`ACCEPTED / COMPLETE`（accepted implementation
+  `a9c2cd64bea0c6cc43b1ef8ad890e4db5353b801`；C04 accepted unblocker
+  `d574e242f3aa7c26658ed6cc780fd8f744dbf503`；isolated Final Gate PASS）。
+- C04 — Alembic Replay Test Isolation Fix：`ACCEPTED / COMPLETE`；无 production Alembic
+  behavior 或 migration revision 修改。
 - Group 4（持仓安全与恢复）已实现：Position Protection（SL/TP/Protective Exit/幂等）、Position Re-evaluation（HOLD/ADD/REDUCE/CLOSE/CANCEL_ADD/UPDATE_STOP/UPDATE_TP/UPDATE_INVALIDATION/REPLACE_PLAN）、System Safety State、Control（Pause/Resume/Emergency Stop/Emergency Recovery/Symbol Block/Manual Close/Safe Mode）、Recovery Manager（PostgreSQL SoT + Restart Recovery + Reconciliation Gate + Plan/Order Revalidation + EXECUTION_GAP）、Health Registry 与 Incident Manager。
 
 ## In Progress
 
-- FG-A — G3 Execution Authority & Freshness：`IMPLEMENTED / WAITING REVIEW` on
-  `fix/fg-a-g3-execution-authority` (base `36401b26478a9892dc2ca0490f5c21ff24663636`);
-  this is a post-acceptance fix branch and does not alter G1–G5 acceptance history.
+- 无。FG-A 与 C04 已完成 Acceptance Closeout；FG-B `NOT STARTED`。
 
 ## Blocked
 
@@ -118,6 +121,10 @@ Acceptance Group 5 — ACCEPTED / COMPLETE
 
 - Group 1 = `ACCEPTED`；Group 2 = `ACCEPTED`；Group 3 = `ACCEPTED`；Group 4 = `ACCEPTED`。
 - G3 Post-Acceptance Fix = `ACCEPTED`。
+- FG-A — G3 Execution Authority & Freshness = `ACCEPTED / COMPLETE`（implementation
+  `a9c2cd64bea0c6cc43b1ef8ad890e4db5353b801`；C04
+  `d574e242f3aa7c26658ed6cc780fd8f744dbf503`；isolated Final Gate PASS）。
+- C04 — Alembic Replay Test Isolation Fix = `ACCEPTED / COMPLETE`。
 - Group 5-0 = `ACCEPTED`（G5 feature implementation NOT STARTED）。
 - Group 5-3 = `ACCEPTED`（2026-09-06 Formal Acceptance Closeout；Implementation Acceptance Basis = `f4c07333600f605cbcc5e34b591659feb1b1f318`；Review Fix #1 = VERIFIED）。
 - G5-4 = `ACCEPTED`（Formal Acceptance Closeout 2026-09-06；Production Implementation Basis = `8678b2927a2d029ac0767e49acc9e0732c329bfa`；Self Review Fix #1 Evidence = `fe610c1f23457ff11f2d5c8654e9de0aec4ff289`）。

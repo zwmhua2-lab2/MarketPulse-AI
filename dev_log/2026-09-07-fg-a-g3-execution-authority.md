@@ -140,12 +140,36 @@ remain untouched.
 
 ## Result
 
-FG-A IMPLEMENTED / WAITING REVIEW
+FG-A ACCEPTED / COMPLETE
 
 ## Remaining
 
-Human source-level review and Acceptance remain required. This implementation does not declare
-`ACCEPTED` and does not merge `main`.
+无 FG-A implementation work remaining。FG-B 未启动；本 Closeout 不授权任何后续 Fix
+或 Feature work。
+
+## Final Closeout Record
+
+- FG-A implementation acceptance: `a9c2cd64bea0c6cc43b1ef8ad890e4db5353b801`
+  （base `36401b26478a9892dc2ca0490f5c21ff24663636`），已由 Human / Independent
+  Source Review 接受。
+- C04 accepted unblocker: `d574e242f3aa7c26658ed6cc780fd8f744dbf503`；仅修复 G5
+  disposable child database migration 的 test isolation，不改 production Alembic。
+- Isolated PostgreSQL Final Gate：独立 PostgreSQL 16 container、host
+  `127.0.0.1:55432`、database `marketpulse`、无 volume、Alembic
+  `20260905_0004 (head)`，Guard business tables 均为空。
+- Final regression：Standalone Replay `1 passed`；G5-2 `7 passed`；G5-3
+  `5 passed`；G5-4 `10 passed`；G3 `12 passed`；G4 `49 passed`；full backend
+  `109 passed, 1 warning in 166.17s`。该 warning 为既有 TestClient deprecation。
+- Final static / migration verification：Ruff、compileall、`git diff --check` 均 PASS；
+  isolated `alembic current` / `heads` 均为 `20260905_0004 (head)`。
+- Historical Replay anomaly final adjudication：`primary database changed during replay`
+  保持为 `UNRESOLVED ENVIRONMENT-SENSITIVE HISTORICAL ANOMALY`；本轮 isolated
+  acceptance environment 下没有可复现的 FG-A primary-write regression。不得据此断言
+  历史异常不存在或已经证明为 external writer。
+- Non-blocking note：action-time BBO/state accessor 必须保持 bounded local latest-state
+  accessor；N01 不得在该 settlement lock window 内引入 external exchange network I/O。
+- Final Closeout decision：`FG-A ACCEPTED / COMPLETE`；delivery 仍须按 main integration
+  gate 执行，不授权 FG-B。
 
 ## Known Risks
 
