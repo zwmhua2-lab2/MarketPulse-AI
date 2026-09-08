@@ -180,21 +180,66 @@ Three-way conclusion (Recovery / Resume / Protection) verified per case:
 `test_symbol_block_blocks_only_that_symbol` retains its original semantics: SOL BUY/ADD blocked,
 BTC unaffected, SOL protection/SL still allowed.
 
+## Acceptance Fix #2 — Remaining Verification Gaps
+
+### Review Findings and Exact Correction
+
+1. **C01 Case G did not keep the position OPEN for all three authorities.** Its prior
+   below-stop BBO intentionally triggered SL before Resume and fresh-manager Recovery ran, so the
+   latter two checks did not prove the required open-position protection lifetime contract.
+   Case G now uses a fresh non-triggering BBO (`bid=99`, `ask=100`) after normal
+   `SymbolStateStore.state_version` advancement (`7 -> 8`). It asserts protection returns
+   `HOLD` (not `POSITION_UNPROTECTED`), the position/trade are still OPEN before Resume, Resume is
+   accepted, a fresh `RecoveryManager` lands `RUNNING`, and the same position/trade remain OPEN
+   afterward. The separate Case H still proves stale risk-increasing BUY cancellation.
+
+2. **F05 Cases 2/3/4 swallowed simulated crashes without proving their boundary.** Each case now
+   uses a precise `pytest.raises(RuntimeError, match=...)` assertion, so it fails if the hook is
+   never reached. Before invoking fresh-manager recovery it reads the durable
+   `RuntimeControlRecord` and asserts the required intermediate state and persisted
+   `safe_mode_latch`.
+
+### Final C01 Matrix
+
+| Case | Durable condition | Protection | Resume | Fresh Recovery | OPEN position proof |
+| --- | --- | --- | --- | --- | --- |
+| A | valid ACTIVE plan | HOLD | accepted | RUNNING | valid-path contract |
+| B | expired plan | fail closed | refused | non-RUNNING | not applicable |
+| C | corrupt payload identity | fail closed | refused | non-RUNNING | not applicable |
+| D | invalid entry zone | fail closed | refused | non-RUNNING | not applicable |
+| E | invalid `stop_loss/take_profit` | fail closed | refused | non-RUNNING | not applicable |
+| F | no valid ACTIVE plan | fail closed | refused | non-RUNNING | not applicable |
+| G | normal store `state_version 7 -> 8` | HOLD | accepted | RUNNING | asserted before Resume and after Recovery |
+| H | stale risk-increasing BUY (`7 -> 8`) | protection remains valid | not the authority under test | RUNNING | stale BUY cancelled; existing OPEN position retained |
+
+### Final F05 Crash-Boundary Matrix
+
+| Case | Asserted injected boundary | Durable state before fresh recovery | Fresh recovery |
+| --- | --- | --- | --- |
+| 1 | persisted SAFE_MODE restart | SAFE_MODE | SAFE_MODE |
+| 2 | after `safe_mode_latch`, before STARTING | `system_state=SAFE_MODE`, `safe_mode_latch=true` | SAFE_MODE |
+| 3 | after STARTING commit | `system_state=STARTING`, `safe_mode_latch=true` | SAFE_MODE |
+| 4 | after RECOVERING commit | `system_state=RECOVERING`, `safe_mode_latch=true` | SAFE_MODE |
+| 5 | successful SAFE_MODE recovery restart | SAFE_MODE | SAFE_MODE |
+| 6 | successful `safe_mode_recovery()` | latch absent after PAUSED transition | no stale re-latch |
+
+No production authority, schema, migration, F07/F09/F10/F11/N02, FG-D, or G5 behavior changed.
+
 ## Regression
 
 - FG-C targeted: `15 passed` (1 F04 + 6 F05 + 8 C01).
 - G4 full: `73 passed`.
 - G3: `12 passed`.
 - G5-1/G5-2/G5-3/G5-4 (serial): `31 passed`.
-- Full backend: `133 passed, 2 warnings` (pre-existing FastAPI/Starlette deprecation).
-- `ruff check` on changed files: PASS.
+- Full backend: `133 passed, 1 warning` (pre-existing FastAPI/Starlette deprecation).
+- `ruff check backend/src backend/tests scripts`: PASS.
 - `compileall`: PASS.
 - `git diff --check`: PASS.
 - Alembic `current` / `heads`: both `20260905_0004 (head)`; no migration.
 
 ## Result
 
-FG-C ACCEPTANCE FIX #1 COMPLETE — WAITING ACCEPTANCE
+FG-C ACCEPTANCE FIX #2 COMPLETE — WAITING ACCEPTANCE
 
 ## Remaining
 
@@ -212,5 +257,9 @@ idempotent.
 - `pytest backend/tests/test_group4.py -q` → `73 passed`.
 - `pytest backend/tests/test_group3.py -q` → `12 passed`.
 - `pytest backend/tests/test_group5_1_replay.py ... test_group5_4_evaluation.py -q` → `31 passed`.
-- `pytest backend/tests -q` → `133 passed, 2 warnings`.
-- `ruff check` / `compileall` / `git diff --check` / Alembic current+heads → PASS (see above).
+- `pytest backend/tests -q` → `133 passed, 1 warning`.
+- `ruff check backend/src backend/tests scripts` → `All checks passed!`.
+- `py -3.14 -m compileall -q backend/src` → PASS.
+- `git diff --check` → PASS (Git emitted only the existing LF-to-CRLF working-copy warning).
+- `cd backend; PYTHONPATH=src; py -3.14 -m alembic current` / `heads` → both
+  `20260905_0004 (head)`.

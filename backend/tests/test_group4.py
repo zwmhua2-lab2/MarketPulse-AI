@@ -3026,15 +3026,20 @@ def test_fg_c_f05_case2_crash_after_latch_before_starting():
         h.quotes = {"SOL-USDT": (99.0, 100.0)}
         original = _crash_after(h.recovery.state_service, "safe_mode_latch")
         try:
-            await h.recovery.recover(RunMode.REPLAY, bbo_for=h.bbo_for, now=h.clock.now())
-        except RuntimeError:
-            pass  # simulated process death after the latch commit
+            with pytest.raises(RuntimeError, match="simulated_crash_after_safe_mode_latch"):
+                await h.recovery.recover(RunMode.REPLAY, bbo_for=h.bbo_for, now=h.clock.now())
         finally:
             h.recovery.state_service.transition = original
+        async with SESSIONS() as session:
+            crashed_control = await session.scalar(
+                select(RuntimeControlRecord).where(RuntimeControlRecord.run_mode == RunMode.REPLAY)
+            )
         report, control = await _recover_landing({"SOL-USDT": (99.0, 100.0)})
-        return report, control
+        return crashed_control, report, control
 
-    report, control = asyncio.run(case())
+    crashed_control, report, control = asyncio.run(case())
+    assert crashed_control.system_state == SystemState.SAFE_MODE.value
+    assert crashed_control.payload["safe_mode_latch"] is True
     assert report.final_system_state is SystemState.SAFE_MODE
     assert control.system_state == SystemState.SAFE_MODE.value
 
@@ -3048,15 +3053,20 @@ def test_fg_c_f05_case3_crash_after_starting():
         h.quotes = {"SOL-USDT": (99.0, 100.0)}
         original = _crash_after(h.recovery.state_service, "recovery_start")
         try:
-            await h.recovery.recover(RunMode.REPLAY, bbo_for=h.bbo_for, now=h.clock.now())
-        except RuntimeError:
-            pass  # simulated process death after STARTING commit
+            with pytest.raises(RuntimeError, match="simulated_crash_after_recovery_start"):
+                await h.recovery.recover(RunMode.REPLAY, bbo_for=h.bbo_for, now=h.clock.now())
         finally:
             h.recovery.state_service.transition = original
+        async with SESSIONS() as session:
+            crashed_control = await session.scalar(
+                select(RuntimeControlRecord).where(RuntimeControlRecord.run_mode == RunMode.REPLAY)
+            )
         report, control = await _recover_landing({"SOL-USDT": (99.0, 100.0)})
-        return report, control
+        return crashed_control, report, control
 
-    report, control = asyncio.run(case())
+    crashed_control, report, control = asyncio.run(case())
+    assert crashed_control.system_state == SystemState.STARTING.value
+    assert crashed_control.payload["safe_mode_latch"] is True
     assert report.final_system_state is SystemState.SAFE_MODE
     assert control.system_state == SystemState.SAFE_MODE.value
 
@@ -3070,15 +3080,20 @@ def test_fg_c_f05_case4_crash_after_recovering():
         h.quotes = {"SOL-USDT": (99.0, 100.0)}
         original = _crash_after(h.recovery.state_service, "recovering")
         try:
-            await h.recovery.recover(RunMode.REPLAY, bbo_for=h.bbo_for, now=h.clock.now())
-        except RuntimeError:
-            pass  # simulated process death after RECOVERING commit
+            with pytest.raises(RuntimeError, match="simulated_crash_after_recovering"):
+                await h.recovery.recover(RunMode.REPLAY, bbo_for=h.bbo_for, now=h.clock.now())
         finally:
             h.recovery.state_service.transition = original
+        async with SESSIONS() as session:
+            crashed_control = await session.scalar(
+                select(RuntimeControlRecord).where(RuntimeControlRecord.run_mode == RunMode.REPLAY)
+            )
         report, control = await _recover_landing({"SOL-USDT": (99.0, 100.0)})
-        return report, control
+        return crashed_control, report, control
 
-    report, control = asyncio.run(case())
+    crashed_control, report, control = asyncio.run(case())
+    assert crashed_control.system_state == SystemState.RECOVERING.value
+    assert crashed_control.payload["safe_mode_latch"] is True
     assert report.final_system_state is SystemState.SAFE_MODE
     assert control.system_state == SystemState.SAFE_MODE.value
 
@@ -3286,8 +3301,8 @@ def test_fg_c_c01_case_f_no_active_plan_fail_closed():
 def test_fg_c_c01_case_g_natural_state_version_advance_still_valid():
     """C01 Case G (review correction): natural SymbolStateStore version advancement must NOT
     invalidate open-position protection. plan.state_version=7, store advances to 8 via normal
-    market evolution -> protection still triggers SL, resume gate still valid, recovery does NOT
-    land POSITION_UNPROTECTED.
+    market evolution -> protection HOLD, resume accepted, and recovery RUNNING while the position
+    remains OPEN throughout all three checks.
     """
 
     async def case():
@@ -3305,25 +3320,66 @@ def test_fg_c_c01_case_g_natural_state_version_advance_still_valid():
                     state_version=8,
                 )
             )
-        # Protection: bid below stop -> SL must still trigger despite version advancement.
-        h.quotes["SOL-USDT"] = (79.0, 80.0)
+        # Protection: a fresh, non-triggering BBO must HOLD despite version advancement.
+        h.quotes["SOL-USDT"] = (99.0, 100.0)
         protection = await h.protection.evaluate(
             RunMode.REPLAY, "SOL-USDT", await h.bbo_for("SOL-USDT"), now=NOW
         )
-        # Resume: protection gate must still pass (position is protected).
+        async with SESSIONS() as session:
+            position_after_protection = await session.scalar(
+                select(PositionRecord).where(
+                    PositionRecord.run_mode == RunMode.REPLAY,
+                    PositionRecord.instrument_id == "SOL-USDT",
+                )
+            )
+            trade_after_protection = await session.scalar(
+                select(TradeRecord).where(TradeRecord.trade_id == position_after_protection.trade_id)
+            )
+        # Resume: the protection gate must accept the still-open position.
         await h.control.pause(RunMode.REPLAY, "c01_g")
         resume = await h.control.resume(RunMode.REPLAY)
-        # Recovery: must not land POSITION_UNPROTECTED because of the version mismatch alone.
+        # Recovery uses a fresh Harness/RecoveryManager and must preserve that open position.
         report, control = await _recover_landing({"SOL-USDT": (99.0, 100.0)})
-        return protection, resume, report, control
+        async with SESSIONS() as session:
+            position_after_recovery = await session.scalar(
+                select(PositionRecord).where(
+                    PositionRecord.run_mode == RunMode.REPLAY,
+                    PositionRecord.instrument_id == "SOL-USDT",
+                )
+            )
+            trade_after_recovery = await session.scalar(
+                select(TradeRecord).where(TradeRecord.trade_id == position_after_recovery.trade_id)
+            )
+        return (
+            protection,
+            position_after_protection,
+            trade_after_protection,
+            resume,
+            report,
+            control,
+            position_after_recovery,
+            trade_after_recovery,
+        )
 
-    protection, resume, report, control = asyncio.run(case())
-    assert protection.triggered is True  # SL still fires
+    (
+        protection,
+        position_after_protection,
+        trade_after_protection,
+        resume,
+        report,
+        control,
+        position_after_recovery,
+        trade_after_recovery,
+    ) = asyncio.run(case())
+    assert protection.triggered is False
+    assert protection.reason == "HOLD"
+    assert position_after_protection.quantity > 0
+    assert trade_after_protection.status == "OPEN"
     assert resume.accepted
-    # Recovery must not be SAFE_MODE purely from a version mismatch; it lands a safe running
-    # state (RUNNING) because the position is genuinely protected.
     assert report.final_system_state is SystemState.RUNNING
     assert control.system_state == SystemState.RUNNING.value
+    assert position_after_recovery.quantity > 0
+    assert trade_after_recovery.status == "OPEN"
 
 
 def test_fg_c_c01_case_h_stale_risk_increasing_buy_rejected():
