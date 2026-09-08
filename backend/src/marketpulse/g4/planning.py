@@ -274,7 +274,29 @@ async def load_valid_long_active_plan(
     now: datetime,
     for_update: bool = False,
 ) -> TradePlan | None:
-    """Return an executable ACTIVE plan only when it genuinely protects the current LONG."""
+    """Return an executable ACTIVE plan only when it genuinely protects the current LONG.
+
+    This is the single canonical open-position protection-plan validity contract shared by
+    recovery / resume / protection. Every condition must hold, otherwise the plan is not trusted
+    and the caller fails closed (POSITION_UNPROTECTED / safe state):
+
+      1. exactly one ACTIVE plan
+      2. durable row / serialized payload identity agree
+      3. run_mode / instrument scope agree
+      4. TTL not expired
+      5. entry zone finite / valid
+      6. stop_loss finite
+      7. take_profit finite
+      8. stop_loss < take_profit
+      9. TradePlan schema / business validation passes
+
+    NOTE (Acceptance Fix #1 review correction): SymbolStateStore.state_version is the
+    *risk-increasing freshness* authority (BUY/ADD, pending risk-increasing orders, fill-time
+    revalidation, recovery order revalidation, stale proposal authority). It is NOT an
+    open-position protection lifetime authority — normal symbol-state version advancement must
+    never invalidate the SL/TP protection of an already-open position, or risk-reducing exits
+    would be disabled.
+    """
     plan = await load_active_plan(
         session, run_mode, instrument_id, for_update=for_update
     )

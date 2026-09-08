@@ -45,9 +45,11 @@ Acceptance Group 5 — ACCEPTED / COMPLETE
 
 ## In Progress
 
-- FG-C — Safety Recovery Validity：`IMPLEMENTED / WAITING REVIEW`（branch
+- FG-C — Safety Recovery Validity：`IMPLEMENTED / WAITING ACCEPTANCE`（branch
   `fix/fg-c-safety-recovery-validity`；base
-  `8d4e8305088485095df241fb41111980179f6105`；F04 / F05 / C01 已实现并验证）。
+  `8d4e8305088485095df241fb41111980179f6105`；F04 / F05 / C01 已实现并验证；Acceptance
+  Fix #1 已按总控裁决修正 C01 authority boundary —— `state_version` 仅为 risk-increasing
+  freshness authority，不参与 open-position protection lifetime）。
 
 ## Blocked
 

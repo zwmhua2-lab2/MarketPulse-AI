@@ -19,6 +19,7 @@ The three findings form one minimal, complete safety-acceptance unit
 - `backend/src/marketpulse/g4/control.py`
 - `backend/src/marketpulse/g4/recovery.py`
 - `backend/src/marketpulse/g4/protection.py`
+- `backend/src/marketpulse/g4/planning.py`
 - `backend/tests/test_group4.py`
 - `PROJECT_STATE.md`
 - This dev log
@@ -67,6 +68,48 @@ validity contract: valid entry zone, finite SL/TP, `stop_loss < take_profit`). A
 could therefore trust an invalid plan (e.g. `stop_loss >= take_profit`) that the resume gate would
 reject as unprotected, so the two paths disagreed on whether an OPEN LONG was protected.
 
+## Acceptance Fix #1 — Review Correction
+
+Independent Acceptance Review ruled FG-C = `CHANGES_REQUIRED / NOT ACCEPTED`:
+
+- F04 = PASS (no further change).
+- F05 = design correct, but required deterministic crash-boundary evidence (completed below).
+- C01 = FAIL / BLOCKER: the canonical contract did not yet settle the SymbolStateStore
+  state-version relationship.
+
+The first Acceptance Fix #1 draft added:
+
+```
+current SymbolStateStore.state_version == plan.state_version
+```
+
+as an open-position protection-plan validity condition. **This requirement is revoked.**
+
+Real G2→G3→G4 evidence proved that `SymbolStateStore.state_version` advances under normal market
+evolution after a plan is created (measured `plan=3, store=4`). Strict equality therefore disabled
+SL/TP protection on every position once the symbol state advanced — breaking the G5-2 stop exit,
+G5-3 CLOSED/STOP_LOSS, and G5-4 evaluation suites — and violated the Accepted Safety Semantics
+that risk-reducing protection must remain continuously effective.
+
+### Final Authority Boundary
+
+- **`state_version` freshness** remains a *risk-increasing* authority only: BUY / ADD, pending
+  risk-increasing orders, fill-time revalidation, recovery order revalidation, stale proposal
+  authority, and `block_symbol` invalidation of risk-increasing authority. The existing
+  `recovery.py::_plan_issues()` `state_version_stale` order-revalidation semantics are preserved.
+- **Open Position Protection Validity** must NOT depend on `state_version`. The canonical
+  protection contract shared by recovery / resume / protection is:
+
+  1. exactly one ACTIVE plan
+  2. durable row / serialized payload identity agree
+  3. run_mode / instrument scope agree
+  4. TTL valid
+  5. entry zone finite / valid
+  6. stop_loss finite
+  7. take_profit finite
+  8. stop_loss < take_profit
+  9. TradePlan schema / business validation PASS
+
 ## Implementation
 
 - `control.py::pause()` now refuses when `operator_state == EMERGENCY_STOP`, returning
@@ -81,39 +124,77 @@ reject as unprotected, so the two paths disagreed on whether an OPEN LONG was pr
 - `protection.py::evaluate()` and `_close_position_in()` now use
   `load_valid_long_active_plan(session, run_mode, instrument_id, now=now)`, unifying protection
   with the resume gate's valid-plan contract.
+- `planning.py::load_valid_long_active_plan()` documents the canonical protection contract (9
+  conditions, no state-version equality). The temporary SymbolStateStore strict-equality check
+  added in the rejected draft is removed.
 
 ## Business Behavior
 
 Emergency authority, the SAFE_MODE durability guarantee, and the protection-plan validity contract
-now agree across recovery / resume / protection. Risk-reducing exits, SL/TP trigger semantics,
-plan replacement, and reconciliation behavior are unchanged. No accounting or schema semantics
-changed.
+now agree across recovery / resume / protection. `SymbolStateStore.state_version` is treated as a
+risk-increasing freshness authority only; normal symbol-state version advancement never invalidates
+an open position's SL/TP protection. Risk-reducing exits, SL/TP trigger semantics, plan
+replacement, and reconciliation behavior are unchanged. No accounting or schema semantics changed.
 
 ## Tests
 
-- New `test_fg_c_pause_refused_under_emergency_stop` proves pause is refused under emergency and
-  the latch stays `EMERGENCY_STOP`; resume remains blocked.
-- New `test_fg_c_safe_mode_survives_recovery_crash_and_second_recovery` persists `SAFE_MODE`, runs
-  one recovery, overwrites the durable state to `RECOVERING` (simulated crash), then runs a second
-  recovery and asserts it still lands in `SAFE_MODE`.
-- New `test_fg_c_protection_fails_closed_on_invalid_protection_plan` opens a LONG whose active plan
-  has `stop_loss >= take_profit` and asserts protection treats it as `POSITION_UNPROTECTED`
-  instead of triggering an exit from an untrusted plan.
+### F04 (preserved)
+
+- `test_fg_c_pause_refused_under_emergency_stop` — pause refused under emergency, resume blocked,
+  latch stays `EMERGENCY_STOP`.
+
+### F05 Crash-Boundary Matrix (6 cases, real durable interruption via monkeypatched transition)
+
+Each case runs the real `RuntimeControlRecord` / `RecoveryManager`, never just `_final_state()`.
+
+1. `test_fg_c_f05_case1_safe_mode_persisted_restart_lands_safe_mode` — SAFE_MODE persisted →
+   restart → still SAFE_MODE.
+2. `test_fg_c_f05_case2_crash_after_latch_before_starting` — latch durable commit → injected crash
+   before STARTING → fresh manager → SAFE_MODE.
+3. `test_fg_c_f05_case3_crash_after_starting` — STARTING durable commit → crash → fresh → SAFE_MODE.
+4. `test_fg_c_f05_case4_crash_after_recovering` — RECOVERING durable commit → crash → fresh →
+   SAFE_MODE.
+5. `test_fg_c_f05_case5_successful_recovery_lands_safe_mode_then_restart` — successful recovery
+   lands SAFE_MODE → restart → still SAFE_MODE.
+6. `test_fg_c_f05_case6_safe_mode_recovery_clears_latch_no_stale_relatch` — `safe_mode_recovery()`
+   → PAUSED → latch cleared → restart does NOT re-latch from stale payload.
+
+### C01 Matrix (8 cases, real PostgreSQL durable rows)
+
+Three-way conclusion (Recovery / Resume / Protection) verified per case:
+
+- A `test_fg_c_c01_case_a_valid_all_three_valid` — valid plan → all VALID.
+- B `test_fg_c_c01_case_b_expired_all_three_invalid` — expired → all INVALID.
+- C `test_fg_c_c01_case_c_corrupt_payload_identity_all_three_invalid` — corrupt payload identity →
+  all INVALID.
+- D `test_fg_c_c01_case_d_invalid_entry_zone_all_three_invalid` — invalid entry zone → all INVALID.
+- E `test_fg_c_c01_case_e_invalid_stop_take_profit_all_three_invalid` — invalid SL/TP → all INVALID.
+- F `test_fg_c_c01_case_f_no_active_plan_fail_closed` — no unique ACTIVE plan → all fail closed.
+- G `test_fg_c_c01_case_g_natural_state_version_advance_still_valid` — natural SymbolStateStore
+  version advancement (plan=7, store=8) → protection still VALID, resume gate still VALID, recovery
+  does NOT land POSITION_UNPROTECTED.
+- H `test_fg_c_c01_case_h_stale_risk_increasing_buy_rejected` — stale risk-increasing BUY authority
+  (plan=7, store=8) still cancelled by recovery order revalidation, while the open position's
+  protection stays valid. This is a separate contract, not merged into protection validity.
+
+`test_symbol_block_blocks_only_that_symbol` retains its original semantics: SOL BUY/ADD blocked,
+BTC unaffected, SOL protection/SL still allowed.
 
 ## Regression
 
-- G4 targeted: `61 passed` (58 existing + 3 new).
-- G3 targeted: `12 passed`.
-- G5-1 `9 passed`; G5-2 `7 passed`; G5-3 `5 passed`; G5-4 `10 passed` (run serially; the G5 suites
-  share one primary PostgreSQL database and must not run concurrently with G3/G4).
-- `ruff check` on all changed files: PASS.
-- `compileall -q backend/src backend/tests`: PASS.
+- FG-C targeted: `15 passed` (1 F04 + 6 F05 + 8 C01).
+- G4 full: `73 passed`.
+- G3: `12 passed`.
+- G5-1/G5-2/G5-3/G5-4 (serial): `31 passed`.
+- Full backend: `133 passed, 2 warnings` (pre-existing FastAPI/Starlette deprecation).
+- `ruff check` on changed files: PASS.
+- `compileall`: PASS.
 - `git diff --check`: PASS.
-- Alembic `current` / `heads`: both `20260905_0004 (head)`; no migration added.
+- Alembic `current` / `heads`: both `20260905_0004 (head)`; no migration.
 
 ## Result
 
-FG-C IMPLEMENTED / WAITING REVIEW
+FG-C ACCEPTANCE FIX #1 COMPLETE — WAITING ACCEPTANCE
 
 ## Remaining
 
@@ -128,7 +209,8 @@ idempotent.
 
 ## Evidence
 
-- `pytest backend/tests/test_group4.py -q` → `61 passed`.
+- `pytest backend/tests/test_group4.py -q` → `73 passed`.
 - `pytest backend/tests/test_group3.py -q` → `12 passed`.
 - `pytest backend/tests/test_group5_1_replay.py ... test_group5_4_evaluation.py -q` → `31 passed`.
+- `pytest backend/tests -q` → `133 passed, 2 warnings`.
 - `ruff check` / `compileall` / `git diff --check` / Alembic current+heads → PASS (see above).

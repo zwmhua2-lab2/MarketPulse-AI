@@ -899,7 +899,9 @@ def test_symbol_block_blocks_only_that_symbol():
         )
         await persist_trade_plan(SESSIONS, btc_plan)
         btc_result = await h.execution.execute(intent_for(btc_plan), btc_plan, NOW)
-        # SOL protection/close still allowed
+        # SOL protection/close still allowed: block only blocks risk-increasing BUY/ADD. The
+        # open position's SL/TP protection (risk reduction) must remain effective even though
+        # block_symbol bumps the durable SymbolStateStore version.
         h.quotes["SOL-USDT"] = (79.0, 80.0)
         outcome = await h.protection.evaluate(
             RunMode.REPLAY, "SOL-USDT", await h.bbo_for("SOL-USDT"), now=NOW
@@ -2964,35 +2966,49 @@ def test_fg_c_pause_refused_under_emergency_stop():
     assert control.system_state == SystemState.EMERGENCY_STOP.value
 
 
-def test_fg_c_safe_mode_survives_recovery_crash_and_second_recovery():
-    """F05: SAFE_MODE is a durable latch. If recovery crashes after the transient
-    STARTING/RECOVERING transitions, a second recovery must still land in SAFE_MODE."""
+def _crash_after(state_service, reason: str):
+    """Wrap transition so a durable commit is followed by a simulated process death."""
+    original = state_service.transition
+
+    async def wrapper(*args, **kwargs):
+        result = await original(*args, **kwargs)
+        if kwargs.get("reason") == reason:
+            raise RuntimeError(f"simulated_crash_after_{reason}")
+        return result
+
+    state_service.transition = wrapper
+    return original
+
+
+async def _persist_safe_mode():
+    """Persist SAFE_MODE directly (no blocking incident) so only the latch is exercised."""
+    h = Harness()
+    await h.boot()
+    await open_position(h, notional=50, bid=99, ask=100, stop=80, tp=140)
+    await h.state_service.transition(
+        RunMode.REPLAY, system_state=SystemState.SAFE_MODE, reason="manual_safe_mode"
+    )
+    return h
+
+
+async def _recover_landing(quotes):
+    """Fresh manager recovers; return (report, durable system_state)."""
+    h = Harness()
+    h.quotes = quotes
+    report = await h.recovery.recover(RunMode.REPLAY, bbo_for=h.bbo_for, now=h.clock.now())
+    async with SESSIONS() as session:
+        control = await session.scalar(
+            select(RuntimeControlRecord).where(RuntimeControlRecord.run_mode == RunMode.REPLAY)
+        )
+    return report, control
+
+
+def test_fg_c_f05_case1_safe_mode_persisted_restart_lands_safe_mode():
+    """F05 Case 1: SAFE_MODE persisted -> restart -> still SAFE_MODE."""
 
     async def case():
-        h = Harness()
-        await h.boot()
-        await open_position(h, notional=50, bid=99, ask=100, stop=80, tp=140)
-        # Persist SAFE_MODE directly (no blocking incident) so only the latch is exercised.
-        await h.state_service.transition(
-            RunMode.REPLAY, system_state=SystemState.SAFE_MODE, reason="manual_safe_mode"
-        )
-        # First recovery starts (and persists the durable latch), then "crashes" midway by
-        # forcing the durable system_state back to RECOVERING before any final transition.
-        h2 = Harness()
-        h2.quotes = {"SOL-USDT": (99.0, 100.0)}
-        await h2.recovery.recover(RunMode.REPLAY, bbo_for=h2.bbo_for, now=h2.clock.now())
-        # Simulate a crash after RECOVERING was persisted: overwrite system_state to RECOVERING.
-        await h2.state_service.transition(
-            RunMode.REPLAY, system_state=SystemState.RECOVERING, reason="simulated_crash"
-        )
-        # Second recovery must still see the durable SAFE_MODE latch and land in SAFE_MODE.
-        h3 = Harness()
-        h3.quotes = {"SOL-USDT": (99.0, 100.0)}
-        report = await h3.recovery.recover(RunMode.REPLAY, bbo_for=h3.bbo_for, now=h3.clock.now())
-        async with SESSIONS() as session:
-            control = await session.scalar(
-                select(RuntimeControlRecord).where(RuntimeControlRecord.run_mode == RunMode.REPLAY)
-            )
+        await _persist_safe_mode()
+        report, control = await _recover_landing({"SOL-USDT": (99.0, 100.0)})
         return report, control
 
     report, control = asyncio.run(case())
@@ -3001,32 +3017,358 @@ def test_fg_c_safe_mode_survives_recovery_crash_and_second_recovery():
     assert not report.ok
 
 
-def test_fg_c_protection_fails_closed_on_invalid_protection_plan():
-    """C01: protection uses the same valid-plan contract as resume. A plan whose stop/take
-    relationship is invalid (stop >= take_profit) must be treated as unprotected, not trigger
-    an exit from an untrusted plan."""
+def test_fg_c_f05_case2_crash_after_latch_before_starting():
+    """F05 Case 2: latch durable write committed -> crash before STARTING -> fresh -> SAFE_MODE."""
+
+    async def case():
+        await _persist_safe_mode()
+        h = Harness()
+        h.quotes = {"SOL-USDT": (99.0, 100.0)}
+        original = _crash_after(h.recovery.state_service, "safe_mode_latch")
+        try:
+            await h.recovery.recover(RunMode.REPLAY, bbo_for=h.bbo_for, now=h.clock.now())
+        except RuntimeError:
+            pass  # simulated process death after the latch commit
+        finally:
+            h.recovery.state_service.transition = original
+        report, control = await _recover_landing({"SOL-USDT": (99.0, 100.0)})
+        return report, control
+
+    report, control = asyncio.run(case())
+    assert report.final_system_state is SystemState.SAFE_MODE
+    assert control.system_state == SystemState.SAFE_MODE.value
+
+
+def test_fg_c_f05_case3_crash_after_starting():
+    """F05 Case 3: STARTING durable commit -> crash -> fresh manager -> SAFE_MODE."""
+
+    async def case():
+        await _persist_safe_mode()
+        h = Harness()
+        h.quotes = {"SOL-USDT": (99.0, 100.0)}
+        original = _crash_after(h.recovery.state_service, "recovery_start")
+        try:
+            await h.recovery.recover(RunMode.REPLAY, bbo_for=h.bbo_for, now=h.clock.now())
+        except RuntimeError:
+            pass  # simulated process death after STARTING commit
+        finally:
+            h.recovery.state_service.transition = original
+        report, control = await _recover_landing({"SOL-USDT": (99.0, 100.0)})
+        return report, control
+
+    report, control = asyncio.run(case())
+    assert report.final_system_state is SystemState.SAFE_MODE
+    assert control.system_state == SystemState.SAFE_MODE.value
+
+
+def test_fg_c_f05_case4_crash_after_recovering():
+    """F05 Case 4: RECOVERING durable commit -> crash -> fresh manager -> SAFE_MODE."""
+
+    async def case():
+        await _persist_safe_mode()
+        h = Harness()
+        h.quotes = {"SOL-USDT": (99.0, 100.0)}
+        original = _crash_after(h.recovery.state_service, "recovering")
+        try:
+            await h.recovery.recover(RunMode.REPLAY, bbo_for=h.bbo_for, now=h.clock.now())
+        except RuntimeError:
+            pass  # simulated process death after RECOVERING commit
+        finally:
+            h.recovery.state_service.transition = original
+        report, control = await _recover_landing({"SOL-USDT": (99.0, 100.0)})
+        return report, control
+
+    report, control = asyncio.run(case())
+    assert report.final_system_state is SystemState.SAFE_MODE
+    assert control.system_state == SystemState.SAFE_MODE.value
+
+
+def test_fg_c_f05_case5_successful_recovery_lands_safe_mode_then_restart():
+    """F05 Case 5: recovery already landed SAFE_MODE -> new restart -> still SAFE_MODE."""
+
+    async def case():
+        await _persist_safe_mode()
+        await _recover_landing({"SOL-USDT": (99.0, 100.0)})
+        report, control = await _recover_landing({"SOL-USDT": (99.0, 100.0)})
+        return report, control
+
+    report, control = asyncio.run(case())
+    assert report.final_system_state is SystemState.SAFE_MODE
+    assert control.system_state == SystemState.SAFE_MODE.value
+
+
+def test_fg_c_f05_case6_safe_mode_recovery_clears_latch_no_stale_relatch():
+    """F05 Case 6: safe_mode_recovery -> PAUSED -> latch cleared -> restart does NOT re-latch."""
+
+    async def case():
+        h = await _persist_safe_mode()
+        # The position has a valid protection plan, so safe_mode_recovery can clear SAFE_MODE.
+        outcome = await h.control.safe_mode_recovery(RunMode.REPLAY, now=h.clock.now())
+        async with SESSIONS() as session:
+            control_after = await session.scalar(
+                select(RuntimeControlRecord).where(RuntimeControlRecord.run_mode == RunMode.REPLAY)
+            )
+        # New restart: the durable system_state is PAUSED and the latch was cleared, so recover
+        # must NOT treat it as SAFE_MODE via a stale latch. (The STARTING/RECOVERING transitions
+        # may still trip the pre-existing reconciliation check, but that is unrelated to the
+        # latch: the latch itself must stay cleared.)
+        h2 = Harness()
+        h2.quotes = {"SOL-USDT": (99.0, 100.0)}
+        await h2.recovery.recover(RunMode.REPLAY, bbo_for=h2.bbo_for, now=h2.clock.now())
+        async with SESSIONS() as session:
+            control = await session.scalar(
+                select(RuntimeControlRecord).where(RuntimeControlRecord.run_mode == RunMode.REPLAY)
+            )
+        return outcome, control_after, control
+
+    outcome, control_after, control = asyncio.run(case())
+    assert outcome.accepted and outcome.system_state is SystemState.PAUSED
+    assert control_after.system_state == SystemState.PAUSED.value
+    assert "safe_mode_latch" not in (control_after.payload or {})
+    # The stale latch must not be re-written by the restart: payload stays latch-free.
+    assert "safe_mode_latch" not in (control.payload or {})
+
+
+async def _c01_three_way(quotes):
+    """Return the three-way conclusion for the CURRENT durable OPEN LONG + plan state.
+
+    - protection: `protection.evaluate()` reason
+    - resume: pause then resume (walks `_open_position_protection_gate`)
+    - recovery: fresh manager `recover()` final durable state
+    """
+    h = Harness()
+    h.quotes = quotes
+    protection = await h.protection.evaluate(
+        RunMode.REPLAY, "SOL-USDT", await h.bbo_for("SOL-USDT"), now=NOW
+    )
+    await h.control.pause(RunMode.REPLAY, "c01_gate")
+    resume = await h.control.resume(RunMode.REPLAY)
+    report, control = await _recover_landing(quotes)
+    return protection, resume, report, control
+
+
+async def _assert_three_way_invalid(quotes):
+    protection, resume, report, control = await _c01_three_way(quotes)
+    assert not protection.triggered and protection.reason == "POSITION_UNPROTECTED"
+    # Resume may report either the direct protection-gate reason or the equivalent blocking
+    # incident reason (the protection path already opened a POSITION_UNPROTECTED incident).
+    assert not resume.accepted
+    assert resume.reason in ("POSITION_UNPROTECTED", "INCIDENT_POSITION_UNPROTECTED")
+    assert report.final_system_state is SystemState.SAFE_MODE
+    assert control.system_state == SystemState.SAFE_MODE.value
+    return protection, resume, report, control
+
+
+def test_fg_c_c01_case_a_valid_all_three_valid():
+    """C01 Case A: valid plan -> protection HOLD, resume accepted, recovery RUNNING."""
 
     async def case():
         h = Harness()
         await h.boot()
-        # A LONG position whose active plan has an invalid protection relationship.
-        plan, _ = await open_position(
-            h, notional=50, bid=99, ask=100, stop=140, tp=80  # stop >= take_profit
-        )
-        h.quotes["SOL-USDT"] = (110.0, 111.0)  # between the two broken levels
-        outcome = await h.protection.evaluate(
+        await open_position(h, notional=50, bid=99, ask=100, stop=80, tp=140)
+        h.quotes["SOL-USDT"] = (99.0, 100.0)  # no trigger
+        protection = await h.protection.evaluate(
             RunMode.REPLAY, "SOL-USDT", await h.bbo_for("SOL-USDT"), now=NOW
         )
-        async with SESSIONS() as session:
-            incident = await session.scalar(
-                select(IncidentRecord).where(
-                    IncidentRecord.incident_type == IncidentType.POSITION_UNPROTECTED,
-                    IncidentRecord.status == "OPEN",
+        await h.control.pause(RunMode.REPLAY, "c01")
+        resume = await h.control.resume(RunMode.REPLAY)
+        report, control = await _recover_landing({"SOL-USDT": (99.0, 100.0)})
+        return protection, resume, report, control
+
+    protection, resume, report, control = asyncio.run(case())
+    assert protection.triggered is False and protection.reason == "HOLD"
+    assert resume.accepted
+    assert report.final_system_state is SystemState.RUNNING
+    assert control.system_state == SystemState.RUNNING.value
+
+
+def test_fg_c_c01_case_b_expired_all_three_invalid():
+    """C01 Case B: expired ACTIVE plan -> all three INVALID."""
+
+    async def case():
+        h = Harness()
+        await h.boot()
+        plan, _ = await open_position(h, notional=50, bid=99, ask=100, stop=80, tp=140)
+        async with SESSIONS() as session, session.begin():
+            await session.execute(
+                update(TradePlanRecord)
+                .where(TradePlanRecord.plan_id == plan.plan_id)
+                .values(expires_at=NOW - timedelta(seconds=1))
+            )
+        return await _assert_three_way_invalid({"SOL-USDT": (99.0, 100.0)})
+
+    asyncio.run(case())
+
+
+def test_fg_c_c01_case_c_corrupt_payload_identity_all_three_invalid():
+    """C01 Case C: corrupt payload identity -> all three INVALID."""
+
+    async def case():
+        h = Harness()
+        await h.boot()
+        plan, _ = await open_position(h, notional=50, bid=99, ask=100, stop=80, tp=140)
+        corrupt = plan.model_dump(mode="json")
+        corrupt["plan_id"] = "different-plan-id"
+        async with SESSIONS() as session, session.begin():
+            await session.execute(
+                update(TradePlanRecord)
+                .where(TradePlanRecord.plan_id == plan.plan_id)
+                .values(payload=corrupt)
+            )
+        return await _assert_three_way_invalid({"SOL-USDT": (99.0, 100.0)})
+
+    asyncio.run(case())
+
+
+def test_fg_c_c01_case_d_invalid_entry_zone_all_three_invalid():
+    """C01 Case D: invalid entry zone (lower > upper) -> all three INVALID."""
+
+    async def case():
+        h = Harness()
+        await h.boot()
+        plan, _ = await open_position(h, notional=50, bid=99, ask=100, stop=80, tp=140)
+        bad = plan.model_dump(mode="json")
+        bad["entry_zone"] = {"lower": 120.0, "upper": 90.0}
+        async with SESSIONS() as session, session.begin():
+            await session.execute(
+                update(TradePlanRecord)
+                .where(TradePlanRecord.plan_id == plan.plan_id)
+                .values(payload=bad)
+            )
+        return await _assert_three_way_invalid({"SOL-USDT": (99.0, 100.0)})
+
+    asyncio.run(case())
+
+
+def test_fg_c_c01_case_e_invalid_stop_take_profit_all_three_invalid():
+    """C01 Case E: invalid SL/TP (stop >= take_profit) -> all three INVALID."""
+
+    async def case():
+        h = Harness()
+        await h.boot()
+        plan, _ = await open_position(h, notional=50, bid=99, ask=100, stop=80, tp=140)
+        bad = plan.model_dump(mode="json")
+        bad["stop_loss"] = 140.0
+        bad["take_profit"] = 80.0
+        async with SESSIONS() as session, session.begin():
+            await session.execute(
+                update(TradePlanRecord)
+                .where(TradePlanRecord.plan_id == plan.plan_id)
+                .values(payload=bad)
+            )
+        return await _assert_three_way_invalid({"SOL-USDT": (99.0, 100.0)})
+
+    asyncio.run(case())
+
+
+def test_fg_c_c01_case_f_no_active_plan_fail_closed():
+    """C01 Case F: no unique ACTIVE plan (the ACTIVE plan is replaced/removed) -> all fail closed.
+
+    Multiple ACTIVE rows are already impossible at the DB level via `uq_trade_plans_one_active`;
+    this case exercises the remaining "no unique valid active plan" path, which must fail closed.
+    """
+
+    async def case():
+        h = Harness()
+        await h.boot()
+        plan, _ = await open_position(h, notional=50, bid=99, ask=100, stop=80, tp=140)
+        async with SESSIONS() as session, session.begin():
+            await session.execute(
+                update(TradePlanRecord)
+                .where(TradePlanRecord.plan_id == plan.plan_id)
+                .values(status=PlanStatus.REPLACED)
+            )
+        return await _assert_three_way_invalid({"SOL-USDT": (99.0, 100.0)})
+
+    asyncio.run(case())
+
+
+def test_fg_c_c01_case_g_natural_state_version_advance_still_valid():
+    """C01 Case G (review correction): natural SymbolStateStore version advancement must NOT
+    invalidate open-position protection. plan.state_version=7, store advances to 8 via normal
+    market evolution -> protection still triggers SL, resume gate still valid, recovery does NOT
+    land POSITION_UNPROTECTED.
+    """
+
+    async def case():
+        h = Harness()
+        await h.boot()
+        await open_position(h, notional=50, bid=99, ask=100, stop=80, tp=140)
+        # Natural symbol-state version advancement (NOT a block): store moves 7 -> 8 while the
+        # open position's plan stays pinned to state_version 7.
+        async with SESSIONS() as session, session.begin():
+            await session.merge(
+                SymbolStateStore(
+                    instrument_id="SOL-USDT",
+                    symbol="SOL-USDT",
+                    state="ACTIVE",
+                    state_version=8,
                 )
             )
-        return plan, outcome, incident
+        # Protection: bid below stop -> SL must still trigger despite version advancement.
+        h.quotes["SOL-USDT"] = (79.0, 80.0)
+        protection = await h.protection.evaluate(
+            RunMode.REPLAY, "SOL-USDT", await h.bbo_for("SOL-USDT"), now=NOW
+        )
+        # Resume: protection gate must still pass (position is protected).
+        await h.control.pause(RunMode.REPLAY, "c01_g")
+        resume = await h.control.resume(RunMode.REPLAY)
+        # Recovery: must not land POSITION_UNPROTECTED because of the version mismatch alone.
+        report, control = await _recover_landing({"SOL-USDT": (99.0, 100.0)})
+        return protection, resume, report, control
 
-    _plan, outcome, incident = asyncio.run(case())
-    assert outcome.triggered is False
-    assert outcome.reason == "POSITION_UNPROTECTED"
-    assert incident is not None  # the invalid plan is treated as unprotected, not trusted
+    protection, resume, report, control = asyncio.run(case())
+    assert protection.triggered is True  # SL still fires
+    assert resume.accepted
+    # Recovery must not be SAFE_MODE purely from a version mismatch; it lands a safe running
+    # state (RUNNING) because the position is genuinely protected.
+    assert report.final_system_state is SystemState.RUNNING
+    assert control.system_state == SystemState.RUNNING.value
+
+
+def test_fg_c_c01_case_h_stale_risk_increasing_buy_rejected():
+    """C01 Case H (separate contract): stale risk-increasing BUY authority is still rejected by
+    the existing G3 fill-time guard / recovery order revalidation, independent of protection.
+
+    A pending BUY whose plan.state_version is behind the current SymbolStateStore version must
+    be cancelled by recovery order revalidation (state_version_stale), while the open position's
+    protection stays valid.
+    """
+
+    async def case():
+        h = Harness()
+        await h.boot()
+        await open_position(h, notional=50, bid=99, ask=100, stop=80, tp=140)
+        add_plan = await open_limit_buy(h, notional=20, limit=95, version=7)
+        # Advance the symbol authority so the pending ADD's plan is stale (risk-increasing).
+        async with SESSIONS() as session, session.begin():
+            await session.merge(
+                SymbolStateStore(
+                    instrument_id="SOL-USDT",
+                    symbol="SOL-USDT",
+                    state="ACTIVE",
+                    state_version=8,
+                )
+            )
+        # Fresh recovery: the stale BUY must be cancelled, position protection must remain valid.
+        h2 = Harness()
+        h2.quotes = {"SOL-USDT": (99.0, 100.0)}
+        report = await h2.recovery.recover(RunMode.REPLAY, bbo_for=h2.bbo_for, now=h2.clock.now())
+        async with SESSIONS() as session:
+            add_order = await session.scalar(
+                select(PaperOrderRecord).where(PaperOrderRecord.plan_id == add_plan.plan_id)
+            )
+            position = await session.scalar(
+                select(PositionRecord).where(
+                    PositionRecord.run_mode == RunMode.REPLAY,
+                    PositionRecord.instrument_id == "SOL-USDT",
+                )
+            )
+        return report, add_order, position
+
+    report, add_order, position = asyncio.run(case())
+    assert add_order.status == OrderStatus.CANCELLED  # stale risk-increasing BUY rejected
+    # The open position is still protected (version advancement did not invalidate protection),
+    # so recovery lands RUNNING with the position intact.
+    assert report.final_system_state is SystemState.RUNNING
+    assert position.quantity > 0
