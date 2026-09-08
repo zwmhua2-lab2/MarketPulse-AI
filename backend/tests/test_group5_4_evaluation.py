@@ -1,5 +1,6 @@
 import asyncio
 import math
+import os
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -105,7 +106,15 @@ def _replay_database(label: str):
     config.set_main_option("path_separator", "os")
     config.set_main_option("script_location", str(BACKEND / "alembic"))
     config.set_main_option("sqlalchemy.url", url)
-    command.upgrade(config, "head")
+    previous_database_url = os.environ.get("DATABASE_URL")
+    os.environ["DATABASE_URL"] = url
+    try:
+        command.upgrade(config, "head")
+    finally:
+        if previous_database_url is None:
+            os.environ.pop("DATABASE_URL", None)
+        else:
+            os.environ["DATABASE_URL"] = previous_database_url
     try:
         yield name, url
     finally:
