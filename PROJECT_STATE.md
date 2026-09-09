@@ -57,10 +57,10 @@ FG-E — Reconciliation Snapshot Consistency — IMPLEMENTED / WAITING REVIEW
   `ACTIVE → REPLACED` plan commit 不会撕裂同一报告；新报告才会看到该提交并报告
   `open_order_plan_valid=False`。Formal Review = `CHANGES_REQUIRED / NOT ACCEPTED`。
   Acceptance Fix #1 仅关闭 real G4 transaction-state evidence。Acceptance Fix #2 已补
-  G4→G3 same-session/same-transaction identity，以及 account/order torn-read race evidence。
-  剩余 acceptance evidence 为 standalone G3 RR/RO、standalone G3 torn-read race、true
-  durable corruption detection 与 failure cleanup evidence，仍待按明确 acceptance contract
-  验证。
+  G4→G3 same-session/same-transaction identity、G4 account/order torn-read race，以及
+  standalone G3 的 real RR/RO、account/order torn-read race、true durable corruption
+  detection 与 failure cleanup evidence。Formal Review 仍为 `CHANGES_REQUIRED / NOT ACCEPTED`，
+  等待独立 reviewer 判断全部 N02 evidence；未更新 `main`。
 
 ## Blocked
 

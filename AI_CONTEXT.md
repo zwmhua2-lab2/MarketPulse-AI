@@ -97,8 +97,10 @@
   `transaction_isolation=repeatable read` 与 `transaction_read_only=on`。其余 acceptance
   evidence 包括 account/order torn-read race、standalone G3 RR/RO、standalone G3 torn-read
   race、true durable corruption detection，以及 transaction identity / failure cleanup
-  evidence。Acceptance Fix #2 已补 G4→G3 same-session/same-transaction identity 与
-  account/order torn-read race evidence；其余项目仍待验证。
+  evidence。Acceptance Fix #2 已补 G4→G3 same-session/same-transaction identity、G4
+  account/order torn-read race，以及 standalone G3 RR/RO、account/order torn-read race、
+  true durable corruption detection、failure cleanup evidence。Formal Review 仍为
+  `CHANGES_REQUIRED / NOT ACCEPTED`，须由独立 reviewer 判断；`main` 未更新。
 - N01 = `NOT STARTED`，G6 = `NOT STARTED`。
 
 - G5-0 `ACCEPTED`：`AI_CONTEXT.md` 为上下文入口；`AGENTS.md` 为工程工作纪律与 Context Isolation Protocol（CIP-01～CIP-10）的正式入口。

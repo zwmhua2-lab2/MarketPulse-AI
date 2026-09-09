@@ -1,4 +1,5 @@
 import asyncio
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -45,7 +46,7 @@ from marketpulse.g3.service import (
 )
 from marketpulse.market_data.models import MarketType
 from pydantic import ValidationError
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, select, text, update
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
@@ -217,6 +218,41 @@ async def _open_limit(
     if existing is None:
         await persist_trade_plan(SESSIONS, plan)
     return await service.execute(intent, plan, now)
+
+
+async def _standalone_reconciliation_open_buy():
+    """Create one normal OPEN LIMIT BUY for standalone G3 reconciliation evidence."""
+    await _clean()
+    bbo = BestBidAsk(instrument_id="SOL-USDT", bid=99, ask=100, received_at=NOW)
+    service = PaperExecutionService(
+        SESSIONS,
+        lambda _: asyncio.sleep(0, result=bbo),
+        lambda _: asyncio.sleep(0, result=7),
+        initial_balance=1000,
+    )
+    await service.bootstrap_account(RunMode.REPLAY)
+    plan = _plan("SOL-USDT", notional=20, order_type=OrderType.LIMIT)
+    opened = await _open_limit(
+        service,
+        ExecutionIntent(
+            intent_id="fg-e-standalone-reconciliation-open-buy",
+            plan_id=plan.plan_id,
+            instrument_id=plan.instrument_id,
+            run_mode=RunMode.REPLAY,
+            state_version=7,
+            created_at=NOW,
+        ),
+        plan,
+    )
+    async with SESSIONS() as session:
+        account = await session.scalar(
+            select(AccountRecord).where(AccountRecord.run_mode == RunMode.REPLAY)
+        )
+        order = await session.get(PaperOrderRecord, opened.order_id)
+    assert account is not None
+    assert order is not None
+    assert account.reserved_cash == pytest.approx(order.reserved_cash)
+    return service, order.order_id, order.reserved_cash
 
 
 def test_scenarios_b_c_d_snapshot_prompt_validation_and_bounded_queue():
@@ -1343,3 +1379,188 @@ def test_fg_a_action_time_clock_bbo_and_plan_guards_after_controlled_order_lock_
     assert fills[0].price == pytest.approx(90.0)
     assert order.status == OrderStatus.FILLED and account.reserved_cash == 0
     assert len(positions) == 1 and reconciliation["ok"]
+
+
+def test_standalone_reconciliation_uses_real_repeatable_read_read_only_transaction():
+    """Direct G3 reconciliation owns a real PostgreSQL REPEATABLE READ, READ ONLY transaction."""
+
+    async def case():
+        service, _, _ = await _standalone_reconciliation_open_buy()
+        original_sessions = service.sessions
+        original_reconciliation_once = service._reconciliation_once
+        observed: dict[str, object] = {}
+
+        @asynccontextmanager
+        async def capture_owned_session():
+            async with original_sessions() as session:
+                observed["factory_session_id"] = id(session)
+                try:
+                    yield session
+                finally:
+                    observed["in_transaction_on_session_exit"] = session.in_transaction()
+
+        async def capture_transaction_state(run_mode, session):
+            transaction = session.get_transaction()
+            assert transaction is not None
+            observed["reconciliation_session_id"] = id(session)
+            observed["transaction_id"] = id(transaction)
+            observed["transaction_state"] = (
+                await session.scalar(text("SHOW transaction_isolation")),
+                await session.scalar(text("SHOW transaction_read_only")),
+            )
+            return await original_reconciliation_once(run_mode, session)
+
+        service.sessions = capture_owned_session
+        service._reconciliation_once = capture_transaction_state
+        try:
+            result = await service.reconciliation(RunMode.REPLAY)
+        finally:
+            service.sessions = original_sessions
+            service._reconciliation_once = original_reconciliation_once
+        return result, observed
+
+    result, observed = asyncio.run(case())
+    assert result["ok"] is True
+    assert observed["transaction_state"] == ("repeatable read", "on")
+    assert observed["reconciliation_session_id"] == observed["factory_session_id"]
+    assert isinstance(observed["transaction_id"], int)
+    assert observed["in_transaction_on_session_exit"] is False
+
+
+def test_standalone_reconciliation_account_order_cancellation_race_uses_one_snapshot():
+    """Standalone G3 cannot tear its account read from a committed order cancellation."""
+
+    async def case():
+        service, order_id, reserved_cash = await _standalone_reconciliation_open_buy()
+        account_read_completed = asyncio.Event()
+        release_order_read = asyncio.Event()
+        original_reconciliation_once = service._reconciliation_once
+
+        async def pause_before_order_read(run_mode, session):
+            original_scalars = session.scalars
+            order_read_paused = False
+
+            async def paused_scalars(*args, **kwargs):
+                nonlocal order_read_paused
+                if not order_read_paused:
+                    # The account scalar query is complete; this first scalars query reads orders.
+                    order_read_paused = True
+                    account_read_completed.set()
+                    await asyncio.wait_for(release_order_read.wait(), timeout=2)
+                return await original_scalars(*args, **kwargs)
+
+            session.scalars = paused_scalars
+            try:
+                return await original_reconciliation_once(run_mode, session)
+            finally:
+                session.scalars = original_scalars
+
+        service._reconciliation_once = pause_before_order_read
+        try:
+            report_task = asyncio.create_task(service.reconciliation(RunMode.REPLAY))
+            await asyncio.wait_for(account_read_completed.wait(), timeout=2)
+            async with SESSIONS() as writer, writer.begin():
+                account = await writer.scalar(
+                    select(AccountRecord).where(AccountRecord.run_mode == RunMode.REPLAY)
+                )
+                order = await writer.get(PaperOrderRecord, order_id)
+                assert account is not None
+                assert order is not None
+                account.reserved_cash = 0.0
+                order.status = OrderStatus.CANCELLED
+                order.reserved_cash = 0.0
+                order.reserved_quantity = 0.0
+            assert report_task.done() is False
+            release_order_read.set()
+            snapshot_report = await asyncio.wait_for(report_task, timeout=2)
+        finally:
+            service._reconciliation_once = original_reconciliation_once
+
+        fresh_report = await service.reconciliation(RunMode.REPLAY)
+        async with SESSIONS() as session:
+            account = await session.scalar(
+                select(AccountRecord).where(AccountRecord.run_mode == RunMode.REPLAY)
+            )
+            order = await session.get(PaperOrderRecord, order_id)
+        return snapshot_report, fresh_report, account, order, reserved_cash
+
+    snapshot_report, fresh_report, account, order, reserved_cash = asyncio.run(case())
+    assert snapshot_report["reserved_cash_matches_open_buys"] is True
+    assert "reserved_cash_mismatch" not in snapshot_report["diagnostics"]
+    assert fresh_report["reserved_cash_matches_open_buys"] is True
+    assert account is not None and account.reserved_cash == 0
+    assert order is not None and order.status == OrderStatus.CANCELLED
+    assert order.reserved_cash == 0
+    assert reserved_cash > 0
+
+
+def test_standalone_reconciliation_detects_true_durable_reserved_cash_corruption():
+    """A committed account/order mismatch is detected without reconciliation repair."""
+
+    async def case():
+        service, order_id, reserved_cash = await _standalone_reconciliation_open_buy()
+        async with SESSIONS() as writer, writer.begin():
+            account = await writer.scalar(
+                select(AccountRecord).where(AccountRecord.run_mode == RunMode.REPLAY)
+            )
+            assert account is not None
+            account.reserved_cash = 0.0
+        result = await service.reconciliation(RunMode.REPLAY)
+        async with SESSIONS() as session:
+            account = await session.scalar(
+                select(AccountRecord).where(AccountRecord.run_mode == RunMode.REPLAY)
+            )
+            order = await session.get(PaperOrderRecord, order_id)
+        return result, account, order, reserved_cash
+
+    result, account, order, reserved_cash = asyncio.run(case())
+    assert result["ok"] is False
+    assert result["reserved_cash_matches_open_buys"] is False
+    assert "reserved_cash_mismatch" in result["diagnostics"]
+    assert account is not None and account.reserved_cash == 0
+    assert order is not None and order.status == OrderStatus.OPEN
+    assert order.reserved_cash == pytest.approx(reserved_cash)
+
+
+def test_standalone_reconciliation_failure_cleans_up_owned_read_only_transaction():
+    """An exception in standalone G3 reconciliation closes its owned transaction cleanly."""
+
+    async def case():
+        service, _, _ = await _standalone_reconciliation_open_buy()
+        original_sessions = service.sessions
+        original_reconciliation_once = service._reconciliation_once
+        observed: dict[str, object] = {}
+
+        @asynccontextmanager
+        async def capture_owned_session():
+            async with original_sessions() as session:
+                try:
+                    yield session
+                finally:
+                    observed["in_transaction_on_session_exit"] = session.in_transaction()
+
+        async def fail_after_real_read(run_mode, session):
+            transaction = session.get_transaction()
+            assert transaction is not None
+            observed["transaction"] = transaction
+            await session.scalar(
+                select(AccountRecord).where(AccountRecord.run_mode == RunMode.REPLAY)
+            )
+            raise RuntimeError("injected standalone reconciliation failure")
+
+        service.sessions = capture_owned_session
+        service._reconciliation_once = fail_after_real_read
+        try:
+            with pytest.raises(RuntimeError, match="injected standalone reconciliation failure"):
+                await service.reconciliation(RunMode.REPLAY)
+        finally:
+            service.sessions = original_sessions
+            service._reconciliation_once = original_reconciliation_once
+        fresh_result = await service.reconciliation(RunMode.REPLAY)
+        return fresh_result, observed
+
+    fresh_result, observed = asyncio.run(case())
+    transaction = observed["transaction"]
+    assert observed["in_transaction_on_session_exit"] is False
+    assert transaction.is_active is False
+    assert fresh_result["ok"] is True

@@ -94,3 +94,31 @@ Before this change, `g4.reconciliation.reconcile()` called `execution.reconcilia
 ### Current Status
 
 `CHANGES_REQUIRED / NOT ACCEPTED` — Acceptance Fix #2 has now closed G4→G3 transaction identity and account/order torn-read evidence. Standalone G3 RR/RO, standalone G3 torn-read race, true durable corruption detection, and failure cleanup evidence remain pending their acceptance contracts. `main` was not updated.
+
+## Acceptance Fix #2 — Standalone G3 Remaining Evidence (B/C/D/E)
+
+### Scope
+
+- Tests and evidence documentation only. No file under `backend/src` was modified.
+- Each test invokes `PaperExecutionService.reconciliation(RunMode.REPLAY)` without a caller-supplied session and uses real PostgreSQL transactions. Concurrency is controlled with `asyncio.Event`; the writer uses a distinct `AsyncSession` and commits before the paused read is released.
+
+### Evidence Added
+
+- **B — real owned transaction state:** immediately inside the production standalone reconciliation callback, `SHOW transaction_isolation` and `SHOW transaction_read_only` return `repeatable read` and `on`. The captured session identity is the owned session factory result, and its transaction is closed when that session exits.
+- **C — account/order torn-read race:** a normal OPEN LIMIT BUY first establishes matching account/order cash reservations. Reconciliation pauses after its account read and before the order read; a distinct writer commits account reservation release and cancellation/zeroed order reservations. The in-flight report stays incomplete while the writer is already committed, then remains a coherent pre-commit snapshot with no `reserved_cash_mismatch`. A fresh report is coherent after the commit, and fresh durable reads confirm the cancellation and zero reservations.
+- **D — true durable corruption:** a writer changes only `Account.reserved_cash`, leaving the OPEN order reservation durable. A new standalone report returns `ok=False`, `reserved_cash_matches_open_buys=False`, and `reserved_cash_mismatch`; fresh DB reads prove the mismatch is durable and reconciliation did not repair it.
+- **E — failure cleanup:** after a real read, an injected exception leaves the standalone-owned transaction inactive and the session non-transactional at context exit. A subsequent independent reconciliation succeeds.
+- All monkey-patched test seams are restored in `finally`.
+
+### Verification
+
+- `py -3.14 -m pytest tests/test_group3.py -q -k 'standalone_reconciliation' -ra` → `4 passed, 12 deselected in 2.76s`.
+- `py -3.14 -m pytest tests/test_group3.py -q -ra` → `16 passed in 15.23s`.
+- `py -3.14 -m pytest tests/test_group4.py -q -ra` → `75 passed in 66.44s`.
+- `py -3.14 -m pytest tests -q -ra` → `156 passed, 1 warning in 171.36s`; the warning is the existing FastAPI/Starlette `TestClient` deprecation.
+- `py -3.14 -m ruff check src tests`, `py -3.14 -m compileall -q src tests`, and `git diff --check` → PASS.
+- `py -3.14 -m alembic current` and `py -3.14 -m alembic heads` → `20260905_0004 (head)`.
+
+### Status
+
+`CHANGES_REQUIRED / NOT ACCEPTED` — Acceptance Fix #1 closed only real G4 transaction-state evidence. Acceptance Fix #2 now supplies the remaining G4 identity/account-order and standalone G3 B/C/D/E evidence, but no human or independent reviewer Acceptance is claimed. `main` was not updated.
