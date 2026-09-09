@@ -2188,10 +2188,23 @@ def test_reconciliation_uses_one_repeatable_read_snapshot_across_g3_and_g4():
         base_snapshot_taken = asyncio.Event()
         allow_extended_reads = asyncio.Event()
         original_reconciliation = h.execution.reconciliation
+        original_reconciliation_once = h.execution._reconciliation_once
         transaction_state: tuple[str | None, str | None] | None = None
+        g4_transaction_identity: tuple[int, int] | None = None
+        g3_transaction_identity: tuple[int, int] | None = None
+
+        async def capture_g3_transaction_identity(run_mode, session):
+            nonlocal g3_transaction_identity
+            transaction = session.get_transaction()
+            assert transaction is not None
+            g3_transaction_identity = (id(session), id(transaction))
+            return await original_reconciliation_once(run_mode, session)
 
         async def pause_after_g3_snapshot(run_mode, *, session=None):
-            nonlocal transaction_state
+            nonlocal g4_transaction_identity, transaction_state
+            transaction = session.get_transaction()
+            assert transaction is not None
+            g4_transaction_identity = (id(session), id(transaction))
             transaction_state = (
                 await session.scalar(text("SHOW transaction_isolation")),
                 await session.scalar(text("SHOW transaction_read_only")),
@@ -2201,23 +2214,35 @@ def test_reconciliation_uses_one_repeatable_read_snapshot_across_g3_and_g4():
             await asyncio.wait_for(allow_extended_reads.wait(), timeout=2)
             return result
 
+        h.execution._reconciliation_once = capture_g3_transaction_identity
         h.execution.reconciliation = pause_after_g3_snapshot
-        report_task = asyncio.create_task(h.reconcile(RunMode.REPLAY))
-        await asyncio.wait_for(base_snapshot_taken.wait(), timeout=2)
-        async with SESSIONS() as writer, writer.begin():
-            await writer.execute(
-                update(TradePlanRecord)
-                .where(TradePlanRecord.plan_id == plan.plan_id)
-                .values(status=PlanStatus.REPLACED)
-            )
-        allow_extended_reads.set()
-        report = await asyncio.wait_for(report_task, timeout=2)
-        h.execution.reconciliation = original_reconciliation
+        try:
+            report_task = asyncio.create_task(h.reconcile(RunMode.REPLAY))
+            await asyncio.wait_for(base_snapshot_taken.wait(), timeout=2)
+            async with SESSIONS() as writer, writer.begin():
+                await writer.execute(
+                    update(TradePlanRecord)
+                    .where(TradePlanRecord.plan_id == plan.plan_id)
+                    .values(status=PlanStatus.REPLACED)
+                )
+            allow_extended_reads.set()
+            report = await asyncio.wait_for(report_task, timeout=2)
+        finally:
+            h.execution.reconciliation = original_reconciliation
+            h.execution._reconciliation_once = original_reconciliation_once
         current = await h.reconcile(RunMode.REPLAY)
-        return report, current, transaction_state
+        return report, current, transaction_state, g4_transaction_identity, g3_transaction_identity
 
-    snapshot_report, current_report, transaction_state = asyncio.run(case())
+    (
+        snapshot_report,
+        current_report,
+        transaction_state,
+        g4_transaction_identity,
+        g3_transaction_identity,
+    ) = asyncio.run(case())
     assert transaction_state == ("repeatable read", "on")
+    assert g4_transaction_identity is not None
+    assert g3_transaction_identity == g4_transaction_identity
     assert snapshot_report.ok
     assert snapshot_report.invariants["open_order_plan_valid"] is True
     # The completed concurrent transaction is visible to a fresh report, proving the first

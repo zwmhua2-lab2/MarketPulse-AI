@@ -92,9 +92,13 @@
   facts；standalone G3 reconciliation 也使用自己的同类只读 snapshot。真实 PostgreSQL
   并发回归已验证报告不会跨 `ACTIVE → REPLACED` plan commit 撕裂。未改 schema、migration、
   SystemControlService / RecoveryManager transaction boundary 或 G3 accounting semantics。
-  Formal Review = `CHANGES_REQUIRED / NOT ACCEPTED` 的唯一 blocker 是 transaction-state
-  evidence；Acceptance Fix #1 已直接在 production G4 → G3 session 参数路径内断言
-  `transaction_isolation=repeatable read` 与 `transaction_read_only=on`，待复审。
+  Formal Review = `CHANGES_REQUIRED / NOT ACCEPTED`。Acceptance Fix #1 仅关闭 real G4
+  transaction-state evidence：production G4 → G3 session 参数路径内断言
+  `transaction_isolation=repeatable read` 与 `transaction_read_only=on`。其余 acceptance
+  evidence 仍包括 account/order torn-read race、standalone G3 RR/RO、standalone G3
+  torn-read race、true durable corruption detection，以及 transaction identity / failure
+  cleanup evidence。Acceptance Fix #2 已补 G4→G3 same-session/same-transaction identity
+  evidence；其余项目仍待验证。
 - N01 = `NOT STARTED`，G6 = `NOT STARTED`。
 
 - G5-0 `ACCEPTED`：`AI_CONTEXT.md` 为上下文入口；`AGENTS.md` 为工程工作纪律与 Context Isolation Protocol（CIP-01～CIP-10）的正式入口。

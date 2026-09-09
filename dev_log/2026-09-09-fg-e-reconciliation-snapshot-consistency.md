@@ -39,7 +39,7 @@ Before this change, `g4.reconciliation.reconcile()` called `execution.reconcilia
 ### Formal Review Input
 
 - Formal Review result: `CHANGES_REQUIRED / NOT ACCEPTED`.
-- Production implementation was assessed as correct; the sole blocker was incomplete evidence that the production G4 → G3 call uses real PostgreSQL `REPEATABLE READ` and `READ ONLY` transaction state.
+- Production implementation was assessed as correct, but Review identified multiple incomplete evidence categories. Acceptance Fix #1 was scoped to the real production G4 → G3 `REPEATABLE READ` / `READ ONLY` transaction-state gap only.
 
 ### Scope and Change
 
@@ -58,3 +58,27 @@ Before this change, `g4.reconciliation.reconcile()` called `execution.reconcilia
 ### Status
 
 `IMPLEMENTED / WAITING REVIEW` — Formal Review remains `CHANGES_REQUIRED / NOT ACCEPTED` until a reviewer accepts this evidence. `main` was not updated.
+
+## Acceptance Fix #2 — Remaining N02 Evidence
+
+### Corrected Review State
+
+- Acceptance Fix #1 closed only the real G4 transaction-state evidence gap.
+- Remaining acceptance evidence after Fix #1: account/order torn-read race; standalone G3 RR/RO; standalone G3 torn-read race; true durable corruption detection; transaction identity and failure cleanup evidence.
+
+### Explicit G4 → G3 Transaction Identity Evidence
+
+- The real G4 supplied session records `id(session)` and `id(session.get_transaction())` immediately before invoking G3 reconciliation.
+- The production `PaperExecutionService.reconciliation()` path is then allowed to call its actual `_reconciliation_once()` implementation; that method records the same two identities from the session it actually receives.
+- The test asserts the two identity tuples are identical, in addition to the existing `SHOW transaction_isolation = repeatable read`, `SHOW transaction_read_only = on`, and concurrent plan-race snapshot assertions.
+- Test seams are restored in `finally`, including when the concurrent report path raises.
+
+### Verification
+
+- Targeted identity evidence: `py -3.14 -m pytest tests/test_group4.py -q -k 'reconciliation_uses_one_repeatable_read_snapshot_across_g3_and_g4' -ra` → `1 passed, 73 deselected`.
+- G4 regression: `py -3.14 -m pytest tests/test_group4.py -q -ra` → `74 passed in 70.78s`.
+- `py -3.14 -m ruff check tests/test_group4.py`, `py -3.14 -m compileall -q tests`, and `git diff --check` → PASS.
+
+### Status
+
+`CHANGES_REQUIRED / NOT ACCEPTED` — this Fix closes G4→G3 same-transaction identity evidence only. Remaining N02 evidence needs an explicit acceptance contract before new tests are added; `main` was not updated.
