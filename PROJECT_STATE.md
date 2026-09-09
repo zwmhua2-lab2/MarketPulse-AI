@@ -50,11 +50,12 @@ Acceptance Group 5 — ACCEPTED / COMPLETE
 
 ## In Progress
 
-- FG-D Acceptance Fix #1 — `COMPLETE / WAITING ACCEPTANCE`。F10 已以每 Pipeline 全局
-  `8192` entries FIFO recent-trade cache 替代无界 set；F07/F09/F11 已补独立 hash-seed、
-  TTL boundary/replay、failure/durable-duplicate/concurrency acceptance evidence。branch =
-  `fix/fg-d-g2-runtime-determinism`；Task Base = `4859c8f70a484353d598f80fc2e0c2658cc50864`。
-  未自行 Acceptance 或 merge。
+- FG-D Acceptance Fix #2 — `COMPLETE / WAITING ACCEPTANCE`。F10 的 `8192` entries FIFO
+  recent-trade cache 已补真实 ScannerPipeline 业务等价与正式 ReplayG2Runner duplicate
+  evidence：`A → duplicate A → B` 与 `A → B` 的最终 Rolling/FeatureSnapshot、G2 business
+  truth、SymbolState/state_version、business-event sequence 相同，duplicate 本身无下游业务事实。
+  F07/F09/F11 evidence 保持有效。branch = `fix/fg-d-g2-runtime-determinism`；Task Base =
+  `4859c8f70a484353d598f80fc2e0c2658cc50864`。未自行 Acceptance 或 merge；FG-E 未开始。
 
 ## Blocked
 

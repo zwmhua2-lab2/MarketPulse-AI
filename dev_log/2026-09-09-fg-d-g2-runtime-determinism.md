@@ -83,7 +83,9 @@ advanced when its runtime publish fails.
 
 `IMPLEMENTED / WAITING REVIEW`.
 
-No human Acceptance was claimed, no commit was created, and `main` was not changed.
+No human Acceptance was claimed and `main` was not changed. Repository truth correction: the
+initial FG-D implementation was committed as `6388eac4ebed56f112b35276b576c9d63c9a56bd`, and
+Acceptance Fix #1 was committed as `cd43be75b175645b62763fcb58938ac7bd7cf7b3`.
 
 ## Evidence
 
@@ -168,3 +170,64 @@ review.
 ### Fix #1 Evidence
 
 - `E:\Temp\marketpulse-fg-d-fix1\backend-full-final.txt`
+
+## Acceptance Fix #2 — Close Final F10 Evidence
+
+### Boundary
+
+This tests/docs-only fix adds the final F10 acceptance evidence. Production source, including
+`backend/src`, is unchanged from Fix #1. F07, F09, F11, F10 cache semantics, and the G5 canonical
+replay contract remain frozen. No schema or migration changed.
+
+### Real Scanner Business Equivalence
+
+`test_f10_real_scanner_duplicate_trade_is_business_equivalent_to_omission` uses fresh, independent
+`RollingFeatureEngine`, `OpportunityScanner`, `ScannerPipeline`, `EventRuntime`, and
+`InMemoryG2Repository` instances for each run; it does not stub `scanner.scan`.
+
+- Run A processes `Trade A → duplicate Trade A → Trade B`.
+- Run B processes `Trade A → Trade B`.
+- At the duplicate frame, the test asserts `[]`, `last_detected_events == ()`, unchanged persisted
+  MarketEvents/SignalTimeline/StateTransitions/StrategyCandidates/SymbolState, and unchanged
+  committed rolling trades.
+- The final `FeatureSnapshot`, rolling trades, repository business truth, SymbolState, and
+  state version are equal between the independent runs.
+
+### Replay Duplicate Evidence
+
+`test_replay_duplicate_trade_is_business_equivalent_to_omission` uses the formal
+`ReplayG2Runner` path with fresh runner/runtime/repository instances.
+
+- Source A is `Trade A → duplicate Trade A → Trade B`; Source B is `Trade A → Trade B`.
+- The duplicate ReplayFrame has no detected event IDs and no trace events, proving it adds no
+  MarketEvent, Timeline, StateTransition, or StrategyCandidate.
+- Final canonical G2 repository business truth, final SymbolState/state version, and the canonical
+  business-event ID sequence are equal. Raw frame count and input ordinals are intentionally not
+  compared.
+
+### Verification
+
+- `PYTHONPATH=backend/src py -3.14 -m pytest backend/tests/test_group2.py -q` → `25 passed`.
+- `PYTHONPATH=backend/src py -3.14 -m pytest backend/tests/test_group5_1_replay.py -q` → `10 passed`.
+- `PYTHONPATH=backend/src py -3.14 -m pytest backend/tests/test_group5_2_trading_replay.py -q` → `7 passed`.
+- `PYTHONPATH=backend/src py -3.14 -m pytest backend/tests/test_group5_3_determinism.py -q` → `5 passed`.
+- `PYTHONPATH=backend/src py -3.14 -m pytest backend/tests/test_group5_4_evaluation.py -q` → `10 passed`.
+- `PYTHONPATH=backend/src py -3.14 -m pytest backend/tests -q` → `150 passed, 1 warning`.
+  The warning is the existing FastAPI/Starlette TestClient/httpx deprecation.
+- `py -3.14 -m ruff check backend/src backend/tests scripts` → PASS.
+- `py -3.14 -m compileall -q backend/src backend/tests` → PASS.
+- `git diff --check` → PASS.
+- `git diff cd43be75b175645b62763fcb58938ac7bd7cf7b3 -- backend/src` → EMPTY.
+- No schema/migration diff exists relative to Fix #1; Alembic was not rerun because no production
+  source or migration changed.
+
+### Result
+
+`FG-D ACCEPTANCE FIX #2 COMPLETE — WAITING ACCEPTANCE`.
+
+No human Acceptance was claimed, no merge to `main` occurred, and FG-E was not started.
+
+### Fix #2 Evidence
+
+- `E:\Temp\marketpulse-fg-d-fix2\g5-4.txt`
+- `E:\Temp\marketpulse-fg-d-fix2\backend-full.txt`

@@ -48,6 +48,19 @@ def _runner() -> ReplayG2Runner:
     return ReplayG2Runner(ScannerConfig(flow_imbalance_threshold=0.1))
 
 
+def _repository_business_truth(result) -> dict[str, object]:
+    repository = result.repository
+    return {
+        "events": [item.model_dump(mode="json") for item in repository.events.values()],
+        "timeline": [item.model_dump(mode="json") for item in repository.timeline],
+        "transitions": [item.model_dump(mode="json") for item in repository.transitions],
+        "candidates": [item.model_dump(mode="json") for item in repository.candidates],
+        "states": {
+            key: value.model_dump(mode="json") for key, value in sorted(repository.states.items())
+        },
+    }
+
+
 def test_replay_clock_advances_to_each_received_time():
     source = _source(_frame(0, received_offset=0), _frame(1, received_offset=3))
     result = asyncio.run(_runner().run(source))
@@ -190,3 +203,31 @@ def test_replay_clock_is_explicitly_advanced_by_the_runner_fixture():
     clock.advance_to(next_time)
 
     assert clock.now() == next_time
+
+
+def test_replay_duplicate_trade_is_business_equivalent_to_omission():
+    trade_a = _frame(0, received_offset=0, price=100.0)
+    duplicate_a = ReplayFrame(
+        ordinal=1,
+        market_event=trade_a.market_event.model_copy(
+            update={
+                "event_time": HISTORICAL_START + timedelta(seconds=1),
+                "received_time": HISTORICAL_START + timedelta(seconds=1),
+            }
+        ),
+    )
+    trade_b = _frame(2, received_offset=2, price=102.0)
+
+    with_duplicate = asyncio.run(_runner().run(_source(trade_a, duplicate_a, trade_b)))
+    without_duplicate = asyncio.run(_runner().run(_source(trade_a, trade_b)))
+
+    duplicate_trace = with_duplicate.trace.frames[1]
+    assert duplicate_trace.detected_event_ids == ()
+    assert duplicate_trace.events == ()
+    assert _repository_business_truth(with_duplicate) == _repository_business_truth(
+        without_duplicate
+    )
+    assert with_duplicate.repository.states["ETH-USDT"] == without_duplicate.repository.states[
+        "ETH-USDT"
+    ]
+    assert tuple(with_duplicate.repository.events) == tuple(without_duplicate.repository.events)

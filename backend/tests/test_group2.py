@@ -819,3 +819,65 @@ def test_cross_finding_duplicate_ttl_and_post_expiry_input_are_deterministic():
 
     first, second = asyncio.run(scenario())
     assert first == second
+
+
+async def _f10_real_scanner_business_truth(*, include_duplicate: bool) -> dict[str, object]:
+    """Exercise the concrete G1->rolling->scanner->runtime path without a scanner stub."""
+    clock = ReplayClock(NOW)
+    repository = InMemoryG2Repository()
+    rolling = RollingFeatureEngine()
+    runtime = EventRuntime(
+        repository,
+        strategy_engine=StrategyEngine(clock),
+        worker_count=1,
+    )
+    pipeline = ScannerPipeline(
+        OpportunityScanner(clock=clock),
+        runtime,
+        rolling=rolling,
+        clock=clock,
+    )
+    first = _trade("f10-A", NOW)
+    duplicate = _trade("f10-A", NOW + timedelta(seconds=1))
+    second = _trade("f10-B", NOW + timedelta(seconds=2))
+    await runtime.start()
+    try:
+        await pipeline.ingest(first)
+        before_duplicate = _repository_truth(repository)
+        rolling_before_duplicate = [
+            item.model_dump(mode="json") for item in rolling._states["SOL-USDT"].trades
+        ]
+        if include_duplicate:
+            clock.advance_to(duplicate.received_time)
+            outcomes = await pipeline.ingest(duplicate)
+            assert outcomes == []
+            assert pipeline.last_detected_events == ()
+            assert _repository_truth(repository) == before_duplicate
+            assert [
+                item.model_dump(mode="json") for item in rolling._states["SOL-USDT"].trades
+            ] == rolling_before_duplicate
+        clock.advance_to(second.received_time)
+        await pipeline.ingest(second)
+    finally:
+        await runtime.stop()
+    state = repository.states["SOL-USDT"]
+    return {
+        "feature": pipeline.last_features.model_dump(mode="json"),
+        "rolling_trades": [
+            item.model_dump(mode="json") for item in rolling._states["SOL-USDT"].trades
+        ],
+        "repository": _repository_truth(repository),
+        "state": state.model_dump(mode="json"),
+        "state_version": state.state_version,
+    }
+
+
+def test_f10_real_scanner_duplicate_trade_is_business_equivalent_to_omission():
+    async def scenario():
+        return (
+            await _f10_real_scanner_business_truth(include_duplicate=True),
+            await _f10_real_scanner_business_truth(include_duplicate=False),
+        )
+
+    with_duplicate, without_duplicate = asyncio.run(scenario())
+    assert with_duplicate == without_duplicate
