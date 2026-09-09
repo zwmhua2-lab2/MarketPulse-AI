@@ -61,7 +61,7 @@ from marketpulse.g4.reevaluation import PositionReevaluationService
 from marketpulse.g4.risk_gate import SystemRiskGate
 from marketpulse.g4.state import SystemStateService
 from marketpulse.runtime import HealthRegistry
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, select, text, update
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
@@ -2179,7 +2179,7 @@ def test_reconciliation_detects_stale_risk_increasing_buy():
 
 
 def test_reconciliation_uses_one_repeatable_read_snapshot_across_g3_and_g4():
-    """A concurrent plan write cannot tear the accounting and safety halves of one report."""
+    """G4's actual G3 call shares one real read-only REPEATABLE READ transaction."""
 
     async def case():
         h = Harness()
@@ -2188,8 +2188,14 @@ def test_reconciliation_uses_one_repeatable_read_snapshot_across_g3_and_g4():
         base_snapshot_taken = asyncio.Event()
         allow_extended_reads = asyncio.Event()
         original_reconciliation = h.execution.reconciliation
+        transaction_state: tuple[str | None, str | None] | None = None
 
         async def pause_after_g3_snapshot(run_mode, *, session=None):
+            nonlocal transaction_state
+            transaction_state = (
+                await session.scalar(text("SHOW transaction_isolation")),
+                await session.scalar(text("SHOW transaction_read_only")),
+            )
             result = await original_reconciliation(run_mode, session=session)
             base_snapshot_taken.set()
             await asyncio.wait_for(allow_extended_reads.wait(), timeout=2)
@@ -2208,9 +2214,10 @@ def test_reconciliation_uses_one_repeatable_read_snapshot_across_g3_and_g4():
         report = await asyncio.wait_for(report_task, timeout=2)
         h.execution.reconciliation = original_reconciliation
         current = await h.reconcile(RunMode.REPLAY)
-        return report, current
+        return report, current, transaction_state
 
-    snapshot_report, current_report = asyncio.run(case())
+    snapshot_report, current_report, transaction_state = asyncio.run(case())
+    assert transaction_state == ("repeatable read", "on")
     assert snapshot_report.ok
     assert snapshot_report.invariants["open_order_plan_valid"] is True
     # The completed concurrent transaction is visible to a fresh report, proving the first

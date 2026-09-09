@@ -55,7 +55,10 @@ FG-E — Reconciliation Snapshot Consistency — IMPLEMENTED / WAITING REVIEW
   中读取 G3 accounting 与 G4 extended facts；未改 schema、migration、Control/Recovery
   semantics 或 execution accounting。真实 PostgreSQL 并发回归证明：G3 基础读取后并发
   `ACTIVE → REPLACED` plan commit 不会撕裂同一报告；新报告才会看到该提交并报告
-  `open_order_plan_valid=False`。
+  `open_order_plan_valid=False`。Formal Review 曾判 `CHANGES_REQUIRED / NOT ACCEPTED`，
+  唯一 blocker 是缺少真实 transaction-state evidence；Acceptance Fix #1 已在 production
+  G4 → G3 调用路径内以同一传入 session 实测 `transaction_isolation=repeatable read` 与
+  `transaction_read_only=on`，仍待复审，未自行 Acceptance。
 
 ## Blocked
 
@@ -142,8 +145,9 @@ FG-E — Reconciliation Snapshot Consistency — IMPLEMENTED / WAITING REVIEW
 - Group 5-3 = `ACCEPTED`（2026-09-06 Formal Acceptance Closeout；Implementation Acceptance Basis = `f4c07333600f605cbcc5e34b591659feb1b1f318`；Review Fix #1 = VERIFIED）。
 - G5-4 = `ACCEPTED`（Formal Acceptance Closeout 2026-09-06；Production Implementation Basis = `8678b2927a2d029ac0767e49acc9e0732c329bfa`；Self Review Fix #1 Evidence = `fe610c1f23457ff11f2d5c8654e9de0aec4ff289`）。
 - G5 overall = `ACCEPTED / COMPLETE`。
-- FG-E / N02 = `IMPLEMENTED / WAITING REVIEW`（实现与真实 PostgreSQL 回归完成；尚未人工
-  Acceptance，未推进 `main`）。
+- FG-E / N02 = `IMPLEMENTED / WAITING REVIEW`（Formal Review = `CHANGES_REQUIRED / NOT
+  ACCEPTED`；Acceptance Fix #1 已补全真实 PostgreSQL `REPEATABLE READ` + `READ ONLY`
+  transaction-state evidence，尚待复审，未推进 `main`）。
 
 ## Group 5-1 Result
 

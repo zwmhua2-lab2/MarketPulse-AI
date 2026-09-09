@@ -33,3 +33,28 @@ Before this change, `g4.reconciliation.reconcile()` called `execution.reconcilia
 ## Status
 
 `IMPLEMENTED / WAITING REVIEW` — no human Acceptance was claimed and `main` was not updated.
+
+## Acceptance Fix #1 — Complete N02 Snapshot Evidence
+
+### Formal Review Input
+
+- Formal Review result: `CHANGES_REQUIRED / NOT ACCEPTED`.
+- Production implementation was assessed as correct; the sole blocker was incomplete evidence that the production G4 → G3 call uses real PostgreSQL `REPEATABLE READ` and `READ ONLY` transaction state.
+
+### Scope and Change
+
+- Tests and documentation only. No production source was modified.
+- The existing real PostgreSQL concurrent snapshot regression now intercepts the actual `g4.reconciliation.reconcile()` call to `execution.reconciliation(..., session=session)`.
+- Before it invokes the original G3 reconciliation using that exact session, it runs `SHOW transaction_isolation` and `SHOW transaction_read_only` through the supplied session and asserts `("repeatable read", "on")`.
+- The existing concurrent `ACTIVE → REPLACED` plan-commit proof remains: the in-flight report retains the coherent pre-commit snapshot, and a fresh report observes the committed invalid plan/order relationship.
+
+### Verification
+
+- Targeted state evidence: `py -3.14 -m pytest tests/test_group4.py -q -k 'reconciliation_uses_one_repeatable_read_snapshot_across_g3_and_g4' -ra` → `1 passed, 73 deselected`.
+- G4 regression: `py -3.14 -m pytest tests/test_group4.py -q -ra` → `74 passed in 69.41s`.
+- Full backend: `py -3.14 -m pytest tests -q -ra` → `151 passed, 1 warning in 186.46s`; warning is existing FastAPI/Starlette TestClient deprecation.
+- `py -3.14 -m ruff check tests/test_group4.py` and `py -3.14 -m compileall -q tests` → PASS.
+
+### Status
+
+`IMPLEMENTED / WAITING REVIEW` — Formal Review remains `CHANGES_REQUIRED / NOT ACCEPTED` until a reviewer accepts this evidence. `main` was not updated.
