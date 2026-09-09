@@ -231,3 +231,52 @@ No human Acceptance was claimed, no merge to `main` occurred, and FG-E was not s
 
 - `E:\Temp\marketpulse-fg-d-fix2\g5-4.txt`
 - `E:\Temp\marketpulse-fg-d-fix2\backend-full.txt`
+
+## Final Acceptance Record
+
+FG-D — G2 Runtime Determinism & Failure Atomicity = `ACCEPTED / COMPLETE`.
+
+Accepted Implementation:
+
+`b08c2ea1eef4e2780a98b68dfaa2d5954af7d42b`
+
+Formal Acceptance findings closed:
+
+- F07 = `ACCEPTED / FIXED`.
+- F09 = `ACCEPTED / FIXED`.
+- F10 = `ACCEPTED / FIXED`.
+- F11 = `ACCEPTED / FIXED`.
+
+### Final Contracts
+
+#### F10 — Recent-trade cache
+
+- Capacity is `8192`, global per `ScannerPipeline` instance.
+- Eviction is FIFO; a duplicate hit does not refresh its FIFO position.
+- An evicted identity may re-enter as new input.
+- This is recent-window reconnect/duplicate suppression only, not a permanent historical
+  exactly-once claim.
+
+#### F09 — TTL reachability
+
+- TTL is input-driven, not timer-driven.
+- Its deadline is committed `event_time + configured TTL`.
+- Expiry occurs when a subsequent processing Clock reaches or exceeds that deadline.
+- No background timer was introduced in FG-D.
+
+#### F11 — Failure atomicity
+
+- Successful persistence is the EventRuntime state/dedupe commit boundary.
+
+### Accepted Verification Record
+
+- G2 = `25 passed`.
+- G5-1 = `10 passed`.
+- G5-2 = `7 passed`.
+- G5-3 = `5 passed`.
+- G5-4 = `10 passed`.
+- Full backend = `150 passed, 1 warning`.
+- Ruff = PASS; compileall = PASS; `git diff --check` = PASS.
+- schema/migration diff = EMPTY.
+
+This closeout adds no implementation change. FG-E remains `NOT STARTED`.

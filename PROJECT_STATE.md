@@ -50,12 +50,9 @@ Acceptance Group 5 — ACCEPTED / COMPLETE
 
 ## In Progress
 
-- FG-D Acceptance Fix #2 — `COMPLETE / WAITING ACCEPTANCE`。F10 的 `8192` entries FIFO
-  recent-trade cache 已补真实 ScannerPipeline 业务等价与正式 ReplayG2Runner duplicate
-  evidence：`A → duplicate A → B` 与 `A → B` 的最终 Rolling/FeatureSnapshot、G2 business
-  truth、SymbolState/state_version、business-event sequence 相同，duplicate 本身无下游业务事实。
-  F07/F09/F11 evidence 保持有效。branch = `fix/fg-d-g2-runtime-determinism`；Task Base =
-  `4859c8f70a484353d598f80fc2e0c2658cc50864`。未自行 Acceptance 或 merge；FG-E 未开始。
+- 无。FG-D — G2 Runtime Determinism & Failure Atomicity = `ACCEPTED / COMPLETE`；F07、F09、
+  F10、F11 = `ACCEPTED / FIXED`；Accepted Implementation =
+  `b08c2ea1eef4e2780a98b68dfaa2d5954af7d42b`。FG-E = `NOT STARTED`。
 
 ## Blocked
 
