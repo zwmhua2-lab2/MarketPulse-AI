@@ -6,7 +6,11 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from marketpulse.clock import Clock
-from marketpulse.market_data.models import AuxiliaryContext, NormalizedMarketEvent
+from marketpulse.market_data.models import (
+    AuxiliaryContext,
+    NormalizedMarketEvent,
+    NormalizedTrade,
+)
 
 from .models import (
     FeatureSnapshot,
@@ -80,6 +84,7 @@ class EventRuntime:
         self._workers: list[asyncio.Task[None]] = []
         self._locks: dict[str, asyncio.Lock] = {}
         self._dedupe: set[str] = set()
+        self._inflight: dict[str, asyncio.Future[ApplyOutcome]] = {}
         self.worker_exceptions: list[BaseException] = []
 
     async def start(self) -> None:
@@ -107,11 +112,14 @@ class EventRuntime:
                 event.event_id,
                 StateApplyResult.NO_CHANGE,
                 False,
-                self.state_manager.current(event).state_version,
-                self.state_manager.current(event).model_copy(deep=True),
+                self.state_manager.snapshot_for(event.instrument_id, event.symbol).state_version,
+                self.state_manager.snapshot_for(event.instrument_id, event.symbol),
             )
-        self._dedupe.add(event.event_id)
+        existing = self._inflight.get(event.event_id)
+        if existing is not None:
+            return await asyncio.shield(existing)
         future: asyncio.Future[ApplyOutcome] = asyncio.get_running_loop().create_future()
+        self._inflight[event.event_id] = future
         await self.queue.put(
             (
                 -event.priority,
@@ -125,7 +133,7 @@ class EventRuntime:
         stored = await self.repository.get_state(instrument_id)
         if stored:
             return self.state_manager.hydrate(stored)
-        return self.state_manager.state_for(instrument_id, symbol)
+        return self.state_manager.snapshot_for(instrument_id, symbol)
 
     async def _worker(self, _: int) -> None:
         while True:
@@ -138,19 +146,23 @@ class EventRuntime:
                     outcome = await self._apply(
                         queued.event, queued.features, queued.lifecycle_action
                     )
+                if outcome.persisted:
+                    self._dedupe.add(queued.event.event_id)
                 queued.future.set_result(outcome)
             except Exception as exc:  # noqa: BLE001 - propagate every worker failure to publisher and test harness
                 self.worker_exceptions.append(exc)
                 if queued is not None and not queued.future.done():
                     queued.future.set_exception(exc)
             finally:
+                if queued is not None:
+                    self._inflight.pop(queued.event.event_id, None)
                 self.queue.task_done()
 
     async def _apply(
         self, event: MarketEvent, features: FeatureSnapshot, action: LifecycleAction
     ) -> ApplyOutcome:
         await self.current_state(event.instrument_id, event.symbol)
-        state, transition = self.state_manager.apply(event, action)
+        state, transition = self.state_manager.prepare_apply(event, action)
         timeline = SignalTimelineEvent(
             timeline_id=deterministic_id("tl", event.event_id, action),
             event_id=event.event_id,
@@ -175,14 +187,62 @@ class EventRuntime:
         persisted = await self.repository.persist(
             event, timeline, state, transition, candidates, features
         )
+        if persisted:
+            self.state_manager.commit(state)
+        else:
+            state = self.state_manager.snapshot_for(event.instrument_id, event.symbol)
         return ApplyOutcome(
             event.event_id,
-            transition.result,
+            transition.result if persisted else StateApplyResult.NO_CHANGE,
             persisted,
             state.state_version,
             state.model_copy(deep=True),
-            transition,
+            transition if persisted else None,
         )
+
+    async def expire(self, features: FeatureSnapshot, now) -> ApplyOutcome | None:
+        """Persist a reachable TTL expiry through the same per-symbol runtime fence."""
+        lock = self._locks.setdefault(features.instrument_id, asyncio.Lock())
+        async with lock:
+            await self.current_state(features.instrument_id, features.symbol)
+            prepared = self.state_manager.prepare_expire(
+                features.instrument_id, now, features.market_type
+            )
+            if prepared is None:
+                return None
+            state, transition, event = prepared
+            timeline = SignalTimelineEvent(
+                timeline_id=deterministic_id("tl", event.event_id, LifecycleAction.NORMALIZED),
+                event_id=event.event_id,
+                symbol=event.symbol,
+                instrument_id=event.instrument_id,
+                signal_type=event.event_type,
+                event_time=event.event_time,
+                received_time=event.received_time,
+                price=features.current_price,
+                context={"reason": transition.reason},
+                strength=event.strength,
+                lifecycle_action=LifecycleAction.NORMALIZED,
+                symbol_state=state.state,
+                state_version=state.state_version,
+                config_version=event.config_version,
+            )
+            persisted = await self.repository.persist(
+                event, timeline, state, transition, [], features
+            )
+            if persisted:
+                self.state_manager.commit(state)
+                self._dedupe.add(event.event_id)
+            else:
+                state = self.state_manager.snapshot_for(event.instrument_id, event.symbol)
+            return ApplyOutcome(
+                event.event_id,
+                transition.result if persisted else StateApplyResult.NO_CHANGE,
+                persisted,
+                state.state_version,
+                state.model_copy(deep=True),
+                transition if persisted else None,
+            )
 
 
 class ScannerPipeline:
@@ -201,6 +261,7 @@ class ScannerPipeline:
         self.clock = clock or scanner.clock
         self.lifecycle = SignalLifecycle()
         self._btc_returns: dict[str, float] = {}
+        self._trade_dedupe: set[tuple[str, str, str, str]] = set()
         self.last_detected_events: tuple[MarketEvent, ...] = ()
         # Read-only replay handoff: the exact feature fact already calculated for this frame.
         self.last_features: FeatureSnapshot | None = None
@@ -208,15 +269,25 @@ class ScannerPipeline:
     async def ingest(
         self, market_event: NormalizedMarketEvent, auxiliary: AuxiliaryContext | None = None
     ) -> list[ApplyOutcome]:
+        trade_key = self._trade_key(market_event)
+        if trade_key is not None and trade_key in self._trade_dedupe:
+            return []
         btc_return = self._btc_returns.get("BTC-USDT")
-        features = self.rolling.ingest(market_event, auxiliary=auxiliary, btc_return=btc_return)
-        self.last_features = features
-        if features.symbol == "BTC-USDT" and features.short_return is not None:
-            self._btc_returns["BTC-USDT"] = features.short_return
+        working_rolling = self.rolling.copy()
+        features = working_rolling.ingest(
+            market_event, auxiliary=auxiliary, btc_return=btc_return
+        )
+        expiry = await self.runtime.expire(features, self.clock.now())
         events = self.scanner.scan(features, received_time=self.clock.now(), state_version=0)
         detected_types = {event.event_type for event in events}
-        for active_type in self.lifecycle.active_types(features.instrument_id) - detected_types:
-            previous_event_id = self.lifecycle.normalize(features.instrument_id, active_type)
+        normalized_types = sorted(
+            self.lifecycle.active_types(features.instrument_id) - detected_types,
+            key=lambda event_type: event_type.value,
+        )
+        for active_type in normalized_types:
+            previous_event_id = self.lifecycle.preview_normalize(
+                features.instrument_id, active_type
+            )
             if previous_event_id:
                 now = self.clock.now()
                 events.append(
@@ -238,13 +309,12 @@ class ScannerPipeline:
                         payload={"normalized_from_event_id": previous_event_id},
                     )
                 )
-        self.last_detected_events = tuple(events)
-        outcomes = []
+        outcomes = [expiry] if expiry is not None else []
         for event in events:
             action = (
                 LifecycleAction.NORMALIZED
                 if event.source == "g2.signal_lifecycle"
-                else self.lifecycle.action_for(event)
+                else self.lifecycle.preview_action(event)
             )
             if action is None:
                 continue
@@ -254,4 +324,22 @@ class ScannerPipeline:
             versioned_event = event.model_copy(update={"state_version": current_version})
             outcome = await self.runtime.publish(versioned_event, features, action)
             outcomes.append(outcome)
+            if outcome.persisted:
+                if action is LifecycleAction.NORMALIZED:
+                    self.lifecycle.commit_normalize(event.instrument_id, event.event_type)
+                else:
+                    self.lifecycle.commit_action(event, action)
+        self.rolling.commit(working_rolling)
+        self.last_detected_events = tuple(events)
+        self.last_features = features
+        if features.symbol == "BTC-USDT" and features.short_return is not None:
+            self._btc_returns["BTC-USDT"] = features.short_return
+        if trade_key is not None:
+            self._trade_dedupe.add(trade_key)
         return outcomes
+
+    @staticmethod
+    def _trade_key(event: NormalizedMarketEvent) -> tuple[str, str, str, str] | None:
+        if not isinstance(event, NormalizedTrade):
+            return None
+        return (event.exchange, event.instrument_id, event.market_type.value, event.trade_id)

@@ -81,6 +81,15 @@
 
 ## 6. Next Step Entry（下一步工作入口）
 
+### FG-D Remediation（Current）
+
+- FG-D — G2 Runtime Determinism & Failure Atomicity：`IMPLEMENTED / WAITING REVIEW`；branch
+  `fix/fg-d-g2-runtime-determinism`，Task Base / current accepted main =
+  `4859c8f70a484353d598f80fc2e0c2658cc50864`。
+- Scope 仅为 F07 / F09 / F10 / F11：生命周期归一化确定性顺序、input-driven TTL、
+  NormalizedTrade 去重与 EventRuntime 持久化失败原子性。无 schema/migration、G2 business
+  semantics、G5 canonical replay contract、G3/G4/Live 修改；未自行 Acceptance 或 merge。
+
 - G5-0 `ACCEPTED`：`AI_CONTEXT.md` 为上下文入口；`AGENTS.md` 为工程工作纪律与 Context Isolation Protocol（CIP-01～CIP-10）的正式入口。
 - G5-1 `ACCEPTED`：Deterministic Replay Foundation 已验收，implementation acceptance basis = `34da62a0cc9dbe95b95faadb770fbd06179a6975`。
 - G5-2 Trading Replay Integration = `ACCEPTED`（Implementation Acceptance Basis = `2a7d0c858c70f21215a090ee3b583d341cfd84b4`；详见 `dev_log/2026-09-06-group5-2.md`「Formal Acceptance Record」）。

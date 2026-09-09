@@ -1,6 +1,8 @@
 import asyncio
 from datetime import UTC, datetime, timedelta
 
+import pytest
+from marketpulse.clock import ReplayClock
 from marketpulse.g2.models import (
     EventType,
     FeatureSnapshot,
@@ -174,3 +176,217 @@ def test_normalized_market_data_reaches_scanner_timeline_state_and_strategy():
     assert outcomes and outcomes[0].persisted
     assert len(repository.events) == len(repository.timeline) == len(outcomes)
     assert repository.candidates and all(candidate.direction_bias.value in {"BULLISH", "BEARISH", "NEUTRAL"} for candidate in repository.candidates)
+
+
+def test_pipeline_normalizes_active_lifecycle_types_in_stable_event_type_order():
+    async def scenario():
+        repository = InMemoryG2Repository()
+        runtime = EventRuntime(repository, worker_count=1)
+        pipeline = ScannerPipeline(OpportunityScanner(), runtime)
+        pipeline.scanner.scan = lambda *_args, **_kwargs: []
+        for event_type in (EventType.VOLUME_ANOMALY, EventType.BREAKOUT, EventType.FLOW_IMBALANCE):
+            assert pipeline.lifecycle.action_for(_event(event_type, 0)) is LifecycleAction.START
+        await runtime.start()
+        outcomes = await pipeline.ingest(
+            NormalizedTrade(
+                base_asset="SOL",
+                quote_asset="USDT",
+                market_type=MarketType.SPOT,
+                instrument_id="SOL-USDT",
+                event_time=NOW + timedelta(seconds=1),
+                received_time=NOW + timedelta(seconds=1),
+                source="fixture",
+                trade_id="normalization-order",
+                price=101,
+                quantity=1,
+                side="buy",
+            )
+        )
+        await runtime.stop()
+        return pipeline, outcomes
+
+    pipeline, outcomes = asyncio.run(scenario())
+    normalized = [
+        event.event_type for event in pipeline.last_detected_events if event.source == "g2.signal_lifecycle"
+    ]
+    assert normalized == sorted(normalized, key=lambda event_type: event_type.value)
+    assert [outcome.transition.reason for outcome in outcomes] == [
+        "already_idle",
+        "already_idle",
+        "already_idle",
+    ]
+
+
+def test_pipeline_reaches_and_persists_ttl_expiry_before_next_input():
+    async def scenario():
+        repository = InMemoryG2Repository()
+        runtime = EventRuntime(
+            repository,
+            state_manager=SymbolStateManager(
+                StateMachineConfig(watch_ttl=timedelta(minutes=1))
+            ),
+            worker_count=1,
+        )
+        await runtime.start()
+        first = await runtime.publish(_event(EventType.VOLUME_ANOMALY, 0), _features())
+        second = await runtime.publish(
+            _event(EventType.FLOW_IMBALANCE, 1, NOW + timedelta(seconds=1)),
+            _features(NOW + timedelta(seconds=1)),
+        )
+        clock = ReplayClock(NOW + timedelta(minutes=2))
+        pipeline = ScannerPipeline(OpportunityScanner(clock=clock), runtime, clock=clock)
+        pipeline.scanner.scan = lambda *_args, **_kwargs: []
+        outcomes = await pipeline.ingest(
+            NormalizedTrade(
+                base_asset="SOL",
+                quote_asset="USDT",
+                market_type=MarketType.SPOT,
+                instrument_id="SOL-USDT",
+                event_time=clock.now(),
+                received_time=clock.now(),
+                source="fixture",
+                trade_id="ttl-reachability",
+                price=100,
+                quantity=1,
+                side="buy",
+            )
+        )
+        await runtime.stop()
+        return repository, first, second, outcomes
+
+    repository, first, second, outcomes = asyncio.run(scenario())
+    assert first.persisted and second.persisted
+    assert len(outcomes) == 1
+    expiry = outcomes[0]
+    assert expiry.persisted and expiry.transition is not None
+    assert expiry.transition.reason == "watch_ttl_expired"
+    assert repository.events[expiry.event_id].source == "g2.state_ttl"
+    assert repository.timeline[-1].lifecycle_action is LifecycleAction.NORMALIZED
+    assert repository.states["SOL-USDT"].state is SymbolState.IDLE
+
+
+def test_duplicate_normalized_trade_does_not_mutate_rolling_state_twice():
+    async def scenario():
+        repository = InMemoryG2Repository()
+        runtime = EventRuntime(repository, worker_count=1)
+        pipeline = ScannerPipeline(OpportunityScanner(), runtime)
+        pipeline.scanner.scan = lambda *_args, **_kwargs: []
+        trade = NormalizedTrade(
+            base_asset="SOL",
+            quote_asset="USDT",
+            market_type=MarketType.SPOT,
+            instrument_id="SOL-USDT",
+            event_time=NOW,
+            received_time=NOW,
+            source="fixture",
+            trade_id="duplicate-trade",
+            price=100,
+            quantity=2,
+            side="buy",
+        )
+        await runtime.start()
+        first = await pipeline.ingest(trade)
+        second = await pipeline.ingest(trade)
+        await runtime.stop()
+        return pipeline, first, second
+
+    pipeline, first, second = asyncio.run(scenario())
+    assert first == [] and second == []
+    assert len(pipeline.rolling._states["SOL-USDT"].trades) == 1
+
+
+def test_runtime_failure_does_not_commit_state_or_dedupe_and_retry_succeeds():
+    class FailOnceRepository(InMemoryG2Repository):
+        def __init__(self):
+            super().__init__()
+            self.calls = 0
+
+        async def persist(self, *args, **kwargs):
+            self.calls += 1
+            if self.calls == 1:
+                raise RuntimeError("injected persist failure")
+            return await super().persist(*args, **kwargs)
+
+    async def scenario():
+        repository = FailOnceRepository()
+        runtime = EventRuntime(repository, worker_count=1)
+        event = _event(EventType.VOLUME_ANOMALY, 0, event_id="retry-after-failure")
+        await runtime.start()
+        with pytest.raises(RuntimeError, match="injected persist failure"):
+            await runtime.publish(event, _features())
+        failed_state = runtime.state_manager.snapshot_for(event.instrument_id, event.symbol)
+        dedupe_after_failure = set(runtime._dedupe)
+        retried = await runtime.publish(event, _features())
+        await runtime.stop()
+        return repository, runtime, failed_state, dedupe_after_failure, retried
+
+    repository, runtime, failed_state, dedupe_after_failure, retried = asyncio.run(scenario())
+    assert failed_state.state is SymbolState.IDLE and failed_state.state_version == 0
+    assert "retry-after-failure" not in dedupe_after_failure
+    assert not runtime._inflight
+    assert retried.persisted and retried.state.state is SymbolState.DETECTED
+    assert repository.calls == 2 and set(repository.events) == {"retry-after-failure"}
+
+
+def test_runtime_rejected_persistence_does_not_commit_state_or_dedupe():
+    class RejectOnceRepository(InMemoryG2Repository):
+        def __init__(self):
+            super().__init__()
+            self.calls = 0
+
+        async def persist(self, *args, **kwargs):
+            self.calls += 1
+            if self.calls == 1:
+                return False
+            return await super().persist(*args, **kwargs)
+
+    async def scenario():
+        repository = RejectOnceRepository()
+        runtime = EventRuntime(repository, worker_count=1)
+        event = _event(EventType.VOLUME_ANOMALY, 0, event_id="retry-after-rejection")
+        await runtime.start()
+        rejected = await runtime.publish(event, _features())
+        rejected_state = runtime.state_manager.snapshot_for(event.instrument_id, event.symbol)
+        rejected_dedupe = set(runtime._dedupe)
+        retried = await runtime.publish(event, _features())
+        await runtime.stop()
+        return repository, rejected, rejected_state, rejected_dedupe, retried
+
+    repository, rejected, rejected_state, rejected_dedupe, retried = asyncio.run(scenario())
+    assert not rejected.persisted and rejected.transition is None
+    assert rejected.result is StateApplyResult.NO_CHANGE
+    assert rejected_state.state is SymbolState.IDLE and rejected_state.state_version == 0
+    assert not rejected_dedupe
+    assert retried.persisted and repository.calls == 2
+
+
+def test_concurrent_duplicate_publishers_share_failed_attempt_then_retry():
+    class FailOnceRepository(InMemoryG2Repository):
+        def __init__(self):
+            super().__init__()
+            self.calls = 0
+
+        async def persist(self, *args, **kwargs):
+            self.calls += 1
+            if self.calls == 1:
+                raise RuntimeError("injected shared failure")
+            return await super().persist(*args, **kwargs)
+
+    async def scenario():
+        repository = FailOnceRepository()
+        runtime = EventRuntime(repository, worker_count=1)
+        event = _event(EventType.VOLUME_ANOMALY, 0, event_id="shared-failed-attempt")
+        first = asyncio.create_task(runtime.publish(event, _features()))
+        await asyncio.sleep(0)
+        second = asyncio.create_task(runtime.publish(event, _features()))
+        await asyncio.sleep(0)
+        await runtime.start()
+        results = await asyncio.gather(first, second, return_exceptions=True)
+        retried = await runtime.publish(event, _features())
+        await runtime.stop()
+        return repository, results, retried
+
+    repository, results, retried = asyncio.run(scenario())
+    assert repository.calls == 2
+    assert all(isinstance(result, RuntimeError) for result in results)
+    assert retried.persisted

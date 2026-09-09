@@ -50,7 +50,11 @@ Acceptance Group 5 — ACCEPTED / COMPLETE
 
 ## In Progress
 
-- 无。FG-C 已完成 Acceptance Closeout。
+- FG-D — G2 Runtime Determinism & Failure Atomicity：`IMPLEMENTED / WAITING REVIEW`。
+  Scope = F07 deterministic lifecycle normalization ordering、F09 input-driven TTL reachability、
+  F10 NormalizedTrade input dedupe before Rolling mutation、F11 EventRuntime persistence failure
+  atomicity；branch = `fix/fg-d-g2-runtime-determinism`；Task Base =
+  `4859c8f70a484353d598f80fc2e0c2658cc50864`。未自行 Acceptance 或 merge。
 
 ## Blocked
 

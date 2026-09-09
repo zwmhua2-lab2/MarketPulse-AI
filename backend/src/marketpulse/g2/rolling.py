@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 from collections import deque
+from copy import deepcopy
 from dataclasses import dataclass, field
 from itertools import pairwise
 
@@ -34,6 +35,16 @@ class RollingFeatureEngine:
 
     def __init__(self) -> None:
         self._states: dict[str, _SymbolRollingState] = {}
+
+    def copy(self) -> RollingFeatureEngine:
+        """Return an isolated working copy for an input frame."""
+        copied = RollingFeatureEngine()
+        copied._states = deepcopy(self._states)
+        return copied
+
+    def commit(self, working: RollingFeatureEngine) -> None:
+        """Publish a successfully processed frame's rolling-state changes."""
+        self._states = working._states
 
     def ingest(self, event: NormalizedMarketEvent, auxiliary: AuxiliaryContext | None = None, btc_return: float | None = None) -> FeatureSnapshot:
         state = self._states.setdefault(event.instrument_id, _SymbolRollingState())

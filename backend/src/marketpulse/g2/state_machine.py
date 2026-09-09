@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta
+
+from marketpulse.market_data.models import MarketType
 
 from .models import (
     EventType,
@@ -38,6 +40,12 @@ class SymbolStateManager:
     def state_for(self, instrument_id: str, symbol: str) -> SymbolStateRecord:
         return self._records.setdefault(instrument_id, SymbolStateRecord(instrument_id=instrument_id, symbol=symbol))
 
+    def snapshot_for(self, instrument_id: str, symbol: str) -> SymbolStateRecord:
+        current = self._records.get(instrument_id)
+        if current is None:
+            return SymbolStateRecord(instrument_id=instrument_id, symbol=symbol)
+        return current.model_copy(deep=True)
+
     def hydrate(self, record: SymbolStateRecord) -> SymbolStateRecord:
         current = self._records.get(record.instrument_id)
         if current is None or record.state_version >= current.state_version:
@@ -45,7 +53,18 @@ class SymbolStateManager:
         return self._records[record.instrument_id]
 
     def apply(self, event: MarketEvent, action: LifecycleAction, expected_state_version: int | None = None) -> tuple[SymbolStateRecord, StateTransition]:
-        current = self.current(event)
+        state, transition = self.prepare_apply(event, action, expected_state_version)
+        self.commit(state)
+        return state, transition
+
+    def prepare_apply(
+        self,
+        event: MarketEvent,
+        action: LifecycleAction,
+        expected_state_version: int | None = None,
+    ) -> tuple[SymbolStateRecord, StateTransition]:
+        """Build a transition without changing the committed in-memory state."""
+        current = self.snapshot_for(event.instrument_id, event.symbol)
         expected = event.state_version if expected_state_version is None else expected_state_version
         if expected != current.state_version:
             return current, self._transition(current, current.state, event, StateApplyResult.REJECT_STALE_OPERATION, "expected_state_version_mismatch")
@@ -66,16 +85,36 @@ class SymbolStateManager:
             current.cooldown_until = event.event_time + self.config.cooldown
         return current, self._transition(current, target, event, StateApplyResult.APPLIED, reason, from_state=before)
 
-    def expire(self, instrument_id: str, now) -> StateTransition | None:
-        current = self._records.get(instrument_id)
+    def commit(self, record: SymbolStateRecord) -> SymbolStateRecord:
+        self._records[record.instrument_id] = record.model_copy(deep=True)
+        return self._records[record.instrument_id]
+
+    def expire(self, instrument_id: str, now: datetime) -> StateTransition | None:
+        prepared = self.prepare_expire(instrument_id, now)
+        if prepared is None:
+            return None
+        state, transition, _ = prepared
+        self.commit(state)
+        return transition
+
+    def prepare_expire(
+        self,
+        instrument_id: str,
+        now: datetime,
+        market_type: MarketType = MarketType.SPOT,
+    ) -> tuple[SymbolStateRecord, StateTransition, MarketEvent] | None:
+        """Build a TTL transition without changing the committed in-memory state."""
+        stored = self._records.get(instrument_id)
+        current = stored.model_copy(deep=True) if stored else None
         if not current or current.state is SymbolState.IDLE or not current.watch_expires_at or now < current.watch_expires_at:
             return None
         before = current.state
         current.state = SymbolState.IDLE
         current.state_version += 1
         current.cooldown_until = now + self.config.cooldown
-        synthetic = MarketEvent(event_id=deterministic_id("ttl", instrument_id, now.isoformat()), symbol=current.symbol, instrument_id=instrument_id, market_type="SPOT", event_type=EventType.STRUCTURE_CHANGE, event_time=now, received_time=now, source="g2.state_ttl", strength=0, priority=0, state_version=current.state_version - 1, config_version=self.config.version)
-        return self._transition(current, SymbolState.IDLE, synthetic, StateApplyResult.APPLIED, "watch_ttl_expired", from_state=before)
+        synthetic = MarketEvent(event_id=deterministic_id("ttl", instrument_id, now.isoformat()), symbol=current.symbol, instrument_id=instrument_id, market_type=market_type, event_type=EventType.STRUCTURE_CHANGE, event_time=now, received_time=now, source="g2.state_ttl", strength=0, priority=0, state_version=current.state_version - 1, config_version=self.config.version)
+        transition = self._transition(current, SymbolState.IDLE, synthetic, StateApplyResult.APPLIED, "watch_ttl_expired", from_state=before)
+        return current, transition, synthetic
 
     def _target(self, current: SymbolStateRecord, event: MarketEvent, action: LifecycleAction) -> tuple[SymbolState, str]:
         if action is LifecycleAction.NORMALIZED or event.event_type is EventType.FAILED_BREAKOUT:
