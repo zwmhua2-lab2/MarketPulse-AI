@@ -50,11 +50,11 @@ Acceptance Group 5 — ACCEPTED / COMPLETE
 
 ## In Progress
 
-- FG-D — G2 Runtime Determinism & Failure Atomicity：`IMPLEMENTED / WAITING REVIEW`。
-  Scope = F07 deterministic lifecycle normalization ordering、F09 input-driven TTL reachability、
-  F10 NormalizedTrade input dedupe before Rolling mutation、F11 EventRuntime persistence failure
-  atomicity；branch = `fix/fg-d-g2-runtime-determinism`；Task Base =
-  `4859c8f70a484353d598f80fc2e0c2658cc50864`。未自行 Acceptance 或 merge。
+- FG-D Acceptance Fix #1 — `COMPLETE / WAITING ACCEPTANCE`。F10 已以每 Pipeline 全局
+  `8192` entries FIFO recent-trade cache 替代无界 set；F07/F09/F11 已补独立 hash-seed、
+  TTL boundary/replay、failure/durable-duplicate/concurrency acceptance evidence。branch =
+  `fix/fg-d-g2-runtime-determinism`；Task Base = `4859c8f70a484353d598f80fc2e0c2658cc50864`。
+  未自行 Acceptance 或 merge。
 
 ## Blocked
 

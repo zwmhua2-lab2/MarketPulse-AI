@@ -89,3 +89,82 @@ No human Acceptance was claimed, no commit was created, and `main` was not chang
 
 - `E:\Temp\marketpulse-fg-d\g5-4.txt`
 - `E:\Temp\marketpulse-fg-d\backend-full-final.txt`
+
+## Acceptance Fix #1 — Bounded Trade Dedupe & Missing Acceptance Evidence
+
+### Review Result / Boundary
+
+Independent review marked the original FG-D `CHANGES_REQUIRED / NOT ACCEPTED`: F10 was an
+unbounded `set`; F07/F09/F11 production looked correct but lacked prescribed evidence. This fix
+changes only F10 production code. F07/F09/F11 production semantics remain frozen.
+
+### F10 — Bounded FIFO Cache
+
+- `ScannerPipeline.trade_dedupe_capacity` defaults to `8192`, globally per Pipeline instance.
+- Identity remains `(exchange, instrument_id, market_type, trade_id)`.
+- The cache uses FIFO arrival order. A duplicate hit returns `[]`, clears
+  `last_detected_events`, and does not refresh FIFO position or mutate Rolling, BTC returns,
+  lifecycle, EventRuntime, repository, or `last_features`.
+- New identity insertion happens only after successful frame completion. At capacity, the oldest
+  distinct identity is evicted; an evicted identity is intentionally processed as new input.
+- No database table, configuration source, Redis, schema, migration, scheduler, or F07/F09/F11
+  production change was added.
+
+### F07 Acceptance Evidence
+
+`test_f07_normalization_trace_is_hash_seed_independent_in_subprocesses` starts independent
+`sys.executable` processes at `PYTHONHASHSEED=1`, `2`, and `777`. Each real Pipeline creates three
+active lifecycle types and processes one empty-detector frame. The canonical JSON includes required
+normalized event types/IDs, timeline IDs, transition IDs/to-states, and state versions.
+
+All three SHA-256 values are identical:
+
+| Seed | Canonical JSON SHA-256 |
+| --- | --- |
+| 1 | `84e50a9fb5832f117d2529e454b14895d4bb020bb85751d07de32c5857c5e5f6` |
+| 2 | `84e50a9fb5832f117d2529e454b14895d4bb020bb85751d07de32c5857c5e5f6` |
+| 777 | `84e50a9fb5832f117d2529e454b14895d4bb020bb85751d07de32c5857c5e5f6` |
+
+### F09 Acceptance Evidence
+
+Real Pipeline/Runtime paths establish both `IDLE → DETECTED → WATCHING` and
+`IDLE → DETECTED → SETUP`; no test calls `state_manager.expire()` directly. Evidence covers TTL
+deadline from committed event time plus configured TTL, equality expiry, one-microsecond-before
+non-expiry, durable event/timeline/transition/state/cooldown facts, and two fresh ReplayClock runs
+with identical TTL IDs/times/state versions/final state.
+
+### F11 Acceptance Evidence
+
+Evidence covers injected raise then retry versus a clean deterministic runtime (full canonical
+SymbolState/MarketEvent/Timeline/Transition/Candidate equality), a true durable duplicate through
+a fresh Runtime over the same repository, and two concurrent same-ID callers sharing one failed
+persist attempt. The checks prove no speculative state/version/dedupe/in-flight/repository facts
+remain before retry and that retry persists exactly once. Existing same-symbol priority serialization
+continues to pass.
+
+### Cross-Finding Regression
+
+Two fresh deterministic runs execute `Trade A → activation → Trade B → duplicate A → exact TTL
+boundary → valid Trade C`. They prove duplicate A leaves Rolling and durable facts unchanged, TTL
+runs first exactly once, C processes from the expired state without a double version increment, and
+the final Rolling/repository/state truth is identical across runs.
+
+### Verification
+
+- `PYTHONPATH=backend/src py -3.14 -m pytest backend/tests/test_group2.py -q` → `24 passed`.
+- `PYTHONPATH=backend/src py -3.14 -m pytest backend/tests -q` → `148 passed, 1 warning`.
+  The warning is the existing FastAPI/Starlette TestClient/httpx deprecation.
+- `py -3.14 -m ruff check backend/src backend/tests scripts` → PASS.
+- `py -3.14 -m compileall -q backend/src backend/tests` → PASS.
+- `git diff --check` → PASS.
+
+### Result
+
+`FG-D ACCEPTANCE FIX #1 COMPLETE — WAITING ACCEPTANCE`.
+
+No human Acceptance was claimed, no merge to `main` occurred, and branch history remains pending
+review.
+
+### Fix #1 Evidence
+
+- `E:\Temp\marketpulse-fg-d-fix1\backend-full-final.txt`

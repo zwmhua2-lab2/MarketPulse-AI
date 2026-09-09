@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import itertools
+from collections import deque
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -254,7 +255,10 @@ class ScannerPipeline:
         runtime: EventRuntime,
         rolling: RollingFeatureEngine | None = None,
         clock: Clock | None = None,
+        trade_dedupe_capacity: int = 8192,
     ) -> None:
+        if trade_dedupe_capacity <= 0:
+            raise ValueError("trade_dedupe_capacity must be positive")
         self.scanner = scanner
         self.runtime = runtime
         self.rolling = rolling or RollingFeatureEngine()
@@ -262,6 +266,8 @@ class ScannerPipeline:
         self.lifecycle = SignalLifecycle()
         self._btc_returns: dict[str, float] = {}
         self._trade_dedupe: set[tuple[str, str, str, str]] = set()
+        self._trade_dedupe_fifo: deque[tuple[str, str, str, str]] = deque()
+        self._trade_dedupe_capacity = trade_dedupe_capacity
         self.last_detected_events: tuple[MarketEvent, ...] = ()
         # Read-only replay handoff: the exact feature fact already calculated for this frame.
         self.last_features: FeatureSnapshot | None = None
@@ -271,6 +277,7 @@ class ScannerPipeline:
     ) -> list[ApplyOutcome]:
         trade_key = self._trade_key(market_event)
         if trade_key is not None and trade_key in self._trade_dedupe:
+            self.last_detected_events = ()
             return []
         btc_return = self._btc_returns.get("BTC-USDT")
         working_rolling = self.rolling.copy()
@@ -335,8 +342,15 @@ class ScannerPipeline:
         if features.symbol == "BTC-USDT" and features.short_return is not None:
             self._btc_returns["BTC-USDT"] = features.short_return
         if trade_key is not None:
-            self._trade_dedupe.add(trade_key)
+            self._remember_trade(trade_key)
         return outcomes
+
+    def _remember_trade(self, trade_key: tuple[str, str, str, str]) -> None:
+        """Remember successful inputs in FIFO arrival order without refreshing duplicate hits."""
+        if len(self._trade_dedupe) == self._trade_dedupe_capacity:
+            self._trade_dedupe.remove(self._trade_dedupe_fifo.popleft())
+        self._trade_dedupe.add(trade_key)
+        self._trade_dedupe_fifo.append(trade_key)
 
     @staticmethod
     def _trade_key(event: NormalizedMarketEvent) -> tuple[str, str, str, str] | None:

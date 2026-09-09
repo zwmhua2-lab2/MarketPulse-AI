@@ -1,5 +1,11 @@
 import asyncio
+import hashlib
+import json
+import os
+import subprocess
+import sys
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 import pytest
 from marketpulse.clock import ReplayClock
@@ -31,6 +37,35 @@ def _features(at: datetime = NOW, price: float = 101) -> FeatureSnapshot:
 
 def _event(kind: EventType, version: int, at: datetime = NOW, strength: float = 0.8, event_id: str | None = None) -> MarketEvent:
     return MarketEvent(event_id=event_id or f"event-{kind}-{version}-{at.timestamp()}", symbol="SOL-USDT", instrument_id="SOL-USDT", market_type=MarketType.SPOT, event_type=kind, event_time=at, received_time=at, source="fixture", strength=strength, priority=80, state_version=version, config_version="fixture", payload={"current_price": 101})
+
+
+def _trade(trade_id: str, at: datetime, *, instrument_id: str = "SOL-USDT") -> NormalizedTrade:
+    base_asset = instrument_id.split("-")[0]
+    return NormalizedTrade(
+        base_asset=base_asset,
+        quote_asset="USDT",
+        market_type=MarketType.SPOT,
+        instrument_id=instrument_id,
+        event_time=at,
+        received_time=at,
+        source="fixture",
+        trade_id=trade_id,
+        price=100,
+        quantity=1,
+        side="buy",
+    )
+
+
+def _repository_truth(repository: InMemoryG2Repository) -> dict[str, object]:
+    return {
+        "states": {
+            key: value.model_dump(mode="json") for key, value in sorted(repository.states.items())
+        },
+        "events": [item.model_dump(mode="json") for item in repository.events.values()],
+        "timeline": [item.model_dump(mode="json") for item in repository.timeline],
+        "transitions": [item.model_dump(mode="json") for item in repository.transitions],
+        "candidates": [item.model_dump(mode="json") for item in repository.candidates],
+    }
 
 
 def test_rolling_features_are_incremental_and_scanner_emits_market_facts_only():
@@ -382,11 +417,405 @@ def test_concurrent_duplicate_publishers_share_failed_attempt_then_retry():
         await asyncio.sleep(0)
         await runtime.start()
         results = await asyncio.gather(first, second, return_exceptions=True)
+        failed_state = runtime.state_manager.snapshot_for(event.instrument_id, event.symbol)
+        failed_dedupe = set(runtime._dedupe)
+        failed_inflight = dict(runtime._inflight)
+        failed_truth = _repository_truth(repository)
         retried = await runtime.publish(event, _features())
         await runtime.stop()
-        return repository, results, retried
+        return (
+            repository,
+            results,
+            failed_state,
+            failed_dedupe,
+            failed_inflight,
+            failed_truth,
+            retried,
+        )
 
-    repository, results, retried = asyncio.run(scenario())
+    (
+        repository,
+        results,
+        failed_state,
+        failed_dedupe,
+        failed_inflight,
+        failed_truth,
+        retried,
+    ) = asyncio.run(scenario())
     assert repository.calls == 2
     assert all(isinstance(result, RuntimeError) for result in results)
+    assert failed_state.state is SymbolState.IDLE and failed_state.state_version == 0
+    assert not failed_dedupe and not failed_inflight
+    assert not failed_truth["events"] and not failed_truth["timeline"]
+    assert not failed_truth["transitions"] and not failed_truth["candidates"]
     assert retried.persisted
+
+
+def test_trade_dedupe_is_global_bounded_fifo_without_hit_refresh():
+    async def scenario():
+        repository = InMemoryG2Repository()
+        runtime = EventRuntime(repository, worker_count=1)
+        pipeline = ScannerPipeline(
+            OpportunityScanner(), runtime, trade_dedupe_capacity=3
+        )
+        pipeline.scanner.scan = lambda *_args, **_kwargs: []
+        await runtime.start()
+        for ordinal, trade_id in enumerate(("A", "B", "C")):
+            await pipeline.ingest(_trade(trade_id, NOW + timedelta(seconds=ordinal)))
+        before_duplicate = tuple(pipeline._trade_dedupe_fifo)
+        features_before_duplicate = pipeline.last_features
+        btc_returns_before_duplicate = dict(pipeline._btc_returns)
+        lifecycle_before_duplicate = pipeline.lifecycle.active_types("SOL-USDT")
+        runtime_dedupe_before_duplicate = set(runtime._dedupe)
+        repository_before_duplicate = _repository_truth(repository)
+        pipeline.last_detected_events = (_event(EventType.VOLUME_ANOMALY, 0),)
+        duplicate = await pipeline.ingest(_trade("A", NOW + timedelta(seconds=3)))
+        after_duplicate = tuple(pipeline._trade_dedupe_fifo)
+        assert pipeline.last_features is features_before_duplicate
+        assert pipeline._btc_returns == btc_returns_before_duplicate
+        assert pipeline.lifecycle.active_types("SOL-USDT") == lifecycle_before_duplicate
+        assert runtime._dedupe == runtime_dedupe_before_duplicate
+        assert _repository_truth(repository) == repository_before_duplicate
+        await pipeline.ingest(_trade("D", NOW + timedelta(seconds=4), instrument_id="ETH-USDT"))
+        after_d = tuple(pipeline._trade_dedupe_fifo)
+        await pipeline.ingest(_trade("A", NOW + timedelta(seconds=5)))
+        await runtime.stop()
+        return pipeline, duplicate, before_duplicate, after_duplicate, after_d
+
+    pipeline, duplicate, before_duplicate, after_duplicate, after_d = asyncio.run(scenario())
+    assert duplicate == []
+    assert pipeline.last_detected_events == ()
+    assert before_duplicate == after_duplicate
+    assert [key[-1] for key in after_d] == ["B", "C", "D"]
+    assert [key[-1] for key in pipeline._trade_dedupe_fifo] == ["C", "D", "A"]
+    assert len(pipeline._trade_dedupe) == 3
+    assert len(pipeline.rolling._states["SOL-USDT"].trades) == 4
+
+
+def test_trade_dedupe_default_capacity_is_frozen_at_8192():
+    pipeline = ScannerPipeline(OpportunityScanner(), EventRuntime(InMemoryG2Repository()))
+    assert pipeline._trade_dedupe_capacity == 8192
+
+
+def test_trade_identity_enters_fifo_only_after_successful_input_processing():
+    class FailOnceRepository(InMemoryG2Repository):
+        async def persist(self, *args, **kwargs):
+            raise RuntimeError("injected pipeline persistence failure")
+
+    async def scenario():
+        repository = FailOnceRepository()
+        runtime = EventRuntime(repository, worker_count=1)
+        pipeline = ScannerPipeline(OpportunityScanner(), runtime, trade_dedupe_capacity=3)
+        pipeline.scanner.scan = lambda features, *_args, **_kwargs: [
+            _event(EventType.VOLUME_ANOMALY, 0, features.event_time, event_id="failing-input")
+        ]
+        trade = _trade("retryable", NOW)
+        await runtime.start()
+        with pytest.raises(RuntimeError, match="injected pipeline persistence failure"):
+            await pipeline.ingest(trade)
+        await runtime.stop()
+        return pipeline, trade
+
+    pipeline, trade = asyncio.run(scenario())
+    assert pipeline._trade_key(trade) not in pipeline._trade_dedupe
+    assert not pipeline._trade_dedupe_fifo
+    assert "SOL-USDT" not in pipeline.rolling._states
+
+
+def test_f07_normalization_trace_is_hash_seed_independent_in_subprocesses():
+    script = """
+import asyncio
+import json
+from datetime import UTC, datetime, timedelta
+from marketpulse.g2.models import EventType, FeatureSnapshot, LifecycleAction, MarketEvent
+from marketpulse.g2.repository import InMemoryG2Repository
+from marketpulse.g2.runtime import EventRuntime, ScannerPipeline
+from marketpulse.g2.scanner import OpportunityScanner
+from marketpulse.market_data.models import MarketType, NormalizedTrade
+
+NOW = datetime(2026, 9, 4, 12, tzinfo=UTC)
+def event(kind):
+    return MarketEvent(event_id=f"active-{kind.value}", symbol="SOL-USDT", instrument_id="SOL-USDT", market_type=MarketType.SPOT, event_type=kind, event_time=NOW, received_time=NOW, source="fixture", strength=0.8, priority=80, state_version=0, config_version="fixture")
+async def main():
+    repository = InMemoryG2Repository()
+    runtime = EventRuntime(repository, worker_count=1)
+    pipeline = ScannerPipeline(OpportunityScanner(), runtime)
+    pipeline.scanner.scan = lambda *_args, **_kwargs: []
+    for kind in (EventType.VOLUME_ANOMALY, EventType.FLOW_IMBALANCE, EventType.BREAKOUT):
+        pipeline.lifecycle.action_for(event(kind))
+    await runtime.start()
+    await pipeline.ingest(NormalizedTrade(base_asset="SOL", quote_asset="USDT", market_type=MarketType.SPOT, instrument_id="SOL-USDT", event_time=NOW + timedelta(seconds=1), received_time=NOW + timedelta(seconds=1), source="fixture", trade_id="subprocess", price=100, quantity=1, side="buy"))
+    await runtime.stop()
+    normalized = [item for item in pipeline.last_detected_events if item.source == "g2.signal_lifecycle"]
+    print(json.dumps({"normalized_event_types": [item.event_type.value for item in normalized], "normalized_event_ids": [item.event_id for item in normalized], "timeline_ids": [item.timeline_id for item in repository.timeline], "transition_ids": [item.transition_id for item in repository.transitions], "transition_to_states": [item.to_state.value for item in repository.transitions], "state_versions": [item.state_version for item in repository.transitions]}, sort_keys=True, separators=(",", ":")))
+asyncio.run(main())
+"""
+    root = Path(__file__).resolve().parents[2]
+    outputs = []
+    for seed in ("1", "2", "777"):
+        environment = os.environ.copy()
+        environment["PYTHONHASHSEED"] = seed
+        environment["PYTHONPATH"] = str(root / "backend" / "src")
+        completed = subprocess.run(
+            [sys.executable, "-c", script],
+            cwd=root,
+            env=environment,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        outputs.append(json.loads(completed.stdout))
+    canonical = [json.dumps(item, sort_keys=True, separators=(",", ":")) for item in outputs]
+    digests = [hashlib.sha256(item.encode()).hexdigest() for item in canonical]
+    assert outputs[0] == outputs[1] == outputs[2]
+    assert digests[0] == digests[1] == digests[2]
+    assert outputs[0]["normalized_event_types"] == ["BREAKOUT", "FLOW_IMBALANCE", "VOLUME_ANOMALY"]
+
+
+async def _ttl_pipeline_case(target: SymbolState, offset: timedelta) -> tuple[InMemoryG2Repository, list, object, datetime]:
+    clock = ReplayClock(NOW)
+    repository = InMemoryG2Repository()
+    runtime = EventRuntime(
+        repository,
+        state_manager=SymbolStateManager(
+            StateMachineConfig(watch_ttl=timedelta(minutes=1), setup_ttl=timedelta(minutes=2))
+        ),
+        worker_count=1,
+    )
+    pipeline = ScannerPipeline(OpportunityScanner(clock=clock), runtime, clock=clock)
+    active_types = [EventType.VOLUME_ANOMALY, EventType.FLOW_IMBALANCE]
+    if target is SymbolState.SETUP:
+        active_types.append(EventType.BREAKOUT)
+
+    def scan(features, *_args, **_kwargs):
+        return [
+            _event(
+                event_type,
+                0,
+                features.event_time,
+                strength=0.9 if event_type is EventType.BREAKOUT else 0.8,
+                event_id=f"ttl-{event_type.value}-{features.event_time.isoformat()}",
+            )
+            for event_type in active_types[: stage[0]]
+        ]
+
+    pipeline.scanner.scan = scan
+    stage = [0]
+    await runtime.start()
+    try:
+        for ordinal in range(len(active_types)):
+            stage[0] = ordinal + 1
+            if ordinal:
+                clock.advance_to(NOW + timedelta(seconds=ordinal))
+            await pipeline.ingest(_trade(f"ttl-state-{ordinal}", clock.now()))
+        before = repository.states["SOL-USDT"].model_copy(deep=True)
+        assert before.state is target and before.watch_expires_at is not None
+        clock.advance_to(before.watch_expires_at + offset)
+        outcomes = await pipeline.ingest(_trade("ttl-boundary", clock.now()))
+    finally:
+        await runtime.stop()
+    return repository, outcomes, before, clock.now()
+
+
+def test_f09_pipeline_ttl_covers_watching_setup_and_clock_boundaries():
+    async def scenario():
+        watching = await _ttl_pipeline_case(SymbolState.WATCHING, timedelta())
+        setup = await _ttl_pipeline_case(SymbolState.SETUP, timedelta())
+        before = await _ttl_pipeline_case(SymbolState.WATCHING, -timedelta(microseconds=1))
+        return watching, setup, before
+
+    watching, setup, before = asyncio.run(scenario())
+    for (repository, outcomes, prior, now), configured_ttl in (
+        (watching, timedelta(minutes=1)),
+        (setup, timedelta(minutes=2)),
+    ):
+        ttl_events = [event for event in repository.events.values() if event.source == "g2.state_ttl"]
+        ttl_timeline = [item for item in repository.timeline if item.event_id == ttl_events[0].event_id]
+        ttl_transitions = [item for item in repository.transitions if item.event_id == ttl_events[0].event_id]
+        assert now == prior.watch_expires_at
+        assert prior.watch_expires_at == prior.last_event_time + configured_ttl
+        assert len(outcomes) == len(ttl_events) == len(ttl_timeline) == len(ttl_transitions) == 1
+        assert ttl_transitions[0].from_state is prior.state
+        assert ttl_transitions[0].to_state is SymbolState.IDLE
+        assert ttl_transitions[0].reason == "watch_ttl_expired"
+        assert ttl_transitions[0].state_version == prior.state_version + 1
+        assert repository.states["SOL-USDT"].state is SymbolState.IDLE
+        assert repository.states["SOL-USDT"].cooldown_until is not None
+    repository, outcomes, prior, now = before
+    assert now == prior.watch_expires_at - timedelta(microseconds=1)
+    assert not outcomes
+    assert not [event for event in repository.events.values() if event.source == "g2.state_ttl"]
+    assert repository.states["SOL-USDT"] == prior
+
+
+def test_f09_replay_clock_ttl_trace_is_deterministic():
+    async def scenario():
+        first = await _ttl_pipeline_case(SymbolState.WATCHING, timedelta())
+        second = await _ttl_pipeline_case(SymbolState.WATCHING, timedelta())
+        return first, second
+
+    first, second = asyncio.run(scenario())
+    def ttl_truth(result):
+        repository, _outcomes, _prior, _now = result
+        event = next(item for item in repository.events.values() if item.source == "g2.state_ttl")
+        timeline = next(item for item in repository.timeline if item.event_id == event.event_id)
+        transition = next(item for item in repository.transitions if item.event_id == event.event_id)
+        state = repository.states["SOL-USDT"]
+        return (
+            event.event_id,
+            timeline.timeline_id,
+            transition.transition_id,
+            event.event_time,
+            transition.state_version,
+            state.state,
+            state.state_version,
+        )
+    assert ttl_truth(first) == ttl_truth(second)
+
+
+def test_f11_failure_retry_matches_clean_runtime_business_truth():
+    class FailOnceRepository(InMemoryG2Repository):
+        def __init__(self):
+            super().__init__()
+            self.calls = 0
+
+        async def persist(self, *args, **kwargs):
+            self.calls += 1
+            if self.calls == 1:
+                raise RuntimeError("injected equivalence failure")
+            return await super().persist(*args, **kwargs)
+
+    async def scenario():
+        event = _event(EventType.VOLUME_ANOMALY, 0, event_id="equivalent-event")
+        failed_repository = FailOnceRepository()
+        failed_runtime = EventRuntime(
+            failed_repository,
+            strategy_engine=StrategyEngine(ReplayClock(NOW)),
+            worker_count=1,
+        )
+        await failed_runtime.start()
+        with pytest.raises(RuntimeError, match="injected equivalence failure"):
+            await failed_runtime.publish(event, _features())
+        assert failed_runtime.state_manager.snapshot_for(event.instrument_id, event.symbol).state is SymbolState.IDLE
+        assert event.event_id not in failed_runtime._dedupe
+        assert not failed_runtime._inflight
+        assert not failed_repository.events and not failed_repository.timeline
+        assert not failed_repository.transitions and not failed_repository.candidates
+        retried = await failed_runtime.publish(event, _features())
+        await failed_runtime.stop()
+
+        clean_repository = InMemoryG2Repository()
+        clean_runtime = EventRuntime(
+            clean_repository,
+            strategy_engine=StrategyEngine(ReplayClock(NOW)),
+            worker_count=1,
+        )
+        await clean_runtime.start()
+        clean = await clean_runtime.publish(event, _features())
+        await clean_runtime.stop()
+        return failed_repository, clean_repository, retried, clean
+
+    failed_repository, clean_repository, retried, clean = asyncio.run(scenario())
+    assert retried.persisted and clean.persisted
+    assert _repository_truth(failed_repository) == _repository_truth(clean_repository)
+
+
+def test_f11_fresh_runtime_observes_true_durable_duplicate_without_speculation():
+    async def scenario():
+        repository = InMemoryG2Repository()
+        event = _event(EventType.VOLUME_ANOMALY, 0, event_id="durable-duplicate")
+        first_runtime = EventRuntime(repository, worker_count=1)
+        await first_runtime.start()
+        first = await first_runtime.publish(event, _features())
+        await first_runtime.stop()
+        truth_before = _repository_truth(repository)
+
+        second_runtime = EventRuntime(repository, worker_count=1)
+        await second_runtime.start()
+        duplicate = await second_runtime.publish(event, _features())
+        durable_state = repository.states[event.instrument_id].model_copy(deep=True)
+        memory_state = second_runtime.state_manager.snapshot_for(event.instrument_id, event.symbol)
+        await second_runtime.stop()
+        return repository, truth_before, first, duplicate, durable_state, memory_state
+
+    repository, truth_before, first, duplicate, durable_state, memory_state = asyncio.run(scenario())
+    assert first.persisted and not duplicate.persisted
+    assert duplicate.result is StateApplyResult.NO_CHANGE and duplicate.transition is None
+    assert memory_state == durable_state
+    assert _repository_truth(repository) == truth_before
+
+
+async def _cross_finding_truth() -> dict[str, object]:
+    clock = ReplayClock(NOW)
+    repository = InMemoryG2Repository()
+    runtime = EventRuntime(
+        repository,
+        state_manager=SymbolStateManager(StateMachineConfig(watch_ttl=timedelta(minutes=1))),
+        strategy_engine=StrategyEngine(clock),
+        worker_count=1,
+    )
+    pipeline = ScannerPipeline(
+        OpportunityScanner(clock=clock), runtime, clock=clock, trade_dedupe_capacity=3
+    )
+    stages = [
+        [EventType.VOLUME_ANOMALY],
+        [EventType.VOLUME_ANOMALY, EventType.FLOW_IMBALANCE],
+        [EventType.VOLUME_ANOMALY, EventType.FLOW_IMBALANCE, EventType.BREAKOUT],
+    ]
+    stage = [0]
+
+    def scan(features, *_args, **_kwargs):
+        return [
+            _event(
+                event_type,
+                0,
+                features.event_time,
+                strength=0.9 if event_type is EventType.BREAKOUT else 0.8,
+                event_id=f"cross-{event_type.value}-{features.event_time.isoformat()}",
+            )
+            for event_type in stages[stage[0]]
+        ]
+
+    pipeline.scanner.scan = scan
+    await runtime.start()
+    try:
+        await pipeline.ingest(_trade("A", clock.now()))
+        clock.advance_to(NOW + timedelta(seconds=1))
+        stage[0] = 1
+        await pipeline.ingest(_trade("B", clock.now()))
+        watching = repository.states["SOL-USDT"].model_copy(deep=True)
+        before_duplicate = _repository_truth(repository)
+        rolling_before_duplicate = len(pipeline.rolling._states["SOL-USDT"].trades)
+        clock.advance_to(NOW + timedelta(seconds=2))
+        duplicate = await pipeline.ingest(_trade("A", clock.now()))
+        assert duplicate == [] and pipeline.last_detected_events == ()
+        assert _repository_truth(repository) == before_duplicate
+        assert len(pipeline.rolling._states["SOL-USDT"].trades) == rolling_before_duplicate
+        assert watching.watch_expires_at is not None
+        clock.advance_to(watching.watch_expires_at)
+        stage[0] = 2
+        outcomes = await pipeline.ingest(_trade("C", clock.now()))
+    finally:
+        await runtime.stop()
+    ttl = [item for item in repository.transitions if item.reason == "watch_ttl_expired"]
+    assert len(ttl) == 1
+    assert outcomes[0].transition is not None and outcomes[0].transition.reason == "watch_ttl_expired"
+    assert outcomes[1].transition is not None and outcomes[1].transition.to_state is SymbolState.DETECTED
+    state = repository.states["SOL-USDT"]
+    assert state.state_version == watching.state_version + 2
+    return {
+        "rolling": [
+            item.model_dump(mode="json") for item in pipeline.rolling._states["SOL-USDT"].trades
+        ],
+        "repository": _repository_truth(repository),
+        "state": state.model_dump(mode="json"),
+        "state_version": state.state_version,
+    }
+
+
+def test_cross_finding_duplicate_ttl_and_post_expiry_input_are_deterministic():
+    async def scenario():
+        return await _cross_finding_truth(), await _cross_finding_truth()
+
+    first, second = asyncio.run(scenario())
+    assert first == second

@@ -83,12 +83,12 @@
 
 ### FG-D Remediation（Current）
 
-- FG-D — G2 Runtime Determinism & Failure Atomicity：`IMPLEMENTED / WAITING REVIEW`；branch
+- FG-D Acceptance Fix #1 — `COMPLETE / WAITING ACCEPTANCE`；branch
   `fix/fg-d-g2-runtime-determinism`，Task Base / current accepted main =
   `4859c8f70a484353d598f80fc2e0c2658cc50864`。
-- Scope 仅为 F07 / F09 / F10 / F11：生命周期归一化确定性顺序、input-driven TTL、
-  NormalizedTrade 去重与 EventRuntime 持久化失败原子性。无 schema/migration、G2 business
-  semantics、G5 canonical replay contract、G3/G4/Live 修改；未自行 Acceptance 或 merge。
+- Fix #1 仅将 F10 无界 Trade dedupe 改为全 Pipeline `8192` entries FIFO cache；F07/F09/F11
+  仅增加 acceptance evidence。无 schema/migration、F07/F09/F11 production semantics、G2
+  business semantics、G5 canonical replay contract、G3/G4/Live 修改；未自行 Acceptance 或 merge。
 
 - G5-0 `ACCEPTED`：`AI_CONTEXT.md` 为上下文入口；`AGENTS.md` 为工程工作纪律与 Context Isolation Protocol（CIP-01～CIP-10）的正式入口。
 - G5-1 `ACCEPTED`：Deterministic Replay Foundation 已验收，implementation acceptance basis = `34da62a0cc9dbe95b95faadb770fbd06179a6975`。
