@@ -82,3 +82,15 @@ Before this change, `g4.reconciliation.reconcile()` called `execution.reconcilia
 ### Status
 
 `CHANGES_REQUIRED / NOT ACCEPTED` — this Fix closes G4→G3 same-transaction identity evidence only. Remaining N02 evidence needs an explicit acceptance contract before new tests are added; `main` was not updated.
+
+### Account / Order Torn-Read Race
+
+- A normal production path creates one OPEN LIMIT BUY with `Account.reserved_cash = Order.reserved_cash = X`.
+- The test pauses the actual G3 accounting path immediately before its first `PaperOrderRecord` query, after the account query completed.
+- A separate real PostgreSQL writer transaction commits `Account.reserved_cash = 0`, `Order.status = CANCELLED`, and zeroed order reservations. The report task remains incomplete until the paused order query is released.
+- The in-flight report remains coherent T0: `open_orders = 1`, `open_buys = 1`, `reserved_cash_matches_open_buys = True`, and no `reserved_cash_mismatch` diagnostic. A fresh report is coherent T1: zero open orders/buys and the same invariant remains true. Fresh durable DB reads confirm zero account reservation and the cancelled order.
+- Verification: `py -3.14 -m pytest tests/test_group4.py -q -k 'reconciliation_account_order_cancellation_race_uses_one_snapshot' -ra` → `1 passed, 74 deselected`; G4 regression → `75 passed in 66.60s`.
+
+### Current Status
+
+`CHANGES_REQUIRED / NOT ACCEPTED` — Acceptance Fix #2 has now closed G4→G3 transaction identity and account/order torn-read evidence. Standalone G3 RR/RO, standalone G3 torn-read race, true durable corruption detection, and failure cleanup evidence remain pending their acceptance contracts. `main` was not updated.

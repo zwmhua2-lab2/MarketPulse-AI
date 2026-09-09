@@ -2251,6 +2251,94 @@ def test_reconciliation_uses_one_repeatable_read_snapshot_across_g3_and_g4():
     assert current_report.invariants["open_order_plan_valid"] is False
 
 
+def test_reconciliation_account_order_cancellation_race_uses_one_snapshot():
+    """An account read cannot tear from a committed order-cancellation reservation release."""
+
+    async def case():
+        h = Harness()
+        await h.boot()
+        plan = await open_limit_buy(h, notional=20, limit=95)
+        async with SESSIONS() as session:
+            order = await session.scalar(
+                select(PaperOrderRecord).where(PaperOrderRecord.plan_id == plan.plan_id)
+            )
+            account = await session.scalar(
+                select(AccountRecord).where(AccountRecord.run_mode == RunMode.REPLAY)
+            )
+            assert order is not None
+            assert account is not None
+            reserved_cash = order.reserved_cash
+            order_id = order.order_id
+            assert account.reserved_cash == pytest.approx(reserved_cash)
+
+        account_read_completed = asyncio.Event()
+        release_order_read = asyncio.Event()
+        original_reconciliation_once = h.execution._reconciliation_once
+
+        async def pause_before_order_read(run_mode, session):
+            original_scalars = session.scalars
+            order_read_paused = False
+
+            async def paused_scalars(*args, **kwargs):
+                nonlocal order_read_paused
+                if not order_read_paused:
+                    # `_reconciliation_once()` has completed its account scalar query and its
+                    # first scalars query is PaperOrderRecord.  Pause before that order query.
+                    order_read_paused = True
+                    account_read_completed.set()
+                    await asyncio.wait_for(release_order_read.wait(), timeout=2)
+                return await original_scalars(*args, **kwargs)
+
+            session.scalars = paused_scalars
+            try:
+                return await original_reconciliation_once(run_mode, session)
+            finally:
+                session.scalars = original_scalars
+
+        h.execution._reconciliation_once = pause_before_order_read
+        try:
+            report_task = asyncio.create_task(h.reconcile(RunMode.REPLAY))
+            await asyncio.wait_for(account_read_completed.wait(), timeout=2)
+            async with SESSIONS() as writer, writer.begin():
+                account = await writer.scalar(
+                    select(AccountRecord).where(AccountRecord.run_mode == RunMode.REPLAY)
+                )
+                order = await writer.get(PaperOrderRecord, order_id)
+                assert account is not None
+                assert order is not None
+                account.reserved_cash = 0.0
+                order.status = OrderStatus.CANCELLED
+                order.reserved_cash = 0.0
+                order.reserved_quantity = 0.0
+            assert report_task.done() is False
+            release_order_read.set()
+            snapshot_report = await asyncio.wait_for(report_task, timeout=2)
+        finally:
+            h.execution._reconciliation_once = original_reconciliation_once
+
+        fresh_report = await h.reconcile(RunMode.REPLAY)
+        async with SESSIONS() as session:
+            account = await session.scalar(
+                select(AccountRecord).where(AccountRecord.run_mode == RunMode.REPLAY)
+            )
+            order = await session.get(PaperOrderRecord, order_id)
+        return snapshot_report, fresh_report, account, order, reserved_cash
+
+    snapshot_report, fresh_report, account, order, reserved_cash = asyncio.run(case())
+    assert snapshot_report.details["open_orders"] == 1
+    assert snapshot_report.details["open_buys"] == 1
+    assert snapshot_report.invariants["reserved_cash_matches_open_buys"] is True
+    assert "reserved_cash_mismatch" not in snapshot_report.diagnostics
+    assert fresh_report.details["open_orders"] == 0
+    assert fresh_report.details["open_buys"] == 0
+    assert fresh_report.invariants["reserved_cash_matches_open_buys"] is True
+    assert account is not None and account.reserved_cash == 0
+    assert order is not None
+    assert order.status == OrderStatus.CANCELLED
+    assert order.reserved_cash == 0
+    assert reserved_cash > 0
+
+
 # ==============================================================================
 # Post-Review Fix #2 regression tests
 # ==============================================================================

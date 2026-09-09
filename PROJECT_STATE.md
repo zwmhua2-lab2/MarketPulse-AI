@@ -56,11 +56,11 @@ FG-E — Reconciliation Snapshot Consistency — IMPLEMENTED / WAITING REVIEW
   semantics 或 execution accounting。真实 PostgreSQL 并发回归证明：G3 基础读取后并发
   `ACTIVE → REPLACED` plan commit 不会撕裂同一报告；新报告才会看到该提交并报告
   `open_order_plan_valid=False`。Formal Review = `CHANGES_REQUIRED / NOT ACCEPTED`。
-  Acceptance Fix #1 仅关闭 real G4 transaction-state evidence；其余 acceptance evidence
-  仍包括 account/order torn-read race、standalone G3 RR/RO、standalone G3 torn-read race、
-  true durable corruption detection，以及 transaction identity / failure cleanup evidence。
-  Acceptance Fix #2 已补 G4→G3 same-session/same-transaction identity evidence；其余项目
-  仍待按明确 acceptance contract 验证。
+  Acceptance Fix #1 仅关闭 real G4 transaction-state evidence。Acceptance Fix #2 已补
+  G4→G3 same-session/same-transaction identity，以及 account/order torn-read race evidence。
+  剩余 acceptance evidence 为 standalone G3 RR/RO、standalone G3 torn-read race、true
+  durable corruption detection 与 failure cleanup evidence，仍待按明确 acceptance contract
+  验证。
 
 ## Blocked
 
