@@ -2178,6 +2178,47 @@ def test_reconciliation_detects_stale_risk_increasing_buy():
     assert any(item["reason"] == "BUY_AFTER_CLOSED_LIFECYCLE" for item in stale)
 
 
+def test_reconciliation_uses_one_repeatable_read_snapshot_across_g3_and_g4():
+    """A concurrent plan write cannot tear the accounting and safety halves of one report."""
+
+    async def case():
+        h = Harness()
+        await h.boot()
+        plan = await open_limit_buy(h, notional=20, limit=95)
+        base_snapshot_taken = asyncio.Event()
+        allow_extended_reads = asyncio.Event()
+        original_reconciliation = h.execution.reconciliation
+
+        async def pause_after_g3_snapshot(run_mode, *, session=None):
+            result = await original_reconciliation(run_mode, session=session)
+            base_snapshot_taken.set()
+            await asyncio.wait_for(allow_extended_reads.wait(), timeout=2)
+            return result
+
+        h.execution.reconciliation = pause_after_g3_snapshot
+        report_task = asyncio.create_task(h.reconcile(RunMode.REPLAY))
+        await asyncio.wait_for(base_snapshot_taken.wait(), timeout=2)
+        async with SESSIONS() as writer, writer.begin():
+            await writer.execute(
+                update(TradePlanRecord)
+                .where(TradePlanRecord.plan_id == plan.plan_id)
+                .values(status=PlanStatus.REPLACED)
+            )
+        allow_extended_reads.set()
+        report = await asyncio.wait_for(report_task, timeout=2)
+        h.execution.reconciliation = original_reconciliation
+        current = await h.reconcile(RunMode.REPLAY)
+        return report, current
+
+    snapshot_report, current_report = asyncio.run(case())
+    assert snapshot_report.ok
+    assert snapshot_report.invariants["open_order_plan_valid"] is True
+    # The completed concurrent transaction is visible to a fresh report, proving the first
+    # report deliberately retained its earlier snapshot rather than racing the writer.
+    assert current_report.ok is False
+    assert current_report.invariants["open_order_plan_valid"] is False
+
+
 # ==============================================================================
 # Post-Review Fix #2 regression tests
 # ==============================================================================

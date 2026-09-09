@@ -2,7 +2,7 @@
 
 ## Current Group
 
-Acceptance Group 5 — ACCEPTED / COMPLETE
+FG-E — Reconciliation Snapshot Consistency — IMPLEMENTED / WAITING REVIEW
 
 ## GitHub Repository
 
@@ -11,7 +11,7 @@ Acceptance Group 5 — ACCEPTED / COMPLETE
 - Visibility: `PRIVATE`
 - Default Branch: `main`
 - Accepted Main Source: Git `main` / `origin/main` — read actual SHA at task preflight（CIP-02）
-- Current Development Status: `G5 ACCEPTED / COMPLETE`
+- Current Development Status: `FG-E IMPLEMENTED / WAITING REVIEW`（N02；未自行 Acceptance）
 
 ## Branch / Source
 
@@ -50,9 +50,12 @@ Acceptance Group 5 — ACCEPTED / COMPLETE
 
 ## In Progress
 
-- 无。FG-D — G2 Runtime Determinism & Failure Atomicity = `ACCEPTED / COMPLETE`；F07、F09、
-  F10、F11 = `ACCEPTED / FIXED`；Accepted Implementation =
-  `b08c2ea1eef4e2780a98b68dfaa2d5954af7d42b`。FG-E = `NOT STARTED`。
+- FG-E — Reconciliation Snapshot Consistency = `IMPLEMENTED / WAITING REVIEW`：N02 的一次
+  G4 Reconciliation Report 现在在单一 read-only `REPEATABLE READ` PostgreSQL transaction
+  中读取 G3 accounting 与 G4 extended facts；未改 schema、migration、Control/Recovery
+  semantics 或 execution accounting。真实 PostgreSQL 并发回归证明：G3 基础读取后并发
+  `ACTIVE → REPLACED` plan commit 不会撕裂同一报告；新报告才会看到该提交并报告
+  `open_order_plan_valid=False`。
 
 ## Blocked
 
@@ -139,6 +142,8 @@ Acceptance Group 5 — ACCEPTED / COMPLETE
 - Group 5-3 = `ACCEPTED`（2026-09-06 Formal Acceptance Closeout；Implementation Acceptance Basis = `f4c07333600f605cbcc5e34b591659feb1b1f318`；Review Fix #1 = VERIFIED）。
 - G5-4 = `ACCEPTED`（Formal Acceptance Closeout 2026-09-06；Production Implementation Basis = `8678b2927a2d029ac0767e49acc9e0732c329bfa`；Self Review Fix #1 Evidence = `fe610c1f23457ff11f2d5c8654e9de0aec4ff289`）。
 - G5 overall = `ACCEPTED / COMPLETE`。
+- FG-E / N02 = `IMPLEMENTED / WAITING REVIEW`（实现与真实 PostgreSQL 回归完成；尚未人工
+  Acceptance，未推进 `main`）。
 
 ## Group 5-1 Result
 

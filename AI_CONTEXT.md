@@ -9,11 +9,11 @@
 | 字段 | 值 |
 |---|---|
 | Project | MarketPulse AI（BTC/ETH 量化纸面交易终端，Modular Monolith） |
-| Current Acceptance Group | Acceptance Group 5 — ACCEPTED / COMPLETE |
+| Current Acceptance Group | FG-E — Reconciliation Snapshot Consistency — IMPLEMENTED / WAITING REVIEW |
 | Accepted Main Source | Git `main` / `origin/main`；须在任务 preflight 按 CIP-02 实时读取，不以文档静态 SHA 为准 |
-| Current State | `G5 ACCEPTED / COMPLETE` |
+| Current State | `FG-E IMPLEMENTED / WAITING REVIEW`（N02；未自行 Acceptance） |
 | Last Accepted Group | Acceptance Group 5（Deterministic Replay，G5-0～G5-4） |
-| Current Group Branch | NONE / main accepted baseline（Group 5 已 closeout） |
+| Current Group Branch | `fix/fg-e-reconciliation-snapshot-consistency` |
 
 - G1–G4 acceptance 状态：`ACCEPTED` / `ACCEPTED` / `ACCEPTED` / `ACCEPTED`。
 - G5-0 / G5-1 / G5-2 / G5-3 / G5-4 acceptance 状态：`ACCEPTED`。
@@ -81,13 +81,18 @@
 
 ## 6. Next Step Entry（下一步工作入口）
 
-### FG-D Final Acceptance
+### FG-E Reconciliation Snapshot Consistency
 
 - FG-A、FG-B、FG-C、FG-D = `ACCEPTED / COMPLETE`。
 - FG-D — G2 Runtime Determinism & Failure Atomicity：F07、F09、F10、F11 =
   `ACCEPTED / FIXED`；Accepted Implementation =
   `b08c2ea1eef4e2780a98b68dfaa2d5954af7d42b`。
-- FG-E = `NOT STARTED`；N02 = OPEN / FG-E，N01 = `NOT STARTED`，G6 = `NOT STARTED`。
+- FG-E / N02 = `IMPLEMENTED / WAITING REVIEW`：G4 `reconcile()` 在同一 read-only
+  `REPEATABLE READ` PostgreSQL transaction 内调用 G3 accounting，并加载 G4 extended
+  facts；standalone G3 reconciliation 也使用自己的同类只读 snapshot。真实 PostgreSQL
+  并发回归已验证报告不会跨 `ACTIVE → REPLACED` plan commit 撕裂。未改 schema、migration、
+  SystemControlService / RecoveryManager transaction boundary 或 G3 accounting semantics。
+- N01 = `NOT STARTED`，G6 = `NOT STARTED`。
 
 - G5-0 `ACCEPTED`：`AI_CONTEXT.md` 为上下文入口；`AGENTS.md` 为工程工作纪律与 Context Isolation Protocol（CIP-01～CIP-10）的正式入口。
 - G5-1 `ACCEPTED`：Deterministic Replay Foundation 已验收，implementation acceptance basis = `34da62a0cc9dbe95b95faadb770fbd06179a6975`。

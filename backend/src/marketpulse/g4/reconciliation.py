@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from marketpulse.clock import Clock, SystemClock
@@ -34,22 +34,12 @@ async def reconcile(
     """Detector only. Never repairs ledger, position, cash or reservation."""
     clock = clock or SystemClock()
     now = now or clock.now()
-    base = await execution.reconciliation(run_mode)
-    diagnostics: list[str] = list(base.get("diagnostics", []))
-    invariants: dict[str, bool] = {
-        key: bool(base[key])
-        for key in (
-            "reserved_cash_matches_open_buys",
-            "sell_reservations_within_positions",
-            "position_quantities_match_fills",
-            "available_cash_non_negative",
-            "fills_have_one_ledger_entry",
-            "filled_orders_match_fills",
-        )
-    }
-    details: dict[str, Any] = {"g3": base}
+    async with sessions() as session, session.begin():
+        # PostgreSQL READ COMMITTED would give each SELECT a new snapshot.  This report spans
+        # G3 accounting and G4 safety facts, so hold one read-only snapshot for all of them.
+        await session.execute(text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY"))
+        base = await execution.reconciliation(run_mode, session=session)
 
-    async with sessions() as session:
         plans = list(
             (
                 await session.scalars(
@@ -88,6 +78,19 @@ async def reconcile(
         control = await session.scalar(
             select(RuntimeControlRecord).where(RuntimeControlRecord.run_mode == run_mode)
         )
+    diagnostics: list[str] = list(base.get("diagnostics", []))
+    invariants: dict[str, bool] = {
+        key: bool(base[key])
+        for key in (
+            "reserved_cash_matches_open_buys",
+            "sell_reservations_within_positions",
+            "position_quantities_match_fills",
+            "available_cash_non_negative",
+            "fills_have_one_ledger_entry",
+            "filled_orders_match_fills",
+        )
+    }
+    details: dict[str, Any] = {"g3": base}
 
     # 7. Active plan uniqueness (per instrument).
     active_by_instrument: dict[str, int] = {}

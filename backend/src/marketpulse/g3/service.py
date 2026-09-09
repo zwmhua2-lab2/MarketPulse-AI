@@ -7,7 +7,7 @@ from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
 from typing import Any, ClassVar
 
-from sqlalchemy import func, select, update
+from sqlalchemy import func, select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -1585,45 +1585,63 @@ class PaperExecutionService:
         )
         return OrderCancelResult(order_id=order_id, status=OrderStatus.CANCELLED, cancelled=True)
 
-    async def reconciliation(self, run_mode: RunMode) -> dict[str, Any]:
-        """Return G3 accounting invariants and diagnostics without attempting repair."""
+    async def reconciliation(
+        self, run_mode: RunMode, *, session: AsyncSession | None = None
+    ) -> dict[str, Any]:
+        """Return G3 accounting invariants from one read-only PostgreSQL snapshot.
+
+        A supplied session is owned by the caller.  G4 uses that form while it owns the
+        encompassing REPEATABLE READ transaction for the complete reconciliation report.
+        Standalone callers receive the same snapshot guarantee here.
+        """
+        if session is not None:
+            return await self._reconciliation_once(run_mode, session)
+        async with self.sessions() as owned_session, owned_session.begin():
+            await owned_session.execute(
+                text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY")
+            )
+            return await self._reconciliation_once(run_mode, owned_session)
+
+    async def _reconciliation_once(
+        self, run_mode: RunMode, session: AsyncSession
+    ) -> dict[str, Any]:
+        """Read G3 accounting facts using the caller-owned snapshot."""
         tolerance = 1e-8
-        async with self.sessions() as session:
-            account = await session.scalar(
-                select(AccountRecord).where(AccountRecord.run_mode == run_mode)
-            )
-            orders = list(
-                (
-                    await session.scalars(
-                        select(PaperOrderRecord).where(PaperOrderRecord.run_mode == run_mode)
+        account = await session.scalar(
+            select(AccountRecord).where(AccountRecord.run_mode == run_mode)
+        )
+        orders = list(
+            (
+                await session.scalars(
+                    select(PaperOrderRecord).where(PaperOrderRecord.run_mode == run_mode)
+                )
+            ).all()
+        )
+        fills = list(
+            (
+                await session.scalars(
+                    select(FillRecord)
+                    .join(PaperOrderRecord, FillRecord.order_id == PaperOrderRecord.order_id)
+                    .where(PaperOrderRecord.run_mode == run_mode)
+                )
+            ).all()
+        )
+        ledgers = list(
+            (
+                await session.scalars(
+                    select(LedgerEntryRecord).where(
+                        LedgerEntryRecord.account_id == (account.account_id if account else "")
                     )
-                ).all()
-            )
-            fills = list(
-                (
-                    await session.scalars(
-                        select(FillRecord)
-                        .join(PaperOrderRecord, FillRecord.order_id == PaperOrderRecord.order_id)
-                        .where(PaperOrderRecord.run_mode == run_mode)
-                    )
-                ).all()
-            )
-            ledgers = list(
-                (
-                    await session.scalars(
-                        select(LedgerEntryRecord).where(
-                            LedgerEntryRecord.account_id == (account.account_id if account else "")
-                        )
-                    )
-                ).all()
-            )
-            positions = list(
-                (
-                    await session.scalars(
-                        select(PositionRecord).where(PositionRecord.run_mode == run_mode)
-                    )
-                ).all()
-            )
+                )
+            ).all()
+        )
+        positions = list(
+            (
+                await session.scalars(
+                    select(PositionRecord).where(PositionRecord.run_mode == run_mode)
+                )
+            ).all()
+        )
         diagnostics: list[str] = []
         open_buys = [
             order
