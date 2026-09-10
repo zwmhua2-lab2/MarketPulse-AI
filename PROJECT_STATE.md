@@ -321,3 +321,7 @@ N01 overall — NOT ACCEPTED（N01-5 / N01-6 / N01-7 / N01-8 与 Integrated Runt
   为任务书 §2–§9 与既有仓库约定；本批自行确定的契约决策已在该 dev_log §3 逐条列出。
 - 备注（主库）：本地 `marketpulse` 主库仍停在 `20260905_0004`，本批**未**对其执行 migration
   （避免未经授权修改外部系统状态）；如需与 head 一致，由 Operator 执行 `alembic upgrade head`。
+- 备注（基线漂移，CIP-03，非本批所致）：任务开始时 `main` = `e0dab188`；Fix #1 push 时实测
+  `main` 已 fast-forward 至 `6cc4c36`（N01-VAL 验证修复线收尾，`e0dab188` 仍为其祖先）。
+  漂移文件与 SE-02A 文件零重叠；本批未 reset / 未 rebase / 未改动 `main`。
+  `259 passed` 只对本 branch（base `e0dab188`）成立。详见 dev_log §14.11。

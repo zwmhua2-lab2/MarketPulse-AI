@@ -536,11 +536,12 @@ Fix #1 全量运行前/后取证：
 
 | 项 | 值 |
 |---|---|
-| Task Base SHA | `54b8223ffa95827833029c7fb80369a79982bf7f` |
+| Task Base SHA | `54b8223ffa95827833029c7fb80369a79982bf7f`（其 parent = `e0dab188`） |
 | branch | `se-02a-contracts-additive-persistence` |
-| remote branch HEAD（push 前） | `54b8223ffa95827833029c7fb80369a79982bf7f` |
-| 本地 `main` / `origin/main` / `git ls-remote origin refs/heads/main` | `e0dab188e55c32b7607c18a66644d25449dc2236`（三者一致，**未推进**） |
-| Fix #1 改动文件 | 5 production + 2 tests（见 §14.9） |
+| remote branch HEAD（push 前 / push 后） | `54b8223ffa95827833029c7fb80369a79982bf7f` / `48aed372082461e042b4ff71e6066ebb99044f72`（`54b8223..48aed37`） |
+| `main`（**任务开始时**实测） | `e0dab188e55c32b7607c18a66644d25449dc2236`（本地 / `origin/main` / `ls-remote` 三者一致） |
+| `main`（**push 时**实测，已漂移，见 §14.11） | `6cc4c36e11c380f638872598e4766a4436d0d255`（本地 / `origin/main` / `ls-remote` 三者一致） |
+| Fix #1 改动文件 | 5 production + 2 tests + `PROJECT_STATE.md` + 本 dev_log（提交 `48aed37`，9 files changed） |
 | 新增 migration | 无（就地修正 `20260911_0005`） |
 
 ### 14.9 Fix #1 交付文件
@@ -565,3 +566,27 @@ Fix #1 全量运行前/后取证：
 - Runtime behavior changed = **NO**；Real AI = **NO**；Live Trading = **NO**
 - New quant framework = **NO**；`main` merged = **NO**
 - 状态：`SE-02A IMPLEMENTED / AWAITING RE-REVIEW`（**未自行写 ACCEPTED**）
+
+### 14.11 基线漂移记录（CIP-03，必须报告）
+
+Fix #1 的 push 完成时（2026-09-11 06:4x）实测发现 **Accepted Main 已从 `e0dab188` 推进**：
+
+| 项 | 值 |
+|---|---|
+| 任务开始时（本次 Fix #1 的 preflight） | `main` = `e0dab188e55c32b7607c18a66644d25449dc2236` |
+| push 时（**已漂移**） | `main` = `6cc4c36e11c380f638872598e4766a4436d0d255`（本地 / `origin/main` / `git ls-remote origin refs/heads/main` 三者一致） |
+| 漂移链 | `e0dab18 → 67b0cb5 → 14f387a → 13049a0 → 6cc4c36`（N01-VAL-FIX-01/02/03 + 验收收尾） |
+| 性质 | **纯 fast-forward**：`git merge-base --is-ancestor e0dab188 6cc4c36` = 0（`e0dab188` 是新 main 的祖先），无 rewrite、无丢弃 |
+| 与 SE-02A 的关系 | `git merge-base --is-ancestor 54b8223 6cc4c36` = 1 ⇒ 本 branch 与漂移后的 main **在 `e0dab188` 处分叉** |
+| 重叠面 | `git diff --stat e0dab188 6cc4c36` 仅含 `AI_CONTEXT.md` / `PROJECT_STATE.md` / `backend/tests/test_group4.py` / `backend/tests/test_n01_okx_paper_safety.py` / `backend/tests/test_n01_runtime_resource_lifecycle.py` / 3 个 N01-VAL dev_log —— **不含任何 SE-02A 文件**（`edge/*`、`20260911_0005`、`test_se_02a_*`） |
+| 本批动作 | **未** reset / **未** rebase / **未** 改动 main；只 push 自己的 branch（`54b8223..48aed37`） |
+
+两个必须让 Reviewer 知道的结论：
+
+1. **基线漂移发生在任务开始之后**，来源是并行的 N01-VAL 验证修复线收尾（非本批、非本会话所为），
+   且为纯 fast-forward，`e0dab188` 仍是当前 main 的祖先 ⇒ 本批的 Task Base 语义未被破坏。
+2. **§14.6 的 `259 passed` 是在本 branch（base `e0dab188`）上取得的**，其 baseline 常量
+   `171` 也对应 `e0dab188`。因此该数字**只对本 branch 成立**；main 漂移引入的
+   `test_group4.py` / `test_n01_*.py` 增量不在其中。若后续把本 branch 合并进新 main，
+   全量总数应高于 `259`，需在合并后窗口重新计数（本批不代理该动作）。
+   漂移文件与 SE-02A 文件零重叠 ⇒ 预期无 textual conflict（**未验证合并**，不作断言）。
