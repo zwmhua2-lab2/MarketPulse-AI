@@ -135,14 +135,22 @@ N01 overall — NOT ACCEPTED（N01-5 / N01-6 / N01-7 / N01-8 与 Integrated Runt
 
 ## In Progress
 
-- SE-02A｜Contracts + Additive Persistence = `IMPLEMENTED / AWAITING RE-REVIEW`
-  （专项 SE｜Strategy & Trading Edge 的第一个 Implementation Acceptance Batch；branch
+- SE-02A｜Contracts + Additive Persistence = `SE-02A INTEGRATION VERIFIED / READY FOR HUMAN
+  ACCEPTANCE`（**非** ACCEPTED；未经人工 Acceptance 不 merge `main`）
+  （专项 SE｜Strategy & Trading Edge 的第一个 Implementation Acceptance Batch；原始 branch
   `se-02a-contracts-additive-persistence`，Task Base `e0dab188e55c32b7607c18a66644d25449dc2236`）。
   只落地 Edge domain contracts 与 4 张 additive Edge 表 + Alembic `20260911_0005`；未接
   runtime capture、未实现 forward outcome calculator、未修改 G2/G3/G4/G5 业务语义。
   Independent Acceptance Review 的 3 个 contract blocker（P0-1 reference BBO 可空 /
   P0-2 forward outcome 终态语义 / P0-3 BBO 因果身份与幂等）已由 **Acceptance Fix #1** 关闭。
   详见 `dev_log/2026-09-11-se-02a-edge-contracts-persistence.md`（§14）与本文「SE-02A Result」。
+  **Final Integration & Acceptance Gate（2026-09-11）**：以实时重读的 Accepted Main
+  （`origin/main` = `6cc4c36`，未推进）为基，从 clean worktree 建立 integration branch
+  `se-02a-final-integration`（HEAD = `c6754ae`；merge parents = `6cc4c36`(main) + `0c206c9`(SE-02A)），
+  合并 SE-02A Fix #1 并人工语义合并 `PROJECT_STATE.md`；N01 全部 accepted changes + SE-02A Fix #1
+  + migration `20260911_0005` + Edge tests + dev_log 共同成立。历史 evidence branch
+  `se-02a-contracts-additive-persistence`（远端 `0c206c9`）**保留未改写 / 未 force-push**。
+  详见该 dev_log §15。SE-02B / SE-02C / SE-02D / runtime capture / Real AI / Live 均 **NOT STARTED**。
 - 无进行中的 Acceptance Group。**N01-B 已 `ACCEPTED / COMPLETE`**（见 Completed）；下一门
   N01-5 Restart / Recovery / Reconciliation（N01-C）**尚未开窗**。
 - `N01-VAL-FIX-01` / `N01-VAL-FIX-02` / `N01-VAL-FIX-03` 的 **Consolidated Final Acceptance
@@ -199,6 +207,18 @@ N01 overall — NOT ACCEPTED（N01-5 / N01-6 / N01-7 / N01-8 与 Integrated Runt
   采样」建立 exclusivity 证据后才采信；运行期间若监测到外来 writer，该 run 标记
   `INVALIDATED BY ENVIRONMENT` 并在恢复 exclusivity 后重跑（不「重试至通过」）。建议后续另开
   窗口评估（例如按会话隔离数据库或加互斥），**不在**本次 Scope 内。
+- **实测并发写者事件（SE-02A Final Integration 窗口，2026-09-11；环境级 / 非产品缺陷）**：窗口内观测到
+  另一个会话（N01-C，独立 worktree `E:\Documents\MarketPulse-AI-n01-c`）以
+  `py -3.14 -m pytest backend/tests -q` 对**同一共享 PostgreSQL** 连续跑全量套件
+  （`full1` 07:10:54–07:15:11 / `full2` 07:15:59–07:20:05 / `full-final-1` 07:24:21–07:28:23 /
+  `full-final-2` 07:28:35–07:32:35）。SE-02A Final Integration 的前两次全量尝试因此标记
+  `INVALIDATED BY ENVIRONMENT`：失败签名 = `ReplayWorkspaceIsolationError: primary database changed
+  during replay`、`runtime_controls_pkey` duplicate（REPLAY）、`account_not_bootstrapped`、
+  `RUNTIME_STATE_STARTING/RECOVERING` rejection，且**全部**落在共享 primary 的 G3/G4/G5 测试，
+  而 SE-02A contracts/persistence、N01 与 okx 测试全绿。第三次（C3）在门控确认外部 pytest 全部退出
+  后起跑，并有 0.2 s PostgreSQL census + 进程扫描双重独占证据，故采信 `261 passed`。实施注意点
+  （可复用）：仅按 `CommandLine -match 'pytest backend'` 过滤会**误匹配外部会话的轮询脚本**
+  （其命令行文本含该字面量），必须先按进程名（`python|py.exe|pytest`）过滤，再匹配命令行。
 - 真实 AI Provider 集成 = `DEFERRED`（`OPENAI_API_KEY=MISSING`）。Position Re-evaluation contract 以 deterministic Fake Provider 验证，未伪造真实 AI 结果。
 - Real OKX Paper Protection / Restart Recovery smoke 已用真实 BTC-USDT BBO 完成（`LIVE_PAPER`，无 Live 下单）。
 - FastAPI TestClient 上游 deprecation warning 仍存在（2 处，不影响结果）。
@@ -397,8 +417,19 @@ N01 overall — NOT ACCEPTED（N01-5 / N01-6 / N01-7 / N01-8 与 Integrated Runt
   Ruff / compileall / `git diff --check` PASS、migration
   `0004 → upgrade head(0005) → downgrade 0004 → upgrade head(0005)` PASS、
   无残留 disposable DB、primary `marketpulse` 仍为 `20260905_0004`（未被本批升级）。
-- 状态：`IMPLEMENTED / AWAITING RE-REVIEW`（未自行 Acceptance，未 merge `main`）。
-  详见 `dev_log/2026-09-11-se-02a-edge-contracts-persistence.md`（§14 = Acceptance Fix #1）。
+- 状态：`SE-02A INTEGRATION VERIFIED / READY FOR HUMAN ACCEPTANCE`（未自行 Acceptance，未 merge
+  `main`）。详见 `dev_log/2026-09-11-se-02a-edge-contracts-persistence.md`
+  （§14 = Acceptance Fix #1；§15 = Final Integration & Acceptance Gate）。
+- Final Integration 验证（2026-09-11；integration branch `se-02a-final-integration` @ `c6754ae`）：
+  在**实测独占窗口**（进程扫描无外来 pytest；0.2 s PostgreSQL census 全程无 `marketpulse_n01_c_%`
+  库、且观测到的 client `application_name` 全部定义于本仓库测试源码）执行 full backend
+  **`261 passed, 2 warnings`（EXIT=0）= N01 baseline `173` + SE-02A `88`**；migration cycle
+  `20260905_0004 → upgrade head 20260911_0005 → downgrade 20260905_0004 → upgrade head
+  20260911_0005` **PASS（17/17 断言）**、单一 Alembic head、Edge 4 表严格 additive
+  （`reference_bid` 可空、`reference_data_reason` 已删）、既有表保留、无残留 disposable DB、
+  primary `marketpulse` 仍 `20260905_0004`（**未**被本批升级）；Ruff / compileall /
+  `git diff --check` PASS。相对 `main` 的实现面 diff 仅 SE-02A backend 文件（无 N01 production
+  文件改动）。
 - 备注（Repository Truth 差异）：仓库中不存在 SE-02 设计 / approved contract 文档，本批契约依据
   为任务书 §2–§9 与既有仓库约定；本批自行确定的契约决策已在该 dev_log §3 逐条列出。
 - 备注（主库）：本地 `marketpulse` 主库仍停在 `20260905_0004`，本批**未**对其执行 migration

@@ -590,3 +590,168 @@ Fix #1 的 push 完成时（2026-09-11 06:4x）实测发现 **Accepted Main 已�
    `test_group4.py` / `test_n01_*.py` 增量不在其中。若后续把本 branch 合并进新 main，
    全量总数应高于 `259`，需在合并后窗口重新计数（本批不代理该动作）。
    漂移文件与 SE-02A 文件零重叠 ⇒ 预期无 textual conflict（**未验证合并**，不作断言）。
+
+---
+
+## 15. Final Integration & Acceptance Gate（2026-09-11）
+
+本批 Authorization：只做 **integration + 验证 + 文档**，不重新设计 SE-02A business contract、
+不开 SE-02B、不动 runtime capture、不 merge `main`。
+
+### 15.1 Repository Truth（本窗口 preflight 实测）
+
+| 项 | 实测值 | 命令 |
+|---|---|---|
+| Accepted Main（远端真值） | `6cc4c36e11c380f638872598e4766a4436d0d255` | `git ls-remote origin refs/heads/main` |
+| SE-02A 历史 evidence branch（远端） | `0c206c9c598c735d8f708db6603c02fc4d5a3fa3` | `git ls-remote origin refs/heads/se-02a-contracts-additive-persistence` |
+| integration worktree | `E:/Documents/MarketPulse-AI-se-02a-integration`，branch `se-02a-final-integration` | `git status --porcelain`（空 = clean） |
+| integration HEAD（文档提交前） | `c6754ae86868a6f1cd8cf506bca52488b536a63d` | `git rev-parse HEAD` |
+
+**`main` 在本窗口内未再次推进**（仍 `6cc4c36`），即 integration 的 Accepted Main pin 依然有效
+（CIP-02/03 无新漂移）。
+
+### 15.2 Integration 构建
+
+- 从最新 Accepted Main（`6cc4c36`）的 clean isolated worktree 建立 integration branch
+  `se-02a-final-integration`，merge SE-02A（`0c206c9`）⇒
+  **merge parents = `6cc4c36`(main) + `0c206c9`(SE-02A)**，merge commit `c6754ae`。
+- `PROJECT_STATE.md` 为**人工语义合并**：保留 N01 全部 accepted 记载 + SE-02A Fix #1 记载 +
+  Migration Head `20260911_0005`（非机械取一侧）。
+- **历史 evidence 未改写**：`se-02a-contracts-additive-persistence` 远端 SHA 仍为 `0c206c9`，
+  未 force-push / 未 reset / 未 rewrite（§2 要求）。
+
+### 15.3 Diff Scope（相对 `6cc4c36`）
+
+`git diff --stat 6cc4c36..c6754ae` = **12 files changed, +4469 / −3**：
+
+- SE-02A 实现面（相对 main 的**唯一**实现改动）：`backend/src/marketpulse/edge/{__init__,hashing,identity,models,repository}.py`、
+  `backend/alembic/versions/20260911_0005_edge_evidence_foundation.py`、
+  `backend/tests/test_se_02a_edge_contracts.py`、`backend/tests/test_se_02a_edge_persistence.py`、
+  `backend/src/marketpulse/g5/replay.py`（仅 `schema_head` 常量 `0004 → 0005`，guard 行为未变）。
+- 文档案：`PROJECT_STATE.md`、`dev_log/2026-09-11-se-02a-edge-contracts-persistence.md`。
+- 反向核对（相对 `0c206c9`）仅含 N01 侧 accepted 内容（`AI_CONTEXT.md` / `PROJECT_STATE.md` /
+  `test_group4.py` / `test_n01_okx_paper_safety.py` / `test_n01_runtime_resource_lifecycle.py` /
+  3 份 N01-VAL dev_log）⇒ **两侧差异恰好是对方的 accepted 内容，无覆盖、无遗漏、无越界，
+  无 N01 production 文件改动**。
+- `git diff --check 6cc4c36..c6754ae` = **PASS**（exit 0）。
+
+### 15.4 Required Integration Verification
+
+**工具链静态验证**（在 integration 树执行，cwd = worktree）：
+
+| 检查 | 结果 |
+|---|---|
+| `python -m ruff check backend` | `All checks passed!`（EXIT=0） |
+| `python -m compileall -q backend/src backend/tests` | EXIT=0（无输出） |
+| `git diff --check`（工作树 + range） | PASS |
+| migration 链 | `0001 → 0002 → 0003 → 0004 → 20260911_0005`，**单一 head**（`ScriptDirectory.get_heads()` = `['20260911_0005']`） |
+| 冻结语义残留 | `schema_head = "20260911_0005"`（`g5/replay.py:450`）；`reference_data_reason` 仅存于「已删除」断言，生产代码零残留 |
+
+**全量套件（三次尝试，必须如实记录）**：
+
+| Run | 时间窗 | 结果 | 判定 |
+|---|---|---|---|
+| C | 06:52–07:06 | `1 failed, 260 passed` 级（`test_n01_b_post_transition_...:1072` 的 `_leftover_disposable_databases()` 断言） | 该失败在 C2/C3 中**未复现**；0.2 s observer（0.5 s 粒度，同一谓词）全程 `marketpulse_n01_b_%` 最大并发 = **1** ⇒ disposable-DB 清理竞争的偶发 flake，非 SE-02A 因果缺陷 |
+| C2 | 07:08:43–07:13:26 | `43 failed, 218 passed`（283.44 s） | **`INVALIDATED BY ENVIRONMENT`** —— 与外部会话全量套件并发（见 §15.5） |
+| **C3** | **07:38:19–07:42:46** | **`261 passed, 2 warnings in 262.76s`，EXIT=0** | **采信**（独占窗口，见 §15.5） |
+
+C3 的 `261` 与预期**精确吻合**：N01 侧 baseline `173`（`6cc4c36` 的 full backend 实测值）
++ SE-02A `88`（contracts 62 + persistence 26）= **261**。
+
+C2 失败分布亦作为「非 SE-02A regression」的旁证：失败**全部**落在共享 primary 的
+`test_group3.py`(10) / `test_group4.py`(22) / `test_group5_3_determinism.py`(1) /
+`test_group5_4_evaluation.py`(10)，而 SE-02A contracts **62/62**、SE-02A persistence **26/26**、
+`test_n01_okx_paper_safety.py` **4/4**、`test_n01_runtime_resource_lifecycle.py` **6/6**、
+G2 **30/30**、G1 **6/6**、auth **2/2**、g5_1 **10/10**、g5_2 **7/7** 全绿。
+
+### 15.5 独占性取证（决定性）
+
+- **外部写者身份**：另一会话（N01-C，worktree `E:\Documents\MarketPulse-AI-n01-c`）以
+  `py.exe -3.14 -m pytest backend/tests -q` 对**同一 PostgreSQL 实例的同一 primary 库 `marketpulse`**
+  连续跑全量套件：`full1` 07:10:54–07:15:11、`full2` 07:15:59–07:20:05、`full-final-1`
+  07:24:21–07:28:23、`full-final-2` 07:28:35–07:32:35（其 temp 日志目录
+  `E:\Temp\marketpulse-n01-c-20260911` 最后写入时间 = 07:32:35，**早于 C3 起跑**）。
+  这同时解释了本仓库 Known Issues 里记录的 `application_name='marketpulse-n01-c-observer'`。
+- **C3 独占证据（三重）**：
+  1. **进程扫描**（`c3_proc_scan.txt`，3 s 粒度，07:17:06–07:42:46）：C3 窗口内观测到的 pid 集合
+     仅含本套件进程与无关 MCP 进程，无外部会话所用 `py.exe` 启动器。
+  2. **PostgreSQL census**（`int_sampler3.py`，0.2 s 目标粒度；C3 窗口 628 个快照，
+     `DBS` + `ACT` 各 1256 行）：窗口内 `marketpulse_n01_c_%` 库最大并发 = **0**
+     （对照组：07:10:54–07:15:11 窗口实测到 `marketpulse_n01_c_*` 与
+     `marketpulse-n01-c-owned-process-*` 连接，证明该指纹有效）。
+  3. **`application_name` 归属性**：C3 窗口内出现过的全部 client `application_name`
+     （`marketpulse-n01-b-observer` / `marketpulse-n01-b-owned-*` / `marketpulse-n01-vf01-observer` /
+     `...-vf01-lifecycle-cycle-*`）**均在本地仓库源码中定义** ——
+     `test_n01_okx_paper_safety.py:466-467`、`test_n01_runtime_resource_lifecycle.py:372`；
+     无任何仓库外名称。
+- **门控实现缺陷（如实记录、已修正）**：首次门控用
+  `Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match 'pytest backend|pytest.*backend/tests' }`
+  判定「外部 pytest 是否退出」，结果被外部会话的 **pwsh 轮询脚本**（其命令行文本里含
+  `pytest backend/tests` 字面量）永久匹配住，门控空转 21 分钟未放行。修正为
+  **先按进程名过滤**（`python|pytest|py\.exe`）**再**匹配命令行；修正后立即放行。
+- **C 的 1 failed 复核结论**：0.5 s 粒度的 `marketpulse_n01_b_%` 存在性 observer + 0.2 s census
+  双双显示该前缀库并发恒 ≤1（C2 中仅 3 个库逐个替换），且该测试在 C2、C3 均 PASS
+  ⇒ 判定为 disposable-DB 清理竞争/外部会话干扰导致的偶发 flake，**非** SE-02A regression。
+
+### 15.6 Migration Truth（§6）
+
+`backend/alembic/env.py` 的 URL 解析为
+`os.getenv("DATABASE_URL", config.get_main_option("sqlalchemy.url"))` ⇒ **ambient `DATABASE_URL`
+会覆盖 per-database config URL**。验证脚本因此显式把 `DATABASE_URL` 锚定到 disposable 库、
+结束后恢复，以结构性杜绝误升级 primary 的可能。
+
+在 disposable PostgreSQL（`marketpulse_se02a_migcycle_499018e32d7e`）实测
+`20260905_0004 → upgrade head → downgrade 20260905_0004 → upgrade head`：
+
+```
+[PASS] primary alembic_version before :: 20260905_0004
+[PASS] alembic heads single :: ['20260911_0005']
+[PASS] alembic head is 20260911_0005 :: ['20260911_0005']
+[PASS] step1 current == 20260905_0004 :: 20260905_0004
+[PASS] step1 edge tables absent :: []
+[PASS] step1 existing tables present :: []
+[PASS] step2 current == 20260911_0005 :: 20260911_0005
+[PASS] step2 edge tables present :: []
+[PASS] step2 reference_bid nullable :: YES
+[PASS] step2 reference_data_reason dropped :: None
+[PASS] step3 current == 20260905_0004 :: 20260905_0004
+[PASS] step3 edge tables removed :: []
+[PASS] step3 existing tables preserved :: []
+[PASS] step4 current == 20260911_0005 :: 20260911_0005
+[PASS] step4 edge tables present :: []
+[PASS] no residual disposable database :: 0
+[PASS] primary alembic_version unchanged :: 20260905_0004
+# RESULT=PASS failures=0
+```
+
+结论：**migration cycle PASS（17/17）**、单一 Alembic head、Edge 4 表严格 additive
+（`reference_bid` 可空、`reference_data_reason` 已删）、既有业务表（`positions` / `paper_orders` /
+`trade_plans` / `market_events`）在 upgrade/downgrade 两侧均保留、无残留 disposable 库、
+**primary `marketpulse` 未被升级**（前后均为 `20260905_0004`）。
+
+**脚本自身缺陷（如实记录，非 migration 缺陷）**：首版调查脚本把同步 Alembic
+`command.upgrade()` 放在自己的事件循环里调用，触发 `env.py` 的 `asyncio.run()` 抛
+`RuntimeError: asyncio.run() cannot be called from a running event loop`（EXIT=1）。
+该次失败**无副作用**：异常发生在首个 upgrade 之前（`finally` 已 DROP disposable 库），
+实测 `marketpulse_se02a_%` 残留 = 0、primary 仍 `20260905_0004`。修正方式 =
+Alembic 调用经 `asyncio.to_thread()` 派发（工作线程内无运行中的 loop）。
+
+### 15.7 Scope Check（Final Integration）
+
+- SE-02A business contract 重新设计 = **NO**（Opportunity identity / Evidence revision /
+  reference BBO nullable / terminal outcome / BBO causal identity / hashing / attribution /
+  horizons 全部保持 Fix #1 冻结语义）
+- SE-02B = **NO**；runtime capture = **NO**；SE-02C calculator = **NO**；MFE/MAE/expectancy = **NO**
+- Real AI = **NO**；Live Trading = **NO**；G2–G5 业务语义 = **NO**
+- `main` merged = **NO**；SE-02A 历史 branch 改写 = **NO**
+- 本次只新增/修改：`PROJECT_STATE.md`（本 integration 状态与并发写者事实）、本 dev_log §15
+
+### 15.8 Ready State
+
+- `SE-02A INTEGRATION VERIFIED / READY FOR HUMAN ACCEPTANCE`（**未**自行写 `ACCEPTED`，
+  **未** merge `main`）。
+- 交付给 Reviewer 的 integration candidate：branch `se-02a-final-integration`。
+- 交棒给 SE-02B 的前提未变（见 §11），且新增一条环境要求：**任何全量套件 run 必须先建立
+  外部写者排除证据**（进程名过滤 + 外部会话指纹库前缀 + `application_name` 归属性），
+  否则该 run 标记 `INVALIDATED BY ENVIRONMENT`。
+
