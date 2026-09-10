@@ -2,7 +2,7 @@
 
 ## Current Group
 
-FG-E — Reconciliation Snapshot Consistency — IMPLEMENTED / WAITING REVIEW
+FG-E — Reconciliation Snapshot Consistency — ACCEPTANCE FIX #3 COMPLETE / WAITING ACCEPTANCE
 
 ## GitHub Repository
 
@@ -11,7 +11,7 @@ FG-E — Reconciliation Snapshot Consistency — IMPLEMENTED / WAITING REVIEW
 - Visibility: `PRIVATE`
 - Default Branch: `main`
 - Accepted Main Source: Git `main` / `origin/main` — read actual SHA at task preflight（CIP-02）
-- Current Development Status: `FG-E IMPLEMENTED / WAITING REVIEW`（N02；未自行 Acceptance）
+- Current Development Status: `FG-E ACCEPTANCE FIX #3 COMPLETE / WAITING ACCEPTANCE`（N02；未自行 Acceptance）
 
 ## Branch / Source
 
@@ -50,7 +50,7 @@ FG-E — Reconciliation Snapshot Consistency — IMPLEMENTED / WAITING REVIEW
 
 ## In Progress
 
-- FG-E — Reconciliation Snapshot Consistency = `IMPLEMENTED / WAITING REVIEW`：N02 的一次
+- FG-E — Reconciliation Snapshot Consistency = `ACCEPTANCE FIX #3 COMPLETE / WAITING ACCEPTANCE`：N02 的一次
   G4 Reconciliation Report 现在在单一 read-only `REPEATABLE READ` PostgreSQL transaction
   中读取 G3 accounting 与 G4 extended facts；未改 schema、migration、Control/Recovery
   semantics 或 execution accounting。真实 PostgreSQL 并发回归证明：G3 基础读取后并发
@@ -59,8 +59,10 @@ FG-E — Reconciliation Snapshot Consistency — IMPLEMENTED / WAITING REVIEW
   Acceptance Fix #1 仅关闭 real G4 transaction-state evidence。Acceptance Fix #2 已补
   G4→G3 same-session/same-transaction identity、G4 account/order torn-read race，以及
   standalone G3 的 real RR/RO、account/order torn-read race、true durable corruption
-  detection 与 failure cleanup evidence。Formal Review 仍为 `CHANGES_REQUIRED / NOT ACCEPTED`，
-  等待独立 reviewer 判断全部 N02 evidence；未更新 `main`。
+  detection 与 failure cleanup evidence。Acceptance Fix #3 进一步验证 G4 对 durable
+  reserved-cash corruption 的 detector-only 传播，以及 G4 outer transaction failure 后的
+  cleanup、immediate independent writer commit 与同一 Harness fresh reconciliation。N02-1～N02-14
+  evidence 已齐备；状态仅为 `WAITING ACCEPTANCE`，未自行 Acceptance、未更新 `main`。
 
 ## Blocked
 

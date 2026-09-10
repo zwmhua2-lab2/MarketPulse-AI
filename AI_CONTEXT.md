@@ -9,9 +9,9 @@
 | 字段 | 值 |
 |---|---|
 | Project | MarketPulse AI（BTC/ETH 量化纸面交易终端，Modular Monolith） |
-| Current Acceptance Group | FG-E — Reconciliation Snapshot Consistency — IMPLEMENTED / WAITING REVIEW |
+| Current Acceptance Group | FG-E — Reconciliation Snapshot Consistency — ACCEPTANCE FIX #3 COMPLETE / WAITING ACCEPTANCE |
 | Accepted Main Source | Git `main` / `origin/main`；须在任务 preflight 按 CIP-02 实时读取，不以文档静态 SHA 为准 |
-| Current State | `FG-E IMPLEMENTED / WAITING REVIEW`（N02；未自行 Acceptance） |
+| Current State | `FG-E ACCEPTANCE FIX #3 COMPLETE / WAITING ACCEPTANCE`（N02；未自行 Acceptance） |
 | Last Accepted Group | Acceptance Group 5（Deterministic Replay，G5-0～G5-4） |
 | Current Group Branch | `fix/fg-e-reconciliation-snapshot-consistency` |
 
@@ -87,7 +87,7 @@
 - FG-D — G2 Runtime Determinism & Failure Atomicity：F07、F09、F10、F11 =
   `ACCEPTED / FIXED`；Accepted Implementation =
   `b08c2ea1eef4e2780a98b68dfaa2d5954af7d42b`。
-- FG-E / N02 = `IMPLEMENTED / WAITING REVIEW`：G4 `reconcile()` 在同一 read-only
+- FG-E / N02 = `ACCEPTANCE FIX #3 COMPLETE / WAITING ACCEPTANCE`：G4 `reconcile()` 在同一 read-only
   `REPEATABLE READ` PostgreSQL transaction 内调用 G3 accounting，并加载 G4 extended
   facts；standalone G3 reconciliation 也使用自己的同类只读 snapshot。真实 PostgreSQL
   并发回归已验证报告不会跨 `ACTIVE → REPLACED` plan commit 撕裂。未改 schema、migration、
@@ -99,8 +99,10 @@
   race、true durable corruption detection，以及 transaction identity / failure cleanup
   evidence。Acceptance Fix #2 已补 G4→G3 same-session/same-transaction identity、G4
   account/order torn-read race，以及 standalone G3 RR/RO、account/order torn-read race、
-  true durable corruption detection、failure cleanup evidence。Formal Review 仍为
-  `CHANGES_REQUIRED / NOT ACCEPTED`，须由独立 reviewer 判断；`main` 未更新。
+  true durable corruption detection、failure cleanup evidence。Acceptance Fix #3 已验证 G4
+  durable corruption detector-only propagation，以及 actual G4 outer transaction 的 failure
+  cleanup、immediate independent writer 与同生命周期 fresh reconciliation。N02-1～N02-14
+  evidence 已完成，等待独立 reviewer Acceptance；`main` 未更新。
 - N01 = `NOT STARTED`，G6 = `NOT STARTED`。
 
 - G5-0 `ACCEPTED`：`AI_CONTEXT.md` 为上下文入口；`AGENTS.md` 为工程工作纪律与 Context Isolation Protocol（CIP-01～CIP-10）的正式入口。

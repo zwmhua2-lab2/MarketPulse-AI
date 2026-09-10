@@ -2339,6 +2339,195 @@ def test_reconciliation_account_order_cancellation_race_uses_one_snapshot():
     assert reserved_cash > 0
 
 
+def test_g4_reconciliation_propagates_durable_reserved_cash_corruption():
+    """G4 remains detector-only when a durable account/order reservation mismatch exists."""
+
+    async def case():
+        h = Harness()
+        await h.boot()
+        plan = await open_limit_buy(h, notional=20, limit=95)
+        async with SESSIONS() as session:
+            account = await session.scalar(
+                select(AccountRecord).where(AccountRecord.run_mode == RunMode.REPLAY)
+            )
+            order = await session.scalar(
+                select(PaperOrderRecord).where(PaperOrderRecord.plan_id == plan.plan_id)
+            )
+            assert account is not None
+            assert order is not None
+            reserved_cash = account.reserved_cash
+            order_id = order.order_id
+            assert reserved_cash > 0
+            assert order.status == OrderStatus.OPEN
+            assert order.reserved_cash == pytest.approx(reserved_cash)
+
+        baseline = await h.reconcile(RunMode.REPLAY)
+        async with SESSIONS() as writer, writer.begin():
+            account = await writer.scalar(
+                select(AccountRecord).where(AccountRecord.run_mode == RunMode.REPLAY)
+            )
+            order = await writer.get(PaperOrderRecord, order_id)
+            assert account is not None
+            assert order is not None
+            account.reserved_cash = reserved_cash + 1.0
+
+        async with SESSIONS() as session:
+            corrupted_account = await session.scalar(
+                select(AccountRecord).where(AccountRecord.run_mode == RunMode.REPLAY)
+            )
+            corrupted_order = await session.get(PaperOrderRecord, order_id)
+        report = await h.reconcile(RunMode.REPLAY)
+        async with SESSIONS() as session:
+            post_report_account = await session.scalar(
+                select(AccountRecord).where(AccountRecord.run_mode == RunMode.REPLAY)
+            )
+            post_report_order = await session.get(PaperOrderRecord, order_id)
+        return (
+            baseline,
+            report,
+            reserved_cash,
+            corrupted_account,
+            corrupted_order,
+            post_report_account,
+            post_report_order,
+        )
+
+    (
+        baseline,
+        report,
+        reserved_cash,
+        corrupted_account,
+        corrupted_order,
+        post_report_account,
+        post_report_order,
+    ) = asyncio.run(case())
+    assert baseline.ok is True
+    assert baseline.invariants["reserved_cash_matches_open_buys"] is True
+    assert corrupted_account is not None
+    assert corrupted_order is not None
+    assert corrupted_account.reserved_cash == pytest.approx(reserved_cash + 1.0)
+    assert corrupted_order.status == OrderStatus.OPEN
+    assert corrupted_order.reserved_cash == pytest.approx(reserved_cash)
+    assert abs(corrupted_account.reserved_cash - corrupted_order.reserved_cash) > 1e-8
+    assert report.ok is False
+    assert report.invariants["reserved_cash_matches_open_buys"] is False
+    assert report.details["g3"]["reserved_cash_matches_open_buys"] is False
+    assert "reserved_cash_mismatch" in report.diagnostics
+    assert post_report_account is not None
+    assert post_report_order is not None
+    assert post_report_account.reserved_cash == pytest.approx(reserved_cash + 1.0)
+    assert post_report_order.status == OrderStatus.OPEN
+    assert post_report_order.reserved_cash == pytest.approx(reserved_cash)
+
+
+def test_g4_reconciliation_failure_cleans_outer_transaction_for_immediate_writer():
+    """A failed G4 report releases its caller-owned transaction before another writer commits."""
+
+    async def case():
+        h = Harness()
+        await h.boot()
+        plan = await open_limit_buy(h, notional=20, limit=95)
+        async with SESSIONS() as session:
+            account = await session.scalar(
+                select(AccountRecord).where(AccountRecord.run_mode == RunMode.REPLAY)
+            )
+            order = await session.scalar(
+                select(PaperOrderRecord).where(PaperOrderRecord.plan_id == plan.plan_id)
+            )
+            assert account is not None
+            assert order is not None
+            reserved_cash = account.reserved_cash
+            order_id = order.order_id
+            assert reserved_cash > 0
+            assert order.status == OrderStatus.OPEN
+            assert order.reserved_cash == pytest.approx(reserved_cash)
+
+        baseline = await h.reconcile(RunMode.REPLAY)
+        observed: dict[str, object] = {}
+        original_reconciliation = h.execution.reconciliation
+        original_reconciliation_once = h.execution._reconciliation_once
+
+        async def capture_g4_owned_transaction(run_mode, *, session=None):
+            assert session is not None
+            transaction = session.get_transaction()
+            assert transaction is not None
+            observed["session"] = session
+            observed["transaction"] = transaction
+            observed["transaction_state"] = (
+                await session.scalar(text("SHOW transaction_isolation")),
+                await session.scalar(text("SHOW transaction_read_only")),
+            )
+            return await original_reconciliation(run_mode, session=session)
+
+        async def fail_after_actual_account_read(run_mode, session):
+            original_scalars = session.scalars
+            raised = False
+
+            async def raise_before_order_read(*args, **kwargs):
+                nonlocal raised
+                if not raised:
+                    raised = True
+                    observed["account_read_completed"] = True
+                    raise RuntimeError("injected g4 reconciliation failure")
+                return await original_scalars(*args, **kwargs)
+
+            session.scalars = raise_before_order_read
+            try:
+                return await original_reconciliation_once(run_mode, session)
+            finally:
+                session.scalars = original_scalars
+
+        h.execution.reconciliation = capture_g4_owned_transaction
+        h.execution._reconciliation_once = fail_after_actual_account_read
+        try:
+            with pytest.raises(RuntimeError, match="injected g4 reconciliation failure"):
+                await h.reconcile(RunMode.REPLAY)
+        finally:
+            h.execution.reconciliation = original_reconciliation
+            h.execution._reconciliation_once = original_reconciliation_once
+
+        async def cancel_with_independent_writer():
+            async with SESSIONS() as writer, writer.begin():
+                account = await writer.scalar(
+                    select(AccountRecord).where(AccountRecord.run_mode == RunMode.REPLAY)
+                )
+                order = await writer.get(PaperOrderRecord, order_id)
+                assert account is not None
+                assert order is not None
+                account.reserved_cash = 0.0
+                order.status = OrderStatus.CANCELLED
+                order.reserved_cash = 0.0
+                order.reserved_quantity = 0.0
+
+        await asyncio.wait_for(cancel_with_independent_writer(), timeout=2)
+        async with SESSIONS() as session:
+            account = await session.scalar(
+                select(AccountRecord).where(AccountRecord.run_mode == RunMode.REPLAY)
+            )
+            order = await session.get(PaperOrderRecord, order_id)
+        fresh = await h.reconcile(RunMode.REPLAY)
+        return baseline, fresh, observed, account, order
+
+    baseline, fresh, observed, account, order = asyncio.run(case())
+    transaction = observed["transaction"]
+    session = observed["session"]
+    assert baseline.ok is True
+    assert observed["transaction_state"] == ("repeatable read", "on")
+    assert observed["account_read_completed"] is True
+    assert session.in_transaction() is False
+    assert transaction.is_active is False
+    assert account is not None and account.reserved_cash == 0
+    assert order is not None
+    assert order.status == OrderStatus.CANCELLED
+    assert order.reserved_cash == 0
+    assert order.reserved_quantity == 0
+    assert fresh.ok is True
+    assert fresh.details["open_orders"] == 0
+    assert fresh.details["open_buys"] == 0
+    assert fresh.invariants["reserved_cash_matches_open_buys"] is True
+    assert "reserved_cash_mismatch" not in fresh.diagnostics
+
+
 # ==============================================================================
 # Post-Review Fix #2 regression tests
 # ==============================================================================

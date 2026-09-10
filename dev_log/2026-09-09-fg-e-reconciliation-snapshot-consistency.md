@@ -122,3 +122,61 @@ Before this change, `g4.reconciliation.reconcile()` called `execution.reconcilia
 ### Status
 
 `CHANGES_REQUIRED / NOT ACCEPTED` — Acceptance Fix #1 closed only real G4 transaction-state evidence. Acceptance Fix #2 now supplies the remaining G4 identity/account-order and standalone G3 B/C/D/E evidence, but no human or independent reviewer Acceptance is claimed. `main` was not updated.
+
+## Acceptance Fix #3 — Final N02 Evidence
+
+### Scope
+
+- Tests and evidence documentation only. No `backend/src`, schema, migration, Runtime, Control, or Recovery source was modified.
+- The tests use the production `g4.reconciliation.reconcile()` path through `Harness.reconcile()` and distinct real PostgreSQL sessions for writers.
+
+### G4 Durable Corruption Propagation
+
+- A legal OPEN LIMIT BUY establishes `Account.reserved_cash = Order.reserved_cash = X`, `X > 0`; its baseline G4 report is `ok=True` with `reserved_cash_matches_open_buys=True`.
+- A separate committed PostgreSQL transaction changes only `Account.reserved_cash` to `X + 1.0`. Fresh reads confirm the order remains OPEN with reservation `X`, and the difference is greater than reconciliation tolerance.
+- A fresh production G4 report is `ok=False`; both its top-level and nested `details["g3"]` reserved-cash invariant are false and diagnostics contain `reserved_cash_mismatch`.
+- Fresh DB reads after that report still show the mismatch, proving G4 remains detector-only and performs no repair.
+
+### G4 Failure Cleanup and Immediate Writer
+
+- A legal OPEN LIMIT BUY baseline report passes. The test captures the real G4 caller-owned transaction immediately before G3, confirms `SHOW transaction_isolation = repeatable read` and `SHOW transaction_read_only = on`, then lets the original G3 account read complete.
+- The test-only `_reconciliation_once` seam raises `RuntimeError("injected g4 reconciliation failure")` immediately before the original G3 order read. The caller receives that exception and all seams are restored in `finally`.
+- After the exception returns, direct lifecycle checks prove `session.in_transaction() is False` and the captured transaction is inactive.
+- Without restarting or recreating the Harness, service, database, engine, or session factory, an independent PostgreSQL writer atomically cancels the order and releases account/order reservations under `asyncio.wait_for(..., timeout=2)`.
+- Fresh DB reads confirm T1 cancellation and zero reservations. A fresh G4 reconciliation on the same Harness is `ok=True`, has zero open orders/buys, preserves `reserved_cash_matches_open_buys=True`, and has no `reserved_cash_mismatch` diagnostic.
+
+### Final N02 Evidence Matrix
+
+| ID | Evidence | Result |
+|---|---|---|
+| N02-1 | G4 real REPEATABLE READ | PASS |
+| N02-2 | G4 real READ ONLY | PASS |
+| N02-3 | G4 → G3 same session | PASS |
+| N02-4 | G4 → G3 same transaction | PASS |
+| N02-5 | plan ACTIVE → REPLACED snapshot | PASS |
+| N02-6 | G4 account/order torn-read | PASS |
+| N02-7 | G4 writer non-blocking | PASS |
+| N02-8 | fresh G4 report sees T1 | PASS |
+| N02-9 | standalone G3 real REPEATABLE READ | PASS |
+| N02-10 | standalone G3 real READ ONLY | PASS |
+| N02-11 | standalone G3 account/order race | PASS |
+| N02-12 | standalone G3 writer non-blocking | PASS |
+| N02-13 | durable corruption remains detected | PASS |
+| N02-14 | G4 failure cleanup and immediate writer | PASS |
+
+### Verification
+
+- `py -3.14 -m pytest tests/test_group4.py -q -k 'g4_reconciliation_propagates_durable_reserved_cash_corruption or g4_reconciliation_failure_cleans_outer_transaction_for_immediate_writer' -ra` → `2 passed, 75 deselected in 3.30s`.
+- `py -3.14 -m pytest tests/test_group3.py -q -ra` → `16 passed in 20.41s`.
+- `py -3.14 -m pytest tests/test_group4.py -q -ra` → `77 passed in 88.64s`.
+- `py -3.14 -m pytest tests/test_group5_1_replay.py -q -ra` → `10 passed in 1.11s`.
+- `py -3.14 -m pytest tests/test_group5_2_trading_replay.py -q -ra` → `7 passed in 23.93s`.
+- `py -3.14 -m pytest tests/test_group5_3_determinism.py -q -ra` → `5 passed in 19.14s`.
+- `py -3.14 -m pytest tests/test_group5_4_evaluation.py -q -ra` → `10 passed in 66.43s`.
+- `py -3.14 -m pytest tests -q -ra` → `158 passed, 1 warning in 211.59s`; the warning is the existing FastAPI/Starlette `TestClient` deprecation.
+- `py -3.14 -m ruff check src tests` and `py -3.14 -m compileall -q src tests` → PASS.
+- `py -3.14 -m alembic current` and `py -3.14 -m alembic heads` → `20260905_0004 (head)`.
+
+### Status
+
+`FG-E ACCEPTANCE FIX #3 COMPLETE — WAITING ACCEPTANCE` — all N02-1～N02-14 evidence is recorded, but no human or independent reviewer Acceptance is claimed. `main` was not updated.
