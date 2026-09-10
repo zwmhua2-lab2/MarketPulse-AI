@@ -2,7 +2,7 @@
 
 ## Current Group
 
-FG-E — Reconciliation Snapshot Consistency — ACCEPTED / COMPLETE
+Acceptance Group 5 — ACCEPTED / COMPLETE
 
 ## GitHub Repository
 
@@ -11,12 +11,12 @@ FG-E — Reconciliation Snapshot Consistency — ACCEPTED / COMPLETE
 - Visibility: `PRIVATE`
 - Default Branch: `main`
 - Accepted Main Source: Git `main` / `origin/main` — read actual SHA at task preflight（CIP-02）
-- Current Development Status: `FG-E ACCEPTED / COMPLETE`（Human Acceptance confirmed；N02）
+- Current Development Status: `G5 ACCEPTED / COMPLETE`
 
 ## Branch / Source
 
 - Current Accepted Branch: `main`
-- Current Group Branch: `fix/fg-e-reconciliation-snapshot-consistency`（FG-E historical accepted branch；`main` 由 Final Acceptance Closeout fast-forward 收编）
+- Current Group Branch: NONE / CLOSED（Group 5 已 closeout；`g5-replay-evaluation` = historical accepted branch，main 已 fast-forward 收编；Task Base = `8f55cfd786cefa07be315cc6555a61636a7c8a16`）
 - Last Accepted Group Branch: `g5-deterministic-replay-foundation`（历史证据，保留未删）
 - Accepted Main Source: Git `main` / `origin/main` — read actual SHA at task preflight（CIP-02）
 - G5-1 Implementation Acceptance Basis: `34da62a0cc9dbe95b95faadb770fbd06179a6975`
@@ -34,26 +34,13 @@ FG-E — Reconciliation Snapshot Consistency — ACCEPTED / COMPLETE
 - Group 3 已完成人工 Acceptance Review #3，正式结果为 `PASS WITH NON-BLOCKING NOTES`。
 - G3 Post-Acceptance Fix 与 Fix2 已人工验收，`PASS WITH NON-BLOCKING NOTES`。
 - FG-A — G3 Execution Authority & Freshness：`ACCEPTED / COMPLETE`（accepted implementation
-  `a9c2cd64bea0c6cc43b1ef8ad890e4db5353b801`；C04 accepted unblocker
-  `d574e242f3aa7c26658ed6cc780fd8f744dbf503`；isolated Final Gate PASS）。
-- C04 — Alembic Replay Test Isolation Fix：`ACCEPTED / COMPLETE`；无 production Alembic
-  behavior 或 migration revision 修改。
-- FG-B — Protection Concurrency：`ACCEPTED / COMPLETE`（accepted implementation
-  `1c292b28e8e453b3c2e349b6b3b4f76c542341b1`；F03 / F06 = `ACCEPTED / FIXED`；
-  FG-C = `NOT STARTED`）。
-- FG-C — Safety Recovery Validity：`ACCEPTED / COMPLETE`（accepted implementation
-  `39388acdd313d631e887a3d1786352bbee51caca`；F04 / F05 / C01 = `ACCEPTED / FIXED`；
-  Acceptance Fix #2 已验证 C01 Case G 的 OPEN-position 三方保护生命周期与 F05 Case 2/3/4
-  crash-boundary durable 证据；`state_version` 仅作为 risk-increasing freshness authority，
-  不参与 open-position protection lifetime）。
-- FG-E — Reconciliation Snapshot Consistency：`ACCEPTED / COMPLETE`（Human Acceptance
-  confirmed；accepted implementation `2d5f3dde430c56cfbd4516bfdfdff8c513a07cff`；N02-1～N02-14
-  evidence PASS；无 schema/migration 或 Control/Recovery/execution-accounting semantic change）。
+  `a9c2cd64bea0c6cc43b1ef8ad890e4db5353b801`；base
+  `36401b26478a9892dc2ca0490f5c21ff24663636`）。
 - Group 4（持仓安全与恢复）已实现：Position Protection（SL/TP/Protective Exit/幂等）、Position Re-evaluation（HOLD/ADD/REDUCE/CLOSE/CANCEL_ADD/UPDATE_STOP/UPDATE_TP/UPDATE_INVALIDATION/REPLACE_PLAN）、System Safety State、Control（Pause/Resume/Emergency Stop/Emergency Recovery/Symbol Block/Manual Close/Safe Mode）、Recovery Manager（PostgreSQL SoT + Restart Recovery + Reconciliation Gate + Plan/Order Revalidation + EXECUTION_GAP）、Health Registry 与 Incident Manager。
 
 ## In Progress
 
-- 无。FG-E 已完成 Human Acceptance 与 Final Acceptance Closeout；后续 Group 尚未批准。
+- 无。FG-A 已完成 Acceptance Closeout；下一 Fix Group 未启动。
 
 ## Blocked
 
@@ -132,17 +119,10 @@ FG-E — Reconciliation Snapshot Consistency — ACCEPTED / COMPLETE
 
 - Group 1 = `ACCEPTED`；Group 2 = `ACCEPTED`；Group 3 = `ACCEPTED`；Group 4 = `ACCEPTED`。
 - G3 Post-Acceptance Fix = `ACCEPTED`。
-- FG-A — G3 Execution Authority & Freshness = `ACCEPTED / COMPLETE`（implementation
-  `a9c2cd64bea0c6cc43b1ef8ad890e4db5353b801`；C04
-  `d574e242f3aa7c26658ed6cc780fd8f744dbf503`；isolated Final Gate PASS）。
-- C04 — Alembic Replay Test Isolation Fix = `ACCEPTED / COMPLETE`。
 - Group 5-0 = `ACCEPTED`（G5 feature implementation NOT STARTED）。
 - Group 5-3 = `ACCEPTED`（2026-09-06 Formal Acceptance Closeout；Implementation Acceptance Basis = `f4c07333600f605cbcc5e34b591659feb1b1f318`；Review Fix #1 = VERIFIED）。
 - G5-4 = `ACCEPTED`（Formal Acceptance Closeout 2026-09-06；Production Implementation Basis = `8678b2927a2d029ac0767e49acc9e0732c329bfa`；Self Review Fix #1 Evidence = `fe610c1f23457ff11f2d5c8654e9de0aec4ff289`）。
 - G5 overall = `ACCEPTED / COMPLETE`。
-- FG-E / N02 = `ACCEPTED / COMPLETE`（Human Acceptance confirmed；accepted implementation
-  `2d5f3dde430c56cfbd4516bfdfdff8c513a07cff`；N02-1～N02-14 evidence PASS；Final Acceptance
-  Closeout 已将 accepted lineage fast-forward 至 `main`）。
 
 ## Group 5-1 Result
 
@@ -223,3 +203,12 @@ FG-E — Reconciliation Snapshot Consistency — ACCEPTED / COMPLETE
 - Schema migration：未新增；`replay_run_id` / `backtest_id`：未引入；Evaluation Report：未持久化。
 - 状态：`G5-4 ACCEPTED`（2026-09-06 Formal Acceptance Closeout；G5 overall = `ACCEPTED / COMPLETE`）。
   详见 `dev_log/2026-09-06-group5-4.md`。
+
+## Product Requirements Baseline（PRB-01）
+
+- 任务：PRB-01 — Establish Stable Product Requirements Baseline（Documentation / Governance Only）。
+- 新建根目录 `PRODUCT_REQUIREMENTS.md`：长期产品需求基线（Product Goal / Trading Philosophy / Stable Product Boundaries / Core responsibility model / Long-term capability direction）。
+- 同步入口：`AI_CONTEXT.md` 增加 `PRODUCT_REQUIREMENTS.md` 产品基线指针；`AGENTS.md` 开工检查加入 `PRODUCT_REQUIREMENTS.md`。
+- 本任务 Scope：仅文档；不修改 Backend / Frontend / Tests / Schema / Migration / 交易行为 / Risk / Scanner / AI Provider / G2–G5 Runtime；不把未来能力写成当前已完成；不静默覆盖 `DECISIONS.md`。
+- 状态：`IMPLEMENTED / READY FOR REVIEW`（Worker 完成，未自行 Acceptance，未推进 `main`）。
+- 分支：`prb-01-product-requirements-baseline`（基于 `main` = `ac3eaf9…`）；Commit SHA 见本任务 dev_log。

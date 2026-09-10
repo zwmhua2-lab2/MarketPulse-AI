@@ -4,16 +4,18 @@
 > 任何新的 AI / Codex 窗口应先读本文件建立上下文，再按下方 Source of Truth 顺序读取真实事实。
 > 本文件是入口和索引，**不是**比代码或已批准决策更高的事实源。
 
+> **产品级长期需求基线见 [`PRODUCT_REQUIREMENTS.md`](./PRODUCT_REQUIREMENTS.md)**（Product Goal / Trading Philosophy / Stable Product Boundaries / Core responsibility model / Long-term capability direction）。本文件（AI_CONTEXT）是其下的上下文入口索引，不重复其产品级内容；若二者冲突，以 `PRODUCT_REQUIREMENTS.md` 的产品级定位与 `DECISIONS.md` 的已批准冻结为准。
+
 ## 1. Project Identity
 
 | 字段 | 值 |
 |---|---|
 | Project | MarketPulse AI（BTC/ETH 量化纸面交易终端，Modular Monolith） |
-| Current Acceptance Group | FG-E — Reconciliation Snapshot Consistency — ACCEPTED / COMPLETE |
+| Current Acceptance Group | Acceptance Group 5 — ACCEPTED / COMPLETE |
 | Accepted Main Source | Git `main` / `origin/main`；须在任务 preflight 按 CIP-02 实时读取，不以文档静态 SHA 为准 |
-| Current State | `FG-E ACCEPTED / COMPLETE`（Human Acceptance confirmed；N02） |
-| Last Accepted Group | FG-E — Reconciliation Snapshot Consistency |
-| Current Group Branch | `fix/fg-e-reconciliation-snapshot-consistency`（historical accepted branch） |
+| Current State | `G5 ACCEPTED / COMPLETE` |
+| Last Accepted Group | Acceptance Group 5（Deterministic Replay，G5-0～G5-4） |
+| Current Group Branch | NONE / main accepted baseline（Group 5 已 closeout） |
 
 - G1–G4 acceptance 状态：`ACCEPTED` / `ACCEPTED` / `ACCEPTED` / `ACCEPTED`。
 - G5-0 / G5-1 / G5-2 / G5-3 / G5-4 acceptance 状态：`ACCEPTED`。
@@ -53,8 +55,8 @@
 
 | 字段 | 值 |
 |---|---|
-| Current Group | FG-E — `ACCEPTED / COMPLETE` |
-| Last accepted subgroup | N02 — Reconciliation Snapshot Consistency |
+| Current Group | Acceptance Group 5 — `ACCEPTED / COMPLETE` |
+| Last accepted subgroup | G5-4 — `ACCEPTED`（2026-09-06 Formal Acceptance Closeout） |
 | Next Group Design | `NOT STARTED` |
 | Next Group name/number | `NOT YET APPROVED` |
 
@@ -80,35 +82,6 @@
 **禁止依赖**：「上一个聊天应该知道」「前一个 AI 说已经做了」「我记得这个功能是……」。
 
 ## 6. Next Step Entry（下一步工作入口）
-
-### FG-E Reconciliation Snapshot Consistency
-
-- FG-A、FG-B、FG-C、FG-D = `ACCEPTED / COMPLETE`；FG-A～FG-E Fix Program = `COMPLETE`。
-- FG-D — G2 Runtime Determinism & Failure Atomicity：F07、F09、F10、F11 =
-  `ACCEPTED / FIXED`；Accepted Implementation =
-  `b08c2ea1eef4e2780a98b68dfaa2d5954af7d42b`。
-- FG-E = `ACCEPTED / COMPLETE`；N02 = `ACCEPTED / FIXED`：Human Acceptance confirmed；accepted implementation
-  `2d5f3dde430c56cfbd4516bfdfdff8c513a07cff`。G4 `reconcile()` 在同一 read-only
-  `REPEATABLE READ` PostgreSQL transaction 内调用 G3 accounting，并加载 G4 extended
-  facts；standalone G3 reconciliation 也使用自己的同类只读 snapshot。真实 PostgreSQL
-  并发回归已验证报告不会跨 `ACTIVE → REPLACED` plan commit 撕裂。未改 schema、migration、
-  SystemControlService / RecoveryManager transaction boundary 或 G3 accounting semantics。
-  Initial Formal Review = `CHANGES_REQUIRED / NOT ACCEPTED`（historical; superseded by
-  Acceptance Fix #1/#2/#3, Independent Review PASS and Human Acceptance）。Acceptance Fix #1 仅关闭 real G4
-  transaction-state evidence：production G4 → G3 session 参数路径内断言
-  `transaction_isolation=repeatable read` 与 `transaction_read_only=on`。其余 acceptance
-  evidence 包括 account/order torn-read race、standalone G3 RR/RO、standalone G3 torn-read
-  race、true durable corruption detection，以及 transaction identity / failure cleanup
-  evidence。Acceptance Fix #2 已补 G4→G3 same-session/same-transaction identity、G4
-  account/order torn-read race，以及 standalone G3 RR/RO、account/order torn-read race、
-  true durable corruption detection、failure cleanup evidence。Acceptance Fix #3 已验证 G4
-  durable corruption detector-only propagation，以及 actual G4 outer transaction 的 failure
-  cleanup、immediate independent writer 与同生命周期 fresh reconciliation。N02-1～N02-14
-  evidence 已完成，N02-1～N02-14 = PASS；Final Acceptance Closeout 已将 accepted lineage
-  fast-forward 至 `main`。FG-E historical branch 保留为证据。
-- N01 = `NOT STARTED`，N03 = `DEFERRED`，G6 = `NOT STARTED`。
-- C02 / C03 = `UNMAPPED / NOT AUDITABLE`；repository 中无法恢复原始 finding，需原始
-  master audit source 后才能重新分类；不属于当前已证明的 P0/P1 blocker。
 
 - G5-0 `ACCEPTED`：`AI_CONTEXT.md` 为上下文入口；`AGENTS.md` 为工程工作纪律与 Context Isolation Protocol（CIP-01～CIP-10）的正式入口。
 - G5-1 `ACCEPTED`：Deterministic Replay Foundation 已验收，implementation acceptance basis = `34da62a0cc9dbe95b95faadb770fbd06179a6975`。
