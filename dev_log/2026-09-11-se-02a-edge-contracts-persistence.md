@@ -236,7 +236,7 @@ DROP DATABASE             → 无残留
 |---|---|
 | `pytest backend/tests/test_se_02a_edge_contracts.py -q` | 24 passed |
 | `pytest backend/tests/test_se_02a_edge_persistence.py -q` | 14 passed |
-| `pytest backend/tests -q`（第 2 次） | **209 passed, 2 warnings** |
+| `pytest backend/tests -q`（修复后，运行 #2 与 #4） | **209 passed, 2 warnings**（256.99s / 261.19s） |
 | `ruff check backend/src backend/tests scripts backend/alembic` | All checks passed |
 | `compileall -q backend/src backend/tests backend/alembic` | PASS |
 | `git diff --check` | PASS |
@@ -263,7 +263,7 @@ DROP DATABASE             → 无残留
 ## 9. Regression（G1–G5 是否保持）
 
 - `G1 / G2 / G3 / G4 / G5-1 / G5-2 / G5-3 / G5-4` 定向与全量用例全部通过
-  （full backend 209 passed ×2）。
+  （full backend `209 passed` ×2 = 运行 #2 与 #4，逐次记录见 §13）。
 - G5 canonicalization（`g5/canonical.py`）**零改动**：SE-02A 只是复用方。
 - `g5/replay.py` 仅改 `schema_head` 常量（见 §4）。
 - 未修改任何 G2/G3/G4/G5 既有表 semantics、Risk、Execution、State Machine、
@@ -341,3 +341,40 @@ DROP DATABASE             → 无残留
 
 **未修改**：`DECISIONS.md`（本批未形成新的正式产品/架构决策）、
 `PRODUCT_REQUIREMENTS.md`（未发现需求基线冲突）、`AI_CONTEXT.md`。
+
+---
+
+## 13. Addendum｜全量回归稳定性确认（收尾补记）
+
+本节补记 §8 表格之前的第 3 次全量运行与后续确认，使 §9 中「`209 passed ×2`」的断言有逐次可追溯的运行记录。
+
+| 运行 | 结果 | 证据文件 |
+|---|---|---|
+| #1 | `23 failed, 186 passed`（`schema_head` 修复前，见 §8） | — |
+| #2 | **`209 passed, 2 warnings in 256.99s`** | `E:/Temp/se02a/full_run_2.txt` |
+| #3 | **中途卡死**：输出仅 `..............................................FFFFFFFFF.F`（57 B，无 summary） | `E:/Temp/se02a/full_run_3.txt` |
+| #4 | **`209 passed, 2 warnings in 261.19s`** | `E:/Temp/se02a/full_run_4.txt` |
+
+命令一律为
+`E:/Documents/MarketPulse AI/.venv/Scripts/python.exe -m pytest backend/tests -q --tb=short`，
+工作树与 `main` 基线在 #2–#4 之间未变。
+
+**第 3 次卡死的诊断（如实记录）**
+
+- 卡死位置在收集顺序的 group4 中段（约第 58 个用例）；SE-02A 的 38 个用例排在末段，
+  **根本未被执行到**，故该次失败**不可能**由本批代码引起；
+- 数据库侧排查：无长事务（1 个 active `client backend`）、无锁等待（2 个 lock）；docker 资源正常；
+- **`C:` 盘此时 100% 满（可用 ≈1.8 G）**，`E:` 盘 80%；
+- 磁盘恢复到 `C:` 可用 ≈4.8 G 后，**同一命令、同一工作树、同一 `main` 立即重跑 #4** ⇒ `209 passed`；
+- 结论：判定为**环境资源压力（磁盘写满）叠加共享主库并发**导致的 flaky/阻塞，
+  **不是 SE-02A 引入的回归**。#3 早段的 10 个 `F` 与 §8 第 1 次运行中 8 个 `test_group3.py`
+  失败同源（共享主库 + `_clean()` 不清理 G2 表 / G4 控制表的既有隔离弱点）。
+
+⇒ §8 与 §9 中的「`209 passed ×2`」由 **运行 #2 与 #4** 构成：两次均为真实执行、
+有完整 summary、pytest exit code 0。
+
+**环境备注（本次收尾实测）**：WorkBuddy Bash 工具的 `PATH` 缺失 coreutils
+（`ls` / `which` / `head` / `tail` / `dirname` 均 `command not found`），Git 与绝对路径
+`python` / `docker` 可用；PowerShell 工具 stdout 被吞。文件枚举改用 `git ls-files -o`、
+`Read`、`python -c`。此属工具环境问题，不影响上表任何运行结果（pytest 输出的重定向与
+`python` 自持执行均正常）。
