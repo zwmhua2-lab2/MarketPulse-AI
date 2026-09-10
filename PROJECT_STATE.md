@@ -2,7 +2,7 @@
 
 ## Current Group
 
-N01-FIX-01 — G2 EventRuntime Lifecycle Safety — ACCEPTED / COMPLETE
+N01-A — Deterministic Runtime + Resource Lifecycle — VALIDATED / AWAITING REVIEW
 
 ## GitHub Repository
 
@@ -11,12 +11,12 @@ N01-FIX-01 — G2 EventRuntime Lifecycle Safety — ACCEPTED / COMPLETE
 - Visibility: `PRIVATE`
 - Default Branch: `main`
 - Accepted Main Source: Git `main` / `origin/main` — read actual SHA at task preflight（CIP-02）
-- Current Development Status: `N01-FIX-01 ACCEPTED / COMPLETE`（G2 EventRuntime Lifecycle Safety；Final Acceptance Closeout completed）
+- Current Development Status: `N01-A VALIDATED / AWAITING REVIEW`（Deterministic Runtime + Resource Lifecycle；未自行 Acceptance）
 
 ## Branch / Source
 
 - Current Accepted Branch: `main`
-- Current Group Branch: `fix/n01-eventruntime-lifecycle-safety`（N01-FIX-01 historical accepted branch；`main` 由 Final Acceptance Closeout fast-forward 收编）
+- Current Group Branch: `n01-a-runtime-resource-lifecycle`（N01-A validation branch；基于 `origin/main=bc635787…`，awaiting independent review）
 - Last Accepted Group Branch: `g5-deterministic-replay-foundation`（历史证据，保留未删）
 - Accepted Main Source: Git `main` / `origin/main` — read actual SHA at task preflight（CIP-02）
 - G5-1 Implementation Acceptance Basis: `34da62a0cc9dbe95b95faadb770fbd06179a6975`
@@ -53,14 +53,18 @@ N01-FIX-01 — G2 EventRuntime Lifecycle Safety — ACCEPTED / COMPLETE
   `d47313a1cb41996410606fe92b286a5046ed4fce`；accepted implementation
   `fc234b99dcbbd4f8dc2059a415b1b44d9f7f0a2b`；R01/R02/R03 与 PostgreSQL durable duplicate
   TOCTOU 已修复；无 schema/migration、Runtime Host、G3–G5 或业务语义修改）。
+- N01-A — Deterministic Runtime + Resource Lifecycle：`VALIDATED / AWAITING REVIEW`（Task Base /
+  verified `origin/main` = `bc635787eafdf88fdc8e5810109452b5e394a076`；仅新增 deterministic
+  validation；20 个 disposable PostgreSQL lifecycle、queue/backpressure、finite worker、同标的串行、
+  BTC/ETH 并行、dedupe/retry/cancellation、task/queue/inflight/retention/session 证据均通过；无
+  `backend/src`、schema/migration、Runtime Host、OKX 或 long-soak 改动）。
 - Group 4（持仓安全与恢复）已实现：Position Protection（SL/TP/Protective Exit/幂等）、Position Re-evaluation（HOLD/ADD/REDUCE/CLOSE/CANCEL_ADD/UPDATE_STOP/UPDATE_TP/UPDATE_INVALIDATION/REPLACE_PLAN）、System Safety State、Control（Pause/Resume/Emergency Stop/Emergency Recovery/Symbol Block/Manual Close/Safe Mode）、Recovery Manager（PostgreSQL SoT + Restart Recovery + Reconciliation Gate + Plan/Order Revalidation + EXECUTION_GAP）、Health Registry 与 Incident Manager。
 
 ## In Progress
 
-- N01-FIX-01 已完成 Final Acceptance Closeout。N01 Continuous Runtime / Soak 本身仍
-  `NOT ACCEPTED`：后续 N01 窗口必须先重新读取新的 Accepted Main，重跑 N01-0 Repository +
-  Runtime Preflight，确认 R01/R02/R03 blocker 持续关闭后，才可进入已批准的验证 gates；不得直接跳至
-  2h / 12h Soak。
+- N01-A 已完成 validation implementation，状态 `VALIDATED / AWAITING REVIEW`；N01 Continuous
+  Runtime / Soak 本身仍 `NOT ACCEPTED`。未执行真实 OKX reconnect 或 15m / 2h / 12h Soak；N01-B
+  只能在 N01-A 独立验收后另行进入。
 
 ## Blocked
 

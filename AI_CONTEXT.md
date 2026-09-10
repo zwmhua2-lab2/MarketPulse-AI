@@ -10,11 +10,11 @@
 | 字段 | 值 |
 |---|---|
 | Project | MarketPulse AI（BTC/ETH 量化纸面交易终端，Modular Monolith） |
-| Current Acceptance Group | FG-E — Reconciliation Snapshot Consistency — ACCEPTED / COMPLETE |
+| Current Acceptance Group | N01-A — Deterministic Runtime + Resource Lifecycle — VALIDATED / AWAITING REVIEW |
 | Accepted Main Source | Git `main` / `origin/main`；须在任务 preflight 按 CIP-02 实时读取，不以文档静态 SHA 为准 |
-| Current State | `FG-E ACCEPTED / COMPLETE`（Human Acceptance confirmed；N02） |
-| Last Accepted Group | FG-E — Reconciliation Snapshot Consistency |
-| Current Group Branch | `fix/fg-e-reconciliation-snapshot-consistency`（historical accepted branch） |
+| Current State | `N01-A VALIDATED / AWAITING REVIEW`（仅 validation additions；未自行 Acceptance） |
+| Last Accepted Group | N01-FIX-01 — G2 EventRuntime Lifecycle Safety |
+| Current Group Branch | `n01-a-runtime-resource-lifecycle`（validation branch；awaiting independent review） |
 
 - G1–G4 acceptance 状态：`ACCEPTED` / `ACCEPTED` / `ACCEPTED` / `ACCEPTED`。
 - G5-0 / G5-1 / G5-2 / G5-3 / G5-4 acceptance 状态：`ACCEPTED`。
@@ -55,10 +55,10 @@
 
 | 字段 | 值 |
 |---|---|
-| Current Group | FG-E — `ACCEPTED / COMPLETE` |
-| Last accepted subgroup | N02 — Reconciliation Snapshot Consistency |
-| Next Group Design | `NOT STARTED` |
-| Next Group name/number | `NOT YET APPROVED` |
+| Current Group | N01-A — `VALIDATED / AWAITING REVIEW` |
+| Last accepted subgroup | N01-FIX-01 — G2 EventRuntime Lifecycle Safety |
+| Next Group Design | N01-B only after N01-A acceptance |
+| Next Group name/number | N01-B — not started |
 
 - G4 **没有**提前实现完整 Replay / ReplayClock Engine。
 - 仓库中仅存在：`Clock` Protocol 的 `ReplayClock` 实现（`backend/src/marketpulse/clock.py`）与 `RunMode.REPLAY` 枚举（`config.py`）——这是既有 Clock 边界，**不是**完整回放引擎。
@@ -82,6 +82,18 @@
 **禁止依赖**：「上一个聊天应该知道」「前一个 AI 说已经做了」「我记得这个功能是……」。
 
 ## 6. Next Step Entry（下一步工作入口）
+
+### N01-A Deterministic Runtime + Resource Lifecycle
+
+- Task Base / verified `origin/main` = `bc635787eafdf88fdc8e5810109452b5e394a076`；branch =
+  `n01-a-runtime-resource-lifecycle`。
+- `N01-A = VALIDATED / AWAITING REVIEW`：validation-only test 覆盖 bounded queue/backpressure、
+  finite worker、同 `instrument_id` 串行、BTC/ETH bounded parallelism、recent/evicted/concurrent
+  duplicate、failure retry、cancellation、20 个 real PostgreSQL lifecycle、task/queue/inflight/retained
+  collection/session evidence。`backend/src` / schema / migration / Runtime Host 均未修改。
+- R01 / R02 / R03 与 PostgreSQL durable duplicate TOCTOU 在 verified Accepted Main 上保持关闭。
+  未执行真实 OKX reconnect 或 15m / 2h / 12h Soak；N01 Continuous Runtime / Soak 仍未证明、未验收。
+  下一 gate 为 N01-B，前提是 N01-A 独立 review / human acceptance。
 
 ### FG-E Reconciliation Snapshot Consistency
 
@@ -108,7 +120,7 @@
   cleanup、immediate independent writer 与同生命周期 fresh reconciliation。N02-1～N02-14
   evidence 已完成，N02-1～N02-14 = PASS；Final Acceptance Closeout 已将 accepted lineage
   fast-forward 至 `main`。FG-E historical branch 保留为证据。
-- N01 = `NOT STARTED`，N03 = `DEFERRED`，G6 = `NOT STARTED`。
+- N01-A = `VALIDATED / AWAITING REVIEW`，N01-B = `NOT STARTED`，N03 = `DEFERRED`，G6 = `NOT STARTED`。
 - C02 / C03 = `UNMAPPED / NOT AUDITABLE`；repository 中无法恢复原始 finding，需原始
   master audit source 后才能重新分类；不属于当前已证明的 P0/P1 blocker。
 
