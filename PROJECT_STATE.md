@@ -2,11 +2,11 @@
 
 ## Current Group
 
-N01-B — OKX Reconnect / Freshness + Paper Safety Continuity — ACCEPTED / COMPLETE
+N01-C — Restart / Recovery / Reconciliation — VALIDATED / AWAITING REVIEW
 
 N01-A — Deterministic Runtime + Resource Lifecycle — ACCEPTED / COMPLETE
 
-N01 overall — NOT ACCEPTED（N01-5 / N01-6 / N01-7 / N01-8 与 Integrated Runtime Host 仍 `NOT STARTED`）
+N01 overall — NOT ACCEPTED（N01-C 尚待独立 Review；N01-6 / N01-7 / N01-8 与 Integrated Runtime Host 仍 `NOT STARTED`）
 
 ## GitHub Repository
 
@@ -15,13 +15,14 @@ N01 overall — NOT ACCEPTED（N01-5 / N01-6 / N01-7 / N01-8 与 Integrated Runt
 - Visibility: `PRIVATE`
 - Default Branch: `main`
 - Accepted Main Source: Git `main` / `origin/main` — read actual SHA at task preflight（CIP-02）
-- Current Development Status: `N01-B ACCEPTED / COMPLETE`（Final Acceptance Closeout completed）；
-  N01 验证修复 `N01-VAL-FIX-01/02/03` 亦 `ACCEPTED / COMPLETE`，已 fast-forward 收入 `main`
+- Current Development Status: `N01-C VALIDATED / AWAITING REVIEW`；N01-A / N01-B 与
+  `N01-VAL-FIX-01/02/03` 均维持已验收结论，N01 overall 仍未验收
 
 ## Branch / Source
 
 - Current Accepted Branch: `main`
-- Current Group Branch: `n01-b-okx-paper-safety-continuity`（N01-B accepted historical branch；Final Acceptance Closeout fast-forward 收编至 `main`）
+- Current Group Branch: `n01-c-restart-recovery-reconciliation`（Task Base = verified `main`
+  `6cc4c36e11c380f638872598e4766a4436d0d255`；等待独立 Review，未 merge `main`）
 - Last Accepted Group Branch: `n01-a-runtime-resource-lifecycle`（历史证据，保留未删）；更早 `g5-deterministic-replay-foundation`
 - Accepted Main Source: Git `main` / `origin/main` — read actual SHA at task preflight（CIP-02）
 - G5-1 Implementation Acceptance Basis: `34da62a0cc9dbe95b95faadb770fbd06179a6975`
@@ -75,6 +76,19 @@ N01 overall — NOT ACCEPTED（N01-5 / N01-6 / N01-7 / N01-8 与 Integrated Runt
   `3 passed`、G2 `30` / G3 `16` / G4 `77`、full backend `171 passed` ×2、Ruff / compileall /
   `git diff --check` PASS。详见 `dev_log/2026-09-10-n01-b-okx-paper-safety-continuity.md`
   「Final Acceptance Closeout」。
+- N01-C — Restart / Recovery / Reconciliation：`VALIDATED / AWAITING REVIEW`（Task Base /
+  verified remote `main` = `6cc4c36e11c380f638872598e4766a4436d0d255`；branch
+  `n01-c-restart-recovery-reconciliation`；isolated worktree
+  `E:\Documents\MarketPulse-AI-n01-c`）。新增离网 deterministic cross-process validation：每个
+  disposable PostgreSQL scenario 以 Process A durable `LIVE_PAPER` BTC-USDT LONG / plan /
+  pending BUY / old heartbeat 后完全退出，再由 fresh Process B 从 PostgreSQL重建 RecoveryManager。
+  覆盖 EXECUTION_GAP、official detector-only reconciliation、valid/invalid recovered BUY、HOLD /
+  current-BBO SL exit、SAFE_MODE、PAUSED operator intent、BBO failure fail-closed、second-recovery
+  economic idempotency，以及 client ownership cleanup / database drop。Focused `6 passed`；full
+  backend `179 passed, 1 warning` ×2（exclusive writer evidence）；Ruff / compileall / diff-check PASS。
+  `Production Code Changed = NO`。详见
+  `dev_log/2026-09-11-n01-c-restart-recovery-reconciliation.md`。未自行 Acceptance、未 merge `main`，
+  不构成 N01-6/7/8 或 Integrated Runtime Host 结论。
 - N01-VAL-FIX-01 — PostgreSQL Lifecycle Evidence Stability：`ACCEPTED / COMPLETE`
   （Task Base / verified `refs/heads/main` = `e0dab188e55c32b7607c18a66644d25449dc2236`；
   branch `fix/n01-val-postgres-lifecycle-evidence`）。Finding `N01-VAL-F01` 已在当前 accepted
@@ -135,15 +149,16 @@ N01 overall — NOT ACCEPTED（N01-5 / N01-6 / N01-7 / N01-8 与 Integrated Runt
 
 ## In Progress
 
-- 无进行中的 Acceptance Group。**N01-B 已 `ACCEPTED / COMPLETE`**（见 Completed）；下一门
-  N01-5 Restart / Recovery / Reconciliation（N01-C）**尚未开窗**。
+- N01-C — Restart / Recovery / Reconciliation：`VALIDATED / AWAITING REVIEW`；不得自行
+  Acceptance 或 merge `main`。N01-6 15m Runtime Smoke、N01-7 2h Soak、N01-8 12h Soak 与
+  Integrated Runtime Host 仍不得进入。
 - `N01-VAL-FIX-01` / `N01-VAL-FIX-02` / `N01-VAL-FIX-03` 的 **Consolidated Final Acceptance
   Closeout 已完成**（2026-09-11）：三者均 `ACCEPTED / COMPLETE`，并已以 fast-forward only 收入
   `main`（见 Completed）。既**不构成** N01-C 开窗，也**不改变** `N01-A` / `N01-B` 的
   `ACCEPTED` 结论。`N01-G4-INV-01 = REVIEW PASS / Case B`（investigation branch 保留、不 merge）。
 - N01 Continuous Runtime / Soak 本身仍 `NOT ACCEPTED`；不得由 N01-B 验收推断 N01 整体验收。
-- N01-5 Restart / Recovery / Reconciliation、N01-6 15m Runtime Smoke、N01-7 2h Soak、N01-8 12h
-  Soak 与 Integrated Runtime Host 仍 `NOT STARTED`，须另开窗口并按各自批准的门执行。
+- N01-6 15m Runtime Smoke、N01-7 2h Soak、N01-8 12h Soak 与 Integrated Runtime Host 仍
+  `NOT STARTED`，须另开窗口并按各自批准的门执行。
 
 ## Blocked
 

@@ -10,11 +10,11 @@
 | 字段 | 值 |
 |---|---|
 | Project | MarketPulse AI（BTC/ETH 量化纸面交易终端，Modular Monolith） |
-| Current Acceptance Group | N01-B — OKX Reconnect / Freshness + Paper Safety Continuity — ACCEPTED / COMPLETE |
+| Current Acceptance Group | N01-C — Restart / Recovery / Reconciliation — VALIDATED / AWAITING REVIEW |
 | Accepted Main Source | Git `main` / `origin/main`；须在任务 preflight 按 CIP-02 实时读取，不以文档静态 SHA 为准 |
-| Current State | `N01-B = ACCEPTED / COMPLETE`（N01-A 亦为 `ACCEPTED / COMPLETE`）；N01 验证修复 `N01-VAL-FIX-01/02/03` = `ACCEPTED / COMPLETE` 并已收入 `main`；**N01 overall 仍 `NOT ACCEPTED`** |
+| Current State | `N01-C = VALIDATED / AWAITING REVIEW`；N01-A / N01-B 与 N01 验证修复 `N01-VAL-FIX-01/02/03` 均维持 `ACCEPTED / COMPLETE`；**N01 overall 仍 `NOT ACCEPTED`** |
 | Last Accepted Group | N01-B — OKX Reconnect / Freshness + Paper Safety Continuity |
-| Current Group Branch | `n01-b-okx-paper-safety-continuity`（accepted historical branch；Final Acceptance Closeout 已 fast-forward 收编至 `main`；下一 Group branch 尚未建立） |
+| Current Group Branch | `n01-c-restart-recovery-reconciliation`（Task Base / verified remote `main` = `6cc4c36e11c380f638872598e4766a4436d0d255`；等待独立 Review，未 merge） |
 
 - G1–G4 acceptance 状态：`ACCEPTED` / `ACCEPTED` / `ACCEPTED` / `ACCEPTED`。
 - G5-0 / G5-1 / G5-2 / G5-3 / G5-4 acceptance 状态：`ACCEPTED`。
@@ -55,10 +55,10 @@
 
 | 字段 | 值 |
 |---|---|
-| Current Group | N01-B — OKX Reconnect / Freshness + Paper Safety Continuity — `ACCEPTED / COMPLETE` |
+| Current Group | N01-C — Restart / Recovery / Reconciliation — `VALIDATED / AWAITING REVIEW` |
 | Last accepted subgroup | N01-B — OKX Reconnect / Freshness + Paper Safety Continuity (`ACCEPTED / COMPLETE`)；前一门 N01-A 亦 `ACCEPTED / COMPLETE` |
 | Next Group Design | `NOT STARTED`（须另开窗口） |
-| Next Group name/number | N01-5 Restart / Recovery / Reconciliation（N01-C）— not started |
+| Next Group name/number | N01-6 — 15-minute Runtime Smoke — not started |
 
 - G4 **没有**提前实现完整 Replay / ReplayClock Engine。
 - 仓库中仅存在：`Clock` Protocol 的 `ReplayClock` 实现（`backend/src/marketpulse/clock.py`）与 `RunMode.REPLAY` 枚举（`config.py`）——这是既有 Clock 边界，**不是**完整回放引擎。
@@ -83,18 +83,22 @@
 
 ## 6. Next Step Entry（下一步工作入口）
 
-### N01-5 Restart / Recovery / Reconciliation（N01-C）— NEXT GATE / NOT STARTED
+### N01-C Restart / Recovery / Reconciliation — VALIDATED / AWAITING REVIEW
 
-- 状态：`NOT STARTED`，**尚未开窗、尚未批准 Spec**。
-- 入口基线：`main` = N01-B accepted lineage + N01 验证修复（`N01-VAL-FIX-01/02/03`）
-  Consolidated Closeout 末端（须在 preflight 按 CIP-02 用
-  `git ls-remote origin refs/heads/main` 实时读取，不以本文档静态 SHA 为准）。
-- 上游已验收前提：N01-A（Deterministic Runtime + Resource Lifecycle）、N01-B（OKX Reconnect /
-  Freshness + Paper Safety Continuity）。
-- 不得由 N01-B 验收推断：N01 overall 验收、Continuous Runtime、N01-6 15m Smoke、N01-7 2h Soak、
-  N01-8 12h Soak、Integrated Runtime Host。
-- 开窗前需先批准该门的 Requirement / Scope / Out of Scope / Acceptance Criteria；不得沿用
-  N01-B 的 harness 直接充当 N01-5 证据。
+- Task Base / verified remote `main` = `6cc4c36e11c380f638872598e4766a4436d0d255`；branch =
+  `n01-c-restart-recovery-reconciliation`；isolated worktree =
+  `E:\Documents\MarketPulse-AI-n01-c`。
+- Validation uses a disposable real PostgreSQL database plus separate Process A / Process B Python
+  processes. Process B rebuilds engine/session/services only from durable PostgreSQL facts; it does
+  not receive Process A objects or memory. It covers execution-gap audit, detector-only official
+  reconciliation, recovered BUY revalidation, protection HOLD/current-BBO SL exit, SAFE_MODE,
+  PAUSED intent, BBO failure fail-closed, idempotency and resource cleanup.
+- Verification: focused `6 passed`; lifecycle `6`; N01-B `4`; G2 `30`; G3 `16`; full backend
+  `179 passed, 1 warning` ×2 under exclusive writer evidence; Ruff / compileall / diff-check PASS.
+  `Production Code Changed = NO`.
+- Status is **not Acceptance**: independent Review / human acceptance is still required. N01 overall,
+  N01-6 15m, N01-7 2h, N01-8 12h, Continuous Runtime and Integrated Runtime Host remain unproven.
+  See `dev_log/2026-09-11-n01-c-restart-recovery-reconciliation.md`.
 
 ### N01-B OKX Reconnect / Freshness + Paper Safety Continuity
 
