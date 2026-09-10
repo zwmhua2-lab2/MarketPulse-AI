@@ -85,15 +85,34 @@ N01 overall — NOT ACCEPTED（N01-5 / N01-6 / N01-7 / N01-8 与 Integrated Runt
   （`client_sessions == 0`，hard deadline 1.0 s，实测最长关闭可见时间 8.3 ms）；新增注入泄漏
   负向对照（可检出、可安全释放）。`Production code changed = NO`。详见
   `dev_log/2026-09-10-n01-val-fix-01-postgres-lifecycle-stability.md`。
+- N01-VAL-FIX-02 — N01-B PostgreSQL Activity Evidence Stability：`VALIDATED / AWAITING REVIEW`
+  （Task Base = `N01-VAL-FIX-01` 已评审 commit `67b0cb5e03bd6cb85e2df3ed873de10bed3325d2`，
+  其 parent = Accepted Main `e0dab188e55c32b7607c18a66644d25449dc2236`；branch
+  `fix/n01-val-n01b-postgres-activity-evidence`）。Finding `N01-VAL-F02`：N01-B 两个
+  PostgreSQL 测试用 `datname`-only 聚合（`SELECT count(*) ... FROM pg_stat_activity WHERE
+  datname = ...`）与 `activity_after == baseline` 证明 client connection cleanup，属错误
+  ownership model。修复：每个测试唯一 `application_name` 归属（`marketpulse-n01-b-owned-*`）
+  + observer 连接 primary 库不污染被测库 + 按 `backend_type` 拆分 client/server +
+  有界最终条件等待（`client_sessions == 0`，hard deadline 1.0 s，尺度沿用 FIX-01 实测
+  ≤8.3 ms）+ 极小注入泄漏负向对照；未引入 `baseline + 1` 容差，未用 sleep/retry 伪造清理证明。
+  历史 8 次 full-suite 中的 1 次 `test_n01_b_freshness_boundary_...` 失败**无 traceback**，
+  本窗口 12 次文件级 + 1 次 full suite 有界复现**未再捕获**，故明确记录为
+  `single historical full-suite failure not independently recaptured`；Fix 依据为源码缺陷 +
+  FIX-01 的既有捕获证据。`Production code changed = NO`。详见
+  `dev_log/2026-09-10-n01-val-fix-02-n01b-postgres-activity-evidence.md`。
 - Group 4（持仓安全与恢复）已实现：Position Protection（SL/TP/Protective Exit/幂等）、Position Re-evaluation（HOLD/ADD/REDUCE/CLOSE/CANCEL_ADD/UPDATE_STOP/UPDATE_TP/UPDATE_INVALIDATION/REPLACE_PLAN）、System Safety State、Control（Pause/Resume/Emergency Stop/Emergency Recovery/Symbol Block/Manual Close/Safe Mode）、Recovery Manager（PostgreSQL SoT + Restart Recovery + Reconciliation Gate + Plan/Order Revalidation + EXECUTION_GAP）、Health Registry 与 Incident Manager。
 
 ## In Progress
 
 - 无进行中的 Acceptance Group。**N01-B 已 `ACCEPTED / COMPLETE`**（见 Completed）；下一门
   N01-5 Restart / Recovery / Reconciliation（N01-C）**尚未开窗**。
-- `N01-VAL-FIX-01 = VALIDATED / AWAITING REVIEW`：validation infrastructure fix，只改
-  `backend/tests/test_n01_runtime_resource_lifecycle.py`；**不构成** N01-C 开窗，也**不改变**
-  `N01-A` / `N01-B` 的 `ACCEPTED` 结论。
+- `N01-VAL-FIX-01 = REVIEW PASS / CLOSEOUT BLOCKED BY F02`：validation infrastructure fix，只改
+  `backend/tests/test_n01_runtime_resource_lifecycle.py`；其 Final Closeout 因新增 validation
+  finding `N01-VAL-F02` 而**暂停执行**（未建 closeout commit、未推进 `main`）。既**不构成**
+  N01-C 开窗，也**不改变** `N01-A` / `N01-B` 的 `ACCEPTED` 结论。
+- `N01-VAL-FIX-02 = VALIDATED / AWAITING REVIEW`：继续修 N01-B PostgreSQL activity evidence
+  ownership model，只改 `backend/tests/test_n01_okx_paper_safety.py`（+ dev_log / 状态文档）；
+  **未** merge `main`、**未** closeout `N01-VAL-FIX-01`、**未**开始 `N01-C`。
 - N01 Continuous Runtime / Soak 本身仍 `NOT ACCEPTED`；不得由 N01-B 验收推断 N01 整体验收。
 - N01-5 Restart / Recovery / Reconciliation、N01-6 15m Runtime Smoke、N01-7 2h Soak、N01-8 12h
   Soak 与 Integrated Runtime Host 仍 `NOT STARTED`，须另开窗口并按各自批准的门执行。
@@ -123,6 +142,14 @@ N01 overall — NOT ACCEPTED（N01-5 / N01-6 / N01-7 / N01-8 与 Integrated Runt
 
 ## Known Issues
 
+- Pre-existing flaky test（out-of-scope，未修）：
+  `backend/tests/test_group4.py::test_fg_b_protection_wins_against_concurrent_limit_fill_without_reopen`
+  在负载下的 **full-suite 上下文**中可能失败（`assert order.status == OrderStatus.CANCELLED ...
+  got FILLED`，`test_group4.py:1709`）。N01-VAL-FIX-02 在**未改动**的 Task Base `67b0cb5` 上
+  观测到 1 次，单独复跑 `5/5 PASS`。`test_group4.py` 未被 N01-VAL-FIX-01 / FIX-02 触碰，故该
+  现象在 Accepted Main `e0dab188` 上同样存在。会威胁"full backend 连续 PASS"门；本窗口
+  2 次连续 full suite 未复现。证据见
+  `dev_log/2026-09-10-n01-val-fix-02-n01b-postgres-activity-evidence.md`「Out-of-Scope Finding」。
 - 真实 AI Provider 集成 = `DEFERRED`（`OPENAI_API_KEY=MISSING`）。Position Re-evaluation contract 以 deterministic Fake Provider 验证，未伪造真实 AI 结果。
 - Real OKX Paper Protection / Restart Recovery smoke 已用真实 BTC-USDT BBO 完成（`LIVE_PAPER`，无 Live 下单）。
 - FastAPI TestClient 上游 deprecation warning 仍存在（2 处，不影响结果）。

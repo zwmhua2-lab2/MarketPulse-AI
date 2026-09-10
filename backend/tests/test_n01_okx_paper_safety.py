@@ -445,22 +445,195 @@ def _disposable_postgres_database() -> Iterator[tuple[str, str]]:
         asyncio.run(execute(primary_url, f'DROP DATABASE "{database_name}"'))
 
 
-async def _database_activity(database_name: str) -> dict[str, int]:
-    engine = create_async_engine(Settings().database_url, poolclass=NullPool)
+# --- PostgreSQL cleanup ownership evidence (N01-VAL-FIX-02, Finding N01-VAL-F02) -----------
+#
+# The original gate compared the disposable database's total `pg_stat_activity` row count with
+# its pre-run baseline in the same instant that `await engine.dispose()` returned, filtering
+# only by `datname`. `datname` only says "a PostgreSQL backend is working on this database"; it
+# does not say "this backend is a client session the validation harness owns". N01-VAL-FIX-01
+# captured a real counterexample on this stack (backend_type = 'autovacuum worker',
+# usename = null, application_name = ''), proving a server-owned maintenance backend enters the
+# same `datname` result set.
+#
+# The replacement gate states the ownership boundary explicitly: it requires zero CLIENT
+# backends in the disposable database, attributes every session to a specific test-owned
+# lifecycle via a unique `application_name`, and waits for that exact condition under a hard
+# deadline. Strictness is preserved: no `baseline + 1` tolerance, no rerun-the-test retry and no
+# fixed `sleep()` standing in for proof of cleanup. Excluding server-owned maintenance backends
+# does not weaken leak detection, because the harness can only ever leak client backends;
+# `server_sessions` is retained purely as observation evidence.
+
+N01B_OWNED_APPLICATION_PREFIX = "marketpulse-n01-b-owned"
+N01B_OBSERVER_APPLICATION = "marketpulse-n01-b-observer"
+N01B_CLIENT_BACKEND_TYPE = "client backend"
+
+# Bounded by measurement on this stack (SQLAlchemy 2.0.52 / asyncpg 0.31.0 / PostgreSQL in
+# Docker): N01-VAL-FIX-01 measured the longest observed time for a client-closed owned backend
+# to leave `pg_stat_activity` at 8.3 ms (160 real lifecycles plus 12x24 and 10x80 burst closes
+# under CPU contention). The deadline below is ~120x that observed maximum: large enough to
+# absorb a slow server-side close, small enough that a leaked connection fails inside one
+# second. N01-VAL-FIX-02 reuses that scale rather than inventing a new one.
+N01B_CLEANUP_DEADLINE_SECONDS = 1.0
+N01B_CLEANUP_POLL_INTERVAL_SECONDS = 0.002
+
+_N01B_ACTIVITY_QUERY = """
+SELECT pid, application_name, usename, state, backend_type, wait_event_type, wait_event,
+       left(query, 120) AS last_query
+FROM pg_stat_activity
+WHERE datname = :database_name
+ORDER BY pid
+"""
+
+
+def _n01b_owned_application_name(purpose: str) -> str:
+    """Unique, self-identifying PostgreSQL `application_name` for one N01-B ownership domain."""
+    return f"{N01B_OWNED_APPLICATION_PREFIX}-{purpose}"
+
+
+def _n01b_harness_engine(database_url: str, application_name: str):
+    """Engine whose PostgreSQL sessions are self-identifying for this N01-B test."""
+    return create_async_engine(
+        database_url,
+        poolclass=NullPool,
+        connect_args={"server_settings": {"application_name": application_name}},
+    )
+
+
+def _n01b_observer_engine():
+    """Observer of the disposable database, connected to the *primary* database.
+
+    Connecting to the primary database keeps the observer's own session out of the disposable
+    database's client-session count, so the observation path can never be mistaken for a leaked
+    harness session.
+    """
+    return create_async_engine(
+        Settings().database_url,
+        poolclass=NullPool,
+        connect_args={"server_settings": {"application_name": N01B_OBSERVER_APPLICATION}},
+    )
+
+
+@dataclass(frozen=True)
+class _ActivitySnapshot:
+    """One ownership-split observation of the disposable database."""
+
+    rows: tuple[dict[str, Any], ...]
+
+    @property
+    def client_sessions(self) -> int:
+        """Backends the test could own or leak; the only thing the gate must clear."""
+        return sum(1 for row in self.rows if row["backend_type"] == N01B_CLIENT_BACKEND_TYPE)
+
+    @property
+    def server_sessions(self) -> int:
+        """Server-owned maintenance backends (autovacuum worker and friends)."""
+        return len(self.rows) - self.client_sessions
+
+    @property
+    def idle_in_transaction(self) -> int:
+        return sum(1 for row in self.rows if row["state"] == "idle in transaction")
+
+
+@dataclass(frozen=True)
+class _CleanupObservation:
+    """Outcome of one deadline-bounded wait for an owned client session to fully close."""
+
+    released: bool
+    elapsed_seconds: float
+    polls: int
+    first_snapshot: _ActivitySnapshot
+    final_snapshot: _ActivitySnapshot
+    transients: tuple[_ActivitySnapshot, ...]
+    server_backends: tuple[dict[str, Any], ...]
+    foreign_rows: tuple[dict[str, Any], ...]
+
+
+async def _activity_snapshot(engine, database_name: str) -> _ActivitySnapshot:
+    async with engine.connect() as connection:
+        result = await connection.execute(
+            text(_N01B_ACTIVITY_QUERY), {"database_name": database_name}
+        )
+        rows = tuple(dict(row) for row in result.mappings())
+    return _ActivitySnapshot(rows=rows)
+
+
+async def _owned_activity_snapshot(database_name: str) -> _ActivitySnapshot:
+    """One ownership-split snapshot taken through a short-lived observer engine."""
+    observer = _n01b_observer_engine()
     try:
-        async with engine.connect() as connection:
-            result = await connection.execute(
-                text(
-                    "SELECT count(*) AS sessions, "
-                    "count(*) FILTER (WHERE state = 'idle in transaction') AS idle_in_transaction "
-                    "FROM pg_stat_activity WHERE datname = :database_name"
-                ),
-                {"database_name": database_name},
-            )
-            row = result.one()
-            return {"sessions": row.sessions, "idle_in_transaction": row.idle_in_transaction}
+        return await _activity_snapshot(observer, database_name)
     finally:
-        await engine.dispose()
+        await observer.dispose()
+
+
+async def _wait_for_owned_client_cleanup(
+    database_name: str,
+    owned_application_name: str,
+    *,
+    deadline_seconds: float = N01B_CLEANUP_DEADLINE_SECONDS,
+) -> _CleanupObservation:
+    """Wait for one exact eventual condition: no client backend remains in the database.
+
+    This waits on the observed state rather than on the scheduler: every poll is an
+    ownership-attributed read, the loop exits as soon as the condition holds, and the hard
+    deadline turns "still present" into a failure instead of a retry.
+    """
+    observer = _n01b_observer_engine()
+    try:
+        started = time.perf_counter()
+        polls = 0
+        first_snapshot: _ActivitySnapshot | None = None
+        transients: list[_ActivitySnapshot] = []
+        server_backends: dict[object, dict[str, Any]] = {}
+        foreign_rows: list[dict[str, Any]] = []
+        while True:
+            snapshot = await _activity_snapshot(observer, database_name)
+            polls += 1
+            if first_snapshot is None:
+                first_snapshot = snapshot
+            for row in snapshot.rows:
+                if row["backend_type"] != N01B_CLIENT_BACKEND_TYPE:
+                    server_backends.setdefault(row["pid"], row)
+            if snapshot.client_sessions:
+                if len(transients) < 8:
+                    transients.append(snapshot)
+                foreign_rows.extend(
+                    row
+                    for row in snapshot.rows
+                    if row["backend_type"] == N01B_CLIENT_BACKEND_TYPE
+                    and row["application_name"] != owned_application_name
+                )
+            elapsed = time.perf_counter() - started
+            if not snapshot.client_sessions or elapsed >= deadline_seconds:
+                return _CleanupObservation(
+                    released=not snapshot.client_sessions,
+                    elapsed_seconds=elapsed,
+                    polls=polls,
+                    first_snapshot=first_snapshot,
+                    final_snapshot=snapshot,
+                    transients=tuple(transients),
+                    server_backends=tuple(server_backends.values()),
+                    foreign_rows=tuple(foreign_rows),
+                )
+            await asyncio.sleep(N01B_CLEANUP_POLL_INTERVAL_SECONDS)
+    finally:
+        await observer.dispose()
+
+
+async def _database_activity(database_name: str) -> dict[str, int]:
+    """Ownership-split diagnostic snapshot of the disposable database.
+
+    Retained as the reporting seam for `scripts/verify_n01_b_okx_paper_safety.py`; the leak gate
+    itself is `_wait_for_owned_client_cleanup`. `client_sessions` is the only count that may be
+    claimed as a harness connection; `server_sessions` is recorded as observation evidence.
+    """
+    snapshot = await _owned_activity_snapshot(database_name)
+    return {
+        "sessions": len(snapshot.rows),
+        "client_sessions": snapshot.client_sessions,
+        "server_sessions": snapshot.server_sessions,
+        "idle_in_transaction": snapshot.idle_in_transaction,
+    }
 
 
 async def _leftover_disposable_databases() -> int:
@@ -640,9 +813,15 @@ def test_n01_b_okx_provider_reconnects_on_controlled_disconnect_and_cleans_up(mo
 
 
 def test_n01_b_freshness_boundary_blocks_risk_increasing_actions_and_fails_closed():
-    async def scenario(database_name: str, database_url: str) -> dict[str, Any]:
-        baseline = await _database_activity(database_name)
-        engine = create_async_engine(database_url, poolclass=NullPool)
+    application_name = _n01b_owned_application_name("freshness")
+
+    async def scenario(
+        database_name: str, database_url: str
+    ) -> tuple[dict[str, Any], _ActivitySnapshot, _CleanupObservation]:
+        baseline = await _owned_activity_snapshot(database_name)
+        assert baseline.client_sessions == 0, baseline.rows
+        assert baseline.idle_in_transaction == 0, baseline.rows
+        engine = _n01b_harness_engine(database_url, application_name)
         sessions = async_sessionmaker(engine, expire_on_commit=False)
         harness = LivePaperHarness(sessions)
         try:
@@ -749,8 +928,7 @@ def test_n01_b_freshness_boundary_blocks_risk_increasing_actions_and_fails_close
                 RUN_MODE, sessions=sessions, execution=harness.execution, now=harness.clock.now()
             )
             assert report.ok is True, report.diagnostics
-            return {
-                "baseline": baseline,
+            evidence = {
                 "counts_before": counts_before,
                 "counts_after": await _economic_counts(sessions, RUN_MODE),
                 "reconciliation_ok": report.ok,
@@ -759,15 +937,52 @@ def test_n01_b_freshness_boundary_blocks_risk_increasing_actions_and_fails_close
             }
         finally:
             await engine.dispose()
+        cleanup = await _wait_for_owned_client_cleanup(database_name, application_name)
+        return evidence, baseline, cleanup
 
     with _disposable_postgres_database() as (database_name, database_url):
-        evidence = asyncio.run(scenario(database_name, database_url))
-        activity_after = asyncio.run(_database_activity(database_name))
-    assert evidence["baseline"]["idle_in_transaction"] == 0
-    assert activity_after == evidence["baseline"]
+        evidence, baseline, cleanup = asyncio.run(scenario(database_name, database_url))
+    assert baseline.idle_in_transaction == 0
+    assert cleanup.released, {
+        "application_name": application_name,
+        "elapsed_seconds": cleanup.elapsed_seconds,
+        "remaining_rows": cleanup.final_snapshot.rows,
+    }
+    assert cleanup.final_snapshot.client_sessions == 0, cleanup.final_snapshot.rows
+    assert cleanup.final_snapshot.idle_in_transaction == 0, cleanup.final_snapshot.rows
+    assert not cleanup.foreign_rows, cleanup.foreign_rows
     assert asyncio.run(_leftover_disposable_databases()) == 0
     assert evidence["counts_after"] == evidence["counts_before"]
-    print({"n01_b_freshness_boundary": evidence, "db_after": activity_after})
+    print(
+        {
+            "n01_b_freshness_boundary": evidence,
+            "db_baseline": {
+                "client_sessions": baseline.client_sessions,
+                "server_sessions": baseline.server_sessions,
+            },
+            "db_cleanup": {
+                "application_name": application_name,
+                "released": cleanup.released,
+                "released_seconds": round(cleanup.elapsed_seconds, 6),
+                "polls": cleanup.polls,
+                "transient_snapshots": len(cleanup.transients),
+                "foreign_rows": list(cleanup.foreign_rows),
+                "client_sessions_final": cleanup.final_snapshot.client_sessions,
+                "server_sessions_final": cleanup.final_snapshot.server_sessions,
+                "idle_in_transaction_final": cleanup.final_snapshot.idle_in_transaction,
+                "server_backends_seen": [
+                    {
+                        "pid": row["pid"],
+                        "backend_type": row["backend_type"],
+                        "state": row["state"],
+                        "usename": row["usename"],
+                        "last_query": row["last_query"],
+                    }
+                    for row in cleanup.server_backends
+                ],
+            },
+        }
+    )
 
 
 def test_n01_b_post_transition_controlled_fresh_bbo_still_triggers_protection():
@@ -777,9 +992,15 @@ def test_n01_b_post_transition_controlled_fresh_bbo_still_triggers_protection():
     engine remains executable across the freshness state transition. Real post-reconnect
     freshness recovery is evidenced by the real OKX validation script instead.
     """
-    async def scenario(database_name: str, database_url: str) -> dict[str, Any]:
-        baseline = await _database_activity(database_name)
-        engine = create_async_engine(database_url, poolclass=NullPool)
+    application_name = _n01b_owned_application_name("post-transition-trigger")
+
+    async def scenario(
+        database_name: str, database_url: str
+    ) -> tuple[dict[str, Any], _ActivitySnapshot, _CleanupObservation]:
+        baseline = await _owned_activity_snapshot(database_name)
+        assert baseline.client_sessions == 0, baseline.rows
+        assert baseline.idle_in_transaction == 0, baseline.rows
+        engine = _n01b_harness_engine(database_url, application_name)
         sessions = async_sessionmaker(engine, expire_on_commit=False)
         harness = LivePaperHarness(sessions)
         try:
@@ -831,14 +1052,97 @@ def test_n01_b_post_transition_controlled_fresh_bbo_still_triggers_protection():
                 RUN_MODE, sessions=sessions, execution=harness.execution, now=harness.clock.now()
             )
             assert report.ok is True, report.diagnostics
-            return {"baseline": baseline, "counts": counts, "reconciliation_ok": report.ok}
+            evidence = {"counts": counts, "reconciliation_ok": report.ok}
         finally:
             await engine.dispose()
+        cleanup = await _wait_for_owned_client_cleanup(database_name, application_name)
+        return evidence, baseline, cleanup
 
     with _disposable_postgres_database() as (database_name, database_url):
-        evidence = asyncio.run(scenario(database_name, database_url))
-        activity_after = asyncio.run(_database_activity(database_name))
-    assert evidence["baseline"]["idle_in_transaction"] == 0
-    assert activity_after == evidence["baseline"]
+        evidence, baseline, cleanup = asyncio.run(scenario(database_name, database_url))
+    assert baseline.idle_in_transaction == 0
+    assert cleanup.released, {
+        "application_name": application_name,
+        "elapsed_seconds": cleanup.elapsed_seconds,
+        "remaining_rows": cleanup.final_snapshot.rows,
+    }
+    assert cleanup.final_snapshot.client_sessions == 0, cleanup.final_snapshot.rows
+    assert cleanup.final_snapshot.idle_in_transaction == 0, cleanup.final_snapshot.rows
+    assert not cleanup.foreign_rows, cleanup.foreign_rows
     assert asyncio.run(_leftover_disposable_databases()) == 0
-    print({"n01_b_controlled_trigger": evidence, "db_after": activity_after})
+    print(
+        {
+            "n01_b_controlled_trigger": evidence,
+            "db_baseline": {
+                "client_sessions": baseline.client_sessions,
+                "server_sessions": baseline.server_sessions,
+            },
+            "db_cleanup": {
+                "application_name": application_name,
+                "released": cleanup.released,
+                "released_seconds": round(cleanup.elapsed_seconds, 6),
+                "polls": cleanup.polls,
+                "transient_snapshots": len(cleanup.transients),
+                "foreign_rows": list(cleanup.foreign_rows),
+                "client_sessions_final": cleanup.final_snapshot.client_sessions,
+                "server_sessions_final": cleanup.final_snapshot.server_sessions,
+                "idle_in_transaction_final": cleanup.final_snapshot.idle_in_transaction,
+                "server_backends_seen": [
+                    {
+                        "pid": row["pid"],
+                        "backend_type": row["backend_type"],
+                        "state": row["state"],
+                        "usename": row["usename"],
+                        "last_query": row["last_query"],
+                    }
+                    for row in cleanup.server_backends
+                ],
+            },
+        }
+    )
+
+
+def test_n01_b_owned_client_leak_is_never_reported_as_released():
+    """Negative control: a held test-owned client backend must never pass the cleanup gate.
+
+    The detector is only credible if a live client session is *not* reported as a released
+    lifecycle. One deliberately held connection (an open transaction, hence `idle in
+    transaction`) proves `client_sessions > 0 -> released is False`; no larger copy of the
+    N01-VAL-FIX-01 negative control is required for N01-B.
+    """
+    application_name = _n01b_owned_application_name("injected-leak")
+
+    async def scenario(database_name: str, database_url: str) -> tuple[_CleanupObservation, int]:
+        leak_engine = _n01b_harness_engine(database_url, application_name)
+        session = async_sessionmaker(leak_engine, expire_on_commit=False)()
+        try:
+            await session.execute(text("SELECT 1"))  # opens and then holds a transaction
+            leak_pid = int(await session.scalar(text("SELECT pg_backend_pid()")))
+            observation = await _wait_for_owned_client_cleanup(database_name, application_name)
+            return observation, leak_pid
+        finally:
+            await session.close()
+            await leak_engine.dispose()
+
+    with _disposable_postgres_database() as (database_name, database_url):
+        observation, leak_pid = asyncio.run(scenario(database_name, database_url))
+    assert observation.released is False, observation.final_snapshot.rows
+    assert observation.final_snapshot.client_sessions >= 1, observation.final_snapshot.rows
+    assert observation.final_snapshot.idle_in_transaction >= 1, observation.final_snapshot.rows
+    assert observation.elapsed_seconds >= N01B_CLEANUP_DEADLINE_SECONDS
+    assert any(row["pid"] == leak_pid for row in observation.final_snapshot.rows)
+    assert any(
+        row["application_name"] == application_name for row in observation.final_snapshot.rows
+    ), observation.final_snapshot.rows
+    assert not observation.foreign_rows, observation.foreign_rows  # owned, not foreign
+    print(
+        {
+            "n01_b_injected_leak": {
+                "leak_pid": leak_pid,
+                "detected_client_sessions": observation.final_snapshot.client_sessions,
+                "detected_idle_in_transaction": observation.final_snapshot.idle_in_transaction,
+                "detected_seconds": round(observation.elapsed_seconds, 6),
+                "cleanup_deadline_seconds": N01B_CLEANUP_DEADLINE_SECONDS,
+            }
+        }
+    )

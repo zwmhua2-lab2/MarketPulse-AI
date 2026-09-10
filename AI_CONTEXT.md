@@ -124,7 +124,9 @@
 
 ### N01-VAL-FIX-01 PostgreSQL Lifecycle Evidence Stability
 
-- 状态：`VALIDATED / AWAITING REVIEW`；branch = `fix/n01-val-postgres-lifecycle-evidence`；
+- 状态：`REVIEW PASS / CLOSEOUT BLOCKED BY F02`（Independent Review 已 PASS；Final Closeout 因
+  新增 validation finding `N01-VAL-F02` 暂停执行——未建 closeout commit、未推进 `main`）；
+  branch = `fix/n01-val-postgres-lifecycle-evidence`；commit = `67b0cb5`；
   Task Base / verified `refs/heads/main` = `e0dab188e55c32b7607c18a66644d25449dc2236`；
   isolated worktree = `E:\Documents\MarketPulse-AI-n01-val-fix-01`。
 - `N01-VAL-F01` 根因（已在 accepted `main` 上复现，并捕获到具体身份）：原 gate 只按
@@ -141,6 +143,32 @@
   `AI_CONTEXT.md` 最小状态同步。详见
   `dev_log/2026-09-10-n01-val-fix-01-postgres-lifecycle-stability.md`。
 - 边界：本 Fix **不构成** N01-C 开窗，也**不改变** `N01-A` / `N01-B` 的 `ACCEPTED` 结论。
+
+### N01-VAL-FIX-02 N01-B PostgreSQL Activity Evidence Stability
+
+- 状态：`VALIDATED / AWAITING REVIEW`；branch = `fix/n01-val-n01b-postgres-activity-evidence`；
+  Task Base = `67b0cb5e03bd6cb85e2df3ed873de10bed3325d2`（FIX-01 已评审 commit，其 parent =
+  Accepted Main `e0dab188e55c32b7607c18a66644d25449dc2236`，形成
+  `e0dab188 → 67b0cb5 → FIX-02 → Final Closeout` 线性）；
+  isolated worktree = `E:\Documents\MarketPulse-AI-n01-val-fix-02`。
+- `N01-VAL-F02` 缺陷：`backend/tests/test_n01_okx_paper_safety.py` 的两个 PostgreSQL lifecycle
+  测试用 `datname`-only 聚合（`SELECT count(*) ... FROM pg_stat_activity WHERE datname = ...`）
+  配合 `activity_after == baseline` 证明 client connection cleanup，属错误 ownership model
+  （`datname` 无法区分 harness client 与 server-owned maintenance backend）。
+- 修复：每个测试唯一 `application_name`（`marketpulse-n01-b-owned-*`）+ observer
+  （`marketpulse-n01-b-observer`）连接 **primary 库**不污染被测库 + 按 `backend_type` 拆分
+  `client_sessions` / `server_sessions` + 有界最终条件等待（`client_sessions == 0`，
+  hard deadline 1.0 s，poll 2 ms；尺度**沿用** FIX-01 实测 ≤8.3 ms，未新造尺度）+
+  极小 tests-only 注入泄漏负向对照。**未**引入 `baseline + 1`，**未**用 sleep/retry 代替清理证明。
+- 历史失败边界（必须准确）：8 次 full suite 中 1 次
+  `test_n01_b_freshness_boundary_...` FAIL 且**无 traceback**；本窗口 12 次文件级 + 1 次 full
+  suite 有界复现**未再捕获** → `single historical full-suite failure not independently
+  recaptured`。Fix 依据是**源码缺陷 + FIX-01 的既有捕获身份**，不主张该断言已被复现。
+- `Production code changed = NO`；`scripts/verify_n01_b_okx_paper_safety.py` 未改动
+  （`_database_activity` 保留为 ownership-aware 诊断接口，返回键向后兼容）。
+- 本 Fix **未** merge `main`、**未** closeout `N01-VAL-FIX-01`、**未**开始 N01-C，也**不改变**
+  `N01-A` / `N01-B` 的 `ACCEPTED` 结论。详见
+  `dev_log/2026-09-10-n01-val-fix-02-n01b-postgres-activity-evidence.md`。
 
 ### N01-A Deterministic Runtime + Resource Lifecycle
 

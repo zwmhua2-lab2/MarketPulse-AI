@@ -273,4 +273,3 @@ E:\Temp\marketpulse-n01-val-fix-01\diag_close_paths_report.json          # grace
 E:\Temp\marketpulse-n01-val-fix-01\diag_autovacuum_report.json           # 死元组与 autovacuum 作用证据
 E:\Temp\marketpulse-n01-val-fix-01\diag_*.py / diag_plugin.py            # 诊断脚本（只读，未入库）
 ```
-
