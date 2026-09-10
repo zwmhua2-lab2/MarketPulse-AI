@@ -443,7 +443,11 @@ class ReplayTradingResult:
 class ReplayTradingRunner:
     """Orchestrates historical frames through accepted G2/G3/G4 components only."""
 
-    schema_head = "20260905_0004"
+    # The replay guard verifies the replay workspace is migrated to the *current*
+    # Alembic head and is empty. SE-02A adds the additive Edge evidence revision
+    # 20260911_0005, so the expected head moves with the schema; the guard's
+    # behaviour (separate + migrated + clean workspace) is unchanged.
+    schema_head = "20260911_0005"
 
     def __init__(
         self,
