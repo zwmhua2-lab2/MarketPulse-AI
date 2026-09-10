@@ -622,12 +622,19 @@ Fix #1 的 push 完成时（2026-09-11 06:4x）实测发现 **Accepted Main 已�
 
 ### 15.3 Diff Scope（相对 `6cc4c36`）
 
-`git diff --stat 6cc4c36..c6754ae` = **12 files changed, +4469 / −3**：
+`git diff --stat 6cc4c36..c6754ae` = **12 files changed, +4469 / −3**。拆分：
+实现面仅 `backend/` = **10 files, +3819 / −2**（见下），另 2 个文件是 `PROJECT_STATE.md` 与本 devlog
+（`git diff --shortstat 6cc4c36..c6754ae -- backend` 实测）。
 
-- SE-02A 实现面（相对 main 的**唯一**实现改动）：`backend/src/marketpulse/edge/{__init__,hashing,identity,models,repository}.py`、
-  `backend/alembic/versions/20260911_0005_edge_evidence_foundation.py`、
-  `backend/tests/test_se_02a_edge_contracts.py`、`backend/tests/test_se_02a_edge_persistence.py`、
-  `backend/src/marketpulse/g5/replay.py`（仅 `schema_head` 常量 `0004 → 0005`，guard 行为未变）。
+- SE-02A 实现面（相对 main 的**唯一**实现改动，共 9 个 backend 文件）：
+  `backend/src/marketpulse/edge/{__init__,hashing,identity,models,repository}.py`、
+  `backend/src/marketpulse/db/models.py`（纯 additive，+245/−1：唯一删除行是把
+  `from sqlalchemy import ...` 改写为多行形式，新增 4 个 Edge ORM 类）、
+  `backend/alembic/versions/20260911_0005_edge_evidence_foundation.py`（+228）、
+  `backend/tests/test_se_02a_edge_contracts.py`（+669）、
+  `backend/tests/test_se_02a_edge_persistence.py`（+1098）、
+  `backend/src/marketpulse/g5/replay.py`（+6/−4，仅 `schema_head` 常量 `0004 → 0005` 及其注释，
+  guard 行为未变）。
 - 文档案：`PROJECT_STATE.md`、`dev_log/2026-09-11-se-02a-edge-contracts-persistence.md`。
 - 反向核对（相对 `0c206c9`）仅含 N01 侧 accepted 内容（`AI_CONTEXT.md` / `PROJECT_STATE.md` /
   `test_group4.py` / `test_n01_okx_paper_safety.py` / `test_n01_runtime_resource_lifecycle.py` /
@@ -754,4 +761,3 @@ Alembic 调用经 `asyncio.to_thread()` 派发（工作线程内无运行中的 
 - 交棒给 SE-02B 的前提未变（见 §11），且新增一条环境要求：**任何全量套件 run 必须先建立
   外部写者排除证据**（进程名过滤 + 外部会话指纹库前缀 + `application_name` 归属性），
   否则该 run 标记 `INVALIDATED BY ENVIRONMENT`。
-
