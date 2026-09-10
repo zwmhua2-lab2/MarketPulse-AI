@@ -363,7 +363,7 @@ def test_n01_twenty_real_postgres_lifecycles_dispose_tasks_queues_inflight_and_c
     async def scenario(database_name: str, database_url: str):
         baseline = await _database_activity(database_name)
         cycle_evidence = []
-        cycle_sessions = []
+        cycle_activity = []
         for cycle in range(20):
             # The harness owns every connection and deliberately avoids retaining a pool between
             # cycles; explicit disposal below is still required for the AsyncEngine lifecycle.
@@ -423,26 +423,22 @@ def test_n01_twenty_real_postgres_lifecycles_dispose_tasks_queues_inflight_and_c
                 for task in asyncio.all_tasks()
                 if task.get_name().startswith("g2-event-worker-") and not task.done()
             } - before_tasks
-            # asyncpg may expose one close-in-flight connection immediately after a disposal.
-            # The lifecycle contract is no accumulation across 20 cycles and never an
-            # idle-in-transaction session, not an unobservable scheduler-dependent close instant.
             activity = await _database_activity(database_name)
-            assert activity["idle_in_transaction"] == 0
-            assert activity["sessions"] <= baseline["sessions"] + 1
-            cycle_sessions.append(activity["sessions"])
-        return baseline, cycle_evidence, cycle_sessions, await _database_activity(database_name)
+            assert activity == baseline
+            cycle_activity.append(activity)
+        return baseline, cycle_evidence, cycle_activity, await _database_activity(database_name)
 
     with _disposable_postgres_database() as (database_name, database_url):
-        baseline, cycles, cycle_sessions, after = asyncio.run(scenario(database_name, database_url))
+        baseline, cycles, cycle_activity, after = asyncio.run(scenario(database_name, database_url))
     assert len(cycles) == 20
+    assert cycle_activity == [baseline] * 20
     assert baseline["idle_in_transaction"] == 0
-    assert after["idle_in_transaction"] == 0
-    assert max(cycle_sessions, default=baseline["sessions"]) <= baseline["sessions"] + 1
+    assert after == baseline
     print(
         {
             "n01_lifecycle_cycles": len(cycles),
             "db_before": baseline,
-            "db_cycle_sessions": cycle_sessions,
+            "db_cycle_activity": cycle_activity,
             "db_after": after,
         }
     )

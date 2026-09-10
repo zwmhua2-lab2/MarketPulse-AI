@@ -49,10 +49,10 @@
   workload → queue join → runtime stop → `await engine.dispose()`。
 - 每 cycle: worker tasks all done; no pending `g2-event-worker-*`; queue 0; inflight 0;
   dedupe 2/2; worker exceptions 0/2。
-- Disposable DB session before/after remains equal and `idle in transaction = 0`。Focused run
-  printed `db_before={'sessions': 0, 'idle_in_transaction': 0}` and identical `db_after`；full-suite
-  assertion intentionally compares per-disposable baseline to after, because Alembic setup may own
-  a pre-cycle baseline connection, while any harness-caused accumulation is forbidden.
+- Disposable DB activity must strictly restore to its pre-cycle baseline after every lifecycle and
+  again at final; `idle in transaction = 0` is included in that equality. Focused run printed
+  `db_before={'sessions': 0, 'idle_in_transaction': 0}` and identical activity for every cycle and
+  `db_after`. The temporary F01-era relaxation is superseded by Acceptance Fix #2 below.
 - No temporary N01 DB remains after the run (`pg_database LIKE 'marketpulse_n01_a_%' = 0`)。
 - Fixed universe retention: EventRuntime dedupe FIFO capacity 3; worker diagnostics deque maxlen 2;
   lock keys and state records exactly BTC/ETH; rolling trade deque `120` each; SignalLifecycle active
@@ -129,3 +129,48 @@ assertions。故该测试证明的是实际 contention 下的 non-overlap，不�
 - `py -3.14 -m ruff check backend/src backend/tests scripts`、
   `py -3.14 -m compileall -q backend/src backend/tests`、`git diff --check` → PASS。
 - Full stdout/stderr: `E:\Temp\marketpulse-n01-a\backend-full-fix1-final-20260910.txt`。
+
+## Independent Re-Review / Acceptance Fix #2 — N01-A-F02
+
+### Re-Review Result
+
+- `N01-A-F01 = CLOSED / PASS`：queue-get witness、same-instrument contention boundary, first-release
+  non-overlap、state/transition version 1 → 2、fixed workers and BTC/ETH parallel evidence remain intact.
+- `N01-A-F02` found an unrelated Acceptance Fix #1 change that relaxed the 20-cycle PostgreSQL
+  lifecycle assertion from exact baseline restoration to an allowance of `baseline + 1` session.
+  N01-A remained `CHANGES_REQUIRED / NOT ACCEPTED` until this contract was restored.
+
+### Root Cause and Restoration
+
+The relaxation was an unapproved response to intermittent full-suite observation behavior and was not
+required to prove F01. The current focused evidence had baseline, all cycles, and final at zero, so no
+evidence justified tolerating an additional persistent connection. Acceptance Fix #2 restores:
+
+```python
+activity == baseline  # after every completed lifecycle
+after == baseline     # after all 20 lifecycles
+```
+
+No sleep, poll-until-zero loop, retry, or scheduler timing workaround was introduced. The test records
+the 20 observed snapshots while retaining actual worker-completion, queue-drain, inflight-empty and
+explicit `await engine.dispose()` assertions.
+
+### PostgreSQL Lifecycle Evidence
+
+- Baseline: `{'sessions': 0, 'idle_in_transaction': 0}`.
+- Cycle 1–20: each `{'sessions': 0, 'idle_in_transaction': 0}`.
+- Final: `{'sessions': 0, 'idle_in_transaction': 0}`; `after == baseline`.
+- Disposable N01 database cleanup: `pg_database LIKE 'marketpulse_n01_a_%' = 0` after test cleanup.
+
+### Acceptance Fix #2 Regression
+
+- Focused N01-A: `5 passed in 6.38s`.
+- G2: `30 passed in 5.83s`.
+- Full backend: `168 passed, 1 warning in 183.73s`.
+- Ruff / compileall / `git diff --check`: PASS.
+- Full stdout/stderr: `E:\Temp\marketpulse-n01-a\backend-full-fix2-final-20260910.txt`。
+
+### Result
+
+`N01-A Acceptance Fix #2 = IMPLEMENTED / AWAITING RE-REVIEW`。Production code changed: `NO`；
+no schema/migration/Runtime Host/OKX/G3/G4/G5 change. This record does not declare N01-A accepted.
