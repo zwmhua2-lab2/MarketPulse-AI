@@ -10,11 +10,11 @@
 | 字段 | 值 |
 |---|---|
 | Project | MarketPulse AI（BTC/ETH 量化纸面交易终端，Modular Monolith） |
-| Current Acceptance Group | N01-A — Deterministic Runtime + Resource Lifecycle — ACCEPTED / COMPLETE |
+| Current Acceptance Group | N01-B — OKX Reconnect / Freshness + Paper Safety Continuity — ACCEPTED / COMPLETE |
 | Accepted Main Source | Git `main` / `origin/main`；须在任务 preflight 按 CIP-02 实时读取，不以文档静态 SHA 为准 |
-| Current State | `N01-B = VALIDATED / AWAITING REVIEW`（N01-A 仍为最后 ACCEPTED / COMPLETE） |
-| Last Accepted Group | N01-A — Deterministic Runtime + Resource Lifecycle |
-| Current Group Branch | `n01-b-okx-paper-safety-continuity`（active；N01-A accepted branch `n01-a-runtime-resource-lifecycle` 为历史证据，main 已 fast-forward） |
+| Current State | `N01-B = ACCEPTED / COMPLETE`（N01-A 亦为 `ACCEPTED / COMPLETE`；**N01 overall 仍 `NOT ACCEPTED`**） |
+| Last Accepted Group | N01-B — OKX Reconnect / Freshness + Paper Safety Continuity |
+| Current Group Branch | `n01-b-okx-paper-safety-continuity`（accepted historical branch；Final Acceptance Closeout 已 fast-forward 收编至 `main`；下一 Group branch 尚未建立） |
 
 - G1–G4 acceptance 状态：`ACCEPTED` / `ACCEPTED` / `ACCEPTED` / `ACCEPTED`。
 - G5-0 / G5-1 / G5-2 / G5-3 / G5-4 acceptance 状态：`ACCEPTED`。
@@ -55,10 +55,10 @@
 
 | 字段 | 值 |
 |---|---|
-| Current Group | N01-B — OKX Reconnect / Freshness + Paper Safety Continuity — `VALIDATED / AWAITING REVIEW` |
-| Last accepted subgroup | N01-A — Deterministic Runtime + Resource Lifecycle (`ACCEPTED / COMPLETE`) |
-| Next Group Design | `NOT STARTED` |
-| Next Group name/number | N01-5 Restart / Recovery / Reconciliation — not started |
+| Current Group | N01-B — OKX Reconnect / Freshness + Paper Safety Continuity — `ACCEPTED / COMPLETE` |
+| Last accepted subgroup | N01-B — OKX Reconnect / Freshness + Paper Safety Continuity (`ACCEPTED / COMPLETE`)；前一门 N01-A 亦 `ACCEPTED / COMPLETE` |
+| Next Group Design | `NOT STARTED`（须另开窗口） |
+| Next Group name/number | N01-5 Restart / Recovery / Reconciliation（N01-C）— not started |
 
 - G4 **没有**提前实现完整 Replay / ReplayClock Engine。
 - 仓库中仅存在：`Clock` Protocol 的 `ReplayClock` 实现（`backend/src/marketpulse/clock.py`）与 `RunMode.REPLAY` 枚举（`config.py`）——这是既有 Clock 边界，**不是**完整回放引擎。
@@ -83,27 +83,43 @@
 
 ## 6. Next Step Entry（下一步工作入口）
 
+### N01-5 Restart / Recovery / Reconciliation（N01-C）— NEXT GATE / NOT STARTED
+
+- 状态：`NOT STARTED`，**尚未开窗、尚未批准 Spec**。
+- 入口基线：`main` = N01-B accepted lineage 末端（须在 preflight 按 CIP-02 用
+  `git ls-remote origin refs/heads/main` 实时读取，不以本文档静态 SHA 为准）。
+- 上游已验收前提：N01-A（Deterministic Runtime + Resource Lifecycle）、N01-B（OKX Reconnect /
+  Freshness + Paper Safety Continuity）。
+- 不得由 N01-B 验收推断：N01 overall 验收、Continuous Runtime、N01-6 15m Smoke、N01-7 2h Soak、
+  N01-8 12h Soak、Integrated Runtime Host。
+- 开窗前需先批准该门的 Requirement / Scope / Out of Scope / Acceptance Criteria；不得沿用
+  N01-B 的 harness 直接充当 N01-5 证据。
+
 ### N01-B OKX Reconnect / Freshness + Paper Safety Continuity
 
 - Task Base / verified remote `refs/heads/main` = `a48673404abe256d0adb07c8139b129a54b4e7ce`；
-  branch = `n01-b-okx-paper-safety-continuity`；validation commit =
-  `fc168c10bec1237c8a795d11a67d1e89783a2bff`；isolated worktree =
-  `E:\Documents\MarketPulse-AI-n01-b`。
-- `N01-B = VALIDATED / AWAITING REVIEW`（**未** ACCEPTED，`main` 未推进）。N01-3 真实 OKX
-  SPOT metadata / 真实 `bbo-tbt` + `trades` / BTC-USDT 与 ETH-USDT 受控真实重连 / FRESH →
-  CONTROLLED STALE → FRESH 三段边界；N01-4 `LIVE_PAPER` paper safety continuity（disposable
-  PostgreSQL）：stale 下 `CORE_MARKET_DATA = UNAVAILABLE` + `CORE_DATA_STALE` incident，
-  risk-increasing BUY 经 `SystemRiskGate` fail-closed（`RUNTIME_STATE_DATA_DEGRADED`），
+  branch = `n01-b-okx-paper-safety-continuity`；accepted validation lineage =
+  `fc168c1` → `26688a2`；isolated worktree = `E:\Documents\MarketPulse-AI-n01-b`。
+- `N01-B = ACCEPTED / COMPLETE`（Independent Review `PASS`；Human Acceptance `CONFIRMED`；
+  `N01-3 = ACCEPTED`、`N01-4 = ACCEPTED`；accepted lineage 已 fast-forward 至 `main`）。
+  N01-3 真实 OKX SPOT metadata / 真实 `bbo-tbt` + `trades` / BTC-USDT 与 ETH-USDT 受控真实重连 /
+  FRESH → CONTROLLED STALE → FRESH 三段边界；N01-4 `LIVE_PAPER` paper safety continuity
+  （disposable PostgreSQL）：stale 下 `CORE_MARKET_DATA = UNAVAILABLE` + `CORE_DATA_STALE`
+  incident，risk-increasing BUY 经 `SystemRiskGate` fail-closed（`RUNTIME_STATE_DATA_DEGRADED`），
   无 fabricated Fill / exit / position mutation，SELL 风险降低语义保持不被 stale 禁止但要求
   executable fresh BBO；post-reconnect real fresh BBO 恢复 HEALTHY 并 RESOLVE incident；
   final reconciliation PASS。
-- 新增 validation-only 产物：`backend/tests/test_n01_okx_paper_safety.py`（离网 deterministic）
-  与 `scripts/verify_n01_b_okx_paper_safety.py`（真实 OKX，需显式执行）。
+- Validation-only 产物：`backend/tests/test_n01_okx_paper_safety.py`（离网 deterministic）
+  与 `scripts/verify_n01_b_okx_paper_safety.py`（真实 OKX，需显式执行）。两者均**不是**产品
+  入口，不得被当作 Runtime Host 或 Smoke 使用。
 - `Production code changed = NO`；无 schema / migration / Runtime Host / G3–G5 业务语义修改。
-  N01-5 / N01-6 / N01-7 / N01-8 与 Integrated Runtime Host 仍 `NOT STARTED`，不得由本记录进入。
 - 环境提示：本机 sandbox 注入的 `HTTP(S)_PROXY` 无法隧道到 OKX（502），本地 DNS 对
   `www.okx.com` 返回链路本地黑洞；真实 OKX 脚本在自身进程内清空 proxy env 后可正常验证。
-  该现象属环境，不是产品缺陷，也未修改任何 production code。
+  该现象属环境（`N01-B-E01`），不是产品缺陷，也未修改任何 production code。
+- Final Gate Observation（非阻塞）：N01-A 既有测试
+  `test_n01_twenty_real_postgres_lifecycles_...` 在 `engine.dispose()` 后立即断言
+  PostgreSQL `sessions == baseline`，存在极短服务端回收窗口的偶发时序抖动（当日 5 次执行中 1 次；
+  单独 3/3、全量 2/2 PASS）。属测试侧时序，非连接泄漏，无 production impact。
 
 ### N01-A Deterministic Runtime + Resource Lifecycle
 
@@ -117,8 +133,8 @@
   collection/session evidence。`backend/src` / schema / migration / Runtime Host 均未修改。
 - R01 / R02 / R03 与 PostgreSQL durable duplicate TOCTOU 在 verified Accepted Main 上保持关闭。
   未执行真实 OKX reconnect 或 15m / 2h / 12h Soak；N01 Continuous Runtime / Soak 仍未证明、未验收。
-  N01-B 未由本 Closeout 提前开始。（Historical N01-A closeout statement; N01-B 后续已单独开窗并
-  达到 `VALIDATED / AWAITING REVIEW`，见第 6 节。）
+  N01-B 未由本 Closeout 提前开始。（Historical N01-A closeout statement; N01-B 后续已单独开窗，
+  经 Independent Review `PASS` + Human Acceptance 后为 `ACCEPTED / COMPLETE`，见第 6 节。）
 
 ### FG-E Reconciliation Snapshot Consistency
 
@@ -145,7 +161,7 @@
   cleanup、immediate independent writer 与同生命周期 fresh reconciliation。N02-1～N02-14
   evidence 已完成，N02-1～N02-14 = PASS；Final Acceptance Closeout 已将 accepted lineage
   fast-forward 至 `main`。FG-E historical branch 保留为证据。
-- N01-A = `ACCEPTED / COMPLETE`；N01-B = `VALIDATED / AWAITING REVIEW`（见第 6 节）；N03 = `DEFERRED`，G6 = `NOT STARTED`。
+- N01-A = `ACCEPTED / COMPLETE`；N01-B = `ACCEPTED / COMPLETE`（见第 6 节）；N01 overall = `NOT ACCEPTED`；N03 = `DEFERRED`，G6 = `NOT STARTED`。
 - C02 / C03 = `UNMAPPED / NOT AUDITABLE`；repository 中无法恢复原始 finding，需原始
   master audit source 后才能重新分类；不属于当前已证明的 P0/P1 blocker。
 

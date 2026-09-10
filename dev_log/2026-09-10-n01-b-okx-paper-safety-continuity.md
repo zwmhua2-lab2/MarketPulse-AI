@@ -2,12 +2,15 @@
 
 ## Result
 
-`VALIDATED / AWAITING REVIEW`。本记录只说明 validation implementation 与真实验证已完成；
-**不构成** Independent Review 或 Human Acceptance，未推进 `main`。
+`ACCEPTED / COMPLETE`（Independent Review = `PASS`；Human Acceptance = `CONFIRMED`；
+Final Gate 已于 2026-09-10 重跑全绿）。验收证据见本文件末尾「Final Acceptance Closeout」。
 
-- N01-3 — OKX Reconnect / Freshness：`VALIDATED`
-- N01-4 — Paper Safety Continuity：`VALIDATED`
-- N01-B overall：`VALIDATED / AWAITING REVIEW`
+> 说明：以下正文是 **validation 阶段的原始记录**，撰写时状态为 `VALIDATED / AWAITING REVIEW`，
+> 原样保留为历史证据；其中「不得声明 ACCEPTED」等措辞按其撰写时点理解。
+
+- N01-3 — OKX Reconnect / Freshness：`ACCEPTED`
+- N01-4 — Paper Safety Continuity：`ACCEPTED`
+- N01-B overall：`ACCEPTED / COMPLETE`
 - N01 overall / Continuous Runtime / 7×24：**未证明、未验收**
 
 ## Repository Truth / Workspace Isolation
@@ -345,3 +348,159 @@ FastAPI 正式生产入口已形成完整 7x24 Runtime / Integrated Runtime Host
 N01-B = `VALIDATED / AWAITING REVIEW`；不得由本记录声明 `ACCEPTED`、`N01 = ACCEPTED`、
 `Continuous Runtime = PROVEN`、`7x24 = PROVEN`。下一步：Independent Review → Human Acceptance；
 N01-5 / N01-6 必须另开窗口并按各自批准的门执行。
+
+---
+
+## Final Acceptance Closeout
+
+> 本节撰写于 Independent Review 与 Human Acceptance 之后，是本记录中**唯一**具有
+> `ACCEPTED` 语义的部分；上方正文保持 validation 时期原文不动。
+
+### Independent Review Result
+
+Independent Review = `PASS`。
+
+- 审阅对象：branch `n01-b-okx-paper-safety-continuity`，validation commit `fc168c1`、
+  evidence commit `26688a2`。
+- N01-B-V01 = `CLOSED / PASS`（validation harness 时序假设修复后 run3 / run4 通过）。
+- N01-B-E01 = `EXTERNAL ENVIRONMENT LIMITATION`，非产品缺陷。
+- 未发现 production defect，无 `N01-B-FIX-xx`。
+
+### Human Acceptance
+
+Human Acceptance = `CONFIRMED`。
+
+- `N01-B = ACCEPTED / COMPLETE`
+- `N01-3 — OKX Reconnect / Freshness = ACCEPTED`
+- `N01-4 — Paper Safety Continuity = ACCEPTED`
+
+### Final Gate（Final Acceptance 重跑）
+
+全部在 `E:\Documents\MarketPulse-AI-n01-b`、`HEAD = 26688a2`、clean worktree 上**重新实际执行**：
+
+| Gate | 命令 | 结果 |
+|---|---|---|
+| Focused N01-B | `pytest backend/tests/test_n01_okx_paper_safety.py` | `3 passed in 6.53s` |
+| Real OKX | `python scripts/verify_n01_b_okx_paper_safety.py` | `EXIT=0`（真实 BTC/ETH 重连 + Fresh#1/#2） |
+| G2 | `pytest backend/tests/test_group2.py` | `30 passed in 5.33s` |
+| G3 | `pytest backend/tests/test_group3.py` | `16 passed in 15.36s` |
+| G4 | `pytest backend/tests/test_group4.py` | `77 passed in 68.76s` |
+| Full backend（第 1 次） | `pytest backend/tests` | `171 passed, 2 warnings in 188.57s` |
+| Full backend（第 2 次，稳定性复跑） | `pytest backend/tests` | `171 passed, 2 warnings in 188.15s` |
+| Ruff | `ruff check backend/src backend/tests scripts` | `All checks passed!` |
+| compileall | `compileall -q backend/src backend/tests scripts` | exit 0 |
+| diff-check | `git diff --check` | exit 0 |
+| Production diff | `git diff a4867340..HEAD -- backend/src backend/alembic` | 空 → `Production code changed = NO` |
+
+两次全量 `171 passed` = 既有 `168` baseline + N01-B 新增 `3`。
+
+2 条 warning 均为**上游依赖** deprecation（`fastapi/testclient.py` 的
+`StarletteDeprecationWarning`、`starlette/testclient.py` 的 anyio alias `DeprecationWarning`），
+**无项目代码 warning**。本文件 validation 阶段曾记为 `1 warning`，本次复跑为 2 条，属 pytest
+warning 汇总口径差异，两条均非 N01-B 引入，也不改变任何 AC。
+
+#### Final Gate Observation — N01-A lifecycle 测试偶发时序（非阻塞）
+
+- **现象**：在一次「N01-B focused file 紧接着 lifecycle file」连续执行中，
+  `test_n01_twenty_real_postgres_lifecycles_dispose_tasks_queues_inflight_and_connections`
+  在 `backend/tests/test_n01_runtime_resource_lifecycle.py:427` 失败：
+  `{'sessions': 1} != {'sessions': 0}`。
+- **判定依据**：`_database_activity()` 使用 `WHERE datname = :database_name` 精确过滤 disposable
+  DB；该断言紧跟在 `await engine.dispose()` 之后，PostgreSQL 服务端 backend 进程回收存在极短
+  异步窗口 → 属**测试侧时序抖动**，不是连接泄漏（`idle_in_transaction` 未超基线，无 unclosed
+  engine，N01-B 报告的 disposable DB activity 为 `0/0`）。
+- **复现统计**：单独运行 `3/3 PASS`；全量 suite `2/2 PASS`（含本次）。当日 5 次执行中出现 1 次。
+- **归属**：**N01-A 既有 accepted 测试**；N01-B 未触碰该文件，`git diff a4867340..HEAD` 不含它。
+- **Status**：`NON-BLOCKING / OPEN AS TEST-SIDE TIMING OBSERVATION`。无 production impact，
+  不构成 N01-B blocker，也不改变 N01-A 既有验收。
+
+### Final Real-Network Evidence（本轮真实 OKX）
+
+- **metadata**：BTC-USDT `SPOT` / `tradable=true` / `tick_size=0.1`；ETH-USDT `SPOT` /
+  `tradable=true` / `tick_size=0.01`。
+- **handshake**：`wss://ws.okx.com:8443/ws/v5/public`，`bbo-tbt` 对 BTC-USDT + ETH-USDT 均收到
+  `subscribe` ack，`connId = 709f6f4e`。
+- **`trades` 真实成交**：BTC-USDT `trade_id=1055481070`、`price=77021.8`、`side=sell`；
+  ETH-USDT `trade_id=873493493`、`price=2429.02`、`side=sell`；均 `market_type=SPOT`。
+- **BTC controlled real reconnect**：`connection_attempts=2`、`reconnects=1`；
+  first bid `77004.9` → post-reconnect bid `77027.9`（**值不同**，证明第二个事件来自第二条真实连接）。
+- **ETH controlled real reconnect**：`connection_attempts=2`、`reconnects=1`；
+  first bid `2430.65` → post-reconnect bid `2430.56`（值不同）。
+- **Freshness 三段**：Fresh#1（真实 OKX）age `0.275438s` < 5s TTL；Stale = 受控 aging（非 OKX
+  事实）；Fresh#2（真实 post-reconnect OKX）age `8.7e-05s`。
+- **endpoints**：仅 `GET /api/v5/public/instruments`、`WS /ws/v5/public bbo-tbt`、
+  `WS /ws/v5/public trades`。
+
+本轮 post-reconnect bid 与 first bid **明确不同**（BTC 77004.9→77027.9、ETH 2430.65→2430.56），
+比 validation 阶段 ETH 两次同值（`2456.76`）证据更强。
+
+### Final Paper Safety Evidence（本轮）
+
+| 事实 | 值 |
+|---|---|
+| `run_mode` | `LIVE_PAPER` |
+| `live_order_placed` | `false` |
+| `okx_api_key_used` | `false` |
+| `private_endpoint_used` | `false` |
+| stale `CORE_MARKET_DATA` health | `UNAVAILABLE` |
+| incident | `CORE_DATA_STALE`：`OPEN` → `RESOLVED` |
+| stale protection reason | `CORE_MARKET_DATA_STALE` |
+| stale gate / BUY intent | `RUNTIME_STATE_DATA_DEGRADED` / `REJECTED` |
+| `sell_fill_count` | `0` |
+| position quantity（开仓后 / 恢复后） | `0.0012979679889293715` / `0.0012979679889293715`（前后一致） |
+| recovery protection reason | `HOLD`；recovery gate `admitted=true` |
+| final reconciliation | `ok=true`，`diagnostics=[]` |
+| `duplicate_safe_since_pre_reconnect` | `true` |
+| disposable DB | `marketpulse_n01_b_1404180ef175`；残留 `0`；activity `sessions=0 / idle_in_transaction=0` |
+
+### Accepted Validation Lineage
+
+```text
+a48673404abe256d0adb07c8139b129a54b4e7ce
+  -> fc168c10bec1237c8a795d11a67d1e89783a2bff
+  -> 26688a250a7152caf91fc7f92ee2a1d26d164548
+  -> <Final Acceptance Closeout commit>
+```
+
+### Environment Finding Status
+
+`N01-B-E01 = EXTERNAL ENVIRONMENT LIMITATION`，`OPEN / NON-PRODUCT`。
+
+- sandbox 注入 `HTTP(S)_PROXY` 对 OKX 返回 `502 CONNECT tunnel failed`；本地 DNS 对
+  `www.okx.com` 返回链路本地黑洞。
+- 真实 OKX 脚本在**自身进程内**清空 proxy env 后可正常完成全部验证。
+- 未修改任何 production code、未新增产品代理配置、未降低任何 AC、未用 fake server 替代真实 OKX。
+- 该脚本在无侵入代理的网络环境下应可直接运行。
+
+### Accepted Main Integration
+
+Final Acceptance Closeout 为 **documentation-only**，在 validation / evidence lineage 之后单独提交。
+
+`main` 仅以 **fast-forward** 方式推进：`a486734 → fc168c1 → 26688a2`；无 squash、无 rebase、
+无 reset、无 force-push。`n01-b-okx-paper-safety-continuity` 分支**保留**为历史证据。
+
+### Claim Boundary / N01-5 Entry Context
+
+本 Closeout 确立：
+
+```text
+N01-B = ACCEPTED / COMPLETE
+N01-3 — OKX Reconnect / Freshness = ACCEPTED
+N01-4 — Paper Safety Continuity = ACCEPTED
+```
+
+**不得**由本记录声明：
+
+```text
+N01 = ACCEPTED / COMPLETE
+Continuous Runtime = PROVEN
+所有 ISP 故障 / OKX outage / DNS outage 已证明
+机器 suspend-resume 已证明
+N01-6 15m Runtime Smoke / N01-7 2h Soak / N01-8 12h Soak = PASS
+FastAPI 正式生产入口已形成完整 7x24 Runtime
+Integrated Runtime Host = EXISTS
+```
+
+N01 overall 仍 = `NOT ACCEPTED`。N01-5 / N01-6 / N01-7 / N01-8 与 Integrated Runtime Host
+仍 `NOT STARTED`。**下一步（另开窗口，按各自批准的门）= N01-C｜Restart + Recovery +
+Reconciliation**。

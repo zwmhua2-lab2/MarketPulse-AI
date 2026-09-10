@@ -2,10 +2,11 @@
 
 ## Current Group
 
+N01-B — OKX Reconnect / Freshness + Paper Safety Continuity — ACCEPTED / COMPLETE
+
 N01-A — Deterministic Runtime + Resource Lifecycle — ACCEPTED / COMPLETE
 
-N01-B — OKX Reconnect / Freshness + Paper Safety Continuity — `VALIDATED / AWAITING REVIEW`
-（未 Acceptance；`main` 未推进）
+N01 overall — NOT ACCEPTED（N01-5 / N01-6 / N01-7 / N01-8 与 Integrated Runtime Host 仍 `NOT STARTED`）
 
 ## GitHub Repository
 
@@ -14,13 +15,13 @@ N01-B — OKX Reconnect / Freshness + Paper Safety Continuity — `VALIDATED / A
 - Visibility: `PRIVATE`
 - Default Branch: `main`
 - Accepted Main Source: Git `main` / `origin/main` — read actual SHA at task preflight（CIP-02）
-- Current Development Status: `N01-A ACCEPTED / COMPLETE`（Final Acceptance Closeout completed）
+- Current Development Status: `N01-B ACCEPTED / COMPLETE`（Final Acceptance Closeout completed）
 
 ## Branch / Source
 
 - Current Accepted Branch: `main`
-- Current Group Branch: `n01-a-runtime-resource-lifecycle`（N01-A accepted historical branch；Final Acceptance Closeout fast-forward 收编至 `main`）
-- Last Accepted Group Branch: `g5-deterministic-replay-foundation`（历史证据，保留未删）
+- Current Group Branch: `n01-b-okx-paper-safety-continuity`（N01-B accepted historical branch；Final Acceptance Closeout fast-forward 收编至 `main`）
+- Last Accepted Group Branch: `n01-a-runtime-resource-lifecycle`（历史证据，保留未删）；更早 `g5-deterministic-replay-foundation`
 - Accepted Main Source: Git `main` / `origin/main` — read actual SHA at task preflight（CIP-02）
 - G5-1 Implementation Acceptance Basis: `34da62a0cc9dbe95b95faadb770fbd06179a6975`
 - Migration Head: `20260905_0004`（`alembic current/heads` 一致）
@@ -63,21 +64,25 @@ N01-B — OKX Reconnect / Freshness + Paper Safety Continuity — `VALIDATED / A
   `backend/src`、schema/migration、Runtime Host、OKX 或 long-soak 改动）。
 - N01-A Final Acceptance Closeout：`ACCEPTED / COMPLETE`；N01-A-F01/F02 = `CLOSED / PASS`；accepted
   validation lineage = `6321efb` → `facac1f` → `d67ffc2`；Final Closeout commit documented below。
+- N01-B — OKX Reconnect / Freshness + Paper Safety Continuity：`ACCEPTED / COMPLETE`
+  （Independent Review `PASS`；Human Acceptance `CONFIRMED`；Task Base / verified
+  `refs/heads/main` = `a48673404abe256d0adb07c8139b129a54b4e7ce`；accepted validation lineage =
+  `fc168c1` → `26688a2`；`N01-3 = ACCEPTED`、`N01-4 = ACCEPTED`）。真实 OKX SPOT metadata、真实
+  `bbo-tbt` / `trades`、BTC-USDT 与 ETH-USDT 受控真实重连、FRESH → CONTROLLED STALE → FRESH 边界、
+  `LIVE_PAPER` paper safety continuity（disposable PostgreSQL）均已真实验证；`Production code
+  changed = NO`（`backend/src` / `backend/alembic` diff 为空）。Final Gate 重跑全绿：focused
+  `3 passed`、G2 `30` / G3 `16` / G4 `77`、full backend `171 passed` ×2、Ruff / compileall /
+  `git diff --check` PASS。详见 `dev_log/2026-09-10-n01-b-okx-paper-safety-continuity.md`
+  「Final Acceptance Closeout」。
 - Group 4（持仓安全与恢复）已实现：Position Protection（SL/TP/Protective Exit/幂等）、Position Re-evaluation（HOLD/ADD/REDUCE/CLOSE/CANCEL_ADD/UPDATE_STOP/UPDATE_TP/UPDATE_INVALIDATION/REPLACE_PLAN）、System Safety State、Control（Pause/Resume/Emergency Stop/Emergency Recovery/Symbol Block/Manual Close/Safe Mode）、Recovery Manager（PostgreSQL SoT + Restart Recovery + Reconciliation Gate + Plan/Order Revalidation + EXECUTION_GAP）、Health Registry 与 Incident Manager。
 
 ## In Progress
 
-- N01-B — OKX Reconnect / Freshness + Paper Safety Continuity：`VALIDATED / AWAITING REVIEW`。
-  Task Base / verified `origin/main` = `a48673404abe256d0adb07c8139b129a54b4e7ce`；branch =
-  `n01-b-okx-paper-safety-continuity`；validation commit =
-  `fc168c10bec1237c8a795d11a67d1e89783a2bff`。真实 OKX SPOT metadata、真实 `bbo-tbt` / `trades`、
-  BTC-USDT / ETH-USDT 受控真实重连、FRESH → CONTROLLED STALE → FRESH 边界、`LIVE_PAPER`
-  paper safety continuity（disposable PostgreSQL）均已真实验证；`Production code changed = NO`。
-  详见 `dev_log/2026-09-10-n01-b-okx-paper-safety-continuity.md`。不得自行声明
-  `N01-B = ACCEPTED`、`N01 = ACCEPTED`、`Continuous Runtime = PROVEN`。
-- N01-A 已 `ACCEPTED / COMPLETE`；N01 Continuous Runtime / Soak 本身仍 `NOT ACCEPTED`。
+- 无进行中的 Acceptance Group。**N01-B 已 `ACCEPTED / COMPLETE`**（见 Completed）；下一门
+  N01-5 Restart / Recovery / Reconciliation（N01-C）**尚未开窗**。
+- N01 Continuous Runtime / Soak 本身仍 `NOT ACCEPTED`；不得由 N01-B 验收推断 N01 整体验收。
 - N01-5 Restart / Recovery / Reconciliation、N01-6 15m Runtime Smoke、N01-7 2h Soak、N01-8 12h
-  Soak 与 Integrated Runtime Host 仍 `NOT STARTED`，不得由本任务进入。
+  Soak 与 Integrated Runtime Host 仍 `NOT STARTED`，须另开窗口并按各自批准的门执行。
 
 ## Blocked
 
