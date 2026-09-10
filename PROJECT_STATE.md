@@ -11,7 +11,7 @@ FG-E — Reconciliation Snapshot Consistency — ACCEPTED / COMPLETE
 - Visibility: `PRIVATE`
 - Default Branch: `main`
 - Accepted Main Source: Git `main` / `origin/main` — read actual SHA at task preflight（CIP-02）
-- Current Development Status: `FG-E ACCEPTED / COMPLETE`（Human Acceptance confirmed；N02）
+- Current Development Status: `N01-FIX-01 IMPLEMENTED / AWAITING REVIEW`（G2 EventRuntime Lifecycle Safety；未作 Human Acceptance 声明）
 
 ## Branch / Source
 
@@ -53,7 +53,11 @@ FG-E — Reconciliation Snapshot Consistency — ACCEPTED / COMPLETE
 
 ## In Progress
 
-- 无。FG-E 已完成 Human Acceptance 与 Final Acceptance Closeout；后续 Group 尚未批准。
+- N01-FIX-01 — G2 EventRuntime Lifecycle Safety：`IMPLEMENTED / AWAITING REVIEW`；Task Base
+  `d47313a1cb41996410606fe92b286a5046ed4fce`，branch
+  `fix/n01-eventruntime-lifecycle-safety`。范围仅为 EventRuntime bounded dedupe / worker
+  diagnostic retention / publisher cancellation-inflight ownership，以及 PostgreSQL durable
+  duplicate race 的最小原子性修复；未改 schema、migration、Runtime Host、G3–G5 或业务语义。
 
 ## Blocked
 

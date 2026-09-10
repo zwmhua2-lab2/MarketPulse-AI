@@ -4,11 +4,24 @@ import json
 import os
 import subprocess
 import sys
+from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from uuid import uuid4
 
 import pytest
+from alembic import command
+from alembic.config import Config
 from marketpulse.clock import ReplayClock
+from marketpulse.config import Settings
+from marketpulse.db.models import (
+    DerivedObservationRecord,
+    MarketEventRecord,
+    SignalTimelineRecord,
+    StateTransitionRecord,
+    StrategyCandidateRecord,
+    SymbolStateStore,
+)
 from marketpulse.g2.models import (
     EventType,
     FeatureSnapshot,
@@ -19,7 +32,7 @@ from marketpulse.g2.models import (
     SymbolState,
     Zone,
 )
-from marketpulse.g2.repository import InMemoryG2Repository
+from marketpulse.g2.repository import InMemoryG2Repository, PostgresG2Repository
 from marketpulse.g2.rolling import RollingFeatureEngine
 from marketpulse.g2.runtime import EventRuntime, ScannerPipeline
 from marketpulse.g2.scanner import OpportunityScanner, ScannerConfig
@@ -27,6 +40,9 @@ from marketpulse.g2.state_machine import StateMachineConfig, SymbolStateManager
 from marketpulse.g2.strategy import StrategyEngine
 from marketpulse.g2.timeline import SignalLifecycle
 from marketpulse.market_data.models import MarketType, NormalizedTrade
+from sqlalchemy import func, select, text
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
 
 NOW = datetime(2026, 9, 4, 12, tzinfo=UTC)
 
@@ -881,3 +897,371 @@ def test_f10_real_scanner_duplicate_trade_is_business_equivalent_to_omission():
 
     with_duplicate, without_duplicate = asyncio.run(scenario())
     assert with_duplicate == without_duplicate
+
+
+def test_event_runtime_dedupe_is_bounded_and_evicted_ids_use_durable_idempotency():
+    async def scenario():
+        repository = InMemoryG2Repository()
+        runtime = EventRuntime(repository, worker_count=1, dedupe_capacity=2)
+        first = _event(EventType.VOLUME_ANOMALY, 0, event_id="runtime-dedupe-A")
+        second = _event(
+            EventType.FLOW_IMBALANCE,
+            1,
+            NOW + timedelta(seconds=1),
+            event_id="runtime-dedupe-B",
+        )
+        third = _event(
+            EventType.BREAKOUT,
+            2,
+            NOW + timedelta(seconds=2),
+            event_id="runtime-dedupe-C",
+        )
+        await runtime.start()
+        try:
+            outcomes = [
+                await runtime.publish(first, _features()),
+                await runtime.publish(second, _features(NOW + timedelta(seconds=1))),
+                await runtime.publish(third, _features(NOW + timedelta(seconds=2))),
+            ]
+            retained = (set(runtime._dedupe), tuple(runtime._dedupe_fifo))
+            truth_before_duplicate = _repository_truth(repository)
+            state_before_duplicate = repository.states["SOL-USDT"].model_copy(deep=True)
+            duplicate = await runtime.publish(first, _features())
+        finally:
+            await runtime.stop()
+        return (
+            outcomes,
+            retained,
+            truth_before_duplicate,
+            state_before_duplicate,
+            duplicate,
+            repository,
+            runtime,
+        )
+
+    (
+        outcomes,
+        retained,
+        truth_before_duplicate,
+        state_before_duplicate,
+        duplicate,
+        repository,
+        runtime,
+    ) = asyncio.run(scenario())
+    assert all(outcome.persisted for outcome in outcomes)
+    assert retained == ({"runtime-dedupe-B", "runtime-dedupe-C"}, ("runtime-dedupe-B", "runtime-dedupe-C"))
+    assert len(runtime._dedupe) <= runtime._dedupe_capacity == 2
+    assert not duplicate.persisted and duplicate.result is StateApplyResult.NO_CHANGE
+    assert duplicate.transition is None
+    assert _repository_truth(repository) == truth_before_duplicate
+    assert repository.states["SOL-USDT"] == state_before_duplicate
+
+
+def test_event_runtime_retains_only_recent_worker_failures_and_remains_usable():
+    class FailingRepository(InMemoryG2Repository):
+        def __init__(self) -> None:
+            super().__init__()
+            self.calls = 0
+
+        async def persist(self, *args, **kwargs):
+            self.calls += 1
+            if self.calls <= 5:
+                raise RuntimeError(f"injected failure {self.calls}")
+            return await super().persist(*args, **kwargs)
+
+    async def scenario():
+        repository = FailingRepository()
+        runtime = EventRuntime(repository, worker_count=1, worker_exception_capacity=2)
+        await runtime.start()
+        try:
+            failures = []
+            for ordinal in range(5):
+                with pytest.raises(RuntimeError, match=f"injected failure {ordinal + 1}"):
+                    await runtime.publish(
+                        _event(
+                            EventType.VOLUME_ANOMALY,
+                            0,
+                            event_id=f"worker-failure-{ordinal}",
+                        ),
+                        _features(),
+                    )
+                failures.append(tuple(str(item) for item in runtime.worker_exceptions))
+            recovered = await runtime.publish(
+                _event(EventType.VOLUME_ANOMALY, 0, event_id="worker-failure-recovered"),
+                _features(),
+            )
+        finally:
+            await runtime.stop()
+        return runtime, failures, recovered
+
+    runtime, failures, recovered = asyncio.run(scenario())
+    assert all(len(retained) <= 2 for retained in failures)
+    assert tuple(str(item) for item in runtime.worker_exceptions) == (
+        "injected failure 4",
+        "injected failure 5",
+    )
+    assert recovered.persisted
+    assert not runtime._inflight
+
+
+def test_event_runtime_cancel_before_enqueue_removes_inflight_and_allows_retry():
+    class TrackingQueue(asyncio.PriorityQueue):
+        def __init__(self, maxsize: int) -> None:
+            super().__init__(maxsize=maxsize)
+            self.put_attempts: asyncio.Queue[object] = asyncio.Queue()
+            self.accepted: asyncio.Queue[object] = asyncio.Queue()
+
+        async def put(self, item) -> None:
+            self.put_attempts.put_nowait(item)
+            await super().put(item)
+            self.accepted.put_nowait(item)
+
+    class BlockingRepository(InMemoryG2Repository):
+        def __init__(self) -> None:
+            super().__init__()
+            self.started = asyncio.Event()
+            self.release = asyncio.Event()
+
+        async def persist(self, event, *args, **kwargs):
+            if event.event_id == "queue-holder":
+                self.started.set()
+                await self.release.wait()
+            return await super().persist(event, *args, **kwargs)
+
+    async def scenario():
+        repository = BlockingRepository()
+        runtime = EventRuntime(repository, worker_count=1, queue_capacity=1)
+        runtime.queue = TrackingQueue(maxsize=1)
+        holder = _event(EventType.VOLUME_ANOMALY, 0, event_id="queue-holder")
+        occupier = _event(
+            EventType.FLOW_IMBALANCE,
+            1,
+            NOW + timedelta(seconds=1),
+            event_id="queue-occupier",
+        )
+        cancelled_event = _event(
+            EventType.VOLUME_ANOMALY,
+            0,
+            event_id="cancel-before-enqueue",
+        ).model_copy(update={"instrument_id": "BTC-USDT", "symbol": "BTC-USDT"})
+        cancelled_features = _features().model_copy(
+            update={"instrument_id": "BTC-USDT", "symbol": "BTC-USDT"}
+        )
+        await runtime.start()
+        try:
+            holder_task = asyncio.create_task(runtime.publish(holder, _features()))
+            await asyncio.wait_for(runtime.queue.put_attempts.get(), timeout=1)
+            await asyncio.wait_for(runtime.queue.accepted.get(), timeout=1)
+            await asyncio.wait_for(repository.started.wait(), timeout=1)
+
+            occupier_task = asyncio.create_task(
+                runtime.publish(occupier, _features(NOW + timedelta(seconds=1)))
+            )
+            await asyncio.wait_for(runtime.queue.put_attempts.get(), timeout=1)
+            await asyncio.wait_for(runtime.queue.accepted.get(), timeout=1)
+            assert runtime.queue.full()
+
+            cancelled_task = asyncio.create_task(
+                runtime.publish(cancelled_event, cancelled_features)
+            )
+            await asyncio.wait_for(runtime.queue.put_attempts.get(), timeout=1)
+            cancelled_task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await cancelled_task
+            inflight_after_cancel = dict(runtime._inflight)
+            queued_after_cancel = runtime.queue.qsize()
+
+            repository.release.set()
+            await holder_task
+            await occupier_task
+            retried = await runtime.publish(cancelled_event, cancelled_features)
+        finally:
+            repository.release.set()
+            await runtime.stop()
+        return runtime, inflight_after_cancel, queued_after_cancel, retried, repository
+
+    runtime, inflight_after_cancel, queued_after_cancel, retried, repository = asyncio.run(scenario())
+    assert "cancel-before-enqueue" not in inflight_after_cancel
+    assert queued_after_cancel == 1
+    assert retried.persisted
+    assert "cancel-before-enqueue" in repository.events
+    assert not runtime._inflight
+    assert not runtime.worker_exceptions
+
+
+def test_event_runtime_cancel_after_enqueue_keeps_shared_work_and_duplicate_waiter():
+    class BlockingRepository(InMemoryG2Repository):
+        def __init__(self) -> None:
+            super().__init__()
+            self.started = asyncio.Event()
+            self.release = asyncio.Event()
+
+        async def persist(self, event, *args, **kwargs):
+            self.started.set()
+            await self.release.wait()
+            return await super().persist(event, *args, **kwargs)
+
+    async def scenario():
+        repository = BlockingRepository()
+        runtime = EventRuntime(repository, worker_count=1)
+        event = _event(EventType.VOLUME_ANOMALY, 0, event_id="cancel-after-enqueue")
+        duplicate_waiter_entered = asyncio.Event()
+        original_shield = asyncio.shield
+
+        def observed_shield(awaitable):
+            duplicate_waiter_entered.set()
+            return original_shield(awaitable)
+
+        await runtime.start()
+        try:
+            original = asyncio.create_task(runtime.publish(event, _features()))
+            await asyncio.wait_for(repository.started.wait(), timeout=1)
+            original.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await original
+
+            asyncio.shield = observed_shield
+            duplicate = asyncio.create_task(runtime.publish(event, _features()))
+            await asyncio.wait_for(duplicate_waiter_entered.wait(), timeout=1)
+            repository.release.set()
+            duplicate_outcome = await asyncio.wait_for(duplicate, timeout=1)
+            return runtime, repository, duplicate_outcome
+        finally:
+            asyncio.shield = original_shield
+            repository.release.set()
+            await runtime.stop()
+
+    runtime, repository, duplicate_outcome = asyncio.run(scenario())
+    assert duplicate_outcome.persisted
+    assert list(repository.events) == ["cancel-after-enqueue"]
+    assert not runtime._inflight
+    assert not runtime.worker_exceptions
+
+
+async def _postgres_execute(url: str, statement: str) -> None:
+    engine = create_async_engine(url, poolclass=NullPool)
+    try:
+        async with engine.connect() as connection:
+            connection = await connection.execution_options(isolation_level="AUTOCOMMIT")
+            await connection.execute(text(statement))
+    finally:
+        await engine.dispose()
+
+
+@contextmanager
+def _g2_disposable_postgres_database():
+    primary_url = Settings().database_url
+    database_name = f"marketpulse_n01_g2_{uuid4().hex[:12]}"
+    database_url = f"{primary_url.rsplit('/', 1)[0]}/{database_name}"
+    backend = Path(__file__).resolve().parents[1]
+    asyncio.run(_postgres_execute(primary_url, f'CREATE DATABASE "{database_name}"'))
+    config = Config(str(backend / "alembic.ini"))
+    config.set_main_option("path_separator", "os")
+    config.set_main_option("script_location", str(backend / "alembic"))
+    config.set_main_option("sqlalchemy.url", database_url)
+    try:
+        command.upgrade(config, "head")
+        yield database_url
+    finally:
+        asyncio.run(
+            _postgres_execute(
+                primary_url,
+                "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+                f"WHERE datname = '{database_name}' AND pid <> pg_backend_pid()",
+            )
+        )
+        asyncio.run(_postgres_execute(primary_url, f'DROP DATABASE "{database_name}"'))
+
+
+def test_postgres_g2_concurrent_duplicate_is_atomic_and_both_runtimes_remain_usable():
+    class BarrierRepository(PostgresG2Repository):
+        def __init__(self, sessions, barrier: asyncio.Barrier) -> None:
+            super().__init__(sessions)
+            self._barrier = barrier
+
+        async def persist(self, *args, **kwargs):
+            await self._barrier.wait()
+            return await super().persist(*args, **kwargs)
+
+    async def scenario(database_url: str):
+        engine = create_async_engine(database_url, poolclass=NullPool)
+        sessions = async_sessionmaker(engine, expire_on_commit=False)
+        barrier = asyncio.Barrier(2)
+        first_runtime = EventRuntime(BarrierRepository(sessions, barrier), worker_count=1)
+        second_runtime = EventRuntime(BarrierRepository(sessions, barrier), worker_count=1)
+        duplicate = _event(EventType.VOLUME_ANOMALY, 0, event_id="postgres-concurrent-duplicate")
+        await first_runtime.start()
+        await second_runtime.start()
+        try:
+            outcomes = await asyncio.wait_for(
+                asyncio.gather(
+                    first_runtime.publish(duplicate, _features()),
+                    second_runtime.publish(duplicate, _features()),
+                ),
+                timeout=5,
+            )
+            first_follow_up = _event(
+                EventType.VOLUME_ANOMALY,
+                0,
+                event_id="postgres-runtime-one-follow-up",
+            ).model_copy(update={"instrument_id": "BTC-USDT", "symbol": "BTC-USDT"})
+            second_follow_up = _event(
+                EventType.VOLUME_ANOMALY,
+                0,
+                event_id="postgres-runtime-two-follow-up",
+            ).model_copy(update={"instrument_id": "ETH-USDT", "symbol": "ETH-USDT"})
+            first_features = _features().model_copy(
+                update={"instrument_id": "BTC-USDT", "symbol": "BTC-USDT"}
+            )
+            second_features = _features().model_copy(
+                update={"instrument_id": "ETH-USDT", "symbol": "ETH-USDT"}
+            )
+            follow_ups = await asyncio.gather(
+                first_runtime.publish(first_follow_up, first_features),
+                second_runtime.publish(second_follow_up, second_features),
+            )
+            async with sessions() as session:
+                counts = {
+                    "events": await session.scalar(
+                        select(func.count()).select_from(MarketEventRecord)
+                    ),
+                    "timeline": await session.scalar(
+                        select(func.count()).select_from(SignalTimelineRecord)
+                    ),
+                    "transitions": await session.scalar(
+                        select(func.count()).select_from(StateTransitionRecord)
+                    ),
+                    "observations": await session.scalar(
+                        select(func.count()).select_from(DerivedObservationRecord)
+                    ),
+                    "states": await session.scalar(
+                        select(func.count()).select_from(SymbolStateStore)
+                    ),
+                    "candidates": await session.scalar(
+                        select(func.count()).select_from(StrategyCandidateRecord)
+                    ),
+                }
+        finally:
+            await first_runtime.stop()
+            await second_runtime.stop()
+            await engine.dispose()
+        return outcomes, follow_ups, counts, first_runtime, second_runtime
+
+    with _g2_disposable_postgres_database() as database_url:
+        outcomes, follow_ups, counts, first_runtime, second_runtime = asyncio.run(
+            scenario(database_url)
+        )
+    assert sorted(outcome.persisted for outcome in outcomes) == [False, True]
+    assert all(outcome.persisted for outcome in follow_ups)
+    assert counts == {
+        "events": 3,
+        "timeline": 3,
+        "transitions": 3,
+        "observations": 3,
+        "states": 3,
+        "candidates": 12,
+    }
+    assert not first_runtime.worker_exceptions
+    assert not second_runtime.worker_exceptions
+    assert not first_runtime._inflight
+    assert not second_runtime._inflight

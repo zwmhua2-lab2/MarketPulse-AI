@@ -73,7 +73,13 @@ class EventRuntime:
         strategy_engine: StrategyEngine | None = None,
         worker_count: int = 4,
         queue_capacity: int = 2048,
+        dedupe_capacity: int = 8192,
+        worker_exception_capacity: int = 128,
     ) -> None:
+        if dedupe_capacity <= 0:
+            raise ValueError("dedupe_capacity must be positive")
+        if worker_exception_capacity <= 0:
+            raise ValueError("worker_exception_capacity must be positive")
         self.repository = repository
         self.state_manager = state_manager or SymbolStateManager()
         self.strategy_engine = strategy_engine or StrategyEngine()
@@ -85,8 +91,11 @@ class EventRuntime:
         self._workers: list[asyncio.Task[None]] = []
         self._locks: dict[str, asyncio.Lock] = {}
         self._dedupe: set[str] = set()
+        self._dedupe_fifo: deque[str] = deque()
+        self._dedupe_capacity = dedupe_capacity
         self._inflight: dict[str, asyncio.Future[ApplyOutcome]] = {}
-        self.worker_exceptions: list[BaseException] = []
+        self._worker_exception_capacity = worker_exception_capacity
+        self.worker_exceptions: deque[BaseException] = deque(maxlen=worker_exception_capacity)
 
     async def start(self) -> None:
         if not self._workers:
@@ -121,14 +130,22 @@ class EventRuntime:
             return await asyncio.shield(existing)
         future: asyncio.Future[ApplyOutcome] = asyncio.get_running_loop().create_future()
         self._inflight[event.event_id] = future
-        await self.queue.put(
-            (
-                -event.priority,
-                next(self._counter),
-                _QueuedEvent(event, features, lifecycle_action, future),
+        queued = False
+        try:
+            await self.queue.put(
+                (
+                    -event.priority,
+                    next(self._counter),
+                    _QueuedEvent(event, features, lifecycle_action, future),
+                )
             )
-        )
-        return await future
+            queued = True
+        except BaseException:
+            if not queued and self._inflight.get(event.event_id) is future:
+                self._inflight.pop(event.event_id, None)
+                future.cancel()
+            raise
+        return await asyncio.shield(future)
 
     async def current_state(self, instrument_id: str, symbol: str) -> SymbolStateRecord:
         stored = await self.repository.get_state(instrument_id)
@@ -148,16 +165,25 @@ class EventRuntime:
                         queued.event, queued.features, queued.lifecycle_action
                     )
                 if outcome.persisted:
-                    self._dedupe.add(queued.event.event_id)
-                queued.future.set_result(outcome)
+                    self._remember_deduped(queued.event.event_id)
+                if not queued.future.done():
+                    queued.future.set_result(outcome)
             except Exception as exc:  # noqa: BLE001 - propagate every worker failure to publisher and test harness
                 self.worker_exceptions.append(exc)
                 if queued is not None and not queued.future.done():
                     queued.future.set_exception(exc)
             finally:
-                if queued is not None:
+                if queued is not None and self._inflight.get(queued.event.event_id) is queued.future:
                     self._inflight.pop(queued.event.event_id, None)
                 self.queue.task_done()
+
+    def _remember_deduped(self, event_id: str) -> None:
+        if event_id in self._dedupe:
+            return
+        if len(self._dedupe) == self._dedupe_capacity:
+            self._dedupe.remove(self._dedupe_fifo.popleft())
+        self._dedupe.add(event_id)
+        self._dedupe_fifo.append(event_id)
 
     async def _apply(
         self, event: MarketEvent, features: FeatureSnapshot, action: LifecycleAction
@@ -233,7 +259,7 @@ class EventRuntime:
             )
             if persisted:
                 self.state_manager.commit(state)
-                self._dedupe.add(event.event_id)
+                self._remember_deduped(event.event_id)
             else:
                 state = self.state_manager.snapshot_for(event.instrument_id, event.symbol)
             return ApplyOutcome(

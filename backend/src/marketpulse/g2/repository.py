@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from marketpulse.db.models import (
@@ -62,9 +63,14 @@ class PostgresG2Repository:
 
     async def persist(self, event: MarketEvent, timeline: SignalTimelineEvent, state: SymbolStateRecord, transition: StateTransition, candidates: list[StrategyCandidate], observation: FeatureSnapshot) -> bool:
         async with self._session_factory() as session, session.begin():
-            if await session.get(MarketEventRecord, event.event_id):
+            inserted_event_id = await session.scalar(
+                insert(MarketEventRecord)
+                .values(**event.model_dump(mode="python"))
+                .on_conflict_do_nothing(index_elements=[MarketEventRecord.event_id])
+                .returning(MarketEventRecord.event_id)
+            )
+            if inserted_event_id is None:
                 return False
-            session.add(MarketEventRecord(**event.model_dump(mode="python")))
             session.add(SignalTimelineRecord(**timeline.model_dump(mode="python")))
             await session.merge(SymbolStateStore(**state.model_dump(mode="python")))
             session.add(StateTransitionRecord(**transition.model_dump(mode="python")))
