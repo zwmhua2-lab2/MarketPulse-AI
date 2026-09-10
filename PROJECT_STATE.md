@@ -78,12 +78,14 @@ N01 overall — NOT ACCEPTED（N01-5 / N01-6 / N01-7 / N01-8 与 Integrated Runt
 
 ## In Progress
 
-- SE-02A｜Contracts + Additive Persistence = `IMPLEMENTED / WAITING REVIEW`
+- SE-02A｜Contracts + Additive Persistence = `IMPLEMENTED / AWAITING RE-REVIEW`
   （专项 SE｜Strategy & Trading Edge 的第一个 Implementation Acceptance Batch；branch
   `se-02a-contracts-additive-persistence`，Task Base `e0dab188e55c32b7607c18a66644d25449dc2236`）。
   只落地 Edge domain contracts 与 4 张 additive Edge 表 + Alembic `20260911_0005`；未接
   runtime capture、未实现 forward outcome calculator、未修改 G2/G3/G4/G5 业务语义。
-  详见 `dev_log/2026-09-11-se-02a-edge-contracts-persistence.md` 与本文「SE-02A Result」。
+  Independent Acceptance Review 的 3 个 contract blocker（P0-1 reference BBO 可空 /
+  P0-2 forward outcome 终态语义 / P0-3 BBO 因果身份与幂等）已由 **Acceptance Fix #1** 关闭。
+  详见 `dev_log/2026-09-11-se-02a-edge-contracts-persistence.md`（§14）与本文「SE-02A Result」。
 - 无进行中的 Acceptance Group。**N01-B 已 `ACCEPTED / COMPLETE`**（见 Completed）；下一门
   N01-5 Restart / Recovery / Reconciliation（N01-C）**尚未开窗**。
 - N01 Continuous Runtime / Soak 本身仍 `NOT ACCEPTED`；不得由 N01-B 验收推断 N01 整体验收。
@@ -299,11 +301,22 @@ N01 overall — NOT ACCEPTED（N01-5 / N01-6 / N01-7 / N01-8 与 Integrated Runt
 - 唯一 G5 改动：`g5/replay.py` 的 `schema_head` 常量
   `20260905_0004 → 20260911_0005`（migration head 派生事实，本批新 revision 使其必然过期，
   属阻塞当前 AC 的最小修复；guard 行为未变）。
-- 验证：SE-02A contracts `24 passed`、SE-02A persistence `14 passed`（真实 disposable
-  PostgreSQL）、full backend **`209 passed`**（= baseline `171` + 本批 `38`）、Ruff / compileall /
-  `git diff --check` PASS、migration `upgrade → downgrade → upgrade` PASS、无残留 disposable DB。
-- 状态：`IMPLEMENTED / WAITING REVIEW`（未自行 Acceptance，未 merge `main`）。
-  详见 `dev_log/2026-09-11-se-02a-edge-contracts-persistence.md`。
+- Acceptance Fix #1（关闭 3 个 contract blocker）：参考报价改为**可选**
+  （`reference_bid` / `reference_ask` / `reference_received_at` 可 NULL；`OK` 要求三字段
+  非 NULL 且正/有序，`REFERENCE_MISSING` / `REFERENCE_STALE` 要求三者全 NULL 且禁止 0 占位；
+  `ReferenceDataReason` 删除，状态收敛为三态）；forward outcome 恢复 Approved 终态
+  `COMPLETE` / `INSUFFICIENT_DATA` / `INVALID`（**无 `PENDING` 行**，`calculation_status` 必填）
+  与 `ACTIVE` / `EXPIRED` lifecycle；BBO 强制 V1 因果规则 `available_at == received_at`，
+  `observation_id` 纳入 `available_at`，同 identity 但 `data_quality` / `tradable` 冲突时
+  `EdgeBboObservationConflict` fail closed。migration **就地修正 `20260911_0005`**（无 0006）。
+- 验证：SE-02A contracts **`62 passed`**、SE-02A persistence **`26 passed`**（真实 disposable
+  PostgreSQL）、定向 G5-2/G5-3 + G2 **`62 passed`**、full backend **`259 passed`**
+  （= baseline `171` + 本批 `88`；EXIT=0，无失败无重跑，附无外来写者采样证据）、
+  Ruff / compileall / `git diff --check` PASS、migration
+  `0004 → upgrade head(0005) → downgrade 0004 → upgrade head(0005)` PASS、
+  无残留 disposable DB、primary `marketpulse` 仍为 `20260905_0004`（未被本批升级）。
+- 状态：`IMPLEMENTED / AWAITING RE-REVIEW`（未自行 Acceptance，未 merge `main`）。
+  详见 `dev_log/2026-09-11-se-02a-edge-contracts-persistence.md`（§14 = Acceptance Fix #1）。
 - 备注（Repository Truth 差异）：仓库中不存在 SE-02 设计 / approved contract 文档，本批契约依据
   为任务书 §2–§9 与既有仓库约定；本批自行确定的契约决策已在该 dev_log §3 逐条列出。
 - 备注（主库）：本地 `marketpulse` 主库仍停在 `20260905_0004`，本批**未**对其执行 migration

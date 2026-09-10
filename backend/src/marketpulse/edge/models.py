@@ -73,39 +73,58 @@ class EvidenceSource(StrEnum):
 
 
 class ReferenceDataStatus(StrEnum):
+    """Frozen reference-data state of an opportunity evidence revision.
+
+    Exactly one of three states, per the approved SE-02 contract:
+
+    * ``OK``                -- a usable reference quote exists;
+    * ``REFERENCE_MISSING`` -- no reference quote exists at all;
+    * ``REFERENCE_STALE``   -- a reference quote exists but is not usable.
+
+    The vocabulary is a single field on purpose. ``REFERENCE_MISSING`` and
+    ``REFERENCE_STALE`` are the frozen names; they are mutually exclusive by
+    construction and there is no second ``reason`` field that could combine
+    with them into an ambiguous state. An opportunity whose reference data is
+    missing or stale is still persisted: only the reference metrics stay NULL.
+    """
+
     OK = "OK"
-    DEGRADED = "DEGRADED"
-    UNAVAILABLE = "UNAVAILABLE"
-
-
-class ReferenceDataReason(StrEnum):
-    NONE = "NONE"
-    MISSING_BBO = "MISSING_BBO"
-    STALE_BBO = "STALE_BBO"
-    NON_TRADABLE = "NON_TRADABLE"
-    CROSSED_BOOK = "CROSSED_BOOK"
-    SOURCE_GAP = "SOURCE_GAP"
-    UNKNOWN = "UNKNOWN"
+    REFERENCE_MISSING = "REFERENCE_MISSING"
+    REFERENCE_STALE = "REFERENCE_STALE"
 
 
 class OpportunityLifecycleAtHorizon(StrEnum):
     """Edge-local lifecycle assessment at the horizon.
 
-    The derivation belongs to SE-02C; SE-02A only fixes the contract vocabulary.
+    V1 keeps only the vocabulary the approved SE-02 semantics need. Invalid
+    *data* is expressed through ``OutcomeCalculationStatus.INVALID`` and never
+    folded into opportunity lifecycle, so ``INVALIDATED`` / ``UNKNOWN`` are not
+    part of this contract. The derivation belongs to SE-02C; SE-02A only fixes
+    the vocabulary.
     """
 
     ACTIVE = "ACTIVE"
     EXPIRED = "EXPIRED"
-    INVALIDATED = "INVALIDATED"
-    UNKNOWN = "UNKNOWN"
 
 
 class OutcomeCalculationStatus(StrEnum):
-    PENDING = "PENDING"
-    CALCULATED = "CALCULATED"
-    INCOMPLETE_DATA = "INCOMPLETE_DATA"
-    NOT_APPLICABLE = "NOT_APPLICABLE"
-    FAILED = "FAILED"
+    """Terminal status of a persisted forward-outcome revision.
+
+    Only terminal states are persisted, per the approved SE-02 design:
+
+    * ``COMPLETE``          -- the forward outcome was fully computed;
+    * ``INSUFFICIENT_DATA`` -- not enough forward market data to compute it;
+    * ``INVALID``           -- the opportunity/reference facts were invalid.
+
+    There is deliberately no ``PENDING``: while ``clock < due_at`` there must be
+    **no** row at all, and "pending" is derived from opportunity + horizon +
+    current clock. A persisted row is therefore never updated into a terminal
+    state -- a terminal status is written when, and only when, it is known.
+    """
+
+    COMPLETE = "COMPLETE"
+    INSUFFICIENT_DATA = "INSUFFICIENT_DATA"
+    INVALID = "INVALID"
 
 
 class AttributionSubjectType(StrEnum):
@@ -125,6 +144,10 @@ def _aware(value: datetime) -> datetime:
     return value.astimezone(UTC)
 
 
+def _optional_aware(value: datetime | None) -> datetime | None:
+    return None if value is None else _aware(value)
+
+
 def _finite(value: float) -> float:
     if not math.isfinite(value):
         raise ValueError("must be finite")
@@ -133,6 +156,12 @@ def _finite(value: float) -> float:
 
 def _optional_finite(value: float | None) -> float | None:
     return None if value is None else _finite(value)
+
+
+def _positive_finite(value: float) -> float:
+    if not math.isfinite(value) or value <= 0:
+        raise ValueError("must be a finite value greater than zero")
+    return value
 
 
 # --- Opportunity identity ---------------------------------------------------------------
@@ -210,17 +239,21 @@ def _evidence_immutable_content(
     source_type: str,
     source_identity: str,
     source_manifest_id: str,
-    reference_bid: float,
-    reference_ask: float,
-    reference_received_at: datetime,
+    reference_bid: float | None,
+    reference_ask: float | None,
+    reference_received_at: datetime | None,
     reference_data_status: str,
-    reference_data_reason: str,
     feature_snapshot_hash_value: str,
     feature_snapshot_hash_version: str,
     evidence_payload: dict[str, Any],
     feature_snapshot_payload: dict[str, Any],
 ) -> dict[str, Any]:
-    """Everything that makes a revision immutable. Excludes derived ids and hashes."""
+    """Everything that makes a revision immutable. Excludes derived ids and hashes.
+
+    The reference metrics are hashed as ``None`` when the reference quote is
+    missing or stale, so two revisions that differ only in "no quote at all"
+    versus "a quote" never share an evidence hash.
+    """
 
     return {
         "opportunity_id": opportunity_id,
@@ -242,7 +275,6 @@ def _evidence_immutable_content(
         "reference_ask": reference_ask,
         "reference_received_at": reference_received_at,
         "reference_data_status": reference_data_status,
-        "reference_data_reason": reference_data_reason,
         "feature_snapshot_hash": feature_snapshot_hash_value,
         "feature_snapshot_hash_version": feature_snapshot_hash_version,
         "evidence_payload": evidence_payload,
@@ -274,19 +306,19 @@ class EvidenceRevision(BaseModel):
     source_type: EvidenceSource
     source_identity: str
     source_manifest_id: str
-    reference_bid: float
-    reference_ask: float
-    reference_received_at: datetime
+    reference_bid: float | None = None
+    reference_ask: float | None = None
+    reference_received_at: datetime | None = None
     reference_data_status: ReferenceDataStatus
-    reference_data_reason: ReferenceDataReason
     evidence_payload: dict[str, Any] = Field(default_factory=dict)
     feature_snapshot_payload: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime
 
     _aware_times = field_validator(
-        "detected_at", "evidence_at", "expires_at", "reference_received_at", "created_at"
+        "detected_at", "evidence_at", "expires_at", "created_at"
     )(_aware)
-    _finite_prices = field_validator("reference_bid", "reference_ask")(_finite)
+    _optional_aware_time = field_validator("reference_received_at")(_optional_aware)
+    _optional_finite_prices = field_validator("reference_bid", "reference_ask")(_optional_finite)
 
     def immutable_content(self) -> dict[str, Any]:
         return _evidence_immutable_content(
@@ -309,12 +341,44 @@ class EvidenceRevision(BaseModel):
             reference_ask=self.reference_ask,
             reference_received_at=self.reference_received_at,
             reference_data_status=self.reference_data_status.value,
-            reference_data_reason=self.reference_data_reason.value,
             feature_snapshot_hash_value=self.feature_snapshot_hash,
             feature_snapshot_hash_version=self.feature_snapshot_hash_version,
             evidence_payload=self.evidence_payload,
             feature_snapshot_payload=self.feature_snapshot_payload,
         )
+
+    @model_validator(mode="after")
+    def _reference_data_is_consistent(self) -> EvidenceRevision:
+        """Enforce the frozen one-to-one reference-data contract.
+
+        ``OK``                 -> bid / ask / received_at present and a valid quote;
+        ``REFERENCE_MISSING``  -> all three NULL (no reference quote exists);
+        ``REFERENCE_STALE``    -> all three NULL (a quote existed but is unusable).
+
+        There is no partially populated reference state and no zero placeholder:
+        a missing metric is NULL, never 0. An opportunity with missing or stale
+        reference data is still a valid, persistable evidence revision.
+        """
+
+        reference_fields = (self.reference_bid, self.reference_ask, self.reference_received_at)
+        present = [value is not None for value in reference_fields]
+
+        if self.reference_data_status is ReferenceDataStatus.OK:
+            if not all(present):
+                raise ValueError(
+                    "reference data status OK requires non-null bid, ask and received_at"
+                )
+            if self.reference_bid <= 0 or self.reference_ask <= 0:
+                raise ValueError("reference prices must be greater than zero")
+            if self.reference_bid > self.reference_ask:
+                raise ValueError("reference bid must not exceed reference ask")
+            return self
+
+        if any(present):
+            raise ValueError(
+                "REFERENCE_MISSING / REFERENCE_STALE must leave bid, ask and received_at null"
+            )
+        return self
 
     @model_validator(mode="after")
     def _hashes_and_identity_are_consistent(self) -> EvidenceRevision:
@@ -347,17 +411,25 @@ def build_evidence_revision(
     source_type: EvidenceSource,
     source_identity: str,
     source_manifest_id: str,
-    reference_bid: float,
-    reference_ask: float,
-    reference_received_at: datetime,
     reference_data_status: ReferenceDataStatus,
-    reference_data_reason: ReferenceDataReason,
     evidence_payload: dict[str, Any],
     feature_snapshot_payload: dict[str, Any],
+    reference_bid: float | None = None,
+    reference_ask: float | None = None,
+    reference_received_at: datetime | None = None,
     supersedes_evidence_id: str | None = None,
     created_at: datetime,
     evidence_contract_version: str = EVIDENCE_CONTRACT_VERSION,
 ) -> EvidenceRevision:
+    """Build one immutable evidence revision.
+
+    Reference metrics are optional by design: an opportunity whose reference BBO
+    is missing or stale is still captured, with the unusable metrics left NULL.
+    ``reference_data_status`` decides the shape (see
+    :meth:`EvidenceRevision._reference_data_is_consistent`); the metrics can only
+    be present when the status is ``OK``.
+    """
+
     snapshot_hash = feature_snapshot_hash(feature_snapshot_payload)
     content = _evidence_immutable_content(
         opportunity_id=opportunity.opportunity_id,
@@ -379,7 +451,6 @@ def build_evidence_revision(
         reference_ask=reference_ask,
         reference_received_at=reference_received_at,
         reference_data_status=reference_data_status.value,
-        reference_data_reason=reference_data_reason.value,
         feature_snapshot_hash_value=snapshot_hash,
         feature_snapshot_hash_version=FEATURE_SNAPSHOT_HASH_VERSION,
         evidence_payload=evidence_payload,
@@ -413,7 +484,6 @@ def build_evidence_revision(
         reference_ask=reference_ask,
         reference_received_at=reference_received_at,
         reference_data_status=reference_data_status,
-        reference_data_reason=reference_data_reason,
         evidence_payload=evidence_payload,
         feature_snapshot_payload=feature_snapshot_payload,
         created_at=created_at,
@@ -445,7 +515,23 @@ class BboObservation(BaseModel):
     _aware_times = field_validator(
         "available_at", "source_event_time", "received_at", "created_at"
     )(_aware)
-    _finite_prices = field_validator("bid", "ask")(_finite)
+    _positive_prices = field_validator("bid", "ask")(_positive_finite)
+
+    @model_validator(mode="after")
+    def _causal_time_and_quote_are_valid(self) -> BboObservation:
+        """Frozen V1 causal rule plus a usable quote.
+
+        ``available_at`` is the normalized quote receive time, so it must equal
+        ``received_at``: a divergence would timestamp one market observation two
+        different ways and would make eligibility depend on which field a caller
+        happened to read.
+        """
+
+        if self.available_at != self.received_at:
+            raise ValueError("available_at must equal received_at (V1 causal rule)")
+        if self.bid > self.ask:
+            raise ValueError("bid must not exceed ask")
+        return self
 
     @model_validator(mode="after")
     def _identity_is_consistent(self) -> BboObservation:
@@ -455,6 +541,7 @@ class BboObservation(BaseModel):
             source=self.source,
             source_sequence=self.source_sequence,
             source_event_time=self.source_event_time,
+            available_at=self.available_at,
             received_at=self.received_at,
             bid=self.bid,
             ask=self.ask,
@@ -486,6 +573,7 @@ def build_bbo_observation(
             source=source,
             source_sequence=source_sequence,
             source_event_time=source_event_time,
+            available_at=available_at,
             received_at=received_at,
             bid=bid,
             ask=ask,
@@ -700,7 +788,7 @@ def build_forward_outcome_contract(
     cost_policy: str,
     cost_model_version: str,
     calculator_version: str,
-    calculation_status: OutcomeCalculationStatus = OutcomeCalculationStatus.PENDING,
+    calculation_status: OutcomeCalculationStatus,
     opportunity_lifecycle_at_horizon: OpportunityLifecycleAtHorizon | None = None,
     reference_bbo_observation_id: str | None = None,
     end_bbo_observation_id: str | None = None,
@@ -717,6 +805,14 @@ def build_forward_outcome_contract(
     created_at: datetime,
     outcome_contract_version: str = OUTCOME_CONTRACT_VERSION,
 ) -> ForwardOutcomeContract:
+    """Build one immutable forward-outcome revision.
+
+    ``calculation_status`` is required on purpose: only a *terminal* status may
+    be persisted, so there is no implicit default that could accidentally write a
+    "pending" row. While ``clock < due_at`` no row exists at all and "pending" is
+    derived from opportunity + horizon + current clock.
+    """
+
     diagnostics = dict(completeness_diagnostics or {})
     content = _outcome_calculation_content(
         opportunity_id=opportunity_id,

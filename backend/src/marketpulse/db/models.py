@@ -362,6 +362,12 @@ class EdgeOpportunityEvidenceRecord(Base):
     revision" onto a single row, so a different hash for the same revision can only
     fail closed. `fk_edge_evidence_supersedes` proves that a supersedes target both
     exists and belongs to the same opportunity, without a trigger framework.
+
+    The reference quote is optional: an opportunity whose reference BBO is missing
+    or stale is still persisted, with `reference_bid` / `reference_ask` /
+    `reference_received_at` left NULL. `ck_edge_evidence_reference_consistency`
+    keeps that dichotomy exact -- `OK` requires a usable quote, and
+    `REFERENCE_MISSING` / `REFERENCE_STALE` require all three columns to be NULL.
     """
 
     __tablename__ = "edge_opportunity_evidence"
@@ -383,8 +389,17 @@ class EdgeOpportunityEvidenceRecord(Base):
             name="ck_edge_evidence_source_type",
         ),
         CheckConstraint(
-            "reference_data_status IN ('OK', 'DEGRADED', 'UNAVAILABLE')",
+            "reference_data_status IN ('OK', 'REFERENCE_MISSING', 'REFERENCE_STALE')",
             name="ck_edge_evidence_reference_status",
+        ),
+        CheckConstraint(
+            "(reference_data_status = 'OK' AND reference_bid IS NOT NULL "
+            "AND reference_ask IS NOT NULL AND reference_received_at IS NOT NULL "
+            "AND reference_bid > 0 AND reference_ask > 0 AND reference_bid <= reference_ask) "
+            "OR (reference_data_status IN ('REFERENCE_MISSING', 'REFERENCE_STALE') "
+            "AND reference_bid IS NULL AND reference_ask IS NULL "
+            "AND reference_received_at IS NULL)",
+            name="ck_edge_evidence_reference_consistency",
         ),
         CheckConstraint(
             "supersedes_evidence_id IS NOT NULL OR evidence_revision = 1",
@@ -411,13 +426,12 @@ class EdgeOpportunityEvidenceRecord(Base):
     source_type: Mapped[str] = mapped_column(String(32), nullable=False)
     source_identity: Mapped[str] = mapped_column(String(128), nullable=False)
     source_manifest_id: Mapped[str] = mapped_column(String(64), nullable=False)
-    reference_bid: Mapped[float] = mapped_column(Float, nullable=False)
-    reference_ask: Mapped[float] = mapped_column(Float, nullable=False)
-    reference_received_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
+    reference_bid: Mapped[float | None] = mapped_column(Float, nullable=True)
+    reference_ask: Mapped[float | None] = mapped_column(Float, nullable=True)
+    reference_received_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
     )
     reference_data_status: Mapped[str] = mapped_column(String(32), nullable=False)
-    reference_data_reason: Mapped[str] = mapped_column(String(64), nullable=False)
     evidence_payload: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     feature_snapshot_payload: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
@@ -426,12 +440,16 @@ class EdgeOpportunityEvidenceRecord(Base):
 class EdgeBboObservationRecord(Base):
     """SE-02 Edge: normalized L1 BBO stored only as a forward-horizon reference point.
 
+    `available_at` is the normalized quote receive time, so the frozen V1 causal
+    rule requires `available_at = received_at` (`ck_edge_bbo_causal_time`).
+
     Persistence contract only. No runtime quote capture exists in this batch.
     """
 
     __tablename__ = "edge_bbo_observations"
     __table_args__ = (
         CheckConstraint("bid > 0 AND ask > 0 AND ask >= bid", name="ck_edge_bbo_prices"),
+        CheckConstraint("available_at = received_at", name="ck_edge_bbo_causal_time"),
         CheckConstraint("market_type IN ('SPOT', 'SWAP')", name="ck_edge_bbo_market_type"),
         CheckConstraint(
             "data_quality IN ('FRESH', 'STALE', 'UNAVAILABLE')", name="ck_edge_bbo_data_quality"
@@ -460,7 +478,12 @@ class EdgeBboObservationRecord(Base):
 
 
 class EdgeForwardOutcomeRecord(Base):
-    """SE-02 Edge: immutable forward-outcome revision. No calculator runs in this batch."""
+    """SE-02 Edge: immutable forward-outcome revision. No calculator runs in this batch.
+
+    Only terminal statuses are persisted (`COMPLETE` / `INSUFFICIENT_DATA` /
+    `INVALID`). There is no `PENDING` row: while `clock < due_at` no row exists and
+    pending is derived from opportunity + horizon + current clock.
+    """
 
     __tablename__ = "edge_forward_outcomes"
     __table_args__ = (
@@ -485,13 +508,12 @@ class EdgeForwardOutcomeRecord(Base):
         CheckConstraint("outcome_revision >= 1", name="ck_edge_outcome_revision_positive"),
         CheckConstraint("horizon IN ('30s', '5m', '15m', '1h')", name="ck_edge_outcome_horizon"),
         CheckConstraint(
-            "calculation_status IN "
-            "('PENDING', 'CALCULATED', 'INCOMPLETE_DATA', 'NOT_APPLICABLE', 'FAILED')",
+            "calculation_status IN ('COMPLETE', 'INSUFFICIENT_DATA', 'INVALID')",
             name="ck_edge_outcome_calculation_status",
         ),
         CheckConstraint(
             "opportunity_lifecycle_at_horizon IS NULL OR opportunity_lifecycle_at_horizon IN "
-            "('ACTIVE', 'EXPIRED', 'INVALIDATED', 'UNKNOWN')",
+            "('ACTIVE', 'EXPIRED')",
             name="ck_edge_outcome_lifecycle",
         ),
         CheckConstraint(

@@ -65,15 +65,22 @@ def bbo_observation_id(
     source: str,
     source_sequence: int | None,
     source_event_time: datetime,
+    available_at: datetime,
     received_at: datetime,
     bid: float,
     ask: float,
 ) -> str:
     """Content-addressed identity of one normalized L1 BBO observation.
 
-    Identical observations (same instrument, source, source sequence, timestamps and
-    prices) collapse onto the same identity, which makes re-ingesting the same
-    replay frame idempotent instead of duplicating a horizon reference point.
+    Every fact that determines the causal market observation and its future
+    eligibility is part of the identity: instrument, market, source and source
+    sequence, the event/availability/receive timestamps and the quote itself.
+    Identical observations collapse onto the same identity, which makes
+    re-ingesting the same replay frame idempotent instead of duplicating a
+    horizon reference point. ``data_quality`` and ``tradable`` are deliberately
+    outside the identity; the repository compares them as immutable eligibility
+    facts when an identity is re-used, so a conflicting re-use fails closed
+    instead of being silently treated as a duplicate.
     """
 
     return canonical_digest(
@@ -83,6 +90,7 @@ def bbo_observation_id(
         source,
         source_sequence,
         source_event_time,
+        available_at,
         received_at,
         bid,
         ask,

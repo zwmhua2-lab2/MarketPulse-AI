@@ -5,7 +5,7 @@
 - Batch: SE-02A（SE-02 第一个 Implementation Acceptance Batch）
 - Branch: `se-02a-contracts-additive-persistence`
 - Worktree: `E:\Documents\MarketPulse-AI-se-02a`（从 Accepted Main clean worktree 创建）
-- Status: `IMPLEMENTED / WAITING REVIEW`（未自行 Acceptance，未 merge `main`）
+- Status: `IMPLEMENTED / AWAITING RE-REVIEW`（Acceptance Fix #1 已落地，见 §14；未自行 Acceptance，未 merge `main`）
 
 ---
 
@@ -64,11 +64,12 @@
   source identity、reference BBO、evidence payload、feature snapshot payload、status/reason、
   immutable source manifest identity，覆盖 §3 列出的全部持久化字段）。
 - **Evidence Source / Status**：`EvidenceSource(HISTORICAL_REPLAY | FORWARD_PAPER)`；
-  `ReferenceDataStatus(OK | DEGRADED | UNAVAILABLE)`；
-  `ReferenceDataReason(NONE | MISSING_BBO | STALE_BBO | NON_TRADABLE | CROSSED_BOOK | SOURCE_GAP | UNKNOWN)`。
+  `ReferenceDataStatus(OK | REFERENCE_MISSING | REFERENCE_STALE)`（**Acceptance Fix #1 后**；
+  原 `DEGRADED | UNAVAILABLE` 二态与整个 `ReferenceDataReason` 枚举已删除，见 §14）。
 - **Forward Horizon**：`30s | 5m | 15m | 1h`（`duration_seconds` = 30/300/900/3600）。
-- **Outcome contract types**：`calculation_status`（PENDING/CALCULATED/INCOMPLETE_DATA/
-  NOT_APPLICABLE/FAILED）、`opportunity_lifecycle_at_horizon`、
+- **Outcome contract types**：`calculation_status`（COMPLETE/INSUFFICIENT_DATA/INVALID；
+  **Acceptance Fix #1 后**，原 PENDING/CALCULATED/INCOMPLETE_DATA/NOT_APPLICABLE/FAILED 已删除）、
+  `opportunity_lifecycle_at_horizon`（ACTIVE/EXPIRED，原 INVALIDATED/UNKNOWN 已删除；**Fix #1 后**）、
   `cost_model_version`、`calculator_version`、`outcome_contract_version`、
   `calculation_digest` + `calculation_digest_version`、`outcome_record_hash` +
   `outcome_record_hash_version`、`outcome_revision`、`supersedes_outcome_id`。
@@ -81,9 +82,9 @@
 
 | 表 | 关键约束 |
 |---|---|
-| `edge_opportunity_evidence` | PK `evidence_id`；`UNIQUE(opportunity_id, evidence_revision)`；`UNIQUE(evidence_id, opportunity_id)`；复合自引用 FK `(supersedes_evidence_id, opportunity_id) → (evidence_id, opportunity_id)`；CHECK：revision ≥ 1、family = BREAKOUT_RETEST、market_type ∈ {SPOT,SWAP}、source_type ∈ {HISTORICAL_REPLAY,FORWARD_PAPER}、reference_data_status ∈ {OK,DEGRADED,UNAVAILABLE}、`supersedes IS NOT NULL OR revision = 1` |
-| `edge_bbo_observations` | PK `observation_id`（内容寻址）；CHECK：bid/ask > 0 且 ask ≥ bid、market_type、data_quality；复合索引 `(instrument_id, market_type, available_at)` |
-| `edge_forward_outcomes` | PK `outcome_id`；`UNIQUE(opportunity_id, evidence_id, horizon, outcome_revision)`；`UNIQUE(outcome_id, opportunity_id)`；复合 FK `(evidence_id, opportunity_id) → edge_opportunity_evidence`；复合自引用 FK `(supersedes_outcome_id, opportunity_id)`；CHECK：revision ≥ 1、horizon ∈ {30s,5m,15m,1h}、calculation_status、lifecycle、source_type、`supersedes IS NOT NULL OR revision = 1` |
+| `edge_opportunity_evidence` | PK `evidence_id`；`UNIQUE(opportunity_id, evidence_revision)`；`UNIQUE(evidence_id, opportunity_id)`；复合自引用 FK `(supersedes_evidence_id, opportunity_id) → (evidence_id, opportunity_id)`；CHECK：revision ≥ 1、family = BREAKOUT_RETEST、market_type ∈ {SPOT,SWAP}、source_type ∈ {HISTORICAL_REPLAY,FORWARD_PAPER}、reference_data_status ∈ {OK,REFERENCE_MISSING,REFERENCE_STALE}、`ck_edge_evidence_reference_consistency`（OK ⇒ bid/ask/received_at 全非 NULL 且正/有序；MISSING/STALE ⇒ 三者全 NULL）、`supersedes IS NOT NULL OR revision = 1`（**Fix #1 后**） |
+| `edge_bbo_observations` | PK `observation_id`（内容寻址）；CHECK：bid/ask > 0 且 ask ≥ bid、`available_at = received_at`（V1 因果规则，**Fix #1 后**）、market_type、data_quality；复合索引 `(instrument_id, market_type, available_at)` |
+| `edge_forward_outcomes` | PK `outcome_id`；`UNIQUE(opportunity_id, evidence_id, horizon, outcome_revision)`；`UNIQUE(outcome_id, opportunity_id)`；复合 FK `(evidence_id, opportunity_id) → edge_opportunity_evidence`；复合自引用 FK `(supersedes_outcome_id, opportunity_id)`；CHECK：revision ≥ 1、horizon ∈ {30s,5m,15m,1h}、calculation_status ∈ {COMPLETE,INSUFFICIENT_DATA,INVALID}、lifecycle ∈ {ACTIVE,EXPIRED}、source_type、`supersedes IS NOT NULL OR revision = 1`（**Fix #1 后**） |
 | `edge_attribution_events` | PK `attribution_event_id`（内容寻址）；CHECK：subject_type ∈ {AI,PLAN,RISK,EXECUTION,ECONOMIC_RESULT} |
 
 Migration 文件：`backend/alembic/versions/20260911_0005_edge_evidence_foundation.py`
@@ -121,7 +122,10 @@ Migration 文件：`backend/alembic/versions/20260911_0005_edge_evidence_foundat
    因此 Replay 与 Forward Paper 在同一市场事实下共享同一 calculation digest，
    而 record hash 不同——正是 §9 要求证明的分离性。
 6. **BBO observation identity 为内容寻址**：同一 observation 重复摄取幂等，
-   不产生重复的 horizon 参考点。
+   不产生重复的 horizon 参考点。**（Acceptance Fix #1 修正，见 §14.3）**：identity 覆盖
+   全部因果事实（含 `available_at`），`data_quality` / `tradable` 留在 identity 之外，
+   但 repository 在命中已有 ID 时**必须比较**这两个 immutable eligibility facts ——
+   与 identity 内容一致 ⇒ `IDEMPOTENT`，冲突 ⇒ `EdgeBboObservationConflict`（fail closed）。
 7. **Attribution event identity 为内容寻址**：沿用 PK 唯一性实现幂等，
    因此未引入额外的 `dedupe_key` 字段（避免创造多余概念）。
 
@@ -223,14 +227,24 @@ alembic upgrade head      → 重新建立
 DROP DATABASE             → 无残留
 ```
 
-另有测试内 migration boundary 证据
-（`test_migration_cycle_only_adds_and_removes_edge_tables`）：
+另有测试内 migration boundary 证据（`test_migration_cycle_only_adds_and_removes_edge_tables`；
+**Acceptance Fix #1 后新增** `test_migration_reaches_revision_0005_through_a_full_cycle` 与
+`test_migration_makes_reference_metrics_nullable_and_drops_the_reason_field`）：
 `downgrade 20260905_0004` 后 **edge 表消失而 `positions` / `paper_orders` / `trade_plans` /
 `market_events` 等既有表仍在** → 证明本批只新增 Edge 对象，未改动既有 schema。
+
+Fix #1 后的完整往返（disposable PostgreSQL，`marketpulse_se02a_mig_*`）：
+`0004 → upgrade head(0005) → downgrade 0004 → upgrade head(0005)`，逐轮断言
+`alembic_version` 与 edge 表存在性，并断言 `reference_bid/ask/received_at` 的 nullability
+与 `reference_data_reason` 列已消失（详见 §14）。
 
 ---
 
 ## 8. Verification（真实执行）
+
+> **Acceptance Fix #1 已落地（见 §14），本节数字为「首次实现（Fix #1 前）」的运行记录，
+> 保留作为历史证据。Fix #1 后的重新验证数字见 §14.6（contracts 62 / persistence 26 /
+> full backend 259）。**
 
 | 命令 | 结果 |
 |---|---|
@@ -300,8 +314,13 @@ DROP DATABASE             → 无残留
    - revision > 1 必须 supersedes **恰好 R-1** 的同 opportunity revision；
    - 同 revision 同 hash 幂等，同 revision 不同 hash 一律 `EdgeEvidenceConflict`。
    不得在 SE-02B 里写第二条写入路径或做 UPDATE。
-5. **BBO 观察必须走 `record_bbo_observation()`**，identity 为内容寻址；
+5. **BBO 观察必须走 `record_bbo_observation()`**，identity 为内容寻址
+   （**Fix #1 后输入集合 = instrument_id / market_type / source / source_sequence /
+   source_event_time / available_at / received_at / bid / ask**）；
    SE-02B 只负责提供规范化后的 L1 BBO 事实，不改变 identity 输入集合。
+   `available_at` 必须等于 `received_at`（V1 因果规则，domain + DB CHECK 双重锁定）；
+   重复身份若 `data_quality` / `tradable` 冲突 ⇒ `EdgeBboObservationConflict`，SE-02B
+   **不得**吞掉该异常或自行覆盖既有行。
 6. **`edge_forward_outcomes` 的 `evidence_id` 必须属于同一 `opportunity_id`**
    （复合 FK），且 outcome revision 链规则与 evidence 相同。
 7. **`calculation_digest` 的输入集合已冻结**（见 §3.5）：
@@ -378,3 +397,171 @@ DROP DATABASE             → 无残留
 `python` / `docker` 可用；PowerShell 工具 stdout 被吞。文件枚举改用 `git ls-files -o`、
 `Read`、`python -c`。此属工具环境问题，不影响上表任何运行结果（pytest 输出的重定向与
 `python` 自持执行均正常）。
+
+---
+
+## 14. Acceptance Fix #1｜3 个 contract blocker 的关闭
+
+- 输入：Independent Acceptance Review 对 `se-02a-contracts-additive-persistence @ 54b8223`
+  判定 3 个 contract blocker（P0-1 / P0-2 / P0-3）。
+- 约束：只修 SE-02A；不开始 SE-02B；不 merge `main`；不改 G2–G5 economic semantics；
+  不实现 calculator / MFE / MAE / expectancy。
+- 结果：三项全部落地，migration **就地修正 `20260911_0005`**（未新增 `0006` —— 该 revision
+  尚未 Accepted、未 merge、未部署到 primary DB，故不存在"已发布 migration 不可改"的前提）。
+
+### 14.1 P0-1｜evidence 必须能在参考 BBO 缺失/陈旧时存活
+
+| | BEFORE | AFTER |
+|---|---|---|
+| `reference_bid` / `reference_ask` / `reference_received_at` | 三列 `NOT NULL`（domain `float` / `datetime`） | 三列可空（domain `float \| None` / `datetime \| None`；ORM + 0005 `nullable=True`） |
+| 参考状态词表 | `ReferenceDataStatus(OK \| DEGRADED \| UNAVAILABLE)` **+ 独立** `ReferenceDataReason(NONE \| MISSING_BBO \| STALE_BBO \| NON_TRADABLE \| CROSSED_BOOK \| SOURCE_GAP \| UNKNOWN)` | 单字段三态 `ReferenceDataStatus(OK \| REFERENCE_MISSING \| REFERENCE_STALE)`；**整个 `ReferenceDataReason` 枚举删除** |
+| 跨字段契约 | 无（NULL 与 0 占位无法区分） | `_reference_data_is_consistent` model_validator + DB CHECK `ck_edge_evidence_reference_consistency` |
+| effect | **参考 BBO 缺失的机会无法持久化** → durable sample 系统性丢失 | 缺失/陈旧仍可持久化，指标保持 NULL；**禁止 0 占位** |
+
+最终语义（domain 与 DB 双层一致）：
+
+- `OK` ⇒ `reference_bid` / `reference_ask` / `reference_received_at` **全非 NULL**，
+  且 `bid > 0`、`ask > 0`、`bid <= ask`；
+- `REFERENCE_MISSING` / `REFERENCE_STALE` ⇒ 三者**全为 NULL**（写 0/哨兵值一律拒绝）；
+- `reference_data_reason` 已从 immutable content / `evidence_hash` 输入集合中移除，
+  MISSING 与 STALE 因此产生**不同** `evidence_hash`（不是同一 hash 的伪区分）。
+
+### 14.2 P0-2｜恢复 Approved 的 forward outcome 终态语义
+
+| | BEFORE | AFTER |
+|---|---|---|
+| `calculation_status` | `PENDING \| CALCULATED \| INCOMPLETE_DATA \| NOT_APPLICABLE \| FAILED`，默认 `PENDING` | `COMPLETE \| INSUFFICIENT_DATA \| INVALID`；**必填，无默认** |
+| `opportunity_lifecycle_at_horizon` | `ACTIVE \| EXPIRED \| INVALIDATED \| UNKNOWN` | `ACTIVE \| EXPIRED`（不扩展） |
+| PENDING 行 | 可持久化（`clock < due_at` 时） | **不存在**：`clock < due_at` ⇒ 无 row；Pending 由 Opportunity + Horizon + Clock **派生**，禁止 `UPDATE PENDING → COMPLETE` |
+| invalid data 表达 | 与 lifecycle 词表混用 | 只用 `calculation_status = INVALID`，**不混入** opportunity lifecycle |
+
+- `ForwardOutcomeContract.calculation_status` 由「有默认值」改为**必填**，因此
+  construction 阶段就无法造出 `PENDING` 行（contracts 测试覆盖 `TypeError`）。
+- DB CHECK `ck_edge_outcome_calculation_status` / `ck_edge_outcome_lifecycle` 同步收紧。
+- metrics（`mfe` / `mae` / `reference_return` / `executable_long_return` /
+  `cost_adjusted_forward_return`）在终态下**允许为 NULL**（`INSUFFICIENT_DATA` / `INVALID`
+  必须可持久化），测试对此逐态验证。
+- **仍未实现 SE-02C calculator**（本批只有 persistence contract）。
+
+### 14.3 P0-3｜BBO 观察的因果身份与幂等
+
+| | BEFORE | AFTER |
+|---|---|---|
+| 因果规则 | 未约束，测试中出现 `available_at=T+5, received_at=T+4` 的分歧 | `available_at == received_at`（domain ModelValidator + DB CHECK `ck_edge_bbo_causal_time`） |
+| `observation_id` 输入 | 不含 `available_at` | 含 `available_at`（位于 `received_at` 之前），identity 覆盖全部因果事实 |
+| `data_quality` / `tradable` | 不在 identity，命中已有 ID 时**静默**返回 `IDEMPOTENT` | 不在 identity，但命中已有 ID 时 repository **显式比较**这两个 immutable eligibility facts |
+| 冲突处理 | 无（冲突被当作重复吞掉） | 内容一致 ⇒ `IDEMPOTENT`；内容冲突 ⇒ **`EdgeBboObservationConflict`（fail closed）** |
+| 报价合法性 | 仅 DB CHECK | domain `_positive_prices`（非有限值/非正数拒绝）+ DB CHECK（`bid>0, ask>0, ask>=bid`） |
+
+- 新增异常：`EdgeBboObservationConflict(EdgePersistenceError)`（`repository.py`）。
+- 比较集合 `_BBO_IMMUTABLE_FIELDS` = instrument_id / market_type / bid / ask / available_at /
+  source_event_time / received_at / source / source_sequence / data_quality / tradable，
+  经 `_normalized` 把 `StrEnum` 折叠为持久化字符串形式后逐项比较。
+- 可选 `source_sequence`（None）正常参与 identity 与比较，不阻塞。
+
+### 14.4 Schema｜`20260911_0005` 最终形态（就地修正，无 0006）
+
+| 表 | 变化 |
+|---|---|
+| `edge_opportunity_evidence` | `reference_bid` / `reference_ask` / `reference_received_at` → `nullable=True`；**删除** `reference_data_reason` 列；`ck_edge_evidence_reference_status` → `('OK','REFERENCE_MISSING','REFERENCE_STALE')`；**新增** `ck_edge_evidence_reference_consistency` |
+| `edge_bbo_observations` | **新增** `ck_edge_bbo_causal_time`：`available_at = received_at` |
+| `edge_forward_outcomes` | `ck_edge_outcome_calculation_status` → `('COMPLETE','INSUFFICIENT_DATA','INVALID')`；`ck_edge_outcome_lifecycle` → `('ACTIVE','EXPIRED')` |
+| 其它 | 表集合、既有列、既有 UNIQUE / 复合 FK / index **未变**；仍是纯 additive（相对 `0004`） |
+
+ORM（`backend/src/marketpulse/db/models.py`）与 migration 逐项对齐；`alembic heads` 仍为
+`20260911_0005`。**primary `marketpulse` 库未被本批升级**（复核见 §14.7）。
+
+### 14.5 Required Tests 覆盖对照
+
+| 任务书要求 | 覆盖用例 |
+|---|---|
+| 无 reference BBO 可创建 / stale 可创建 / 缺失字段为 NULL | `test_evidence_persists_without_a_usable_reference_quote`（参数化 MISSING/STALE）、`test_evidence_survives_a_missing_or_stale_reference_quote`（参数化，真实 DB）、`test_unavailable_reference_data_must_not_carry_a_placeholder_quote` |
+| OK + NULL prices reject / OK + 非法或交叉价 reject | `test_ok_reference_status_requires_a_complete_quote`、`test_ok_reference_status_rejects_non_positive_or_crossed_prices`、`test_database_rejects_reference_data_that_contradicts_its_status` |
+| 状态词表收敛为冻结三态 | `test_reference_status_vocabulary_is_the_frozen_three_state_set`、`test_missing_and_stale_reference_data_do_not_share_an_evidence_hash` |
+| missing/stale opportunity 仍占 durable sample | `test_evidence_survives_a_missing_or_stale_reference_quote`（行数断言，non-OK 不被丢弃）、`test_reference_status_change_is_a_conflict_not_a_rewrite` |
+| COMPLETE / INSUFFICIENT_DATA / INVALID 可持久化且 metrics 可 NULL | `test_terminal_outcome_statuses_persist_and_metrics_may_be_null`（参数化）、`test_terminal_statuses_build_with_optional_metrics` |
+| DB CHECK 拒绝未批准 status / PENDING 不能作为终态 | `test_database_rejects_unapproved_or_pending_outcome_status`、`test_calculation_status_is_required_so_no_pending_row_can_be_built`、`test_only_approved_terminal_outcome_statuses_are_licensed` |
+| ACTIVE / EXPIRED 固定 | `test_only_approved_lifecycle_vocabulary_is_licensed`、`test_lifecycle_is_independent_of_calculation_status` |
+| exact duplicate → IDEMPOTENT | `test_bbo_observation_persists_the_horizon_reference_schema`、`test_exact_duplicate_revision_is_idempotent` |
+| same identity + conflicting eligibility → fail closed | `test_bbo_identity_reuse_with_conflicting_eligibility_fails_closed`（`data_quality` / `tradable` / 价格 三场景 → `EdgeBboObservationConflict`） |
+| `available_at != received_at` → reject | `test_bbo_observation_requires_available_at_to_equal_received_at`、`test_database_rejects_bbo_rows_that_bypass_the_causal_rule` |
+| non-positive / crossed BBO → reject | `test_bbo_observation_rejects_non_positive_or_crossed_quotes` |
+| 可选 source sequence 正常 | `test_bbo_observation_accepts_an_absent_source_sequence` |
+| stable deterministic ID / identity 覆盖全部因果事实 | `test_bbo_observation_identity_is_stable_and_deterministic`、`test_bbo_observation_identity_covers_every_causal_fact` |
+
+### 14.6 Verification（Fix #1 后真实执行）
+
+| 命令 | 结果 | 证据文件 |
+|---|---|---|
+| `pytest backend/tests/test_se_02a_edge_contracts.py -q` | **62 passed** | `E:/Temp/se02a/fix1_contracts.txt` |
+| `pytest backend/tests/test_se_02a_edge_persistence.py -q` | **26 passed**（46.11s，真实 disposable PostgreSQL） | `E:/Temp/se02a/fix1_persistence2.txt` |
+| `pytest backend/tests/test_group5_2_trading_replay.py test_group5_3_determinism.py test_group2.py -q` | **62 passed**（102.63s） | `E:/Temp/se02a/fix1_targeted2.txt` |
+| `pytest backend/tests -q --tb=short -rf` | **259 passed, 2 warnings in 232.78s**（EXIT=0） | `E:/Temp/se02a/fix1_full1.txt` |
+| `ruff check backend/src backend/tests scripts backend/alembic` | All checks passed | `E:/Temp/se02a/fix1_ruff.txt` |
+| `compileall -q backend/src backend/tests backend/alembic` | PASS（空输出） | `E:/Temp/se02a/fix1_compile.txt` |
+| `git diff --check` | PASS（EXIT=0；仅 Git 的 LF→CRLF 换行提示，**无 whitespace error**） | `E:/Temp/se02a/fix1_diffcheck.txt` |
+
+用例总数自洽：baseline `171` + Fix #1 前 SE-02A `24+14=38` = `209`；
+Fix #1 后 SE-02A `62+26=88` ⇒ `171+88 = 259`。**full backend 一次干净运行即 259 passed，
+无失败、无重跑。**
+
+### 14.7 Regression / 并发写者取证（必须如实记录）
+
+定向回归第 1 次运行出现 `4 failed`（`test_group5_2_trading_replay.py` ×3 +
+`test_group5_3_determinism.py` ×1），全部为
+`ReplayWorkspaceIsolationError("primary database changed during replay")`（`g5/replay.py:492`）。
+
+诊断（`E:/Temp/se02a/diag_primary.py`、`probe_writers.py`，均为**只读**脚本，不入仓库）：
+
+- 主库业务表存在非零残留数据（如 `market_events=9`），正常跑完的套件会清空；
+- 同时段存在**外部并发 pytest 进程**（PID 14732，父链不属于本会话，命令行
+  `python.exe -m pytest backend/tests -q --tb=short -rf`）；
+- 判定：**环境级共享主库并发写者**（共享单一 `marketpulse` 库 + 整表 `clean()`），
+  非本批代码回归。按 CIP-05 **不扩大 Scope**、不修改他人测试隔离实现。
+
+Fix #1 全量运行前/后取证：
+
+| 项 | 值 | 证据 |
+|---|---|---|
+| 运行前 python 进程扫描 | 无任何 `pytest` 进程（仅 MCP server 与只读 sampler） | `E:/Temp/se02a/procs_now.txt` |
+| 运行后 python 进程扫描 | 无任何 `pytest` 进程 | `E:/Temp/se02a/procs_after.txt` |
+| 采样器（每 5 s，48 tick，覆盖 06:35:21–06:39:19 ≈ 运行全程） | 全部 `client backend`，**无外来 writer 特征**；套件自身随开随关 | `E:/Temp/se02a/se02a_sampler_log.txt`、`sampler_summary.txt` |
+| 运行后 primary `alembic_version` | `20260905_0004`（**未被本批升级**） | `E:/Temp/se02a/post_run_check.txt` |
+| 运行后 `pg_database LIKE 'marketpulse_se02a_%'` | `[]`（无残留 disposable DB） | 同上 |
+| 运行后 primary client backends | 仅检查脚本自身 1 条 | 同上 |
+
+⇒ 本次 `259 passed` 的运行**无可信外部写者**，结果可采信。
+
+### 14.8 Repository Truth（Fix #1 完成时实测）
+
+| 项 | 值 |
+|---|---|
+| Task Base SHA | `54b8223ffa95827833029c7fb80369a79982bf7f` |
+| branch | `se-02a-contracts-additive-persistence` |
+| remote branch HEAD（push 前） | `54b8223ffa95827833029c7fb80369a79982bf7f` |
+| 本地 `main` / `origin/main` / `git ls-remote origin refs/heads/main` | `e0dab188e55c32b7607c18a66644d25449dc2236`（三者一致，**未推进**） |
+| Fix #1 改动文件 | 5 production + 2 tests（见 §14.9） |
+| 新增 migration | 无（就地修正 `20260911_0005`） |
+
+### 14.9 Fix #1 交付文件
+
+修改（`git diff --stat`：7 files changed, 986 insertions(+), 147 deletions(-)）：
+
+- `backend/src/marketpulse/edge/models.py`（冻结词表 / 可选 reference quote / 跨字段 validator / BBO 因果校验 / `calculation_status` 必填）
+- `backend/src/marketpulse/edge/identity.py`（`bbo_observation_id` 纳入 `available_at`）
+- `backend/src/marketpulse/edge/repository.py`（`EdgeBboObservationConflict` + immutable eligibility 比较）
+- `backend/src/marketpulse/db/models.py`（3 个 Edge ORM 类同步）
+- `backend/alembic/versions/20260911_0005_edge_evidence_foundation.py`（就地修正）
+- `backend/tests/test_se_02a_edge_contracts.py`（24 → 62 用例）
+- `backend/tests/test_se_02a_edge_persistence.py`（14 → 26 用例）
+
+**未修改**：`g5/replay.py`（Fix #1 未触碰 G5）、`backend/src/marketpulse/edge/hashing.py`、
+`scripts/verify_*`；未修改 `DECISIONS.md` / `PRODUCT_REQUIREMENTS.md` / `AI_CONTEXT.md`。
+
+### 14.10 Scope Check（Fix #1）
+
+- SE-02B started = **NO**；SE-02C calculator = **NO**；MFE / MAE / expectancy = **NO**
+- G2–G5 economic semantics changed = **NO**；G5 canonicalization = 零改动
+- Runtime behavior changed = **NO**；Real AI = **NO**；Live Trading = **NO**
+- New quant framework = **NO**；`main` merged = **NO**
+- 状态：`SE-02A IMPLEMENTED / AWAITING RE-REVIEW`（**未自行写 ACCEPTED**）

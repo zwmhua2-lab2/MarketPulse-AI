@@ -1,7 +1,8 @@
 """SE-02A additive persistence acceptance against real disposable PostgreSQL.
 
 Covers the four approved Edge persistence boundaries, the frozen revision
-semantics, and the minimal database-level backstops. No runtime capture, no
+semantics, the corrected reference-data / causal-time / terminal-status
+contracts, and the minimal database-level backstops. No runtime capture, no
 forward-outcome calculator and no G2/G3/G4/G5 integration is exercised here.
 """
 
@@ -29,7 +30,8 @@ from marketpulse.edge.models import (
     ForwardHorizon,
     ForwardOutcomeContract,
     OpportunityIdentity,
-    ReferenceDataReason,
+    OpportunityLifecycleAtHorizon,
+    OutcomeCalculationStatus,
     ReferenceDataStatus,
     build_attribution_event,
     build_bbo_observation,
@@ -40,6 +42,7 @@ from marketpulse.edge.models import (
 from marketpulse.edge.repository import (
     IDEMPOTENT,
     INSERTED,
+    EdgeBboObservationConflict,
     EdgeEvidenceConflict,
     EdgeInvalidOutcomeSupersedes,
     EdgeInvalidSupersedes,
@@ -58,6 +61,7 @@ START = datetime(2026, 1, 2, 9, 30, tzinfo=UTC)
 PRIMARY_URL = Settings().database_url
 BACKEND = Path(__file__).resolve().parents[1]
 PREVIOUS_REVISION = "20260905_0004"
+HEAD_REVISION = "20260911_0005"
 EDGE_TABLES = frozenset(
     {
         "edge_opportunity_evidence",
@@ -113,11 +117,11 @@ def _downgrade(url: str, revision: str) -> None:
 
 
 @contextmanager
-def _edge_database(label: str):
+def _edge_database(label: str, *, revision: str = "head"):
     name = f"marketpulse_se02a_{label}_{uuid4().hex[:12]}"
     asyncio.run(_execute(PRIMARY_URL, f'CREATE DATABASE "{name}"'))
     url = _url_for(name)
-    _upgrade(url, "head")
+    _upgrade(url, revision)
     try:
         yield name, url
     finally:
@@ -137,6 +141,23 @@ async def _table_names(url: str) -> set[str]:
             text("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'")
         )
         return set(rows.all())
+
+
+async def _alembic_version(url: str) -> str:
+    async with _session(url) as session:
+        return str(await session.scalar(text("SELECT version_num FROM alembic_version")))
+
+
+async def _column_nullability(url: str, table: str) -> dict[str, str]:
+    async with _session(url) as session:
+        rows = await session.execute(
+            text(
+                "SELECT column_name, is_nullable FROM information_schema.columns "
+                "WHERE table_schema = 'public' AND table_name = :table"
+            ),
+            {"table": table},
+        )
+        return {name: nullable for name, nullable in rows}
 
 
 async def _count(url: str, model) -> int:
@@ -177,6 +198,10 @@ def _evidence(
     revision: int = 1,
     supersedes: str | None = None,
     payload: dict | None = None,
+    reference_status: ReferenceDataStatus = ReferenceDataStatus.OK,
+    reference_bid: float | None = 99.0,
+    reference_ask: float | None = 100.0,
+    reference_received_at: datetime | None = START,
 ) -> EvidenceRevision:
     return build_evidence_revision(
         opportunity=opportunity,
@@ -187,15 +212,30 @@ def _evidence(
         source_type=EvidenceSource.HISTORICAL_REPLAY,
         source_identity="okx-ws-bbo",
         source_manifest_id="manifest-1",
-        reference_bid=99.0,
-        reference_ask=100.0,
-        reference_received_at=START,
-        reference_data_status=ReferenceDataStatus.OK,
-        reference_data_reason=ReferenceDataReason.NONE,
+        reference_data_status=reference_status,
+        reference_bid=reference_bid,
+        reference_ask=reference_ask,
+        reference_received_at=reference_received_at,
         evidence_payload={"setup": "breakout"} if payload is None else payload,
         feature_snapshot_payload={"retest": True, "level": 99.5},
         supersedes_evidence_id=supersedes,
         created_at=START,
+    )
+
+
+def _unavailable_evidence(
+    opportunity: OpportunityIdentity,
+    status: ReferenceDataStatus,
+    *,
+    revision: int = 1,
+) -> EvidenceRevision:
+    return _evidence(
+        opportunity,
+        revision=revision,
+        reference_status=status,
+        reference_bid=None,
+        reference_ask=None,
+        reference_received_at=None,
     )
 
 
@@ -209,6 +249,8 @@ def _outcome(
     source_type: EvidenceSource = EvidenceSource.HISTORICAL_REPLAY,
     source_identity: str = "replay-a",
     calculator_version: str = "calc-v1",
+    calculation_status: OutcomeCalculationStatus = OutcomeCalculationStatus.COMPLETE,
+    lifecycle: OpportunityLifecycleAtHorizon | None = None,
 ) -> ForwardOutcomeContract:
     return build_forward_outcome_contract(
         opportunity_id=opportunity.opportunity_id,
@@ -221,11 +263,45 @@ def _outcome(
         cost_policy="taker-only",
         cost_model_version="cost-v1",
         calculator_version=calculator_version,
+        calculation_status=calculation_status,
+        opportunity_lifecycle_at_horizon=lifecycle,
         reference_price=99.5,
         end_bid=100.5,
         end_ask=100.6,
         created_at=START,
         supersedes_outcome_id=supersedes,
+    )
+
+
+def _bbo(
+    *,
+    instrument_id: str = "BTC-USDT",
+    market_type: MarketType = MarketType.SPOT,
+    bid: float = 99.0,
+    ask: float = 100.0,
+    at: datetime = START,
+    source_event_time: datetime | None = None,
+    data_quality: DataQuality = DataQuality.FRESH,
+    tradable: bool = True,
+    source: str = "okx-ws-bbo",
+    source_sequence: int | None = 42,
+):
+    """A BBO observation obeying the V1 causal rule (available_at == received_at)."""
+
+    event_time = at if source_event_time is None else source_event_time
+    return build_bbo_observation(
+        instrument_id=instrument_id,
+        market_type=market_type,
+        bid=bid,
+        ask=ask,
+        available_at=at,
+        source_event_time=event_time,
+        received_at=at,
+        data_quality=data_quality,
+        tradable=tradable,
+        source=source,
+        source_sequence=source_sequence,
+        created_at=START,
     )
 
 
@@ -254,13 +330,32 @@ def _evidence_row(**overrides) -> EdgeOpportunityEvidenceRecord:
         "reference_ask": 100.0,
         "reference_received_at": START,
         "reference_data_status": "OK",
-        "reference_data_reason": "NONE",
         "evidence_payload": {},
         "feature_snapshot_payload": {},
         "created_at": START,
     }
     values.update(overrides)
     return EdgeOpportunityEvidenceRecord(**values)
+
+
+def _bbo_row(**overrides) -> EdgeBboObservationRecord:
+    values = {
+        "observation_id": "z" * 64,
+        "instrument_id": "BTC-USDT",
+        "market_type": "SPOT",
+        "bid": 99.0,
+        "ask": 100.0,
+        "available_at": START,
+        "source_event_time": START,
+        "received_at": START,
+        "data_quality": "FRESH",
+        "tradable": True,
+        "source": "raw",
+        "source_sequence": None,
+        "created_at": START,
+    }
+    values.update(overrides)
+    return EdgeBboObservationRecord(**values)
 
 
 def _outcome_row(**overrides) -> EdgeForwardOutcomeRecord:
@@ -272,7 +367,7 @@ def _outcome_row(**overrides) -> EdgeForwardOutcomeRecord:
         "outcome_revision": 1,
         "supersedes_outcome_id": None,
         "outcome_contract_version": "se02-outcome-v1",
-        "calculation_status": "PENDING",
+        "calculation_status": "COMPLETE",
         "opportunity_lifecycle_at_horizon": None,
         "due_at": START,
         "source_type": "HISTORICAL_REPLAY",
@@ -343,10 +438,75 @@ def test_first_evidence_revision_is_persisted_with_its_full_provenance():
         assert row.source_manifest_id == "manifest-1"
         assert row.reference_bid == 99.0
         assert row.reference_ask == 100.0
+        assert row.reference_received_at == START
         assert row.reference_data_status == "OK"
-        assert row.reference_data_reason == "NONE"
         assert row.evidence_payload == {"setup": "breakout"}
         assert row.feature_snapshot_payload == {"retest": True, "level": 99.5}
+
+
+@pytest.mark.parametrize(
+    "status",
+    [ReferenceDataStatus.REFERENCE_MISSING, ReferenceDataStatus.REFERENCE_STALE],
+)
+def test_evidence_survives_a_missing_or_stale_reference_quote(status):
+    """P0-1: an opportunity without usable reference data is still a durable sample."""
+
+    with _edge_database(f"evidence_{status.value.lower()}") as (_, url):
+        opportunity = _opportunity()
+        record = _unavailable_evidence(opportunity, status)
+
+        async def scenario():
+            async with _session(url) as session:
+                outcome = await append_evidence_revision(session, record)
+                await session.commit()
+                row = await session.scalar(
+                    select(EdgeOpportunityEvidenceRecord).where(
+                        EdgeOpportunityEvidenceRecord.evidence_id == record.evidence_id
+                    )
+                )
+                return outcome, row
+
+        outcome, row = asyncio.run(scenario())
+
+        assert outcome == INSERTED
+        assert row is not None
+        assert row.reference_data_status == status.value
+        assert row.reference_bid is None
+        assert row.reference_ask is None
+        assert row.reference_received_at is None
+        assert row.opportunity_id == opportunity.opportunity_id
+        assert asyncio.run(_count(url, EdgeOpportunityEvidenceRecord)) == 1
+
+
+def test_database_rejects_reference_data_that_contradicts_its_status():
+    with _edge_database("evidence_reference_checks") as (_, url):
+        # A reference status the frozen vocabulary does not contain.
+        _expect_integrity_error(url, _evidence_row(reference_data_status="DEGRADED"))
+        # `OK` demands a complete, ordered, positive quote.
+        _expect_integrity_error(
+            url,
+            _evidence_row(
+                reference_bid=None, reference_ask=None, reference_received_at=None
+            ),
+        )
+        _expect_integrity_error(url, _evidence_row(reference_bid=None))
+        _expect_integrity_error(url, _evidence_row(reference_ask=None))
+        _expect_integrity_error(url, _evidence_row(reference_bid=101.0, reference_ask=100.0))
+        _expect_integrity_error(url, _evidence_row(reference_bid=0.0))
+        # `REFERENCE_MISSING` / `REFERENCE_STALE` demand an all-NULL quote: a zero
+        # placeholder is not a NULL metric and is refused.
+        for status in ("REFERENCE_MISSING", "REFERENCE_STALE"):
+            _expect_integrity_error(url, _evidence_row(reference_data_status=status))
+            _expect_integrity_error(
+                url,
+                _evidence_row(
+                    reference_data_status=status,
+                    reference_bid=0.0,
+                    reference_ask=0.0,
+                    reference_received_at=START,
+                ),
+            )
+        assert asyncio.run(_count(url, EdgeOpportunityEvidenceRecord)) == 0
 
 
 def test_exact_duplicate_revision_is_idempotent():
@@ -382,6 +542,29 @@ def test_same_revision_with_a_different_hash_fails_closed():
             async with _session(url) as session:
                 with pytest.raises(EdgeEvidenceConflict):
                     await append_evidence_revision(session, conflicting)
+
+        asyncio.run(scenario())
+        assert asyncio.run(_count(url, EdgeOpportunityEvidenceRecord)) == 1
+
+
+def test_reference_status_change_is_a_conflict_not_a_rewrite():
+    """A revision that later claims `OK` cannot overwrite a stale revision."""
+
+    with _edge_database("evidence_status_conflict") as (_, url):
+        opportunity = _opportunity()
+        stale = _unavailable_evidence(opportunity, ReferenceDataStatus.REFERENCE_STALE)
+        upgraded = _evidence(opportunity)
+
+        assert upgraded.evidence_id == stale.evidence_id
+        assert upgraded.evidence_hash != stale.evidence_hash
+
+        async def scenario():
+            async with _session(url) as session:
+                assert await append_evidence_revision(session, stale) == INSERTED
+                await session.commit()
+            async with _session(url) as session:
+                with pytest.raises(EdgeEvidenceConflict):
+                    await append_evidence_revision(session, upgraded)
 
         asyncio.run(scenario())
         assert asyncio.run(_count(url, EdgeOpportunityEvidenceRecord)) == 1
@@ -480,32 +663,15 @@ def test_database_rejects_evidence_rows_that_bypass_the_service_rules():
 
 def test_bbo_observation_persists_the_horizon_reference_schema():
     with _edge_database("bbo") as (_, url):
-        with_sequence = build_bbo_observation(
-            instrument_id="BTC-USDT",
-            market_type=MarketType.SPOT,
-            bid=99.0,
-            ask=100.0,
-            available_at=START,
-            source_event_time=START,
-            received_at=START,
-            data_quality=DataQuality.FRESH,
-            tradable=True,
-            source="okx-ws-bbo",
-            source_sequence=42,
-            created_at=START,
-        )
-        without_sequence = build_bbo_observation(
-            instrument_id="BTC-USDT",
+        with_sequence = _bbo(source_sequence=42)
+        without_sequence = _bbo(
             market_type=MarketType.SWAP,
             bid=101.0,
             ask=102.0,
-            available_at=START + timedelta(seconds=5),
-            source_event_time=START + timedelta(seconds=4),
-            received_at=START + timedelta(seconds=4),
+            at=START + timedelta(seconds=4),
             data_quality=DataQuality.STALE,
             tradable=False,
-            source="okx-ws-bbo",
-            created_at=START,
+            source_sequence=None,
         )
 
         async def scenario():
@@ -538,28 +704,63 @@ def test_bbo_observation_persists_the_horizon_reference_schema():
         assert first.tradable is True
         assert first.source == "okx-ws-bbo"
         assert second.market_type == "SWAP"
+        assert second.available_at == second.received_at == START + timedelta(seconds=4)
         assert second.source_sequence is None
         assert second.data_quality == "STALE"
         assert second.tradable is False
 
+
+def test_bbo_identity_reuse_with_conflicting_eligibility_fails_closed():
+    """P0-3: same identity + conflicting immutable content is a conflict, not a duplicate.
+
+    ``data_quality`` and ``tradable`` are outside the deterministic identity, so
+    they are exactly the facts that must be compared when an identity is re-used.
+    """
+
+    with _edge_database("bbo_conflict") as (_, url):
+        original = _bbo(data_quality=DataQuality.FRESH, tradable=True)
+        conflicting_quality = _bbo(data_quality=DataQuality.STALE, tradable=True)
+        conflicting_tradable = _bbo(data_quality=DataQuality.FRESH, tradable=False)
+
+        # Identical identity: the eligibility facts are deliberately not hashed.
+        assert conflicting_quality.observation_id == original.observation_id
+        assert conflicting_tradable.observation_id == original.observation_id
+
+        async def scenario():
+            async with _session(url) as session:
+                assert await record_bbo_observation(session, original) == INSERTED
+                await session.commit()
+            async with _session(url) as session:
+                with pytest.raises(EdgeBboObservationConflict):
+                    await record_bbo_observation(session, conflicting_quality)
+            async with _session(url) as session:
+                with pytest.raises(EdgeBboObservationConflict):
+                    await record_bbo_observation(session, conflicting_tradable)
+
+        asyncio.run(scenario())
+
+        async def stored():
+            async with _session(url) as session:
+                return (
+                    await session.scalars(select(EdgeBboObservationRecord))
+                ).all()
+
+        rows = asyncio.run(stored())
+        assert len(rows) == 1
+        assert rows[0].data_quality == "FRESH"
+        assert rows[0].tradable is True
+
+
+def test_database_rejects_bbo_rows_that_bypass_the_causal_rule():
+    with _edge_database("bbo_backstop") as (_, url):
         _expect_integrity_error(
             url,
-            EdgeBboObservationRecord(
-                observation_id="z" * 64,
-                instrument_id="BTC-USDT",
-                market_type="SPOT",
-                bid=101.0,
-                ask=100.0,
-                available_at=START,
-                source_event_time=START,
-                received_at=START,
-                data_quality="FRESH",
-                tradable=True,
-                source="raw",
-                source_sequence=None,
-                created_at=START,
-            ),
+            _bbo_row(available_at=START + timedelta(seconds=1), received_at=START),
         )
+        _expect_integrity_error(url, _bbo_row(bid=101.0, ask=100.0))
+        _expect_integrity_error(url, _bbo_row(bid=0.0))
+        _expect_integrity_error(url, _bbo_row(data_quality="UNKNOWN"))
+        assert asyncio.run(_count(url, EdgeBboObservationRecord)) == 0
 
 
 # --- forward outcome persistence --------------------------------------------------------
@@ -596,6 +797,7 @@ def test_outcome_revision_persistence_and_digest_separation():
         assert [row.outcome_revision for row in rows] == [1, 2]
         assert rows[0].horizon == "5m"
         assert rows[0].due_at == START + timedelta(minutes=5)
+        assert rows[0].calculation_status == "COMPLETE"
         assert rows[0].calculation_digest == first.calculation_digest
         assert rows[0].outcome_record_hash == first.outcome_record_hash
         assert rows[0].calculation_digest_version == "se02-outcome-calculation-digest-v1"
@@ -603,6 +805,62 @@ def test_outcome_revision_persistence_and_digest_separation():
         assert rows[1].supersedes_outcome_id == first.outcome_id
         assert rows[1].outcome_record_hash != rows[0].outcome_record_hash
         assert asyncio.run(_count(url, EdgeForwardOutcomeRecord)) == 2
+
+
+@pytest.mark.parametrize(
+    "status",
+    [
+        OutcomeCalculationStatus.COMPLETE,
+        OutcomeCalculationStatus.INSUFFICIENT_DATA,
+        OutcomeCalculationStatus.INVALID,
+    ],
+)
+def test_terminal_outcome_statuses_persist_and_metrics_may_be_null(status):
+    """P0-2: only terminal statuses are persisted; metrics may be absent."""
+
+    with _edge_database(f"outcome_{status.value.lower()}") as (_, url):
+        opportunity = _opportunity()
+        evidence = _evidence(opportunity)
+
+        async def scenario():
+            async with _session(url) as session:
+                await append_evidence_revision(session, evidence)
+                outcome = build_forward_outcome_contract(
+                    opportunity_id=opportunity.opportunity_id,
+                    evidence_id=evidence.evidence_id,
+                    horizon=ForwardHorizon.M15,
+                    outcome_revision=1,
+                    due_at=START + timedelta(minutes=15),
+                    source_type=EvidenceSource.HISTORICAL_REPLAY,
+                    source_identity="replay-a",
+                    cost_policy="taker-only",
+                    cost_model_version="cost-v1",
+                    calculator_version="calc-v1",
+                    calculation_status=status,
+                    opportunity_lifecycle_at_horizon=OpportunityLifecycleAtHorizon.EXPIRED,
+                    created_at=START,
+                )
+                assert await append_forward_outcome(session, outcome) == INSERTED
+                await session.commit()
+                return (
+                    await session.scalars(select(EdgeForwardOutcomeRecord))
+                ).one()
+
+        row = asyncio.run(scenario())
+
+        assert row.calculation_status == status.value
+        assert row.opportunity_lifecycle_at_horizon == "EXPIRED"
+        for metric in ("reference_return", "mfe", "mae", "end_bid", "end_ask"):
+            assert getattr(row, metric) is None
+
+
+def test_database_rejects_unapproved_or_pending_outcome_status():
+    with _edge_database("outcome_status_backstop") as (_, url):
+        for status in ("PENDING", "CALCULATED", "INCOMPLETE_DATA", "NOT_APPLICABLE", "FAILED", "MAYBE"):
+            _expect_integrity_error(url, _outcome_row(calculation_status=status))
+        for lifecycle in ("INVALIDATED", "UNKNOWN", "SOMETIMES"):
+            _expect_integrity_error(url, _outcome_row(opportunity_lifecycle_at_horizon=lifecycle))
+        assert asyncio.run(_count(url, EdgeForwardOutcomeRecord)) == 0
 
 
 def test_replay_and_forward_provenance_share_one_calculation_digest():
@@ -687,13 +945,11 @@ def test_outcome_supersedes_and_reference_integrity_fail_closed():
         _expect_integrity_error(url, _outcome_row(evidence_id="d" * 64, opportunity_id="q" * 64))
 
 
-def test_outcome_horizon_and_status_are_constrained_at_the_database_level():
+def test_outcome_horizon_and_revision_rules_are_constrained_at_the_database_level():
     with _edge_database("outcome_checks") as (_, url):
         for overrides in (
             {"horizon": "1m"},
             {"horizon": "5s"},
-            {"calculation_status": "MAYBE"},
-            {"opportunity_lifecycle_at_horizon": "SOMETIMES"},
             {"outcome_revision": 2, "supersedes_outcome_id": None},
         ):
             _expect_integrity_error(url, _outcome_row(**overrides))
@@ -789,6 +1045,42 @@ def test_migration_cycle_only_adds_and_removes_edge_tables():
         _upgrade(url, "head")
         reupgraded_tables = asyncio.run(_table_names(url))
         assert EDGE_TABLES <= reupgraded_tables
+
+
+def test_migration_reaches_revision_0005_through_a_full_cycle():
+    """`0004 -> upgrade head -> 0005 -> downgrade 0004 -> upgrade head -> 0005`."""
+
+    with _edge_database("migration_cycle", revision=PREVIOUS_REVISION) as (_, url):
+        assert asyncio.run(_alembic_version(url)) == PREVIOUS_REVISION
+        assert not (EDGE_TABLES & asyncio.run(_table_names(url)))
+
+        _upgrade(url, "head")
+        assert asyncio.run(_alembic_version(url)) == HEAD_REVISION
+        assert EDGE_TABLES <= asyncio.run(_table_names(url))
+
+        _downgrade(url, PREVIOUS_REVISION)
+        assert asyncio.run(_alembic_version(url)) == PREVIOUS_REVISION
+        assert not (EDGE_TABLES & asyncio.run(_table_names(url)))
+        assert {"positions", "paper_orders", "trade_plans", "market_events"} <= asyncio.run(
+            _table_names(url)
+        )
+
+        _upgrade(url, "head")
+        assert asyncio.run(_alembic_version(url)) == HEAD_REVISION
+        assert EDGE_TABLES <= asyncio.run(_table_names(url))
+
+
+def test_migration_makes_reference_metrics_nullable_and_drops_the_reason_field():
+    """P0-1 schema evidence: the reference quote is optional at the storage layer."""
+
+    with _edge_database("migration_reference") as (_, url):
+        columns = asyncio.run(_column_nullability(url, "edge_opportunity_evidence"))
+
+        assert columns["reference_bid"] == "YES"
+        assert columns["reference_ask"] == "YES"
+        assert columns["reference_received_at"] == "YES"
+        assert columns["reference_data_status"] == "NO"
+        assert "reference_data_reason" not in columns
 
 
 def test_no_disposable_edge_database_is_left_behind():

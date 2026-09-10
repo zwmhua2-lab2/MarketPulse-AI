@@ -3,6 +3,17 @@
 Additive only: four new Edge tables plus Edge-specific indexes and constraints. No
 existing G2/G3/G4/G5 table semantics, risk rules, execution rules or state machine
 semantics are modified.
+
+Contract shape enforced here:
+
+* opportunity evidence keeps an *optional* reference quote -- `reference_bid`,
+  `reference_ask` and `reference_received_at` are NULL whenever the reference data
+  is `REFERENCE_MISSING` or `REFERENCE_STALE`, and are required, positive and
+  ordered when it is `OK`;
+* BBO observations obey the frozen V1 causal rule `available_at = received_at`;
+* forward outcomes persist only terminal statuses
+  (`COMPLETE` / `INSUFFICIENT_DATA` / `INVALID`) and only `ACTIVE` / `EXPIRED`
+  lifecycle, so no `PENDING` row can exist.
 """
 
 import sqlalchemy as sa
@@ -36,11 +47,10 @@ def upgrade() -> None:
         sa.Column("source_type", sa.String(32), nullable=False),
         sa.Column("source_identity", sa.String(128), nullable=False),
         sa.Column("source_manifest_id", sa.String(64), nullable=False),
-        sa.Column("reference_bid", sa.Float(), nullable=False),
-        sa.Column("reference_ask", sa.Float(), nullable=False),
-        sa.Column("reference_received_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("reference_bid", sa.Float(), nullable=True),
+        sa.Column("reference_ask", sa.Float(), nullable=True),
+        sa.Column("reference_received_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("reference_data_status", sa.String(32), nullable=False),
-        sa.Column("reference_data_reason", sa.String(64), nullable=False),
         sa.Column("evidence_payload", sa.JSON(), nullable=False),
         sa.Column("feature_snapshot_payload", sa.JSON(), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
@@ -61,8 +71,17 @@ def upgrade() -> None:
             name="ck_edge_evidence_source_type",
         ),
         sa.CheckConstraint(
-            "reference_data_status IN ('OK', 'DEGRADED', 'UNAVAILABLE')",
+            "reference_data_status IN ('OK', 'REFERENCE_MISSING', 'REFERENCE_STALE')",
             name="ck_edge_evidence_reference_status",
+        ),
+        sa.CheckConstraint(
+            "(reference_data_status = 'OK' AND reference_bid IS NOT NULL "
+            "AND reference_ask IS NOT NULL AND reference_received_at IS NOT NULL "
+            "AND reference_bid > 0 AND reference_ask > 0 AND reference_bid <= reference_ask) "
+            "OR (reference_data_status IN ('REFERENCE_MISSING', 'REFERENCE_STALE') "
+            "AND reference_bid IS NULL AND reference_ask IS NULL "
+            "AND reference_received_at IS NULL)",
+            name="ck_edge_evidence_reference_consistency",
         ),
         sa.CheckConstraint(
             "supersedes_evidence_id IS NOT NULL OR evidence_revision = 1",
@@ -86,6 +105,7 @@ def upgrade() -> None:
         sa.Column("source_sequence", sa.BigInteger(), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.CheckConstraint("bid > 0 AND ask > 0 AND ask >= bid", name="ck_edge_bbo_prices"),
+        sa.CheckConstraint("available_at = received_at", name="ck_edge_bbo_causal_time"),
         sa.CheckConstraint("market_type IN ('SPOT', 'SWAP')", name="ck_edge_bbo_market_type"),
         sa.CheckConstraint(
             "data_quality IN ('FRESH', 'STALE', 'UNAVAILABLE')", name="ck_edge_bbo_data_quality"
@@ -146,13 +166,12 @@ def upgrade() -> None:
         sa.CheckConstraint("outcome_revision >= 1", name="ck_edge_outcome_revision_positive"),
         sa.CheckConstraint("horizon IN ('30s', '5m', '15m', '1h')", name="ck_edge_outcome_horizon"),
         sa.CheckConstraint(
-            "calculation_status IN "
-            "('PENDING', 'CALCULATED', 'INCOMPLETE_DATA', 'NOT_APPLICABLE', 'FAILED')",
+            "calculation_status IN ('COMPLETE', 'INSUFFICIENT_DATA', 'INVALID')",
             name="ck_edge_outcome_calculation_status",
         ),
         sa.CheckConstraint(
             "opportunity_lifecycle_at_horizon IS NULL OR opportunity_lifecycle_at_horizon IN "
-            "('ACTIVE', 'EXPIRED', 'INVALIDATED', 'UNKNOWN')",
+            "('ACTIVE', 'EXPIRED')",
             name="ck_edge_outcome_lifecycle",
         ),
         sa.CheckConstraint(

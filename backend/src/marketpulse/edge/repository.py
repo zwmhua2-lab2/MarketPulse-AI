@@ -10,6 +10,8 @@ framework.
 
 from __future__ import annotations
 
+from enum import StrEnum
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -52,6 +54,40 @@ class EdgeInvalidOutcomeSupersedes(EdgePersistenceError):
 
 class EdgeEvidenceReferenceMissing(EdgePersistenceError):
     """An outcome references evidence that does not exist for that opportunity."""
+
+
+class EdgeBboObservationConflict(EdgePersistenceError):
+    """Same observation id but conflicting immutable observation content."""
+
+
+# Every immutable fact of a BBO observation, in a fixed order. The first eight are
+# already folded into ``observation_id``; ``data_quality`` and ``tradable`` are not,
+# so re-using an identity with a different eligibility fact must fail closed.
+_BBO_IMMUTABLE_FIELDS = (
+    "instrument_id",
+    "market_type",
+    "bid",
+    "ask",
+    "available_at",
+    "source_event_time",
+    "received_at",
+    "source",
+    "source_sequence",
+    "data_quality",
+    "tradable",
+)
+
+
+def _normalized(value: object) -> object:
+    """Collapse str-valued enums onto their persisted string form."""
+
+    return value.value if isinstance(value, StrEnum) else value
+
+
+def _bbo_immutable_content(row: EdgeBboObservationRecord | BboObservation) -> tuple[object, ...]:
+    """The immutable observation content as a comparable tuple."""
+
+    return tuple(_normalized(getattr(row, field)) for field in _BBO_IMMUTABLE_FIELDS)
 
 
 async def append_evidence_revision(session: AsyncSession, record: EvidenceRevision) -> str:
@@ -115,7 +151,6 @@ async def append_evidence_revision(session: AsyncSession, record: EvidenceRevisi
             reference_ask=record.reference_ask,
             reference_received_at=record.reference_received_at,
             reference_data_status=record.reference_data_status.value,
-            reference_data_reason=record.reference_data_reason.value,
             evidence_payload=dict(record.evidence_payload),
             feature_snapshot_payload=dict(record.feature_snapshot_payload),
             created_at=record.created_at,
@@ -126,7 +161,15 @@ async def append_evidence_revision(session: AsyncSession, record: EvidenceRevisi
 
 
 async def record_bbo_observation(session: AsyncSession, observation: BboObservation) -> str:
-    """Append one normalized L1 BBO observation (content-addressed, append-only)."""
+    """Append one normalized L1 BBO observation (content-addressed, append-only).
+
+    Same ``observation_id`` + same immutable content -> ``IDEMPOTENT``.
+    Same ``observation_id`` + conflicting immutable content -> ``EdgeBboObservationConflict``.
+
+    ``data_quality`` and ``tradable`` sit outside the deterministic identity, so a
+    re-used identity is compared against them explicitly: the first stored copy is
+    never silently kept when a conflicting eligibility fact arrives.
+    """
 
     existing = await session.scalar(
         select(EdgeBboObservationRecord).where(
@@ -134,7 +177,12 @@ async def record_bbo_observation(session: AsyncSession, observation: BboObservat
         )
     )
     if existing is not None:
-        return IDEMPOTENT
+        if _bbo_immutable_content(existing) == _bbo_immutable_content(observation):
+            return IDEMPOTENT
+        raise EdgeBboObservationConflict(
+            "same observation_id with conflicting immutable observation content "
+            f"(observation_id={observation.observation_id})"
+        )
 
     session.add(
         EdgeBboObservationRecord(
