@@ -129,3 +129,22 @@
 - **Audit Trail Preserved**: 原始 Self-Check / Known Risks / Evidence 记录未删除；本 Finding 为追加，非覆盖。
 - **Status**: `IMPLEMENTED / READY FOR RE-REVIEW`（未自行 ACCEPTED，未推进 `main`，未 fast-forward `main`，未启动 N01 / G6）。
 - **Fix Commit SHA**: 见 Completion Report（提交后返回；远端 `e429509` 前移一位）。
+
+---
+
+## Final Acceptance Record（2026-09-10）
+
+- **Independent Re-Review Result**: `PASS / READY FOR HUMAN ACCEPTANCE`。
+- **Human Acceptance**: `CONFIRMED`（用户明确选择「继续」；Design / Review 窗口将其确认解释为 Human Acceptance = CONFIRMED）。
+- **Acceptance Fix #1**: `CLOSED`（F1 `AI_CONTEXT.md` baseline contamination = CLOSED；F2 `PROJECT_STATE.md` baseline contamination = CLOSED；F3 dev_log inaccurate verification claim = CLOSED）。
+- **Final Closeout Scope**: 仅文档治理。① `PRODUCT_REQUIREMENTS.md` §0 交叉引用笔误修正（`见 §13` → `见 §14`）；② `PROJECT_STATE.md` PRB-01 小节状态更新为 `ACCEPTED / COMPLETE` 并记录 Final Acceptance traceability；③ 本 dev_log 追加本 Final Acceptance Record。`AI_CONTEXT.md` / `AGENTS.md` / `DECISIONS.md` 本轮**未修改**。
+- **§13 → §14 Cross-reference Correction**: 已修正 1 处（`PRODUCT_REQUIREMENTS.md` §0：`走变更流程（见 §13）` → `走变更流程（见 §14）`；Change Control 实际位于 §14）。`PRODUCT_REQUIREMENTS.md` 主体**未重写**，无其它编辑。
+- **Final Verification**: FC-01～FC-07 全部 PASS（逐项见 Closeout Report）。`git diff --check` 无 whitespace 错误；staged 集仅含批准文档；最终累计 diff 仅 5 个批准文档文件；无 backend / frontend / tests / schema / migration / `DECISIONS.md` 改动。
+- **Final Acceptance Commit SHA**: 本 commit = Acceptance Fix #1 Commit `28de04a5b86e84840fb79d0774957f8312b6144e` 的后继 Final Acceptance / Baseline Commit（commit 无法自引用自身 SHA；精确 SHA 以 Git 与 Closeout Report 为准）。
+- **Accepted Main before**: `ac3eaf911b9841f353db53d4ae21e7336af90e37`。
+- **Accepted Main after**: PRB Final Accepted Commit（`main` 已 fast-forward；仅 fast-forward，无 merge commit / rebase / force push / squash；未覆盖未知提交）。
+- **PRB branch HEAD**: Final Accepted Commit；`prb-01-product-requirements-baseline` 保留为历史证据分支。
+- **Product behavior changed**: `NO`。
+- **Repository baseline established**: `YES`。
+- **Audit Trail Preserved**: 原始 Implementation history、Acceptance Review Finding #1、Fix #1 evidence 与本 Final Human Acceptance Record **全部保留**；未删除、未重写、未洗掉历史 Finding；no history rewritten。
+- **Status**: `PRB-01 = ACCEPTED / COMPLETE`。未启动 N01 / N03 / G6 或其它开发任务。

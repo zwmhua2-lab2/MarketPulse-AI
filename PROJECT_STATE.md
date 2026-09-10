@@ -230,5 +230,7 @@ FG-E — Reconciliation Snapshot Consistency — ACCEPTED / COMPLETE
 - 新建根目录 `PRODUCT_REQUIREMENTS.md`：长期产品需求基线（Product Goal / Trading Philosophy / Stable Product Boundaries / Core responsibility model / Long-term capability direction）。
 - 同步入口：`AI_CONTEXT.md` 增加 `PRODUCT_REQUIREMENTS.md` 产品基线指针；`AGENTS.md` 开工检查加入 `PRODUCT_REQUIREMENTS.md`。
 - 本任务 Scope：仅文档；不修改 Backend / Frontend / Tests / Schema / Migration / 交易行为 / Risk / Scanner / AI Provider / G2–G5 Runtime；不把未来能力写成当前已完成；不静默覆盖 `DECISIONS.md`。
-- 状态：`IMPLEMENTED / READY FOR RE-REVIEW`（Worker 完成，未自行 Acceptance，未推进 `main`）。
-- 分支：`prb-01-product-requirements-baseline`（基于 `main` = `ac3eaf9…`）；Commit SHA 见本任务 dev_log。
+- 状态：`ACCEPTED / COMPLETE`（Independent Re-Review = `PASS / READY FOR HUMAN ACCEPTANCE`；Human Acceptance = `CONFIRMED`；Acceptance Fix #1 = `CLOSED`）。
+- 分支：`prb-01-product-requirements-baseline`（基于 `main` = `ac3eaf9…`）；Acceptance Fix #1 Commit = `28de04a5b86e84840fb79d0774957f8312b6144e`；Final Acceptance / Baseline Commit = 其后继 commit（SHA 见本任务 dev_log 与 Closeout Report）。
+- Accepted Main before = `ac3eaf911b9841f353db53d4ae21e7336af90e37`；Accepted Main after = PRB Final Accepted Commit（`main` 已 fast-forward，仅 fast-forward）。
+- Product behavior changed = `NO`；Repository baseline established = `YES`。
