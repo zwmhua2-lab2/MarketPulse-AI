@@ -2,7 +2,7 @@
 
 ## Current Group
 
-N01-A — Deterministic Runtime + Resource Lifecycle — VALIDATED / AWAITING REVIEW
+N01-A Acceptance Fix #1 — Deterministic Runtime + Resource Lifecycle — IMPLEMENTED / AWAITING RE-REVIEW
 
 ## GitHub Repository
 
@@ -11,7 +11,7 @@ N01-A — Deterministic Runtime + Resource Lifecycle — VALIDATED / AWAITING RE
 - Visibility: `PRIVATE`
 - Default Branch: `main`
 - Accepted Main Source: Git `main` / `origin/main` — read actual SHA at task preflight（CIP-02）
-- Current Development Status: `N01-A VALIDATED / AWAITING REVIEW`（Deterministic Runtime + Resource Lifecycle；未自行 Acceptance）
+- Current Development Status: `N01-A Acceptance Fix #1 IMPLEMENTED / AWAITING RE-REVIEW`（仅修复 N01-A-F01 validation evidence；未自行 Acceptance）
 
 ## Branch / Source
 
@@ -53,7 +53,7 @@ N01-A — Deterministic Runtime + Resource Lifecycle — VALIDATED / AWAITING RE
   `d47313a1cb41996410606fe92b286a5046ed4fce`；accepted implementation
   `fc234b99dcbbd4f8dc2059a415b1b44d9f7f0a2b`；R01/R02/R03 与 PostgreSQL durable duplicate
   TOCTOU 已修复；无 schema/migration、Runtime Host、G3–G5 或业务语义修改）。
-- N01-A — Deterministic Runtime + Resource Lifecycle：`VALIDATED / AWAITING REVIEW`（Task Base /
+- N01-A — Deterministic Runtime + Resource Lifecycle：`Acceptance Fix #1 IMPLEMENTED / AWAITING RE-REVIEW`（Task Base /
   verified `origin/main` = `bc635787eafdf88fdc8e5810109452b5e394a076`；仅新增 deterministic
   validation；20 个 disposable PostgreSQL lifecycle、queue/backpressure、finite worker、同标的串行、
   BTC/ETH 并行、dedupe/retry/cancellation、task/queue/inflight/retention/session 证据均通过；无
@@ -62,7 +62,7 @@ N01-A — Deterministic Runtime + Resource Lifecycle — VALIDATED / AWAITING RE
 
 ## In Progress
 
-- N01-A 已完成 validation implementation，状态 `VALIDATED / AWAITING REVIEW`；N01 Continuous
+- N01-A Acceptance Fix #1 已完成 validation implementation，状态 `IMPLEMENTED / AWAITING RE-REVIEW`；N01 Continuous
   Runtime / Soak 本身仍 `NOT ACCEPTED`。未执行真实 OKX reconnect 或 15m / 2h / 12h Soak；N01-B
   只能在 N01-A 独立验收后另行进入。
 

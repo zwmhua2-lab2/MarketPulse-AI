@@ -10,9 +10,9 @@
 | 字段 | 值 |
 |---|---|
 | Project | MarketPulse AI（BTC/ETH 量化纸面交易终端，Modular Monolith） |
-| Current Acceptance Group | N01-A — Deterministic Runtime + Resource Lifecycle — VALIDATED / AWAITING REVIEW |
+| Current Acceptance Group | N01-A Acceptance Fix #1 — Deterministic Runtime + Resource Lifecycle — IMPLEMENTED / AWAITING RE-REVIEW |
 | Accepted Main Source | Git `main` / `origin/main`；须在任务 preflight 按 CIP-02 实时读取，不以文档静态 SHA 为准 |
-| Current State | `N01-A VALIDATED / AWAITING REVIEW`（仅 validation additions；未自行 Acceptance） |
+| Current State | `N01-A Acceptance Fix #1 IMPLEMENTED / AWAITING RE-REVIEW`（仅修复 N01-A-F01 validation evidence；未自行 Acceptance） |
 | Last Accepted Group | N01-FIX-01 — G2 EventRuntime Lifecycle Safety |
 | Current Group Branch | `n01-a-runtime-resource-lifecycle`（validation branch；awaiting independent review） |
 
@@ -55,7 +55,7 @@
 
 | 字段 | 值 |
 |---|---|
-| Current Group | N01-A — `VALIDATED / AWAITING REVIEW` |
+| Current Group | N01-A Acceptance Fix #1 — `IMPLEMENTED / AWAITING RE-REVIEW` |
 | Last accepted subgroup | N01-FIX-01 — G2 EventRuntime Lifecycle Safety |
 | Next Group Design | N01-B only after N01-A acceptance |
 | Next Group name/number | N01-B — not started |
@@ -87,7 +87,8 @@
 
 - Task Base / verified `origin/main` = `bc635787eafdf88fdc8e5810109452b5e394a076`；branch =
   `n01-a-runtime-resource-lifecycle`。
-- `N01-A = VALIDATED / AWAITING REVIEW`：validation-only test 覆盖 bounded queue/backpressure、
+- `N01-A Acceptance Fix #1 = IMPLEMENTED / AWAITING RE-REVIEW`：N01-A-F01 增加 deterministic
+  same-instrument queue-get / persist-boundary witness；其余 validation-only test 覆盖 bounded queue/backpressure、
   finite worker、同 `instrument_id` 串行、BTC/ETH bounded parallelism、recent/evicted/concurrent
   duplicate、failure retry、cancellation、20 个 real PostgreSQL lifecycle、task/queue/inflight/retained
   collection/session evidence。`backend/src` / schema / migration / Runtime Host 均未修改。
@@ -120,7 +121,7 @@
   cleanup、immediate independent writer 与同生命周期 fresh reconciliation。N02-1～N02-14
   evidence 已完成，N02-1～N02-14 = PASS；Final Acceptance Closeout 已将 accepted lineage
   fast-forward 至 `main`。FG-E historical branch 保留为证据。
-- N01-A = `VALIDATED / AWAITING REVIEW`，N01-B = `NOT STARTED`，N03 = `DEFERRED`，G6 = `NOT STARTED`。
+- N01-A Acceptance Fix #1 = `IMPLEMENTED / AWAITING RE-REVIEW`，N01-B = `NOT STARTED`，N03 = `DEFERRED`，G6 = `NOT STARTED`。
 - C02 / C03 = `UNMAPPED / NOT AUDITABLE`；repository 中无法恢复原始 finding，需原始
   master audit source 后才能重新分类；不属于当前已证明的 P0/P1 blocker。
 
