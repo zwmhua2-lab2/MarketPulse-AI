@@ -1,6 +1,19 @@
 from datetime import datetime
 
-from sqlalchemy import JSON, DateTime, Float, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    JSON,
+    BigInteger,
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    Float,
+    ForeignKeyConstraint,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .base import Base
@@ -340,3 +353,234 @@ class PositionEventRecord(Base):
     __table_args__ = (
         UniqueConstraint("run_mode", "dedupe_key", name="uq_position_events_dedupe"),
     )
+
+
+class EdgeOpportunityEvidenceRecord(Base):
+    """SE-02 Edge: immutable opportunity evidence revision. Append-only by contract.
+
+    `uq_edge_evidence_opportunity_revision` collapses "same opportunity + same
+    revision" onto a single row, so a different hash for the same revision can only
+    fail closed. `fk_edge_evidence_supersedes` proves that a supersedes target both
+    exists and belongs to the same opportunity, without a trigger framework.
+
+    The reference quote is optional: an opportunity whose reference BBO is missing
+    or stale is still persisted, with `reference_bid` / `reference_ask` /
+    `reference_received_at` left NULL. `ck_edge_evidence_reference_consistency`
+    keeps that dichotomy exact -- `OK` requires a usable quote, and
+    `REFERENCE_MISSING` / `REFERENCE_STALE` require all three columns to be NULL.
+    """
+
+    __tablename__ = "edge_opportunity_evidence"
+    __table_args__ = (
+        UniqueConstraint(
+            "opportunity_id", "evidence_revision", name="uq_edge_evidence_opportunity_revision"
+        ),
+        UniqueConstraint("evidence_id", "opportunity_id", name="uq_edge_evidence_id_opportunity"),
+        ForeignKeyConstraint(
+            ["supersedes_evidence_id", "opportunity_id"],
+            ["edge_opportunity_evidence.evidence_id", "edge_opportunity_evidence.opportunity_id"],
+            name="fk_edge_evidence_supersedes",
+        ),
+        CheckConstraint("evidence_revision >= 1", name="ck_edge_evidence_revision_positive"),
+        CheckConstraint("family_id = 'BREAKOUT_RETEST'", name="ck_edge_evidence_family"),
+        CheckConstraint("market_type IN ('SPOT', 'SWAP')", name="ck_edge_evidence_market_type"),
+        CheckConstraint(
+            "source_type IN ('HISTORICAL_REPLAY', 'FORWARD_PAPER')",
+            name="ck_edge_evidence_source_type",
+        ),
+        CheckConstraint(
+            "reference_data_status IN ('OK', 'REFERENCE_MISSING', 'REFERENCE_STALE')",
+            name="ck_edge_evidence_reference_status",
+        ),
+        CheckConstraint(
+            "(reference_data_status = 'OK' AND reference_bid IS NOT NULL "
+            "AND reference_ask IS NOT NULL AND reference_received_at IS NOT NULL "
+            "AND reference_bid > 0 AND reference_ask > 0 AND reference_bid <= reference_ask) "
+            "OR (reference_data_status IN ('REFERENCE_MISSING', 'REFERENCE_STALE') "
+            "AND reference_bid IS NULL AND reference_ask IS NULL "
+            "AND reference_received_at IS NULL)",
+            name="ck_edge_evidence_reference_consistency",
+        ),
+        CheckConstraint(
+            "supersedes_evidence_id IS NOT NULL OR evidence_revision = 1",
+            name="ck_edge_evidence_supersedes_required",
+        ),
+    )
+
+    evidence_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    opportunity_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    candidate_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    family_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    family_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    instrument_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    market_type: Mapped[str] = mapped_column(String(16), nullable=False)
+    evidence_revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    evidence_contract_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    evidence_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    feature_snapshot_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    feature_snapshot_hash_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    supersedes_evidence_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    detected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    evidence_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    source_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    source_identity: Mapped[str] = mapped_column(String(128), nullable=False)
+    source_manifest_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    reference_bid: Mapped[float | None] = mapped_column(Float, nullable=True)
+    reference_ask: Mapped[float | None] = mapped_column(Float, nullable=True)
+    reference_received_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    reference_data_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    evidence_payload: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    feature_snapshot_payload: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class EdgeBboObservationRecord(Base):
+    """SE-02 Edge: normalized L1 BBO stored only as a forward-horizon reference point.
+
+    `available_at` is the normalized quote receive time, so the frozen V1 causal
+    rule requires `available_at = received_at` (`ck_edge_bbo_causal_time`).
+
+    Persistence contract only. No runtime quote capture exists in this batch.
+    """
+
+    __tablename__ = "edge_bbo_observations"
+    __table_args__ = (
+        CheckConstraint("bid > 0 AND ask > 0 AND ask >= bid", name="ck_edge_bbo_prices"),
+        CheckConstraint("available_at = received_at", name="ck_edge_bbo_causal_time"),
+        CheckConstraint("market_type IN ('SPOT', 'SWAP')", name="ck_edge_bbo_market_type"),
+        CheckConstraint(
+            "data_quality IN ('FRESH', 'STALE', 'UNAVAILABLE')", name="ck_edge_bbo_data_quality"
+        ),
+        Index(
+            "ix_edge_bbo_instrument_market_available",
+            "instrument_id",
+            "market_type",
+            "available_at",
+        ),
+    )
+
+    observation_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    instrument_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    market_type: Mapped[str] = mapped_column(String(16), nullable=False)
+    bid: Mapped[float] = mapped_column(Float, nullable=False)
+    ask: Mapped[float] = mapped_column(Float, nullable=False)
+    available_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    source_event_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    data_quality: Mapped[str] = mapped_column(String(16), nullable=False)
+    tradable: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    source: Mapped[str] = mapped_column(String(128), nullable=False)
+    source_sequence: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class EdgeForwardOutcomeRecord(Base):
+    """SE-02 Edge: immutable forward-outcome revision. No calculator runs in this batch.
+
+    Only terminal statuses are persisted (`COMPLETE` / `INSUFFICIENT_DATA` /
+    `INVALID`). There is no `PENDING` row: while `clock < due_at` no row exists and
+    pending is derived from opportunity + horizon + current clock.
+    """
+
+    __tablename__ = "edge_forward_outcomes"
+    __table_args__ = (
+        UniqueConstraint(
+            "opportunity_id",
+            "evidence_id",
+            "horizon",
+            "outcome_revision",
+            name="uq_edge_outcome_evidence_horizon_revision",
+        ),
+        UniqueConstraint("outcome_id", "opportunity_id", name="uq_edge_outcome_id_opportunity"),
+        ForeignKeyConstraint(
+            ["evidence_id", "opportunity_id"],
+            ["edge_opportunity_evidence.evidence_id", "edge_opportunity_evidence.opportunity_id"],
+            name="fk_edge_outcome_evidence",
+        ),
+        ForeignKeyConstraint(
+            ["supersedes_outcome_id", "opportunity_id"],
+            ["edge_forward_outcomes.outcome_id", "edge_forward_outcomes.opportunity_id"],
+            name="fk_edge_outcome_supersedes",
+        ),
+        CheckConstraint("outcome_revision >= 1", name="ck_edge_outcome_revision_positive"),
+        CheckConstraint("horizon IN ('30s', '5m', '15m', '1h')", name="ck_edge_outcome_horizon"),
+        CheckConstraint(
+            "calculation_status IN ('COMPLETE', 'INSUFFICIENT_DATA', 'INVALID')",
+            name="ck_edge_outcome_calculation_status",
+        ),
+        CheckConstraint(
+            "opportunity_lifecycle_at_horizon IS NULL OR opportunity_lifecycle_at_horizon IN "
+            "('ACTIVE', 'EXPIRED')",
+            name="ck_edge_outcome_lifecycle",
+        ),
+        CheckConstraint(
+            "source_type IN ('HISTORICAL_REPLAY', 'FORWARD_PAPER')",
+            name="ck_edge_outcome_source_type",
+        ),
+        CheckConstraint(
+            "supersedes_outcome_id IS NOT NULL OR outcome_revision = 1",
+            name="ck_edge_outcome_supersedes_required",
+        ),
+    )
+
+    outcome_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    opportunity_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    evidence_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    horizon: Mapped[str] = mapped_column(String(8), nullable=False, index=True)
+    outcome_revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    supersedes_outcome_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    outcome_contract_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    calculation_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    opportunity_lifecycle_at_horizon: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    due_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    source_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    source_identity: Mapped[str] = mapped_column(String(128), nullable=False)
+    reference_bbo_observation_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    end_bbo_observation_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    reference_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    end_bid: Mapped[float | None] = mapped_column(Float, nullable=True)
+    end_ask: Mapped[float | None] = mapped_column(Float, nullable=True)
+    mfe: Mapped[float | None] = mapped_column(Float, nullable=True)
+    mae: Mapped[float | None] = mapped_column(Float, nullable=True)
+    reference_return: Mapped[float | None] = mapped_column(Float, nullable=True)
+    executable_long_return: Mapped[float | None] = mapped_column(Float, nullable=True)
+    cost_adjusted_forward_return: Mapped[float | None] = mapped_column(Float, nullable=True)
+    completeness_diagnostics: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    cost_policy: Mapped[str] = mapped_column(String(64), nullable=False)
+    cost_model_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    calculator_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    calculation_digest: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    calculation_digest_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    outcome_record_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    outcome_record_hash_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class EdgeAttributionEventRecord(Base):
+    """SE-02 Edge: generic, versioned, append-only attribution lineage.
+
+    Records lineage references only. It never redefines G3/G4 economic semantics.
+    """
+
+    __tablename__ = "edge_attribution_events"
+    __table_args__ = (
+        CheckConstraint(
+            "subject_type IN ('AI', 'PLAN', 'RISK', 'EXECUTION', 'ECONOMIC_RESULT')",
+            name="ck_edge_attribution_subject_type",
+        ),
+    )
+
+    attribution_event_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    contract_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    subject_type: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    subject_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    event_type: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    opportunity_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    evidence_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    payload: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    payload_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
