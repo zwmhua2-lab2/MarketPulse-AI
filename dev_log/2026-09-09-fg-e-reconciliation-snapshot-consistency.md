@@ -180,3 +180,21 @@ Before this change, `g4.reconciliation.reconcile()` called `execution.reconcilia
 ### Status
 
 `FG-E ACCEPTANCE FIX #3 COMPLETE — WAITING ACCEPTANCE` — all N02-1～N02-14 evidence is recorded, but no human or independent reviewer Acceptance is claimed. `main` was not updated.
+
+## Final Acceptance Closeout
+
+### Human Acceptance
+
+- Human decision: `CONFIRMED ACCEPT FG-E`.
+- Accepted implementation: `2d5f3dde430c56cfbd4516bfdfdff8c513a07cff`.
+- Accepted scope: N02 — Reconciliation Snapshot Consistency. N02-1～N02-14 evidence is accepted as recorded above.
+
+### Closeout Record
+
+- This closeout changes documentation only; it does not alter FG-E production behavior, schema, migrations, or transaction semantics.
+- Before closeout, `origin/main` was `5388e848d5396f232f05818ac53add3b511e7d2d`; it is an ancestor of the accepted FG-E implementation.
+- The accepted FG-E lineage is fast-forwarded to `main`. The FG-E branch is retained as historical acceptance evidence.
+
+### Final Status
+
+`FG-E ACCEPTED / COMPLETE` — Human Acceptance confirmed. Future work remains subject to separate approval; N01 and G6 are not started.

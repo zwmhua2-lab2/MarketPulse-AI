@@ -2,7 +2,7 @@
 
 ## Current Group
 
-FG-E — Reconciliation Snapshot Consistency — ACCEPTANCE FIX #3 COMPLETE / WAITING ACCEPTANCE
+FG-E — Reconciliation Snapshot Consistency — ACCEPTED / COMPLETE
 
 ## GitHub Repository
 
@@ -11,12 +11,12 @@ FG-E — Reconciliation Snapshot Consistency — ACCEPTANCE FIX #3 COMPLETE / WA
 - Visibility: `PRIVATE`
 - Default Branch: `main`
 - Accepted Main Source: Git `main` / `origin/main` — read actual SHA at task preflight（CIP-02）
-- Current Development Status: `FG-E ACCEPTANCE FIX #3 COMPLETE / WAITING ACCEPTANCE`（N02；未自行 Acceptance）
+- Current Development Status: `FG-E ACCEPTED / COMPLETE`（Human Acceptance confirmed；N02）
 
 ## Branch / Source
 
 - Current Accepted Branch: `main`
-- Current Group Branch: NONE / CLOSED（Group 5 已 closeout；`g5-replay-evaluation` = historical accepted branch，main 已 fast-forward 收编；Task Base = `8f55cfd786cefa07be315cc6555a61636a7c8a16`）
+- Current Group Branch: `fix/fg-e-reconciliation-snapshot-consistency`（FG-E historical accepted branch；`main` 由 Final Acceptance Closeout fast-forward 收编）
 - Last Accepted Group Branch: `g5-deterministic-replay-foundation`（历史证据，保留未删）
 - Accepted Main Source: Git `main` / `origin/main` — read actual SHA at task preflight（CIP-02）
 - G5-1 Implementation Acceptance Basis: `34da62a0cc9dbe95b95faadb770fbd06179a6975`
@@ -46,23 +46,14 @@ FG-E — Reconciliation Snapshot Consistency — ACCEPTANCE FIX #3 COMPLETE / WA
   Acceptance Fix #2 已验证 C01 Case G 的 OPEN-position 三方保护生命周期与 F05 Case 2/3/4
   crash-boundary durable 证据；`state_version` 仅作为 risk-increasing freshness authority，
   不参与 open-position protection lifetime）。
+- FG-E — Reconciliation Snapshot Consistency：`ACCEPTED / COMPLETE`（Human Acceptance
+  confirmed；accepted implementation `2d5f3dde430c56cfbd4516bfdfdff8c513a07cff`；N02-1～N02-14
+  evidence PASS；无 schema/migration 或 Control/Recovery/execution-accounting semantic change）。
 - Group 4（持仓安全与恢复）已实现：Position Protection（SL/TP/Protective Exit/幂等）、Position Re-evaluation（HOLD/ADD/REDUCE/CLOSE/CANCEL_ADD/UPDATE_STOP/UPDATE_TP/UPDATE_INVALIDATION/REPLACE_PLAN）、System Safety State、Control（Pause/Resume/Emergency Stop/Emergency Recovery/Symbol Block/Manual Close/Safe Mode）、Recovery Manager（PostgreSQL SoT + Restart Recovery + Reconciliation Gate + Plan/Order Revalidation + EXECUTION_GAP）、Health Registry 与 Incident Manager。
 
 ## In Progress
 
-- FG-E — Reconciliation Snapshot Consistency = `ACCEPTANCE FIX #3 COMPLETE / WAITING ACCEPTANCE`：N02 的一次
-  G4 Reconciliation Report 现在在单一 read-only `REPEATABLE READ` PostgreSQL transaction
-  中读取 G3 accounting 与 G4 extended facts；未改 schema、migration、Control/Recovery
-  semantics 或 execution accounting。真实 PostgreSQL 并发回归证明：G3 基础读取后并发
-  `ACTIVE → REPLACED` plan commit 不会撕裂同一报告；新报告才会看到该提交并报告
-  `open_order_plan_valid=False`。Formal Review = `CHANGES_REQUIRED / NOT ACCEPTED`。
-  Acceptance Fix #1 仅关闭 real G4 transaction-state evidence。Acceptance Fix #2 已补
-  G4→G3 same-session/same-transaction identity、G4 account/order torn-read race，以及
-  standalone G3 的 real RR/RO、account/order torn-read race、true durable corruption
-  detection 与 failure cleanup evidence。Acceptance Fix #3 进一步验证 G4 对 durable
-  reserved-cash corruption 的 detector-only 传播，以及 G4 outer transaction failure 后的
-  cleanup、immediate independent writer commit 与同一 Harness fresh reconciliation。N02-1～N02-14
-  evidence 已齐备；状态仅为 `WAITING ACCEPTANCE`，未自行 Acceptance、未更新 `main`。
+- 无。FG-E 已完成 Human Acceptance 与 Final Acceptance Closeout；后续 Group 尚未批准。
 
 ## Blocked
 
@@ -149,9 +140,9 @@ FG-E — Reconciliation Snapshot Consistency — ACCEPTANCE FIX #3 COMPLETE / WA
 - Group 5-3 = `ACCEPTED`（2026-09-06 Formal Acceptance Closeout；Implementation Acceptance Basis = `f4c07333600f605cbcc5e34b591659feb1b1f318`；Review Fix #1 = VERIFIED）。
 - G5-4 = `ACCEPTED`（Formal Acceptance Closeout 2026-09-06；Production Implementation Basis = `8678b2927a2d029ac0767e49acc9e0732c329bfa`；Self Review Fix #1 Evidence = `fe610c1f23457ff11f2d5c8654e9de0aec4ff289`）。
 - G5 overall = `ACCEPTED / COMPLETE`。
-- FG-E / N02 = `IMPLEMENTED / WAITING REVIEW`（Formal Review = `CHANGES_REQUIRED / NOT
-  ACCEPTED`；Acceptance Fix #1 仅补全 real G4 `REPEATABLE READ` + `READ ONLY`
-  transaction-state evidence；其余 N02 acceptance evidence 仍待完成，未推进 `main`）。
+- FG-E / N02 = `ACCEPTED / COMPLETE`（Human Acceptance confirmed；accepted implementation
+  `2d5f3dde430c56cfbd4516bfdfdff8c513a07cff`；N02-1～N02-14 evidence PASS；Final Acceptance
+  Closeout 已将 accepted lineage fast-forward 至 `main`）。
 
 ## Group 5-1 Result
 
