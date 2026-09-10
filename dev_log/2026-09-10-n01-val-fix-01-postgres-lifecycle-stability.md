@@ -273,3 +273,71 @@ E:\Temp\marketpulse-n01-val-fix-01\diag_close_paths_report.json          # grace
 E:\Temp\marketpulse-n01-val-fix-01\diag_autovacuum_report.json           # 死元组与 autovacuum 作用证据
 E:\Temp\marketpulse-n01-val-fix-01\diag_*.py / diag_plugin.py            # 诊断脚本（只读，未入库）
 ```
+
+## Consolidated Final Acceptance Closeout（2026-09-11）
+
+本节由「N01 验证修复合并最终验收收尾」窗口追加；只同步最终状态与收尾证据，**未**改变本 Fix 的
+实现、断言或既有证据结论。本文件顶部 `Result = VALIDATED / AWAITING REVIEW` 与文中
+`Final Recommendation` 的「待评审」表述，均**已被本节覆盖**为最终状态。
+
+### Independent Review
+
+- 按 CIP-07 / CIP-08，Reviewer 独立复核 source / diff / tests / runtime evidence，不采信实现 AI
+  的摘要文本。
+- Verdict = `PASS`。
+
+### Consolidated Final Gate（本窗口重新实测，证据在仓库外）
+
+在 consolidated closeout 窗口（isolated worktree `E:\Documents\MarketPulse-AI-n01-val-fix-03`，
+HEAD = 收尾前 `13049a0`，clean）上重新执行：
+
+| Gate | 结果 |
+|---|---|
+| 本 Fix 目标门（lifecycle） | `6 passed` |
+| N01-B focused | `4 passed` |
+| G2 | `30 passed` |
+| G3 | `16 passed` |
+| G4 | `77 passed` |
+| full backend run 1 / run 2（连续） | `173 passed` / `173 passed`（1 warning） |
+| Ruff / compileall / `git diff --check`（工作树 + range `e0dab188..HEAD`） | PASS |
+| `Production code changed` | `NO` |
+
+### Test Environment Exclusivity Gate
+
+- **进程取证**：full-suite 窗口内 `Get-CimInstance Win32_Process -Filter "Name='python.exe'"`
+  的 `pytest_count = 1`（仅本窗口自己的 `python -m pytest backend/tests`）；其余 python 进程为
+  与本仓库无关的 MCP server，不访问本库。
+- **DB 取证**：另起采样器每 5 s 记录
+  `pg_stat_activity WHERE backend_type='client backend' AND datname='marketpulse'` 的
+  `pid:application_name`；全程去重后仅见「采样器 `psql`」+「被测套件自身拥有的连接」
+  （含 `marketpulse-n01-vf01-observer` / `marketpulse-n01-b-observer` 与 harness client
+  backends），**无第三者写者**。
+- 结论：full backend `173 passed ×2` 结果**可采信**。
+
+### Human Acceptance
+
+- `CONFIRMED`。
+
+### Accepted Lineage
+
+- 仅 fast-forward：`e0dab188 → 67b0cb5 → 14f387a → 13049a0 → <Consolidated Closeout Commit>`。
+- investigation branch `investigate/n01-g4-protection-limit-fill-race`（`201d9a8`）**保留、不 merge**。
+- `N01-A` / `N01-B` 的 `ACCEPTED / COMPLETE` 结论**未改变**；`N01 overall` 仍 `NOT ACCEPTED`；
+  `N01-C` **未开窗**。
+
+### Environment Exclusivity Constraint
+
+结论：`KNOWN TEST-ENVIRONMENT CONSTRAINT` / **NON-PRODUCTION** / **NON-BLOCKING**。
+
+- 本仓库全量套件使用**单一共享 PostgreSQL 数据库**，且 `Harness.clean()` 会整表清空
+  `RunMode.REPLAY` 行 ⇒ 任意两个并发会话在全量套件层面**必然互相破坏**（观测签名：
+  `open_position()` 得到 `PLAN_REPLACED`）。
+- 这是测试环境约束，**不是**产品缺陷、**不是**本 Fix 的回归。
+- 复跑 full backend 前必须先建立 exclusivity 证据（进程扫描 + DB 采样）；运行期间若监测到外来
+  writer，该 run 标记 `INVALIDATED BY ENVIRONMENT`，在恢复 exclusivity 后重跑（**不**「重试至通过」）。
+
+### Final Status
+
+```text
+N01-VAL-FIX-01 = ACCEPTED / COMPLETE
+```

@@ -12,7 +12,7 @@
 | Project | MarketPulse AI（BTC/ETH 量化纸面交易终端，Modular Monolith） |
 | Current Acceptance Group | N01-B — OKX Reconnect / Freshness + Paper Safety Continuity — ACCEPTED / COMPLETE |
 | Accepted Main Source | Git `main` / `origin/main`；须在任务 preflight 按 CIP-02 实时读取，不以文档静态 SHA 为准 |
-| Current State | `N01-B = ACCEPTED / COMPLETE`（N01-A 亦为 `ACCEPTED / COMPLETE`；**N01 overall 仍 `NOT ACCEPTED`**） |
+| Current State | `N01-B = ACCEPTED / COMPLETE`（N01-A 亦为 `ACCEPTED / COMPLETE`）；N01 验证修复 `N01-VAL-FIX-01/02/03` = `ACCEPTED / COMPLETE` 并已收入 `main`；**N01 overall 仍 `NOT ACCEPTED`** |
 | Last Accepted Group | N01-B — OKX Reconnect / Freshness + Paper Safety Continuity |
 | Current Group Branch | `n01-b-okx-paper-safety-continuity`（accepted historical branch；Final Acceptance Closeout 已 fast-forward 收编至 `main`；下一 Group branch 尚未建立） |
 
@@ -86,7 +86,8 @@
 ### N01-5 Restart / Recovery / Reconciliation（N01-C）— NEXT GATE / NOT STARTED
 
 - 状态：`NOT STARTED`，**尚未开窗、尚未批准 Spec**。
-- 入口基线：`main` = N01-B accepted lineage 末端（须在 preflight 按 CIP-02 用
+- 入口基线：`main` = N01-B accepted lineage + N01 验证修复（`N01-VAL-FIX-01/02/03`）
+  Consolidated Closeout 末端（须在 preflight 按 CIP-02 用
   `git ls-remote origin refs/heads/main` 实时读取，不以本文档静态 SHA 为准）。
 - 上游已验收前提：N01-A（Deterministic Runtime + Resource Lifecycle）、N01-B（OKX Reconnect /
   Freshness + Paper Safety Continuity）。
@@ -124,8 +125,8 @@
 
 ### N01-VAL-FIX-01 PostgreSQL Lifecycle Evidence Stability
 
-- 状态：`REVIEW PASS / CLOSEOUT BLOCKED BY F02`（Independent Review 已 PASS；Final Closeout 因
-  新增 validation finding `N01-VAL-F02` 暂停执行——未建 closeout commit、未推进 `main`）；
+- 状态：`ACCEPTED / COMPLETE`（Consolidated Final Acceptance Closeout 2026-09-11 完成；
+  Independent Review = `PASS`；Human Acceptance = `CONFIRMED`）；
   branch = `fix/n01-val-postgres-lifecycle-evidence`；commit = `67b0cb5`；
   Task Base / verified `refs/heads/main` = `e0dab188e55c32b7607c18a66644d25449dc2236`；
   isolated worktree = `E:\Documents\MarketPulse-AI-n01-val-fix-01`。
@@ -146,7 +147,8 @@
 
 ### N01-VAL-FIX-02 N01-B PostgreSQL Activity Evidence Stability
 
-- 状态：`VALIDATED / AWAITING REVIEW`；branch = `fix/n01-val-n01b-postgres-activity-evidence`；
+- 状态：`ACCEPTED / COMPLETE`（Consolidated Final Acceptance Closeout 2026-09-11 完成）；
+  branch = `fix/n01-val-n01b-postgres-activity-evidence`；
   Task Base = `67b0cb5e03bd6cb85e2df3ed873de10bed3325d2`（FIX-01 已评审 commit，其 parent =
   Accepted Main `e0dab188e55c32b7607c18a66644d25449dc2236`，形成
   `e0dab188 → 67b0cb5 → FIX-02 → Final Closeout` 线性）；
@@ -166,15 +168,17 @@
   recaptured`。Fix 依据是**源码缺陷 + FIX-01 的既有捕获身份**，不主张该断言已被复现。
 - `Production code changed = NO`；`scripts/verify_n01_b_okx_paper_safety.py` 未改动
   （`_database_activity` 保留为 ownership-aware 诊断接口，返回键向后兼容）。
-- 本 Fix **未** merge `main`、**未** closeout `N01-VAL-FIX-01`、**未**开始 N01-C，也**不改变**
+- 本 Fix 已随 Consolidated Final Acceptance Closeout 收尾：`N01-VAL-FIX-01/02/03` 三者
+  `ACCEPTED / COMPLETE` 并 fast-forward 收入 `main`；**未**开 N01-C，也**不改变**
   `N01-A` / `N01-B` 的 `ACCEPTED` 结论。详见
   `dev_log/2026-09-10-n01-val-fix-02-n01b-postgres-activity-evidence.md`。
 
 ### N01-VAL-FIX-03 G4 Protection / Limit-Fill Assertion Uniqueness
 
-- 状态：`VALIDATED / AWAITING REVIEW`；branch = `fix/n01-val-g4-order-assertion-uniqueness`；
+- 状态：`ACCEPTED / COMPLETE`（Consolidated Final Acceptance Closeout 2026-09-11 完成）；
+  branch = `fix/n01-val-g4-order-assertion-uniqueness`；
   Task Base = `14f387ac88af1ecd377fcd181c90b109ee361754`（FIX-02 已评审 commit），形成
-  `e0dab188 → 67b0cb5 → 14f387a → FIX-03 → Final Closeout` 线性；
+  `e0dab188 → 67b0cb5 → 14f387a → 13049a0 → Consolidated Final Acceptance Closeout` 线性；
   isolated worktree = `E:\Documents\MarketPulse-AI-n01-val-fix-03`。
 - `N01-G4-F01`（原「既有 flake」）分类 = **Case B — Test Assertion Scope / Ambiguous Read
   Defect**，**非** production concurrency defect。缺陷：目标测试
@@ -195,11 +199,14 @@
 - 验证：目标测试 `20/20`；`test_group4.py` `77 passed` ×2；FIX-01 `6 passed`、N01-B `4 passed`、
   G2 `30`、G3 `16`；full backend `173 passed` ×2（**带 DB 客户端会话监控**，全程无外来写者）；
   Ruff / compileall / `git diff --check` PASS。`Production code changed = NO`。
-- 环境级风险（out-of-scope，未修）：全量套件共用**单一 PostgreSQL 库**且测试整表清空
-  `REPLAY` 行 ⇒ 并发会话必互相破坏（签名 `PLAN_REPLACED`）；本窗口 full-suite 门首跑被另一
-  WorkBuddy 会话的 `pytest backend/tests` 污染，已在监控下重跑取 2 次连续 PASS。
-- 本 Fix **未** merge `main`、**未** closeout FIX-01 / FIX-02 / FIX-03、**未**开始 N01-C，
-  也**不改变** `N01-A` / `N01-B` 的 `ACCEPTED` 结论。详见
+- 环境级约束（`KNOWN TEST-ENVIRONMENT CONSTRAINT` / NON-PRODUCTION / NON-BLOCKING）：全量套件
+  共用**单一 PostgreSQL 库**且测试整表清空 `REPLAY` 行 ⇒ 并发会话必互相破坏（签名
+  `PLAN_REPLACED`）；本窗口 full-suite 门首跑被另一 WorkBuddy 会话的 `pytest backend/tests`
+  污染，收尾门已以「进程扫描 + `pg_stat_activity` 客户端会话采样」建立 exclusivity 证据后
+  取 2 次连续 PASS。
+- 本 Fix 已随 Consolidated Final Acceptance Closeout 收尾：`N01-VAL-FIX-03 = ACCEPTED / COMPLETE`，
+  与 FIX-01 / FIX-02 一并 fast-forward 收入 `main`；**未**开 N01-C，也**不改变**
+  `N01-A` / `N01-B` 的 `ACCEPTED` 结论。详见
   `dev_log/2026-09-11-n01-val-fix-03-g4-order-assertion-uniqueness.md`。
 
 ### N01-A Deterministic Runtime + Resource Lifecycle
