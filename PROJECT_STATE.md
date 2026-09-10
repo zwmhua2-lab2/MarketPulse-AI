@@ -4,6 +4,9 @@
 
 N01-A — Deterministic Runtime + Resource Lifecycle — ACCEPTED / COMPLETE
 
+N01-B — OKX Reconnect / Freshness + Paper Safety Continuity — `VALIDATED / AWAITING REVIEW`
+（未 Acceptance；`main` 未推进）
+
 ## GitHub Repository
 
 - GitHub Repository Full Name: `zwmhua2-lab2/MarketPulse-AI`
@@ -64,8 +67,17 @@ N01-A — Deterministic Runtime + Resource Lifecycle — ACCEPTED / COMPLETE
 
 ## In Progress
 
-- N01-A 已 `ACCEPTED / COMPLETE`；N01 Continuous Runtime / Soak 本身仍 `NOT ACCEPTED`。未执行真实
-  OKX reconnect 或 15m / 2h / 12h Soak；N01-B 保持 `NOT STARTED`，不得在本任务进入。
+- N01-B — OKX Reconnect / Freshness + Paper Safety Continuity：`VALIDATED / AWAITING REVIEW`。
+  Task Base / verified `origin/main` = `a48673404abe256d0adb07c8139b129a54b4e7ce`；branch =
+  `n01-b-okx-paper-safety-continuity`；validation commit =
+  `fc168c10bec1237c8a795d11a67d1e89783a2bff`。真实 OKX SPOT metadata、真实 `bbo-tbt` / `trades`、
+  BTC-USDT / ETH-USDT 受控真实重连、FRESH → CONTROLLED STALE → FRESH 边界、`LIVE_PAPER`
+  paper safety continuity（disposable PostgreSQL）均已真实验证；`Production code changed = NO`。
+  详见 `dev_log/2026-09-10-n01-b-okx-paper-safety-continuity.md`。不得自行声明
+  `N01-B = ACCEPTED`、`N01 = ACCEPTED`、`Continuous Runtime = PROVEN`。
+- N01-A 已 `ACCEPTED / COMPLETE`；N01 Continuous Runtime / Soak 本身仍 `NOT ACCEPTED`。
+- N01-5 Restart / Recovery / Reconciliation、N01-6 15m Runtime Smoke、N01-7 2h Soak、N01-8 12h
+  Soak 与 Integrated Runtime Host 仍 `NOT STARTED`，不得由本任务进入。
 
 ## Blocked
 
@@ -84,6 +96,11 @@ N01-A — Deterministic Runtime + Resource Lifecycle — ACCEPTED / COMPLETE
 - G2 Event Runtime 使用有界 asyncio 优先队列与有限 worker pool；同 `instrument_id` 串行。
 - G3 不可变 Decision Snapshot、Provider-neutral AI boundary、Account Row Lock 事务内写 Order/Fill/Position/Account/Ledger/Outbox。
 - G4 运行时：SL/TP 不经 AI Queue；同 Symbol 串行（asyncio lock + DB row lock）；Risk Gate 锁定 runtime_control 行后决定风险增加动作是否放行；EMERGENCY_STOP 原子取消 OPEN BUY 并释放 Reservation（≠ Close All）；SAFE_MODE 锁存需显式恢复 → PAUSED → 人工 Resume。
+- G4 stale core data（N01-B verified）：`CORE_MARKET_DATA = UNAVAILABLE`，`CORE_DATA_STALE`
+  incident OPEN，风险增加 BUY 经 `SystemRiskGate` fail-closed（`RUNTIME_STATE_DATA_DEGRADED`，
+  standalone 与 G3 事务内一致）；SELL 风险降低**不**因 stale 被禁止，但保护性成交仍要求
+  executable fresh BBO，stale 下不 fabricate fill；fresh 恢复后 health HEALTHY 且
+  `CORE_DATA_STALE` 按既有语义 RESOLVED。
 
 ## Known Issues
 
