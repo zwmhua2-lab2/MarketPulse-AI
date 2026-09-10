@@ -74,12 +74,26 @@ N01 overall — NOT ACCEPTED（N01-5 / N01-6 / N01-7 / N01-8 与 Integrated Runt
   `3 passed`、G2 `30` / G3 `16` / G4 `77`、full backend `171 passed` ×2、Ruff / compileall /
   `git diff --check` PASS。详见 `dev_log/2026-09-10-n01-b-okx-paper-safety-continuity.md`
   「Final Acceptance Closeout」。
+- N01-VAL-FIX-01 — PostgreSQL Lifecycle Evidence Stability：`VALIDATED / AWAITING REVIEW`
+  （Task Base / verified `refs/heads/main` = `e0dab188e55c32b7607c18a66644d25449dc2236`；
+  branch `fix/n01-val-postgres-lifecycle-evidence`）。Finding `N01-VAL-F01` 已在当前 accepted
+  `main` 上复现（40 次文件级执行中 2 次），并**证伪**"连接泄漏 / 服务端关闭可见窗口"假设：
+  捕获到的多余 `pg_stat_activity` 行是 `backend_type='autovacuum worker'`、`usename=null`、
+  `application_name=''` 的**服务端维护进程**（`last_query='autovacuum: ANALYZE
+  pg_catalog.pg_class'`），不是任何 harness 连接。lifecycle gate 改为：每 cycle 唯一
+  `application_name` 归属 + 按 `backend_type` 拆分 client/server + 有界最终条件等待
+  （`client_sessions == 0`，hard deadline 1.0 s，实测最长关闭可见时间 8.3 ms）；新增注入泄漏
+  负向对照（可检出、可安全释放）。`Production code changed = NO`。详见
+  `dev_log/2026-09-10-n01-val-fix-01-postgres-lifecycle-stability.md`。
 - Group 4（持仓安全与恢复）已实现：Position Protection（SL/TP/Protective Exit/幂等）、Position Re-evaluation（HOLD/ADD/REDUCE/CLOSE/CANCEL_ADD/UPDATE_STOP/UPDATE_TP/UPDATE_INVALIDATION/REPLACE_PLAN）、System Safety State、Control（Pause/Resume/Emergency Stop/Emergency Recovery/Symbol Block/Manual Close/Safe Mode）、Recovery Manager（PostgreSQL SoT + Restart Recovery + Reconciliation Gate + Plan/Order Revalidation + EXECUTION_GAP）、Health Registry 与 Incident Manager。
 
 ## In Progress
 
 - 无进行中的 Acceptance Group。**N01-B 已 `ACCEPTED / COMPLETE`**（见 Completed）；下一门
   N01-5 Restart / Recovery / Reconciliation（N01-C）**尚未开窗**。
+- `N01-VAL-FIX-01 = VALIDATED / AWAITING REVIEW`：validation infrastructure fix，只改
+  `backend/tests/test_n01_runtime_resource_lifecycle.py`；**不构成** N01-C 开窗，也**不改变**
+  `N01-A` / `N01-B` 的 `ACCEPTED` 结论。
 - N01 Continuous Runtime / Soak 本身仍 `NOT ACCEPTED`；不得由 N01-B 验收推断 N01 整体验收。
 - N01-5 Restart / Recovery / Reconciliation、N01-6 15m Runtime Smoke、N01-7 2h Soak、N01-8 12h
   Soak 与 Integrated Runtime Host 仍 `NOT STARTED`，须另开窗口并按各自批准的门执行。

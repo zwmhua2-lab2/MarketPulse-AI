@@ -118,8 +118,29 @@
   该现象属环境（`N01-B-E01`），不是产品缺陷，也未修改任何 production code。
 - Final Gate Observation（非阻塞）：N01-A 既有测试
   `test_n01_twenty_real_postgres_lifecycles_...` 在 `engine.dispose()` 后立即断言
-  PostgreSQL `sessions == baseline`，存在极短服务端回收窗口的偶发时序抖动（当日 5 次执行中 1 次；
-  单独 3/3、全量 2/2 PASS）。属测试侧时序，非连接泄漏，无 production impact。
+  PostgreSQL `sessions == baseline`，存在偶发假失败（当日 5 次执行中 1 次；单独 3/3、
+  全量 2/2 PASS）。该现象已由 N01-VAL-FIX-01 复现并定位（`N01-VAL-F01`），见下节；
+  "测试侧时序抖动"为其**修正前**的假设性分类。
+
+### N01-VAL-FIX-01 PostgreSQL Lifecycle Evidence Stability
+
+- 状态：`VALIDATED / AWAITING REVIEW`；branch = `fix/n01-val-postgres-lifecycle-evidence`；
+  Task Base / verified `refs/heads/main` = `e0dab188e55c32b7607c18a66644d25449dc2236`；
+  isolated worktree = `E:\Documents\MarketPulse-AI-n01-val-fix-01`。
+- `N01-VAL-F01` 根因（已在 accepted `main` 上复现，并捕获到具体身份）：原 gate 只按
+  `datname` 统计 `pg_stat_activity`，把**服务端维护进程**当成了 harness 连接——捕获行是
+  `backend_type='autovacuum worker'`、`usename=null`、`application_name=''`、
+  `last_query='autovacuum: ANALYZE pg_catalog.pg_class'`。既**不是**连接泄漏，也**不是**
+  服务端连接关闭可见窗口（实测客户端连接关闭可见窗口 ≤8.3 ms，160+ cycle 无残留）。
+- 修复：每 cycle 唯一 `application_name` 归属 + 按 `backend_type` 拆分 client/server +
+  有界最终条件等待（`client_sessions == 0`，hard deadline 1.0 s）+ 注入泄漏负向对照。
+  **未**重新引入 `baseline + 1` 容差，**未**用 sleep 代替清理证明；EventRuntime
+  task/queue/inflight/dedupe/worker_exception gate 强度不变。
+- `Production code changed = NO`；仅改
+  `backend/tests/test_n01_runtime_resource_lifecycle.py` 与 dev_log，外加 `PROJECT_STATE.md` /
+  `AI_CONTEXT.md` 最小状态同步。详见
+  `dev_log/2026-09-10-n01-val-fix-01-postgres-lifecycle-stability.md`。
+- 边界：本 Fix **不构成** N01-C 开窗，也**不改变** `N01-A` / `N01-B` 的 `ACCEPTED` 结论。
 
 ### N01-A Deterministic Runtime + Resource Lifecycle
 

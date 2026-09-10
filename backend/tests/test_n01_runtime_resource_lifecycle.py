@@ -1,6 +1,8 @@
 import asyncio
+import time
 from collections import defaultdict
 from contextlib import contextmanager
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from uuid import uuid4
@@ -341,105 +343,302 @@ def _disposable_postgres_database():
         asyncio.run(execute(primary_url, f'DROP DATABASE "{database_name}"'))
 
 
-async def _database_activity(database_name: str) -> dict[str, int]:
-    engine = create_async_engine(Settings().database_url, poolclass=NullPool)
-    try:
-        async with engine.connect() as connection:
-            result = await connection.execute(
-                text(
-                    "SELECT count(*) AS sessions, "
-                    "count(*) FILTER (WHERE state = 'idle in transaction') AS idle_in_transaction "
-                    "FROM pg_stat_activity WHERE datname = :database_name"
-                ),
-                {"database_name": database_name},
+# --- PostgreSQL lifecycle ownership evidence (N01-VAL-FIX-01) -----------------
+#
+# Finding N01-VAL-F01. The original gate compared the disposable database's total
+# `pg_stat_activity` row count with its pre-run baseline in the same instant that
+# `await engine.dispose()` returned, filtering only by `datname`. A captured
+# reproduction of that gate's `{'sessions': 1}` observation shows the extra row was
+# not a harness connection at all:
+#
+#   pid 54926, backend_type = 'autovacuum worker', usename = null,
+#   application_name = '', state = 'active', wait_event = 'IO/WALSync',
+#   last_query = 'autovacuum: ANALYZE pg_catalog.pg_class'
+#
+# A server-side maintenance backend carries `datname` for the database it works on,
+# so a `datname`-only filter cannot distinguish "a connection this test owns" from
+# "a server process working on this test's disposable database".
+#
+# The replacement gate states the ownership boundary explicitly: it requires zero
+# CLIENT backends in the disposable database, attributes every client session to a
+# specific lifecycle cycle via a unique `application_name`, and waits for that
+# exact condition under a hard deadline. The strict zero-residue requirement is
+# preserved: no `baseline + 1` tolerance, no rerun-the-test retry and no fixed
+# sleep standing in for proof of cleanup. Excluding server-owned maintenance
+# backends does not weaken leak detection, because the harness can only ever leak
+# client backends; `server_sessions` is retained purely as observation evidence.
+
+LIFECYCLE_APPLICATION_PREFIX = "marketpulse-n01-vf01-lifecycle"
+LIFECYCLE_OBSERVER_APPLICATION = "marketpulse-n01-vf01-observer"
+LIFECYCLE_LEAK_CONTROL_APPLICATION = "marketpulse-n01-vf01-injected-leak"
+LIFECYCLE_CLIENT_BACKEND_TYPE = "client backend"
+
+# Bounded by measurement on this stack (SQLAlchemy 2.0.52 / asyncpg 0.31.0 /
+# PostgreSQL in Docker): the longest observed time for a client-closed owned
+# backend to leave `pg_stat_activity` was 8.3 ms (N01-VAL-FIX-01 diagnostics:
+# 160 harness lifecycles plus 12 x 24 and 10 x 80 burst closes under CPU
+# contention). The deadline is ~120x that observed maximum: large enough to absorb
+# a slow server-side close, small enough that a leaked connection fails inside one
+# second.
+LIFECYCLE_CLEANUP_DEADLINE_SECONDS = 1.0
+LIFECYCLE_POLL_INTERVAL_SECONDS = 0.002
+
+_ACTIVITY_QUERY = """
+SELECT pid, application_name, usename, state, backend_type, wait_event_type, wait_event,
+       backend_start, state_change, xact_start, left(query, 120) AS last_query
+FROM pg_stat_activity
+WHERE datname = :database_name
+ORDER BY pid
+"""
+
+
+@dataclass(frozen=True)
+class _ActivitySnapshot:
+    """One ownership-split observation of the disposable database."""
+
+    rows: tuple[dict[str, object], ...]
+
+    @property
+    def client_sessions(self) -> int:
+        """Backends the test could own or leak; the only thing the gate must clear."""
+        return sum(1 for row in self.rows if row["backend_type"] == LIFECYCLE_CLIENT_BACKEND_TYPE)
+
+    @property
+    def server_sessions(self) -> int:
+        """Server-owned maintenance backends (autovacuum worker and friends)."""
+        return len(self.rows) - self.client_sessions
+
+    @property
+    def idle_in_transaction(self) -> int:
+        return sum(1 for row in self.rows if row["state"] == "idle in transaction")
+
+
+@dataclass(frozen=True)
+class _CleanupObservation:
+    """Outcome of one deadline-bounded wait for an owned lifecycle to fully close."""
+
+    released: bool
+    elapsed_seconds: float
+    polls: int
+    first_snapshot: _ActivitySnapshot
+    final_snapshot: _ActivitySnapshot
+    transients: tuple[_ActivitySnapshot, ...]
+    server_backends: tuple[dict[str, object], ...]
+    foreign_rows: tuple[dict[str, object], ...]
+
+
+def _lifecycle_application_name(cycle_index: int) -> str:
+    return f"{LIFECYCLE_APPLICATION_PREFIX}-cycle-{cycle_index + 1:02d}"
+
+
+def _lifecycle_engine(database_url: str, application_name: str):
+    """Engine whose PostgreSQL sessions are self-identifying for this lifecycle."""
+    return create_async_engine(
+        database_url,
+        poolclass=NullPool,
+        connect_args={"server_settings": {"application_name": application_name}},
+    )
+
+
+def _lifecycle_observer_engine(database_url: str):
+    """Pooled read-only observer of the disposable database, on the primary server."""
+    return create_async_engine(
+        database_url,
+        connect_args={"server_settings": {"application_name": LIFECYCLE_OBSERVER_APPLICATION}},
+    )
+
+
+async def _activity_snapshot(engine, database_name: str) -> _ActivitySnapshot:
+    async with engine.connect() as connection:
+        result = await connection.execute(text(_ACTIVITY_QUERY), {"database_name": database_name})
+        rows = tuple(dict(row) for row in result.mappings())
+    return _ActivitySnapshot(rows=rows)
+
+
+async def _wait_for_lifecycle_cleanup(
+    engine,
+    database_name: str,
+    owned_application_name: str,
+    *,
+    deadline_seconds: float = LIFECYCLE_CLEANUP_DEADLINE_SECONDS,
+) -> _CleanupObservation:
+    """Wait for one exact eventual condition: no client backend remains in the database.
+
+    This waits on the observed state rather than on the scheduler: every poll is an
+    ownership-attributed read, the loop exits as soon as the condition holds, and
+    the hard deadline turns "still present" into a failure instead of a retry.
+    """
+    started = time.perf_counter()
+    polls = 0
+    first_snapshot: _ActivitySnapshot | None = None
+    transients: list[_ActivitySnapshot] = []
+    server_backends: dict[object, dict[str, object]] = {}
+    foreign_rows: list[dict[str, object]] = []
+    while True:
+        snapshot = await _activity_snapshot(engine, database_name)
+        polls += 1
+        if first_snapshot is None:
+            first_snapshot = snapshot
+        for row in snapshot.rows:
+            if row["backend_type"] != LIFECYCLE_CLIENT_BACKEND_TYPE:
+                server_backends.setdefault(row["pid"], row)
+        if snapshot.client_sessions:
+            if len(transients) < 8:
+                transients.append(snapshot)
+            foreign_rows.extend(
+                row
+                for row in snapshot.rows
+                if row["backend_type"] == LIFECYCLE_CLIENT_BACKEND_TYPE
+                and row["application_name"] != owned_application_name
             )
-            row = result.one()
-            return {"sessions": row.sessions, "idle_in_transaction": row.idle_in_transaction}
-    finally:
-        await engine.dispose()
+        elapsed = time.perf_counter() - started
+        if not snapshot.client_sessions or elapsed >= deadline_seconds:
+            return _CleanupObservation(
+                released=not snapshot.client_sessions,
+                elapsed_seconds=elapsed,
+                polls=polls,
+                first_snapshot=first_snapshot,
+                final_snapshot=snapshot,
+                transients=tuple(transients),
+                server_backends=tuple(server_backends.values()),
+                foreign_rows=tuple(foreign_rows),
+            )
+        await asyncio.sleep(LIFECYCLE_POLL_INTERVAL_SECONDS)
 
 
 def test_n01_twenty_real_postgres_lifecycles_dispose_tasks_queues_inflight_and_connections():
     async def scenario(database_name: str, database_url: str):
-        baseline = await _database_activity(database_name)
-        cycle_evidence = []
-        cycle_activity = []
-        for cycle in range(20):
-            # The harness owns every connection and deliberately avoids retaining a pool between
-            # cycles; explicit disposal below is still required for the AsyncEngine lifecycle.
-            engine = create_async_engine(database_url, poolclass=NullPool)
-            sessions = async_sessionmaker(engine, expire_on_commit=False)
-            runtime = EventRuntime(
-                PostgresG2Repository(sessions),
-                worker_count=2,
-                queue_capacity=4,
-                dedupe_capacity=2,
-                worker_exception_capacity=2,
-            )
-            before_tasks = {
-                task.get_name()
-                for task in asyncio.all_tasks()
-                if task.get_name().startswith("g2-event-worker-") and not task.done()
-            }
-            await runtime.start()
-            worker_tasks = tuple(runtime._workers)
-            try:
-                first = _event(f"cycle-{cycle}-first", "BTC-USDT", cycle * 10)
-                second = _event(f"cycle-{cycle}-second", "ETH-USDT", cycle * 10 + 1)
-                assert all(
-                    item.persisted
-                    for item in await asyncio.gather(
-                        runtime.publish(first, _features("BTC-USDT", cycle * 10)),
-                        runtime.publish(second, _features("ETH-USDT", cycle * 10 + 1)),
-                    )
+        observer = _lifecycle_observer_engine(Settings().database_url)
+        try:
+            baseline = await _activity_snapshot(observer, database_name)
+            assert baseline.client_sessions == 0, baseline.rows
+            assert baseline.idle_in_transaction == 0, baseline.rows
+            cycle_evidence = []
+            cleanup_evidence = []
+            for cycle in range(20):
+                application_name = _lifecycle_application_name(cycle)
+                # The harness owns every connection and deliberately avoids retaining a pool
+                # between cycles; explicit disposal below is still required for the AsyncEngine
+                # lifecycle. The unique application_name makes every session this cycle owns
+                # attributable during the cleanup wait below.
+                engine = _lifecycle_engine(database_url, application_name)
+                sessions = async_sessionmaker(engine, expire_on_commit=False)
+                runtime = EventRuntime(
+                    PostgresG2Repository(sessions),
+                    worker_count=2,
+                    queue_capacity=4,
+                    dedupe_capacity=2,
+                    worker_exception_capacity=2,
                 )
-                assert not (
-                    await runtime.publish(first, _features("BTC-USDT", cycle * 10 + 2))
-                ).persisted
-                await runtime.queue.join()
-                evidence = {
-                    "cycle": cycle + 1,
-                    "queue": runtime.queue.qsize(),
-                    "inflight": len(runtime._inflight),
-                    "workers": len(worker_tasks),
-                    "dedupe": len(runtime._dedupe),
-                    "worker_exceptions": len(runtime.worker_exceptions),
+                before_tasks = {
+                    task.get_name()
+                    for task in asyncio.all_tasks()
+                    if task.get_name().startswith("g2-event-worker-") and not task.done()
                 }
-                assert evidence == {
+                await runtime.start()
+                worker_tasks = tuple(runtime._workers)
+                try:
+                    first = _event(f"cycle-{cycle}-first", "BTC-USDT", cycle * 10)
+                    second = _event(f"cycle-{cycle}-second", "ETH-USDT", cycle * 10 + 1)
+                    assert all(
+                        item.persisted
+                        for item in await asyncio.gather(
+                            runtime.publish(first, _features("BTC-USDT", cycle * 10)),
+                            runtime.publish(second, _features("ETH-USDT", cycle * 10 + 1)),
+                        )
+                    )
+                    assert not (
+                        await runtime.publish(first, _features("BTC-USDT", cycle * 10 + 2))
+                    ).persisted
+                    await runtime.queue.join()
+                    evidence = {
+                        "cycle": cycle + 1,
+                        "queue": runtime.queue.qsize(),
+                        "inflight": len(runtime._inflight),
+                        "workers": len(worker_tasks),
+                        "dedupe": len(runtime._dedupe),
+                        "worker_exceptions": len(runtime.worker_exceptions),
+                    }
+                    assert evidence == {
+                        "cycle": cycle + 1,
+                        "queue": 0,
+                        "inflight": 0,
+                        "workers": 2,
+                        "dedupe": 2,
+                        "worker_exceptions": 0,
+                    }
+                    cycle_evidence.append(evidence)
+                finally:
+                    await runtime.stop()
+                    await engine.dispose()
+                assert all(task.done() for task in worker_tasks)
+                assert not {
+                    task.get_name()
+                    for task in asyncio.all_tasks()
+                    if task.get_name().startswith("g2-event-worker-") and not task.done()
+                } - before_tasks
+                observation = await _wait_for_lifecycle_cleanup(
+                    observer, database_name, application_name
+                )
+                assert observation.released, {
                     "cycle": cycle + 1,
-                    "queue": 0,
-                    "inflight": 0,
-                    "workers": 2,
-                    "dedupe": 2,
-                    "worker_exceptions": 0,
+                    "application_name": application_name,
+                    "elapsed_seconds": observation.elapsed_seconds,
+                    "remaining_rows": observation.final_snapshot.rows,
                 }
-                cycle_evidence.append(evidence)
-            finally:
-                await runtime.stop()
-                await engine.dispose()
-            assert all(task.done() for task in worker_tasks)
-            assert not {
-                task.get_name()
-                for task in asyncio.all_tasks()
-                if task.get_name().startswith("g2-event-worker-") and not task.done()
-            } - before_tasks
-            activity = await _database_activity(database_name)
-            assert activity == baseline
-            cycle_activity.append(activity)
-        return baseline, cycle_evidence, cycle_activity, await _database_activity(database_name)
+                assert not observation.foreign_rows, {
+                    "cycle": cycle + 1,
+                    "foreign_rows": observation.foreign_rows,
+                }
+                assert observation.final_snapshot.idle_in_transaction == 0, {
+                    "cycle": cycle + 1,
+                    "rows": observation.final_snapshot.rows,
+                }
+                cleanup_evidence.append(
+                    {
+                        "cycle": cycle + 1,
+                        "application_name": application_name,
+                        "released_seconds": round(observation.elapsed_seconds, 6),
+                        "polls": observation.polls,
+                        "transient_snapshots": len(observation.transients),
+                        "transient_rows": [snapshot.rows for snapshot in observation.transients],
+                        "server_backends_seen": [
+                            {
+                                "pid": row["pid"],
+                                "backend_type": row["backend_type"],
+                                "state": row["state"],
+                                "usename": row["usename"],
+                                "last_query": row["last_query"],
+                            }
+                            for row in observation.server_backends
+                        ],
+                    }
+                )
+            final = await _activity_snapshot(observer, database_name)
+            return baseline, cycle_evidence, cleanup_evidence, final
+        finally:
+            await observer.dispose()
 
     with _disposable_postgres_database() as (database_name, database_url):
-        baseline, cycles, cycle_activity, after = asyncio.run(scenario(database_name, database_url))
+        baseline, cycles, cleanup, final = asyncio.run(scenario(database_name, database_url))
     assert len(cycles) == 20
-    assert cycle_activity == [baseline] * 20
-    assert baseline["idle_in_transaction"] == 0
-    assert after == baseline
+    assert len(cleanup) == 20
+    assert final.client_sessions == 0, final.rows
+    assert final.idle_in_transaction == 0, final.rows
     print(
         {
             "n01_lifecycle_cycles": len(cycles),
-            "db_before": baseline,
-            "db_cycle_activity": cycle_activity,
-            "db_after": after,
+            "db_baseline": {
+                "client_sessions": baseline.client_sessions,
+                "server_sessions": baseline.server_sessions,
+            },
+            "db_lifecycle_cleanup": cleanup,
+            "db_final": {
+                "client_sessions": final.client_sessions,
+                "server_sessions": final.server_sessions,
+                "idle_in_transaction": final.idle_in_transaction,
+            },
+            "cleanup_deadline_seconds": LIFECYCLE_CLEANUP_DEADLINE_SECONDS,
         }
     )
 
@@ -507,5 +706,74 @@ def test_n01_fixed_universe_retention_bounds_have_explicit_mechanisms():
             "state_records": len(runtime.state_manager._records),
             "rolling_trade_windows": {key: len(value.trades) for key, value in rolling._states.items()},
             "timeline_active": len(lifecycle._active),
+        }
+    )
+
+
+def test_n01_injected_leaked_connection_is_detected_then_released():
+    """Negative control: a deliberately held connection must never pass the lifecycle gate."""
+
+    async def scenario(database_name: str, database_url: str):
+        observer = _lifecycle_observer_engine(Settings().database_url)
+        leak_engine = _lifecycle_engine(database_url, LIFECYCLE_LEAK_CONTROL_APPLICATION)
+        try:
+            clean_before = await _wait_for_lifecycle_cleanup(
+                observer, database_name, LIFECYCLE_LEAK_CONTROL_APPLICATION
+            )
+            leak_session = async_sessionmaker(leak_engine, expire_on_commit=False)()
+            await leak_session.execute(text("SELECT 1"))  # opens and then holds a transaction
+            leak_pid = await leak_session.scalar(text("SELECT pg_backend_pid()"))
+            detected = await _wait_for_lifecycle_cleanup(
+                observer, database_name, LIFECYCLE_LEAK_CONTROL_APPLICATION
+            )
+            foreign = await _wait_for_lifecycle_cleanup(
+                observer,
+                database_name,
+                _lifecycle_application_name(0),
+                deadline_seconds=0.05,
+            )
+            await leak_session.close()
+            await leak_engine.dispose()
+            released = await _wait_for_lifecycle_cleanup(
+                observer, database_name, LIFECYCLE_LEAK_CONTROL_APPLICATION
+            )
+            return clean_before, leak_pid, detected, foreign, released
+        finally:
+            await leak_engine.dispose()
+            await observer.dispose()
+
+    with _disposable_postgres_database() as (database_name, database_url):
+        clean_before, leak_pid, detected, foreign, released = asyncio.run(
+            scenario(database_name, database_url)
+        )
+    assert clean_before.released and not clean_before.first_snapshot.client_sessions
+    # The injected connection is held open on purpose: the gate must not report a released
+    # lifecycle, and it must name the exact owned session that is still alive.
+    assert not detected.released
+    assert detected.final_snapshot.client_sessions >= 1
+    assert detected.final_snapshot.idle_in_transaction >= 1
+    assert detected.elapsed_seconds >= LIFECYCLE_CLEANUP_DEADLINE_SECONDS
+    assert any(row["pid"] == leak_pid for row in detected.final_snapshot.rows)
+    assert any(
+        row["application_name"] == LIFECYCLE_LEAK_CONTROL_APPLICATION
+        for row in detected.final_snapshot.rows
+    )
+    # Asked about an unrelated lifecycle, the same detector attributes the session correctly.
+    assert not foreign.released
+    assert any(
+        row["application_name"] == LIFECYCLE_LEAK_CONTROL_APPLICATION for row in foreign.foreign_rows
+    )
+    # Closing the injected connection returns the same detector to zero.
+    assert released.released
+    assert released.final_snapshot.client_sessions == 0
+    assert released.final_snapshot.idle_in_transaction == 0
+    print(
+        {
+            "leak_control_pid": leak_pid,
+            "detected_client_sessions": detected.final_snapshot.client_sessions,
+            "detected_idle_in_transaction": detected.final_snapshot.idle_in_transaction,
+            "detected_seconds": round(detected.elapsed_seconds, 6),
+            "released_seconds": round(released.elapsed_seconds, 6),
+            "cleanup_deadline_seconds": LIFECYCLE_CLEANUP_DEADLINE_SECONDS,
         }
     )
