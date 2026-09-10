@@ -100,6 +100,27 @@ N01 overall — NOT ACCEPTED（N01-5 / N01-6 / N01-7 / N01-8 与 Integrated Runt
   `single historical full-suite failure not independently recaptured`；Fix 依据为源码缺陷 +
   FIX-01 的既有捕获证据。`Production code changed = NO`。详见
   `dev_log/2026-09-10-n01-val-fix-02-n01b-postgres-activity-evidence.md`。
+- N01-VAL-FIX-03 — G4 Protection / Limit-Fill Assertion Uniqueness：`VALIDATED / AWAITING REVIEW`
+  （Task Base = `14f387ac88af1ecd377fcd181c90b109ee361754`，即 N01-VAL-FIX-02 已评审 commit；
+  branch `fix/n01-val-g4-order-assertion-uniqueness`）。Finding `N01-G4-F01`（Classification =
+  Case B — Test Assertion Scope / Ambiguous Read Defect，**未**确认 production concurrency defect）：
+  `test_fg_b_protection_wins_against_concurrent_limit_fill_without_reopen` 用非唯一谓词
+  `PaperOrderRecord.plan_id == <pending plan>` + `Session.scalar()` 读取 pending BUY 状态；protective
+  exit SELL 与 pending LIMIT BUY 合法共享同一 `plan_id`（`persist_trade_plan` REPLACE 旧 ACTIVE plan ⇒
+  待成交 BUY plan 为唯一 ACTIVE ⇒ `_close_position_in` 以该 plan_id 建 SELL），`Result.scalar()`
+  多行时静默返回首行、query 无 `ORDER BY` ⇒ 行序依赖物理堆序，负载相关。修复：pending BUY 改用
+  唯一 identity `order_id`（以 `plan_id + side=BUY + order_type=LIMIT` 唯一谓词取得一次，断言
+  `len == 1` 后一律 `session.get(PaperOrderRecord, order_id)`），并强化为 exact pending BUY
+  (`side/order_type/status= CANCELLED/reserved_cash == 0`) + protective SELL (`side=SELL/status=FILLED`)
+  + `protection.cancelled_order_ids` + `position.quantity == 0` + `fills == []` + 仅原始 BUY entry fill +
+  reconciliation PASS；并发 witness（`after_risk_reducing_orders_lock` / `assert not fill.done()`）
+  完整保留；**未**用 `ORDER BY` / `LIMIT 1` 规避。同构 tests-only ambiguity 一并最小修正
+  `test_stop_loss_cancels_pending_add`（read 发生在 protective exit 之后），其余 13 处 `plan_id` 读取
+  经审计为 Safe（读取窗口内该 plan 下只可能有一笔）未改。验证：目标测试 20/20；`test_group4.py`
+  `77 passed` ×2；FIX-01 `6 passed`、N01-B `4 passed`、G2 `30`、G3 `16`；full backend
+  `173 passed` ×2（**带 DB 客户端会话监控**，全程无外来写者）；Ruff / compileall /
+  `git diff --check` PASS。`Production code changed = NO`。详见
+  `dev_log/2026-09-11-n01-val-fix-03-g4-order-assertion-uniqueness.md`。
 - Group 4（持仓安全与恢复）已实现：Position Protection（SL/TP/Protective Exit/幂等）、Position Re-evaluation（HOLD/ADD/REDUCE/CLOSE/CANCEL_ADD/UPDATE_STOP/UPDATE_TP/UPDATE_INVALIDATION/REPLACE_PLAN）、System Safety State、Control（Pause/Resume/Emergency Stop/Emergency Recovery/Symbol Block/Manual Close/Safe Mode）、Recovery Manager（PostgreSQL SoT + Restart Recovery + Reconciliation Gate + Plan/Order Revalidation + EXECUTION_GAP）、Health Registry 与 Incident Manager。
 
 ## In Progress
@@ -113,6 +134,10 @@ N01 overall — NOT ACCEPTED（N01-5 / N01-6 / N01-7 / N01-8 与 Integrated Runt
 - `N01-VAL-FIX-02 = VALIDATED / AWAITING REVIEW`：继续修 N01-B PostgreSQL activity evidence
   ownership model，只改 `backend/tests/test_n01_okx_paper_safety.py`（+ dev_log / 状态文档）；
   **未** merge `main`、**未** closeout `N01-VAL-FIX-01`、**未**开始 `N01-C`。
+- `N01-VAL-FIX-03 = VALIDATED / AWAITING REVIEW`：tests-only 修 `N01-G4-F01`（G4 protection /
+  limit-fill 断言用非唯一 `plan_id` 读 pending order），只改 `backend/tests/test_group4.py`
+  （+ dev_log / 状态文档）；**未** merge `main`、**未** closeout FIX-01 / FIX-02 / FIX-03、
+  **未**开始 `N01-C`。`N01-G4-INV-01 = REVIEW PASS / Case B`。
 - N01 Continuous Runtime / Soak 本身仍 `NOT ACCEPTED`；不得由 N01-B 验收推断 N01 整体验收。
 - N01-5 Restart / Recovery / Reconciliation、N01-6 15m Runtime Smoke、N01-7 2h Soak、N01-8 12h
   Soak 与 Integrated Runtime Host 仍 `NOT STARTED`，须另开窗口并按各自批准的门执行。
@@ -142,14 +167,24 @@ N01 overall — NOT ACCEPTED（N01-5 / N01-6 / N01-7 / N01-8 与 Integrated Runt
 
 ## Known Issues
 
-- Pre-existing flaky test（out-of-scope，未修）：
+- 原「Pre-existing flaky test」（`N01-G4-F01`）**根因已定位并已修（待评审）**：
   `backend/tests/test_group4.py::test_fg_b_protection_wins_against_concurrent_limit_fill_without_reopen`
-  在负载下的 **full-suite 上下文**中可能失败（`assert order.status == OrderStatus.CANCELLED ...
-  got FILLED`，`test_group4.py:1709`）。N01-VAL-FIX-02 在**未改动**的 Task Base `67b0cb5` 上
-  观测到 1 次，单独复跑 `5/5 PASS`。`test_group4.py` 未被 N01-VAL-FIX-01 / FIX-02 触碰，故该
-  现象在 Accepted Main `e0dab188` 上同样存在。会威胁"full backend 连续 PASS"门；本窗口
-  2 次连续 full suite 未复现。证据见
-  `dev_log/2026-09-10-n01-val-fix-02-n01b-postgres-activity-evidence.md`「Out-of-Scope Finding」。
+  在负载下的 full-suite 上下文中可能失败（`assert order.status == OrderStatus.CANCELLED ... got
+  FILLED`，`test_group4.py:1709`）。分类 = **Case B — Test Assertion Scope / Ambiguous Read
+  Defect**（**非** production concurrency defect）：pending LIMIT BUY 与 protective exit SELL
+  合法共享同一 `plan_id`，而断言用非唯一 `plan_id` 谓词 + `Session.scalar()`（多行静默取首行）+
+  无 `ORDER BY`，故结果依赖物理堆序。N01-G4-INV-01 已以 PostgreSQL lock evidence 确证；N01-VAL-FIX-03
+  改为按唯一 `order_id` 读取并强化断言，`N01-VAL-FIX-03 = VALIDATED / AWAITING REVIEW`（目标测试
+  20/20、full backend 监控下 `173 passed` ×2）。修复**尚未** merge `main`，故该现象在 Accepted
+  Main `e0dab188` 上仍然存在。证据见
+  `dev_log/2026-09-11-n01-val-fix-03-g4-order-assertion-uniqueness.md`。
+- **环境级风险（out-of-scope，未修）**：本仓库全量套件使用**单一共享 PostgreSQL 数据库**，且
+  `Harness.clean()` 会整表清空 `RunMode.REPLAY` 行 ⇒ **任何两个并发会话在全量套件层面必然互相
+  破坏**（观测签名：`open_position()` 得到 `PLAN_REPLACED`，因另一写者替换了同
+  `(run_mode, instrument_id)` 的 ACTIVE plan）。N01-VAL-FIX-03 的 full-suite 门首次尝试即被另一
+  WorkBuddy 会话通过 Bash 发起的 `pytest backend/tests` 污染（`10 failed, 163 passed`），
+  已在带 DB 客户端会话监控的条件下重跑取得 2 次连续 `173 passed`。建议后续另开窗口评估
+  （例如按会话隔离数据库或加互斥），不在本 Fix Scope 内。
 - 真实 AI Provider 集成 = `DEFERRED`（`OPENAI_API_KEY=MISSING`）。Position Re-evaluation contract 以 deterministic Fake Provider 验证，未伪造真实 AI 结果。
 - Real OKX Paper Protection / Restart Recovery smoke 已用真实 BTC-USDT BBO 完成（`LIVE_PAPER`，无 Live 下单）。
 - FastAPI TestClient 上游 deprecation warning 仍存在（2 处，不影响结果）。

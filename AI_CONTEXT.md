@@ -170,6 +170,38 @@
   `N01-A` / `N01-B` 的 `ACCEPTED` 结论。详见
   `dev_log/2026-09-10-n01-val-fix-02-n01b-postgres-activity-evidence.md`。
 
+### N01-VAL-FIX-03 G4 Protection / Limit-Fill Assertion Uniqueness
+
+- 状态：`VALIDATED / AWAITING REVIEW`；branch = `fix/n01-val-g4-order-assertion-uniqueness`；
+  Task Base = `14f387ac88af1ecd377fcd181c90b109ee361754`（FIX-02 已评审 commit），形成
+  `e0dab188 → 67b0cb5 → 14f387a → FIX-03 → Final Closeout` 线性；
+  isolated worktree = `E:\Documents\MarketPulse-AI-n01-val-fix-03`。
+- `N01-G4-F01`（原「既有 flake」）分类 = **Case B — Test Assertion Scope / Ambiguous Read
+  Defect**，**非** production concurrency defect。缺陷：目标测试
+  (`test_group4.py::test_fg_b_protection_wins_against_concurrent_limit_fill_without_reopen`)
+  用非唯一谓词 `PaperOrderRecord.plan_id == <pending plan>` + `Session.scalar()` 读取 pending BUY
+  状态；protective exit SELL 与 pending LIMIT BUY 合法共享同一 `plan_id`
+  （`persist_trade_plan` REPLACE 旧 ACTIVE plan ⇒ 待成交 BUY plan 为唯一 ACTIVE ⇒
+  `_close_position_in` 以该 plan_id 建 MARKET SELL），`Result.scalar()` 多行静默取首行、query 无
+  `ORDER BY` ⇒ 行序=物理堆序，负载相关。
+- 修复：pending BUY 改用唯一 identity **`order_id`**（先以 `plan_id + side=BUY +
+  order_type=LIMIT` 唯一谓词取得一次并断言 `len == 1`，随后一律
+  `session.get(PaperOrderRecord, order_id)`），断言强化为 exact pending BUY
+  (`side=BUY` / `order_type=LIMIT` / `status=CANCELLED` / `reserved_cash==0`) + protective SELL
+  (`side=SELL` / `status=FILLED`) + `protection.cancelled_order_ids` + `position.quantity==0` +
+  `fills==[]` + 仅原始 BUY entry fill + reconciliation PASS。**未**用 `ORDER BY` / `LIMIT 1`
+  规避，**未**改 production code / schema / locking。同构 tests-only ambiguity 一并最小修正
+  `test_stop_loss_cancels_pending_add`；并发 witness 完整保留。
+- 验证：目标测试 `20/20`；`test_group4.py` `77 passed` ×2；FIX-01 `6 passed`、N01-B `4 passed`、
+  G2 `30`、G3 `16`；full backend `173 passed` ×2（**带 DB 客户端会话监控**，全程无外来写者）；
+  Ruff / compileall / `git diff --check` PASS。`Production code changed = NO`。
+- 环境级风险（out-of-scope，未修）：全量套件共用**单一 PostgreSQL 库**且测试整表清空
+  `REPLAY` 行 ⇒ 并发会话必互相破坏（签名 `PLAN_REPLACED`）；本窗口 full-suite 门首跑被另一
+  WorkBuddy 会话的 `pytest backend/tests` 污染，已在监控下重跑取 2 次连续 PASS。
+- 本 Fix **未** merge `main`、**未** closeout FIX-01 / FIX-02 / FIX-03、**未**开始 N01-C，
+  也**不改变** `N01-A` / `N01-B` 的 `ACCEPTED` 结论。详见
+  `dev_log/2026-09-11-n01-val-fix-03-g4-order-assertion-uniqueness.md`。
+
 ### N01-A Deterministic Runtime + Resource Lifecycle
 
 - Task Base / verified `origin/main` = `bc635787eafdf88fdc8e5810109452b5e394a076`；branch =

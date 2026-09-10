@@ -701,18 +701,23 @@ def test_stop_loss_cancels_pending_add():
         await open_position(h, notional=50, bid=99, ask=100, stop=80, tp=140)
         add_plan = await open_limit_buy(h, notional=20, limit=95)
         async with SESSIONS() as session:
+            # Acquire the pending BUY once under an explicitly unique predicate, then stay on
+            # order_id: the protective exit SELL later shares this plan_id (N01-G4-F01).
             add_order = await session.scalar(
-                select(PaperOrderRecord).where(PaperOrderRecord.plan_id == add_plan.plan_id)
+                select(PaperOrderRecord).where(
+                    PaperOrderRecord.plan_id == add_plan.plan_id,
+                    PaperOrderRecord.side == OrderSide.BUY,
+                    PaperOrderRecord.order_type == OrderType.LIMIT,
+                )
             )
             reserved_before = add_order.reserved_cash
+            add_order_id = add_order.order_id
         h.quotes["SOL-USDT"] = (79.0, 80.0)
         outcome = await h.protection.evaluate(
             RunMode.REPLAY, "SOL-USDT", await h.bbo_for("SOL-USDT"), now=NOW
         )
         async with SESSIONS() as session:
-            add_order_after = await session.scalar(
-                select(PaperOrderRecord).where(PaperOrderRecord.plan_id == add_plan.plan_id)
-            )
+            add_order_after = await session.get(PaperOrderRecord, add_order_id)
             account = await session.scalar(
                 select(AccountRecord).where(AccountRecord.run_mode == RunMode.REPLAY)
             )
@@ -1656,6 +1661,23 @@ def test_fg_b_protection_wins_against_concurrent_limit_fill_without_reopen():
         await h.boot()
         await open_position(h, notional=50, bid=99, ask=100, stop=80, tp=140)
         pending_plan = await open_limit_buy(h, notional=20, limit=95)
+        # The pending BUY is the only LIMIT BUY under this plan, so this acquisition is unique by
+        # construction. Every assertion below then reads that exact order by order_id, because the
+        # protective exit legitimately shares the same plan_id (N01-G4-F01).
+        async with SESSIONS() as session:
+            pending_order_ids = list(
+                (
+                    await session.scalars(
+                        select(PaperOrderRecord.order_id).where(
+                            PaperOrderRecord.plan_id == pending_plan.plan_id,
+                            PaperOrderRecord.side == OrderSide.BUY,
+                            PaperOrderRecord.order_type == OrderType.LIMIT,
+                        )
+                    )
+                ).all()
+            )
+        assert len(pending_order_ids) == 1
+        pending_order_id = pending_order_ids[0]
         h.quotes["SOL-USDT"] = (79.0, 80.0)  # SL and BUY limit eligibility are both present.
         orders_locked = asyncio.Event()
         release = asyncio.Event()
@@ -1680,8 +1702,15 @@ def test_fg_b_protection_wins_against_concurrent_limit_fill_without_reopen():
         release.set()
         protection, fills = await asyncio.wait_for(asyncio.gather(close, fill), timeout=5)
         async with SESSIONS() as session:
-            order = await session.scalar(
-                select(PaperOrderRecord).where(PaperOrderRecord.plan_id == pending_plan.plan_id)
+            # plan_id is NOT a unique order identity here: the protective exit SELL shares it with
+            # the pending BUY. Read the pending BUY by its own primary key, never by plan_id alone.
+            pending_order = await session.get(PaperOrderRecord, pending_order_id)
+            protective_sell = await session.scalar(
+                select(PaperOrderRecord).where(
+                    PaperOrderRecord.plan_id == pending_plan.plan_id,
+                    PaperOrderRecord.side == OrderSide.SELL,
+                    PaperOrderRecord.order_type == OrderType.MARKET,
+                )
             )
             position = await session.scalar(
                 select(PositionRecord).where(
@@ -1702,12 +1731,32 @@ def test_fg_b_protection_wins_against_concurrent_limit_fill_without_reopen():
                     )
                 ).all()
             )
-        return protection, fills, order, position, buy_fills, await h.reconcile(RunMode.REPLAY)
+        return (
+            protection,
+            fills,
+            pending_order,
+            protective_sell,
+            position,
+            buy_fills,
+            await h.reconcile(RunMode.REPLAY),
+        )
 
-    protection, fills, order, position, buy_fills, report = asyncio.run(case())
+    protection, fills, pending_order, protective_sell, position, buy_fills, report = asyncio.run(
+        case()
+    )
     assert protection.triggered and fills == []
-    assert order.status == OrderStatus.CANCELLED and position.quantity == 0
+    # The exact pending BUY (stable identity = order_id) was cancelled, not the protective SELL.
+    assert protection.cancelled_order_ids == [pending_order.order_id]
+    assert pending_order.side == OrderSide.BUY
+    assert pending_order.order_type == OrderType.LIMIT
+    assert pending_order.status == OrderStatus.CANCELLED
+    assert pending_order.reserved_cash == 0
+    assert protective_sell is not None
+    assert protective_sell.side == OrderSide.SELL
+    assert protective_sell.status == OrderStatus.FILLED
+    assert position.quantity == 0
     assert len(buy_fills) == 1  # only the original position entry; pending BUY never reopens it
+    assert buy_fills[0].order_id != pending_order.order_id
     assert report.ok
 
 
