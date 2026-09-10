@@ -174,3 +174,50 @@ explicit `await engine.dispose()` assertions.
 
 `N01-A Acceptance Fix #2 = IMPLEMENTED / AWAITING RE-REVIEW`。Production code changed: `NO`；
 no schema/migration/Runtime Host/OKX/G3/G4/G5 change. This record does not declare N01-A accepted.
+
+## Final Acceptance Closeout
+
+### Independent Review Result
+
+Independent Review = `PASS`。
+
+- `N01-A-F01 = CLOSED / PASS`：deterministic same-instrument worker `queue.get()` witness and
+  release-before-persist contention evidence retained。
+- `N01-A-F02 = CLOSED / PASS`：strict PostgreSQL activity baseline restoration restored; no
+  `baseline + 1` tolerance remains.
+
+### Human Acceptance
+
+Human Acceptance = `CONFIRMED`。`N01-A = ACCEPTED / COMPLETE`。
+
+### Final Gate
+
+- Focused N01-A: `5 passed in 6.38s`；20-cycle PostgreSQL activity sequence was baseline on every
+  cycle and final (`sessions=0`, `idle_in_transaction=0`).
+- G2: `30 passed in 5.83s`。
+- Full backend: `168 passed, 1 warning in 183.73s`；warning is the existing Starlette/httpx
+  TestClient deprecation.
+- Ruff, compileall and `git diff --check`: PASS。
+- Disposable N01 database count after cleanup: `0`。
+
+### Accepted Validation Lineage
+
+```text
+bc635787eafdf88fdc8e5810109452b5e394a076
+  -> 6321efb16da7b684c6c07006379c204fa41ec46d
+  -> facac1f1f0c59dc1e96836dc53c258b370c69ee7
+  -> d67ffc21e52cb3bac6743ce6cabd13ebfb20658a
+```
+
+### Accepted Main Integration
+
+Final Acceptance Closeout is documentation-only and is committed separately after the validation
+lineage. The N01-A branch is retained as historical evidence; `main` is advanced by fast-forward only,
+without squash, rebase, reset, or force-push.
+
+### Claim Boundary / N01-B Entry Context
+
+N01-0 local/runtime preflight, N01-1 Deterministic Async Runtime, N01-2 Resource Lifecycle and N01-A
+are accepted. This does not prove overall N01, Continuous Runtime, OKX reconnect, Paper Safety
+Continuity, 15m/2h/12h Soak, 7x24 Runtime, or Integrated Runtime Host. N01-B remains `NOT STARTED`;
+next step is `RETURN TO N01 MAIN WINDOW / DESIGN / START N01-B`.

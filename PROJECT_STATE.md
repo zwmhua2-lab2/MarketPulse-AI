@@ -2,7 +2,7 @@
 
 ## Current Group
 
-N01-A Acceptance Fix #2 — Deterministic Runtime + Resource Lifecycle — IMPLEMENTED / AWAITING RE-REVIEW
+N01-A — Deterministic Runtime + Resource Lifecycle — ACCEPTED / COMPLETE
 
 ## GitHub Repository
 
@@ -11,12 +11,12 @@ N01-A Acceptance Fix #2 — Deterministic Runtime + Resource Lifecycle — IMPLE
 - Visibility: `PRIVATE`
 - Default Branch: `main`
 - Accepted Main Source: Git `main` / `origin/main` — read actual SHA at task preflight（CIP-02）
-- Current Development Status: `N01-A Acceptance Fix #2 IMPLEMENTED / AWAITING RE-REVIEW`（恢复 N01-A-F02 strict PostgreSQL lifecycle gate；未自行 Acceptance）
+- Current Development Status: `N01-A ACCEPTED / COMPLETE`（Final Acceptance Closeout completed）
 
 ## Branch / Source
 
 - Current Accepted Branch: `main`
-- Current Group Branch: `n01-a-runtime-resource-lifecycle`（N01-A validation branch；基于 `origin/main=bc635787…`，awaiting independent review）
+- Current Group Branch: `n01-a-runtime-resource-lifecycle`（N01-A accepted historical branch；Final Acceptance Closeout fast-forward 收编至 `main`）
 - Last Accepted Group Branch: `g5-deterministic-replay-foundation`（历史证据，保留未删）
 - Accepted Main Source: Git `main` / `origin/main` — read actual SHA at task preflight（CIP-02）
 - G5-1 Implementation Acceptance Basis: `34da62a0cc9dbe95b95faadb770fbd06179a6975`
@@ -53,18 +53,19 @@ N01-A Acceptance Fix #2 — Deterministic Runtime + Resource Lifecycle — IMPLE
   `d47313a1cb41996410606fe92b286a5046ed4fce`；accepted implementation
   `fc234b99dcbbd4f8dc2059a415b1b44d9f7f0a2b`；R01/R02/R03 与 PostgreSQL durable duplicate
   TOCTOU 已修复；无 schema/migration、Runtime Host、G3–G5 或业务语义修改）。
-- N01-A — Deterministic Runtime + Resource Lifecycle：`Acceptance Fix #2 IMPLEMENTED / AWAITING RE-REVIEW`（Task Base /
+- N01-A — Deterministic Runtime + Resource Lifecycle：`ACCEPTED / COMPLETE`（Task Base /
   verified `origin/main` = `bc635787eafdf88fdc8e5810109452b5e394a076`；仅新增 deterministic
   validation；20 个 disposable PostgreSQL lifecycle、queue/backpressure、finite worker、同标的串行、
   BTC/ETH 并行、dedupe/retry/cancellation、task/queue/inflight/retention/session 证据均通过；无
   `backend/src`、schema/migration、Runtime Host、OKX 或 long-soak 改动）。
+- N01-A Final Acceptance Closeout：`ACCEPTED / COMPLETE`；N01-A-F01/F02 = `CLOSED / PASS`；accepted
+  validation lineage = `6321efb` → `facac1f` → `d67ffc2`；Final Closeout commit documented below。
 - Group 4（持仓安全与恢复）已实现：Position Protection（SL/TP/Protective Exit/幂等）、Position Re-evaluation（HOLD/ADD/REDUCE/CLOSE/CANCEL_ADD/UPDATE_STOP/UPDATE_TP/UPDATE_INVALIDATION/REPLACE_PLAN）、System Safety State、Control（Pause/Resume/Emergency Stop/Emergency Recovery/Symbol Block/Manual Close/Safe Mode）、Recovery Manager（PostgreSQL SoT + Restart Recovery + Reconciliation Gate + Plan/Order Revalidation + EXECUTION_GAP）、Health Registry 与 Incident Manager。
 
 ## In Progress
 
-- N01-A Acceptance Fix #2 已完成 validation implementation，状态 `IMPLEMENTED / AWAITING RE-REVIEW`；N01 Continuous
-  Runtime / Soak 本身仍 `NOT ACCEPTED`。未执行真实 OKX reconnect 或 15m / 2h / 12h Soak；N01-B
-  只能在 N01-A 独立验收后另行进入。
+- N01-A 已 `ACCEPTED / COMPLETE`；N01 Continuous Runtime / Soak 本身仍 `NOT ACCEPTED`。未执行真实
+  OKX reconnect 或 15m / 2h / 12h Soak；N01-B 保持 `NOT STARTED`，不得在本任务进入。
 
 ## Blocked
 
