@@ -83,17 +83,18 @@
 
 ### FG-E Reconciliation Snapshot Consistency
 
-- FG-A、FG-B、FG-C、FG-D = `ACCEPTED / COMPLETE`。
+- FG-A、FG-B、FG-C、FG-D = `ACCEPTED / COMPLETE`；FG-A～FG-E Fix Program = `COMPLETE`。
 - FG-D — G2 Runtime Determinism & Failure Atomicity：F07、F09、F10、F11 =
   `ACCEPTED / FIXED`；Accepted Implementation =
   `b08c2ea1eef4e2780a98b68dfaa2d5954af7d42b`。
-- FG-E / N02 = `ACCEPTED / COMPLETE`：Human Acceptance confirmed；accepted implementation
+- FG-E = `ACCEPTED / COMPLETE`；N02 = `ACCEPTED / FIXED`：Human Acceptance confirmed；accepted implementation
   `2d5f3dde430c56cfbd4516bfdfdff8c513a07cff`。G4 `reconcile()` 在同一 read-only
   `REPEATABLE READ` PostgreSQL transaction 内调用 G3 accounting，并加载 G4 extended
   facts；standalone G3 reconciliation 也使用自己的同类只读 snapshot。真实 PostgreSQL
   并发回归已验证报告不会跨 `ACTIVE → REPLACED` plan commit 撕裂。未改 schema、migration、
   SystemControlService / RecoveryManager transaction boundary 或 G3 accounting semantics。
-  Formal Review = `CHANGES_REQUIRED / NOT ACCEPTED`。Acceptance Fix #1 仅关闭 real G4
+  Initial Formal Review = `CHANGES_REQUIRED / NOT ACCEPTED`（historical; superseded by
+  Acceptance Fix #1/#2/#3, Independent Review PASS and Human Acceptance）。Acceptance Fix #1 仅关闭 real G4
   transaction-state evidence：production G4 → G3 session 参数路径内断言
   `transaction_isolation=repeatable read` 与 `transaction_read_only=on`。其余 acceptance
   evidence 包括 account/order torn-read race、standalone G3 RR/RO、standalone G3 torn-read
@@ -105,7 +106,9 @@
   cleanup、immediate independent writer 与同生命周期 fresh reconciliation。N02-1～N02-14
   evidence 已完成，N02-1～N02-14 = PASS；Final Acceptance Closeout 已将 accepted lineage
   fast-forward 至 `main`。FG-E historical branch 保留为证据。
-- N01 = `NOT STARTED`，G6 = `NOT STARTED`。
+- N01 = `NOT STARTED`，N03 = `DEFERRED`，G6 = `NOT STARTED`。
+- C02 / C03 = `UNMAPPED / NOT AUDITABLE`；repository 中无法恢复原始 finding，需原始
+  master audit source 后才能重新分类；不属于当前已证明的 P0/P1 blocker。
 
 - G5-0 `ACCEPTED`：`AI_CONTEXT.md` 为上下文入口；`AGENTS.md` 为工程工作纪律与 Context Isolation Protocol（CIP-01～CIP-10）的正式入口。
 - G5-1 `ACCEPTED`：Deterministic Replay Foundation 已验收，implementation acceptance basis = `34da62a0cc9dbe95b95faadb770fbd06179a6975`。
