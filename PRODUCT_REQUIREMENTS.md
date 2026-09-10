@@ -26,6 +26,8 @@ PROJECT_STATE.md               ← 当前项目推进到哪里
 dev_log / Acceptance Evidence  ← 历史实施与验收证据
 ```
 
+> 注：上方关系图是**文档职责图（document responsibility map）**，描述各文档在产品信息链中的职责分工与衔接顺序，**不代表 Source-of-Truth 权威性优先级**。真正的权威性优先级以 `AI_CONTEXT.md` §2 Source of Truth 为准（代码/Schema/Tests → PROJECT_STATE.md → DECISIONS.md → PRODUCT_REQUIREMENTS.md → Group Spec → dev_log → AI_CONTEXT.md → Chat），且本文件不得静默覆盖 `DECISIONS.md` 与已验收实现。
+
 **若本文件与已批准 `DECISIONS.md` 或当前 Accepted 实现冲突：`DECISIONS.md` + Accepted implementation 不得被本文件静默覆盖。** 走变更流程（见 §13）。
 
 ---

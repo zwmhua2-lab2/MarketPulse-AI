@@ -5,7 +5,7 @@
 - Branch: `prb-01-product-requirements-baseline`
 - Base SHA: `ac3eaf911b9841f353db53d4ae21e7336af90e37`（`main` / `origin/main`，CIP-02 实测一致）
 - PRB docs Commit SHA: `ec66186b54d1cbd35560101e451b4885f3d882c0`
-- Worker Status: `IMPLEMENTED / READY FOR REVIEW`（未自行 Acceptance，未推进 `main`）
+- Worker Status: `IMPLEMENTED / READY FOR RE-REVIEW`（Review Result = CHANGES_REQUIRED / NOT ACCEPTED；Acceptance Fix #1 已应用；未自行 Acceptance，未推进 `main`）
 
 ---
 
@@ -102,3 +102,30 @@
 - PRB commit：`ec66186b54d1cbd35560101e451b4885f3d882c0`，4 files changed, 492 insertions(+), 62 deletions(-)，含 `PRODUCT_REQUIREMENTS.md`（新建）。
 - `git diff --check`：OK。
 - `git show --stat HEAD` 无 backend / frontend / test 命中 → AC-04 PASS。
+
+---
+
+## Acceptance Review Finding #1（2026-09-10）
+
+- **Review Result**: `CHANGES_REQUIRED / NOT ACCEPTED`（Reviewer 第二轮）。
+- **Accepted Baseline**: `ac3eaf911b9841f353db53d4ae21e7336af90e37`（`origin/main`，CIP-02 实测一致）。
+- **PRB remote HEAD（修复前）**: `e429509a22ccbc3c7569836d2fdb68756b5a66bb`。
+- **Root Cause（基线污染 / 当前态回归）**: PRB-01 的两个文档提交构建于 pre-existing 工作树的 G5-complete 文档状态（非 `ac3eaf9` 的 FG-E 状态）之上。该工作树状态来自 `fix/fg-a-g3-execution-authority` 分支在途、未提交的文档改动。结果导致：
+  - `AI_CONTEXT.md`：把 `FG-E … ACCEPTED / COMPLETE`、`Current State: FG-E`、Next Step Entry 整段 `FG-E Reconciliation Snapshot Consistency`（含 N02 / N01 / N03 / G6 / C02 / C03 追溯）改写为 G5 措辞并删除；PRB 指针被叠在污染后的 G5 内容之上。
+  - `PROJECT_STATE.md`：把 `Current Group: FG-E`、`Current Development Status: FG-E … N02`、Current Group Branch、以及 C04 / FG-B / FG-C / FG-E / N02 接受记录整段改写为 G5 措辞并大量删除。
+  - 二者均将 Accepted Main 的 **FG-E 当前态** 回退为 **G5** —— 即当前态回归（current-state regression）。
+- **Fix Applied（Acceptance Fix #1）**:
+  - `git checkout ac3eaf9 -- AI_CONTEXT.md PROJECT_STATE.md`：以 `ac3eaf9` 的完整 FG-E 内容恢复两个文件（不触碰工作树其余 27 条未提交 backend / test / fg-dev_log 改动）。
+  - `AI_CONTEXT.md` 仅叠加 PRB 最小增量：① 头部增加 `PRODUCT_REQUIREMENTS.md` 产品基线指针；② Source of Truth 第 4 位插入 `PRODUCT_REQUIREMENTS.md`（顺序严格：Code → PROJECT_STATE → DECISIONS → PRODUCT_REQUIREMENTS → Group Spec → dev_log → AI_CONTEXT → Chat）。FG-E / N02 / N01 / N03 / G6 / C02 / C03 既有事实全部保留。
+  - `PROJECT_STATE.md` 仅追加 `## Product Requirements Baseline（PRB-01）` 小节；FG-A～FG-E / N02 / C04 / N01 / N03 / G6 / C02-C03 / 既有 Acceptance Records 一律未改。
+  - `PRODUCT_REQUIREMENTS.md` 保持主体内容，仅新增一条小澄清：顶部 §0 关系图 = **文档职责图（document responsibility map）**，不代表 Source-of-Truth 权威性优先级。
+  - 本 dev_log 追加本 Finding（不删除原始记录）。
+- **Superseded Self-Checks**: 原始 dev_log 的 AC-02 / AC-05 / AC-08 自检（基于污染态误判 PASS）**被本 Finding 取代**；已按 `ac3eaf9` 基线重新核验（见下方 Re-Verify）。
+- **Re-Verify（修复后）**:
+  - `git diff ac3eaf9 -- AI_CONTEXT.md`：仅含 PRB 指针 + SoT 第 4 位插入；FG-E / N02 / N01 / N03 / G6 / C02 / C03 内容 0 删除。
+  - `git diff ac3eaf9 -- PROJECT_STATE.md`：仅含末尾 PRB-01 小节追加；既有 Accepted 状态 0 修改。
+  - `git diff --stat ac3eaf9`：仅 5 个批准文档文件（PRODUCT_REQUIREMENTS.md / AI_CONTEXT.md / AGENTS.md / PROJECT_STATE.md / 本 dev_log）；无 backend / frontend / test / schema / migration / DECISIONS.md 改动。
+  - 工作树未提交 backend 改动（27 条）完好保留，未进入本次 commit。
+- **Audit Trail Preserved**: 原始 Self-Check / Known Risks / Evidence 记录未删除；本 Finding 为追加，非覆盖。
+- **Status**: `IMPLEMENTED / READY FOR RE-REVIEW`（未自行 ACCEPTED，未推进 `main`，未 fast-forward `main`，未启动 N01 / G6）。
+- **Fix Commit SHA**: 见 Completion Report（提交后返回；远端 `e429509` 前移一位）。
