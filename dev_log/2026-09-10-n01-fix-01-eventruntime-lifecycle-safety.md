@@ -98,3 +98,51 @@ dedupe retention 无界、R02 worker exception retention 无界、R03 publisher 
 - `git diff --check` → PASS（Windows LF→CRLF advisory only，exit 0）。
 - 完整 pytest stdout/stderr 保留于仓库外
   `E:\Temp\marketpulse-n01-fix-01\backend-tests-full-20260910-142304.*.txt`。
+
+## Final Acceptance Closeout
+
+### Independent Review Result
+
+Independent Review = `PASS`，确认 R01 bounded EventRuntime dedupe、R02 bounded worker
+exception retention、R03 cancellation / inflight ownership、PostgreSQL concurrent durable duplicate
+atomicity 与 Scope Review 均通过。
+
+### Human Acceptance / Final Acceptance
+
+N01-FIX-01 — G2 EventRuntime Lifecycle Safety = `ACCEPTED / COMPLETE`。
+
+- Task Base：`d47313a1cb41996410606fe92b286a5046ed4fce`。
+- Accepted Implementation：`fc234b99dcbbd4f8dc2059a415b1b44d9f7f0a2b`。
+- Accepted fixes：R01 EventRuntime dedupe unbounded、R02 worker exception retention unbounded、R03
+  publisher cancellation / inflight lifecycle unsafe，以及 PostgreSQL duplicate persistence TOCTOU。
+
+### Final Gate
+
+- `PYTHONPATH=backend/src py -3.14 -m pytest backend/tests/test_group2.py -q` → `30 passed in
+  5.89s`。
+- `PYTHONPATH=backend/src py -3.14 -m pytest backend/tests -q` → `163 passed, 1 warning in
+  179.41s`；stderr empty。唯一 warning 为既有 Starlette TestClient/httpx deprecation。
+- `py -3.14 -m ruff check backend/src/marketpulse/g2 backend/tests/test_group2.py` → PASS。
+- `py -3.14 -m ruff check backend/src backend/tests scripts` → PASS。
+- `py -3.14 -m compileall -q backend/src backend/tests` → PASS。
+- `git diff --check` → PASS。
+- 完整 stdout/stderr：
+  `E:\Temp\marketpulse-n01-fix-01\final-closeout-backend-tests-20260910-144818.*.txt`。
+
+### Accepted Main Integration
+
+本 Final Acceptance Closeout commit 只包含本 dev_log 与 `PROJECT_STATE.md`，并在确认
+`origin/main=d47313a...` 为 Task Base、无并行 G2 file delta 后，以线性 fast-forward 收编至
+`main`。Fix branch 保留为历史证据，不删除、不改写历史。
+
+### Context For N01
+
+N01 Pre-Soak blockers R01/R02/R03 已 accepted-fixed。N01 本身、N01 Soak、Continuous Runtime、
+7x24 Runtime 与 Integrated Runtime Host 均未在本任务声明为已完成或已证明。
+
+后续 N01 窗口必须：
+
+1. 重新读取新的 Accepted Main。
+2. 重跑 N01-0 Repository + Runtime Preflight。
+3. 确认 blockers 仍关闭。
+4. 才进入已批准的 N01 validation gates；不得直接跳到 2h / 12h Soak。
