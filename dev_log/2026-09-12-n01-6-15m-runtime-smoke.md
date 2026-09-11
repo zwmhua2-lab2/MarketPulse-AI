@@ -370,8 +370,151 @@ harness 输出 `checks`（**37 项**，全部 `true` ⇒ `failures=[]`、`result
 `n01_6_pg_during_regression.txt`（回归窗口 171 样本 PG 会话采样）、
 `n01_6_pg_monitor.ps1`、`n01_6_proc_scan.ps1`。
 
-## 23. 状态
+### Closeout 窗口追加（`n01_6_cl_*`）
 
-`N01-6 = VALIDATED / AWAITING REVIEW`；`N01 overall = NOT ACCEPTED`；
+`n01_6_cl_preflight.txt`（§2 drift guard + §3 integrity）、`n01_6_cl_proc_before.txt` /
+`n01_6_cl_proc_after.txt`（回归前后进程扫描）、`n01_6_cl_pg_before.txt` / `n01_6_cl_pg_after.txt`
+（PG 快照）、`n01_6_cl_pg_regression.txt`（回归窗口 114 样本连续 PG 采样）、
+`n01_6_cl_focused.txt`、`n01_6_cl_collect.txt`、`n01_6_cl_full.txt`、`n01_6_cl_static.txt`。
+
+## 23. 状态（验证窗口结束时）
+
+`N01-6 = VALIDATED / AWAITING REVIEW`（该时点）；`N01 overall = NOT ACCEPTED`；
+`N01-7 / N01-8 / Integrated Runtime Host = NOT STARTED`。
+→ 该状态已在 §24 Final Acceptance Closeout 中更新。
+
+---
+
+# 24. Final Acceptance Closeout
+
+- Date: 2026-09-12
+- 任务：`N01-6｜Final Acceptance Closeout`（docs-only Acceptance Closeout + fast-forward `main`）
+- 本窗口**未**重新运行 900 s Smoke（不制造第二套 acceptance evidence），**未**启动 N01-7 / N01-8 /
+  Integrated Runtime Host。
+
+## 24.1 Review / Acceptance 记录
+
+| 项 | 值 |
+|---|---|
+| Original N01-6 Review | `PASS` |
+| Post-review docs-only Incremental Re-Review（`db3a0dc..3f591a7`） | **`PASS`**（devlog-only） |
+| Human Acceptance | **`CONFIRMED`** |
+| Reviewed HEAD | **`3f591a7694bf9e03dda53708a92c048dcea75fb3`** |
+| Independent Review 结论 | `PASS / READY FOR HUMAN ACCEPTANCE` |
+
+> 背景（如实记录）：`db3a0dc` 为原始验证 implementation/evidence commit；`3f591a7` 为其上的
+> **post-review docs-only** 增量（仅 `dev_log/2026-09-12-n01-6-15m-runtime-smoke.md`，+20/−1），
+> 内容是 §11「回归窗口 PG 会话连续采样」证据。该增量经独立 Incremental Re-Review = `PASS` 后，
+> 本 Closeout 以 `3f591a7` 作为 Reviewed HEAD。（历史：首次收尾任务曾 pin `db3a0dc`，因分支 tip
+> 已前移而按 §3 `STOP / RE-REVIEW REQUIRED` 停止，未产生 closeout commit；补齐复审后重发本任务。）
+
+## 24.2 Preflight / Drift Guard（实测）
+
+| 检查 | 实测 | 判定 |
+|---|---|---|
+| `git status --porcelain` | 空 | ✅ |
+| `remote main`（`ls-remote`）= Accepted Main | `ab4bf297dff42a673d8dbf204dee8e4c0574aff9` | ✅ 无 drift |
+| `git rev-parse HEAD` = Reviewed HEAD | `3f591a7694bf9e03dda53708a92c048dcea75fb3` | ✅ |
+| `merge-base --is-ancestor ab4bf29 3f591a7` | exit `0` | ✅ |
+| `merge-base --is-ancestor ab4bf29 db3a0dc` | exit `0` | ✅ |
+| HEAD 的 parent | `db3a0dc` | ✅ lineage `ab4bf29 → db3a0dc → 3f591a7` |
+
+## 24.3 Review Head Integrity / Harness Integrity
+
+| 检查 | 实测 |
+|---|---|
+| `git diff --name-status db3a0dc..3f591a7` | **仅** `M dev_log/2026-09-12-n01-6-15m-runtime-smoke.md` |
+| 同上，受限 `backend/src` / `backend/tests` / `backend/alembic` / `scripts/verify_n01_6_runtime_smoke.py` / `PROJECT_STATE.md` / `AI_CONTEXT.md` | **空**（0 命中） |
+| `git diff db3a0dc..3f591a7 -- scripts/verify_n01_6_runtime_smoke.py` | **空** ⇒ harness 与 reviewed commit 完全一致 |
+
+Harness 契约静态确认（全部在位）：`DEFAULT_ACTIVE_SECONDS = 900.0`（L126）；
+`PUBLIC_WS_URL = wss://ws.okx.com:8443/ws/v5/public`（L135）；通道 `trades` × {BTC, ETH} +
+`bbo-tbt` × {BTC, ETH}（L142-145）；`MarketType.SPOT` 断言（L626）；`ScannerPipeline`（L86/820）、
+`OpportunityScanner`（L87/820）、`EventRuntime`（L86/819）、`PostgresG2Repository`（L85/819）；
+`RunMode.LIVE_PAPER`（L118）；正式路径 `persist_trade_plan`（L101/310）+ `manual_close`（L754，
+`controlled_manual_close`）/ 风险闸门 + position + ledger；`DATABASE_PREFIX = "marketpulse_n01_6_"` +
+残留查询（L148/557/570）；机器可读 FAIL 闸（L1300 `report["result"] = "FAIL"`）。
+
+## 24.4 Test Environment Exclusivity
+
+| 证据 | 结果 |
+|---|---|
+| 进程扫描（回归前 `01:58:09` / 回归后 `02:04:30`） | 仅 **2** 个无关 `python.exe`（`crypto-derivatives-free-mcp/.venv` 启动，`matches_validation=no`）；无 validation / pytest / soak 进程 |
+| PG 快照（前 / 后） | 仅监控自身 `marketpulse:psql:active` |
+| 回归窗口连续采样 `n01_6_cl_pg_regression.txt` | **114** 样本（`01:58:18 → 02:08:16`，5 s 间隔，**完整覆盖** focused + full backend 两个门） |
+
+114 样本中出现的会话**全部归属本批自身**：监控自身 `marketpulse:psql`；本批 pytest 的 primary 库
+连接（`marketpulse:<empty>`，本仓库套件 `application_name` 为空）；本批 disposable 测试库
+`marketpulse_n01_a_*` / `marketpulse_n01_c_*`（含仓库内定义的 `marketpulse-n01-c-owned-process-b-*`）/
+`marketpulse_g52_*` / `marketpulse_g53_run_a_*` / `marketpulse_g54_*`（metrics/run_b/run_c/corrupt/
+txn/missing_order/bad_side）/ `marketpulse_se02a_*`（evidence_*/bbo_backstop/outcome_*/migration）。
+**未观测到任何仓库外 `application_name`、非本仓库前缀 disposable 库或 `py.exe` 启动器会话。**
+
+**局限（如实记录）**：连续采样间隔为 5 s，理论上「在两次采样之间连上又断开」的外部 client 会话
+可被漏采；前后进程扫描亦只能界定窗口两端。结论基于三项一致证据（连续采样 + 前缀归属 + 本门
+`267 passed` 干净通过）——未发现任何外来写者迹象，但不等同于形式化互斥证明。
+
+## 24.5 Final Gate（Closeout 最小充分复验）
+
+统一解释器 `py -3.14`；`PYTHONPATH=backend/src`；cwd = worktree。
+
+| 门 | 命令 | 结果 |
+|---|---|---|
+| Focused N01 | 三模块（`test_n01_runtime_resource_lifecycle.py` + `test_n01_okx_paper_safety.py` + `test_n01_restart_recovery.py`） | **`16 passed`**（50.77 s） |
+| Collect | `pytest backend/tests --collect-only -q` | **`267 tests collected`**（1.65 s） |
+| Full backend | `pytest backend/tests -q` | **`267 passed, 1 warning`**（274.80 s） |
+| Ruff | `ruff check backend/src backend/tests scripts` | `All checks passed!`（rc=0） |
+| compileall | `compileall -q backend/src backend/tests scripts` | rc=0 |
+| `git diff --check`（worktree） | —— | rc=0 |
+| `git diff --check ab4bf29..HEAD` | —— | rc=0 |
+
+warning = 既有 FastAPI/Starlette `httpx` deprecation（非本任务引入）。clean 环境下**无任何 FAIL**。
+
+## 24.6 Closeout Diff / 四项不变
+
+Closeout commit 仅含：
+
+```text
+PROJECT_STATE.md
+AI_CONTEXT.md
+dev_log/2026-09-12-n01-6-15m-runtime-smoke.md
+```
+
+```text
+Production Changed = NO
+Tests Changed      = NO
+Harness Changed    = NO
+Migration Changed  = NO
+```
+
+## 24.7 Accepted lineage / Accepted Main before-after
+
+```text
+Accepted Main before = ab4bf297dff42a673d8dbf204dee8e4c0574aff9
+  → db3a0dc（original validation implementation/evidence）
+  → 3f591a7（post-review docs-only evidence，Reviewed HEAD）
+  → Final Closeout Commit（本 commit）
+```
+
+- Main Integration = **fast-forward only**（无 rebase / squash / force push / history rewrite）。
+- `n01-6-15m-runtime-smoke` evidence branch **保留未删**；`db3a0dc` 与 `3f591a7` 均在 main 历史中。
+
+## 24.8 Claim Boundary（不得越界）
+
+N01-6 = `ACCEPTED / COMPLETE` **不等于**：
+
+```text
+Continuous Runtime fully accepted
+2-hour soak passed
+12-hour soak passed
+7x24 Runtime proven
+Integrated Runtime Host complete
+```
+
+`N01 overall` 仍 = `NOT ACCEPTED`；`N01-7` / `N01-8` / `Integrated Runtime Host` 仍 = `NOT STARTED`。
+
+## 24.9 最终状态
+
+`N01-6 = ACCEPTED / COMPLETE`；`N01 overall = NOT ACCEPTED`；
 `N01-7 / N01-8 / Integrated Runtime Host = NOT STARTED`；
-`Accepted Main = ab4bf29…`（未推进）。
+`Accepted Main after = Final Closeout Commit`。下一步 = N01-7｜2-hour Medium Runtime Soak（本窗口未启动）。
