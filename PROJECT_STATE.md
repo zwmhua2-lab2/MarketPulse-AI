@@ -26,7 +26,7 @@ N01 overall — NOT ACCEPTED（N01-6 / N01-7 / N01-8 与 Integrated Runtime Host
 - Last Accepted Group Branch: `n01-c-restart-recovery-reconciliation`（历史证据，保留未删）；更早 `n01-a-runtime-resource-lifecycle`
 - Accepted Main Source: Git `main` / `origin/main` — read actual SHA at task preflight（CIP-02）
 - G5-1 Implementation Acceptance Basis: `34da62a0cc9dbe95b95faadb770fbd06179a6975`
-- Migration Head: `20260905_0004`（`alembic current/heads` 一致）
+- Migration Head: `20260911_0005`（SE-02A additive Edge evidence revision；`alembic heads` 实测）
 - Real AI Provider Status: `DEFERRED`（`OPENAI_API_KEY=MISSING`；测试用 deterministic Fake Provider）
 
 ## Completed
@@ -150,6 +150,20 @@ N01 overall — NOT ACCEPTED（N01-6 / N01-7 / N01-8 与 Integrated Runtime Host
 
 ## In Progress
 
+- SE-02A｜Contracts + Additive Persistence = `LATEST-MAIN INTEGRATION VERIFIED / READY FOR
+  INDEPENDENT REVIEW`（**非** ACCEPTED；未经人工 Acceptance 不 merge `main`）
+  （专项 SE｜Strategy & Trading Edge 的第一个 Implementation Acceptance Batch；reviewed
+  implementation source = branch `se-02a-contracts-additive-persistence` @ `0c206c9`；
+  refresh integration branch = `se-02a-final-integration-refresh`）。只落地 Edge domain contracts
+  与 4 张 additive Edge 表 + Alembic `20260911_0005`；未接 runtime capture、未实现 forward outcome
+  calculator、未修改 G2/G3/G4/G5 业务语义。Independent Acceptance Review 的 3 个 contract
+  blocker（P0-1 reference BBO 可空 / P0-2 forward outcome 终态语义 / P0-3 BBO 因果身份与幂等）
+  已由 **Acceptance Fix #1** 关闭。详见 `dev_log/2026-09-11-se-02a-edge-contracts-persistence.md`
+  （§14 = Acceptance Fix #1；末尾「Latest-Main Final Integration Refresh」章节 = 主线刷新验证）
+  与本文「SE-02A Result」。SE-02B / SE-02C / SE-02D / runtime capture / Real AI / Live 均
+  **NOT STARTED**。
+- 无进行中的 N01 Acceptance Group。**N01-A / N01-B / N01-C 均已 `ACCEPTED / COMPLETE`**（见
+  Completed）；N01 overall 仍未验收，也不由任何单门 N01 验收推断。
 - N01 Continuous Runtime / Soak 本身仍 `NOT ACCEPTED`；不得由 N01-B 验收推断 N01 整体验收。
 - N01-6 15m Runtime Smoke、N01-7 2h Soak、N01-8 12h Soak 与 Integrated Runtime Host 仍
   `NOT STARTED`，须另开窗口并按各自批准的门执行。
@@ -359,3 +373,59 @@ N01 overall — NOT ACCEPTED（N01-6 / N01-7 / N01-8 与 Integrated Runtime Host
 - 分支：`prb-01-product-requirements-baseline`（基于 `main` = `ac3eaf9…`）；Acceptance Fix #1 Commit = `28de04a5b86e84840fb79d0774957f8312b6144e`；Final Acceptance / Baseline Commit = 其后继 commit（SHA 见本任务 dev_log 与 Closeout Report）。
 - Accepted Main before = `ac3eaf911b9841f353db53d4ae21e7336af90e37`；Accepted Main after = PRB Final Accepted Commit（`main` 已 fast-forward，仅 fast-forward）。
 - Product behavior changed = `NO`；Repository baseline established = `YES`。
+
+## SE-02A Result
+
+- 任务：SE-02A｜Contracts + Additive Persistence（专项 SE｜Strategy & Trading Edge 的第一个
+  Implementation Acceptance Batch）。
+- **reviewed implementation source** = branch `se-02a-contracts-additive-persistence` @
+  `0c206c9c598c735d8f708db6603c02fc4d5a3fa3`（Task Base / verified Accepted Main at authoring
+  time = `e0dab188e55c32b7607c18a66644d25449dc2236`）。
+- **historical integration candidate**（仅作 evidence / 对照，**不**作为本次 implementation source）
+  = branch `se-02a-final-integration` @ `9998e1b`（建于旧 `main` `6cc4c36`）。
+- **此次 refresh integration** = branch `se-02a-final-integration-refresh`，以最新 Accepted Main
+  `b3ac21b` 为基，merge reviewed source `0c206c9`（保留正常 lineage；未 rebase / 未 squash /
+  未 rewrite reviewed source）。
+- 新增 `backend/src/marketpulse/edge/`（`hashing.py` / `identity.py` / `models.py` /
+  `repository.py`）：Opportunity / Evidence Revision / Evidence Source & Status / Forward Horizon
+  （仅 `30s` / `5m` / `15m` / `1h`）/ Outcome contract types / Attribution 的 domain contracts；
+  identity 采用任务规定公式；canonical hashing 复用 G5 `canonicalize_value`，未引入第二套 serializer。
+- 新增 4 张 additive Edge 表与 Alembic revision `20260911_0005`
+  （`edge_opportunity_evidence` / `edge_bbo_observations` / `edge_forward_outcomes` /
+  `edge_attribution_events`），含 Edge 专属 index 与约束（UNIQUE、复合 supersedes FK、
+  frozen family / horizon / status CHECK）。
+- 语义与 immutability：同 revision 同 hash 幂等；同 revision 不同 hash `EdgeEvidenceConflict`
+  fail closed；`revision > 1` 必须 supersedes 恰为 `R-1` 的同 opportunity revision，跨机会 /
+  悬空 / 跳号一律拒绝；`calculation_digest` 与 `outcome_record_hash` 分离，Replay 与 Forward Paper
+  provenance 不同可共享同一 calculation digest。
+- 边界：**未接 runtime capture**（`SE-02B` 未开始）、**未实现 forward outcome calculator**
+  （`SE-02C` 未开始）、未实现 family aggregation / expectancy（`SE-02D`）；未修改 G2/G3/G4/G5
+  既有表 semantics、Risk、Execution、State Machine、G3 accounting semantics。
+- 唯一 G5 改动：`g5/replay.py` 的 `schema_head` 常量
+  `20260905_0004 → 20260911_0005`（migration head 派生事实，本批新 revision 使其必然过期，
+  属阻塞当前 AC 的最小修复；guard 行为未变）。
+- Acceptance Fix #1（关闭 3 个 contract blocker）：参考报价改为**可选**
+  （`reference_bid` / `reference_ask` / `reference_received_at` 可 NULL；`OK` 要求三字段
+  非 NULL 且正/有序，`REFERENCE_MISSING` / `REFERENCE_STALE` 要求三者全 NULL 且禁止 0 占位；
+  `ReferenceDataReason` 删除，状态收敛为三态）；forward outcome 恢复 Approved 终态
+  `COMPLETE` / `INSUFFICIENT_DATA` / `INVALID`（**无 `PENDING` 行**，`calculation_status` 必填）
+  与 `ACTIVE` / `EXPIRED` lifecycle；BBO 强制 V1 因果规则 `available_at == received_at`，
+  `observation_id` 纳入 `available_at`，同 identity 但 `data_quality` / `tradable` 冲突时
+  `EdgeBboObservationConflict` fail closed。migration **就地修正 `20260911_0005`**（无 0006）。
+- 历史验证（reviewed source 窗口，base `e0dab188`）：SE-02A contracts **`62 passed`**、
+  SE-02A persistence **`26 passed`**（真实 disposable PostgreSQL）、定向 G5-2/G5-3 + G2
+  **`62 passed`**、full backend **`259 passed`**（= baseline `171` + 本批 `88`）、
+  migration `0004 → upgrade head(0005) → downgrade 0004 → upgrade head(0005)` PASS、
+  无残留 disposable DB、primary `marketpulse` 仍为 `20260905_0004`（未被本批升级）。
+- 本次 Latest-Main Integration Refresh 的验证结果与其逐条边界见
+  `dev_log/2026-09-11-se-02a-edge-contracts-persistence.md` 末尾
+  「Latest-Main Final Integration Refresh」章节（含 N01-A/B/C 在 `20260911_0005` integration
+  tree 下共同成立的证据）。
+- 状态：`LATEST-MAIN INTEGRATION VERIFIED / READY FOR INDEPENDENT REVIEW`
+  （**未**自行 Acceptance、**未** merge `main`；SE-02B / SE-02C / SE-02D 仍未开始）。
+- 备注（Repository Truth 差异）：仓库中不存在 SE-02 设计 / approved contract 文档，本批契约依据
+  为任务书与既有仓库约定；本批自行确定的契约决策已在上述 dev_log §3 逐条列出。
+- 备注（主库）：本地 `marketpulse` 主库仍在 `20260905_0004`，本批**未**对其执行 migration
+  （避免未经授权修改外部系统状态）；如需与 head 一致，由 Operator 执行 `alembic upgrade head`。
+- 备注（基线漂移，CIP-03，非本批所致）：本 branch 的 Task Base（Accepted Main）为 `b3ac21b`
+  （N01-C 已验收收尾）；此前 SE-02A 作者期的 `e0dab188` / `6cc4c36` 均已为其祖先。
