@@ -2,7 +2,7 @@
 
 ## Result
 
-`N01-C = VALIDATED / AWAITING REVIEW`。
+`N01-C = ACCEPTED / COMPLETE`。
 
 本批仅新增 deterministic validation，未修改 production code、schema、migration、Runtime Host 或 provider。它不构成 N01 overall acceptance，亦不进入 N01-6/7/8、Integrated Runtime Host 或 G6。
 
@@ -76,6 +76,26 @@ Full-suite exclusivity was checked before and during both accepted runs: no fore
 
 This is restart/recovery/reconciliation validation only. It does not claim 15-minute, 2-hour, 12-hour, Continuous Runtime, Integrated Runtime Host, real AI, Live Trading, private OKX, or soak acceptance.
 
+## Final Acceptance Closeout
+
+- Independent Review = `PASS / READY FOR HUMAN ACCEPTANCE`。
+- Human Acceptance = `CONFIRMED`。
+- Final Gate preflight reconfirmed reviewed branch HEAD =
+  `fba8b8a11893cc875bfe08b7e16c3c965d827df8` with no review-head drift; local `main`,
+  `origin/main`, and `refs/heads/main` were all Task Base
+  `6cc4c36e11c380f638872598e4766a4436d0d255` before fast-forward integration.
+- Final Gate re-executed under exclusive PostgreSQL-writer evidence: N01-C `6 passed` (47.65s),
+  N01-A lifecycle `6 passed`, N01-B `4 passed`, G2 `30 passed`, G3 `16 passed`, G4 `77 passed`,
+  full backend `179 passed, 1 warning` (303.59s), Ruff / compileall / worktree-and-range
+  `git diff --check` PASS. The single warning is the existing FastAPI/Starlette TestClient deprecation.
+- Resource closeout rechecked: Process A/B child processes = 0, owned PostgreSQL client sessions = 0,
+  `idle in transaction` = 0, and disposable `marketpulse_n01_c_*` databases = 0.
+- Production boundary rechecked relative to Acceptance Base: `backend/src` diff = empty;
+  `backend/alembic` diff = empty; `Production Code Changed = NO`.
+- Decision: `N01-C = ACCEPTED / COMPLETE`; `N01 overall = NOT ACCEPTED`.
+  `N01-6 = NOT STARTED`; `N01-7 = NOT STARTED`; `N01-8 = NOT STARTED`; Integrated Runtime Host =
+  `NOT STARTED`. This closeout does not authorize or begin any of them.
+
 ## Recommendation
 
-`READY FOR INDEPENDENT REVIEW`.
+`ACCEPTED / COMPLETE` — fast-forward-only integration to `main` is authorized by this closeout.
