@@ -8,7 +8,10 @@ N01-C — Restart / Recovery / Reconciliation — ACCEPTED / COMPLETE
 
 N01-A — Deterministic Runtime + Resource Lifecycle — ACCEPTED / COMPLETE
 
-N01 overall — NOT ACCEPTED（N01-6 / N01-7 / N01-8 与 Integrated Runtime Host 仍 `NOT STARTED`）
+N01-6 — 15-minute Short Runtime Smoke — VALIDATED / AWAITING REVIEW
+
+N01 overall — NOT ACCEPTED（N01-7 / N01-8 与 Integrated Runtime Host 仍 `NOT STARTED`；N01-6 已验证
+但未人工验收，不得由 N01-6 验证推断 N01 overall）
 
 ## GitHub Repository
 
@@ -18,7 +21,8 @@ N01 overall — NOT ACCEPTED（N01-6 / N01-7 / N01-8 与 Integrated Runtime Host
 - Default Branch: `main`
 - Accepted Main Source: Git `main` / `origin/main` — read actual SHA at task preflight（CIP-02）
 - Current Development Status: `SE-02A ACCEPTED / COMPLETE`；`N01-C ACCEPTED / COMPLETE`；
-  N01-A / N01-B 与 `N01-VAL-FIX-01/02/03` 均维持已验收结论，N01 overall 仍未验收
+  `N01-6 VALIDATED / AWAITING REVIEW`；N01-A / N01-B 与 `N01-VAL-FIX-01/02/03` 均维持已验收结论，
+  N01 overall 仍未验收
 
 ## Branch / Source
 
@@ -159,6 +163,21 @@ N01 overall — NOT ACCEPTED（N01-6 / N01-7 / N01-8 与 Integrated Runtime Host
   Closeout 阶段 `Production code changed = NO` / `Tests changed = NO` / `Migration changed = NO`
   / `Contract changed = NO`。详见 `dev_log/2026-09-11-se-02a-edge-contracts-persistence.md`
   与本文「SE-02A Result」。
+- N01-6｜15-minute Short Runtime Smoke：`VALIDATED / AWAITING REVIEW`（Task Base / Accepted Main
+  = `ab4bf297dff42a673d8dbf204dee8e4c0574aff9`；branch `n01-6-15m-runtime-smoke`；isolated worktree
+  `E:\Documents\MarketPulse-AI-n01-6`）。以真实 OKX 公共行情（BTC-USDT + ETH-USDT SPOT，
+  `trades` + `bbo-tbt`）+ 真实 disposable PostgreSQL（`marketpulse_n01_6_05c4a7071a16`，drop 后残留 0）
+  让**已验收生产运行时组件**（`ScannerPipeline → OpportunityScanner → EventRuntime →
+  PostgresG2Repository` + `SafetyRuntime`/`PositionProtectionService`/`SystemRiskGate`）连续运行
+  **`900.143 s`**；normalized 事件 `24540`；queue 高水位 `0`、inflight 高水位 `1`、dedupe 峰值
+  `4250`（cap 8192）、worker_exceptions `0`；RSS 峰值 `114.758 MB`（+3.18 MB）；max other client
+  sessions `0`；`stale_periods=[]`；通过正式路径完成一笔受控 `LIVE_PAPER` BTC-USDT SPOT LONG 并
+  在关停前 `MANUAL_CLOSE` 平仓（entry ask `77793.8` + 5 bps = `77832.6969`；exit bid `77838.6` −
+  5 bps = `77799.6807`；trade `CLOSED`；cash `9999.7576`；reserved `0`）；reconciliation 12/12
+  invariants PASS。Final Gate：focused `16 passed`、full backend `267 passed, 1 warning`
+  （exclusive writer evidence）；Ruff / compileall / `git diff --check` PASS；
+  `Production Code Changed = NO`。**未** merge `main`。详见
+  `dev_log/2026-09-12-n01-6-15m-runtime-smoke.md`。
 
 ## In Progress
 
@@ -171,8 +190,9 @@ N01 overall — NOT ACCEPTED（N01-6 / N01-7 / N01-8 与 Integrated Runtime Host
 - 无进行中的 N01 Acceptance Group。**N01-A / N01-B / N01-C 均已 `ACCEPTED / COMPLETE`**（见
   Completed）；N01 overall 仍未验收，也不由任何单门 N01 验收推断。
 - N01 Continuous Runtime / Soak 本身仍 `NOT ACCEPTED`；不得由 N01-B 验收推断 N01 整体验收。
-- N01-6 15m Runtime Smoke、N01-7 2h Soak、N01-8 12h Soak 与 Integrated Runtime Host 仍
-  `NOT STARTED`，须另开窗口并按各自批准的门执行。
+- N01-6 15m Runtime Smoke 已完成并 `VALIDATED / AWAITING REVIEW`（见 Completed 与
+  `dev_log/2026-09-12-n01-6-15m-runtime-smoke.md`）；N01-7 2h Soak、N01-8 12h Soak 与
+  Integrated Runtime Host 仍 `NOT STARTED`，须另开窗口并按各自批准的门执行。
 
 ## Blocked
 

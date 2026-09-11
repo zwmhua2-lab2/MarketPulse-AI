@@ -12,7 +12,7 @@
 | Project | MarketPulse AI（BTC/ETH 量化纸面交易终端，Modular Monolith） |
 | Current Acceptance Group | N01-C — Restart / Recovery / Reconciliation — ACCEPTED / COMPLETE |
 | Accepted Main Source | Git `main` / `origin/main`；须在任务 preflight 按 CIP-02 实时读取，不以文档静态 SHA 为准 |
-| Current State | `N01-C = ACCEPTED / COMPLETE`；N01-A / N01-B 与 N01 验证修复 `N01-VAL-FIX-01/02/03` 均维持 `ACCEPTED / COMPLETE`；**N01 overall 仍 `NOT ACCEPTED`** |
+| Current State | `N01-C = ACCEPTED / COMPLETE`；N01-A / N01-B 与 N01 验证修复 `N01-VAL-FIX-01/02/03` 均维持 `ACCEPTED / COMPLETE`；`N01-6 = VALIDATED / AWAITING REVIEW`（未验收）；**N01 overall 仍 `NOT ACCEPTED`** |
 | Last Accepted Group | N01-C — Restart / Recovery / Reconciliation |
 | Current Group Branch | `n01-c-restart-recovery-reconciliation`（accepted validation lineage；仅 fast-forward 收编至 `main`，历史分支保留） |
 
@@ -58,7 +58,7 @@
 | Current Group | SE-02A — Contracts + Additive Persistence — `ACCEPTED / COMPLETE` |
 | Last accepted subgroup | SE-02A — Contracts + Additive Persistence (`ACCEPTED / COMPLETE`)；N01-C / N01-A / N01-B 亦维持 `ACCEPTED / COMPLETE`；N01 overall 仍 `NOT ACCEPTED` |
 | Next Group Design | `NOT STARTED`（须另开窗口） |
-| Next Group name/number | N01-6 — 15-minute Runtime Smoke — not started |
+| Next Group name/number | N01-7 — 2-hour Runtime Soak — not started（N01-6 15-minute Runtime Smoke 已 `VALIDATED / AWAITING REVIEW`） |
 
 - G4 **没有**提前实现完整 Replay / ReplayClock Engine。
 - 仓库中仅存在：`Clock` Protocol 的 `ReplayClock` 实现（`backend/src/marketpulse/clock.py`）与 `RunMode.REPLAY` 枚举（`config.py`）——这是既有 Clock 边界，**不是**完整回放引擎。
@@ -107,6 +107,31 @@
 - 收尾后的下一步：**RETURN TO N01 MAIN WINDOW → N01-6｜15-minute Short Runtime Smoke**
   （本 Closeout 不开始 N01-6）。
 
+### N01-6 15-minute Short Runtime Smoke — VALIDATED / AWAITING REVIEW
+
+- Task Base / Accepted Main = `ab4bf297dff42a673d8dbf204dee8e4c0574aff9`；branch =
+  `n01-6-15m-runtime-smoke`；isolated worktree = `E:\Documents\MarketPulse-AI-n01-6`。
+- Validation-only harness `scripts/verify_n01_6_runtime_smoke.py`（1309 行，不进 pytest 默认集合）：
+  真实 OKX 公共行情（BTC-USDT + ETH-USDT SPOT，`trades` + `bbo-tbt`）+ 真实 disposable PostgreSQL
+  （`marketpulse_n01_6_05c4a7071a16`，drop 后残留 `0`），让已验收生产运行时组件
+  （`ScannerPipeline → OpportunityScanner → EventRuntime → PostgresG2Repository` +
+  `SafetyRuntime` / `PositionProtectionService` / `SystemRiskGate`，`reevaluation_enabled=False`）
+  连续运行 **`900.143 s`**。
+- Final Gate（ACCEPTANCE）：`result=PASS`、`failures=[]`、checks `37/37 true`；normalized 事件
+  `24540`（BTC 2376 trades / 8203 bbos；ETH 2883 trades / 11078 bbos）；queue 高水位 `0`、
+  inflight 高水位 `1`、dedupe 峰值 `4250`（cap 8192）、worker_exceptions `0`；RSS 峰值
+  `114.758 MB`；`stale_periods=[]`；max other client sessions `0`；primary 未被升级
+  （`20260905_0004`）。受控 `LIVE_PAPER` BTC-USDT SPOT LONG：entry ask `77793.8` + 5 bps =
+  `77832.6969`，exit bid `77838.6` − 5 bps = `77799.6807`（`MANUAL_CLOSE`），trade `CLOSED`，
+  cash `9999.7576`，reserved `0`，reconciliation `12/12` invariants true。
+- Regression：focused `16 passed`；full backend `267 passed, 1 warning`（exclusive writer evidence）。
+  Static：Ruff `All checks passed!` / compileall rc=0 / `git diff --check` rc=0。
+  `Production Code Changed = NO`。
+- Claim 边界：**不是** Integrated Runtime Host / 7x24 runtime / daemon；`N01-7` / `N01-8` /
+  Integrated Runtime Host 仍 `NOT STARTED`；`N01 overall` 仍 `NOT ACCEPTED`。**未** merge `main`，
+  不自行声明 `N01-6 = ACCEPTED`（属人工 Acceptance）。详见
+  `dev_log/2026-09-12-n01-6-15m-runtime-smoke.md`。
+
 ### N01-C Restart / Recovery / Reconciliation — ACCEPTED / COMPLETE
 
 - Task Base / verified remote `main` = `6cc4c36e11c380f638872598e4766a4436d0d255`；branch =
@@ -121,8 +146,9 @@
   `CONFIRMED`; focused `6 passed`; lifecycle `6`; N01-B `4`; G2 `30`; G3 `16`; G4 `77`; full
   backend `179 passed, 1 warning` under exclusive writer evidence; Ruff / compileall / diff-check PASS.
   `Production Code Changed = NO`.
-- N01 overall remains `NOT ACCEPTED`. N01-6 15m, N01-7 2h, N01-8 12h, Continuous Runtime and
-  Integrated Runtime Host remain `NOT STARTED` / unproven. See
+- N01 overall remains `NOT ACCEPTED`. N01-7 2h, N01-8 12h, Continuous Runtime and
+  Integrated Runtime Host remain `NOT STARTED` / unproven（N01-6 15m 已 `VALIDATED /
+  AWAITING REVIEW`，见上节）。See
   `dev_log/2026-09-11-n01-c-restart-recovery-reconciliation.md`.
 
 ### N01-B OKX Reconnect / Freshness + Paper Safety Continuity
@@ -278,7 +304,8 @@
   cleanup、immediate independent writer 与同生命周期 fresh reconciliation。N02-1～N02-14
   evidence 已完成，N02-1～N02-14 = PASS；Final Acceptance Closeout 已将 accepted lineage
   fast-forward 至 `main`。FG-E historical branch 保留为证据。
-- N01-A = `ACCEPTED / COMPLETE`；N01-B = `ACCEPTED / COMPLETE`（见第 6 节）；N01 overall = `NOT ACCEPTED`；N03 = `DEFERRED`，G6 = `NOT STARTED`。
+- N01-A = `ACCEPTED / COMPLETE`；N01-B = `ACCEPTED / COMPLETE`；N01-C = `ACCEPTED / COMPLETE`；
+  N01-6 = `VALIDATED / AWAITING REVIEW`（见第 6 节）；N01 overall = `NOT ACCEPTED`；N03 = `DEFERRED`，G6 = `NOT STARTED`。
 - C02 / C03 = `UNMAPPED / NOT AUDITABLE`；repository 中无法恢复原始 finding，需原始
   master audit source 后才能重新分类；不属于当前已证明的 P0/P1 blocker。
 
