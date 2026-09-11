@@ -55,8 +55,8 @@
 
 | 字段 | 值 |
 |---|---|
-| Current Group | N01-C — Restart / Recovery / Reconciliation — `ACCEPTED / COMPLETE` |
-| Last accepted subgroup | N01-C — Restart / Recovery / Reconciliation (`ACCEPTED / COMPLETE`)；N01-A / N01-B 亦维持 `ACCEPTED / COMPLETE` |
+| Current Group | SE-02A — Contracts + Additive Persistence — `ACCEPTED / COMPLETE` |
+| Last accepted subgroup | SE-02A — Contracts + Additive Persistence (`ACCEPTED / COMPLETE`)；N01-C / N01-A / N01-B 亦维持 `ACCEPTED / COMPLETE`；N01 overall 仍 `NOT ACCEPTED` |
 | Next Group Design | `NOT STARTED`（须另开窗口） |
 | Next Group name/number | N01-6 — 15-minute Runtime Smoke — not started |
 
@@ -82,6 +82,30 @@
 **禁止依赖**：「上一个聊天应该知道」「前一个 AI 说已经做了」「我记得这个功能是……」。
 
 ## 6. Next Step Entry（下一步工作入口）
+
+### SE-02A Contracts + Additive Persistence — ACCEPTED / COMPLETE
+
+- 专项 SE｜Strategy & Trading Edge 的第一个 Implementation Acceptance Batch。
+- Independent Review = `PASS`；Human Acceptance = `CONFIRMED`（2026-09-11/12）。
+- reviewed implementation source = branch `se-02a-contracts-additive-persistence` @ `0c206c9`
+  （**未改写**，远端保留）；历史集成候选 `se-02a-final-integration` @ `9998e1b`（**保留、未 merge**）；
+  最终收编经 refresh integration branch `se-02a-final-integration-refresh`。
+- accepted lineage（仅 fast-forward）：
+  `b3ac21b → 2e7bf6a（merge reviewed source）→ 134aec5（refresh 文档）→ Final Closeout Commit`。
+- Accepted Main before = `b3ac21b89e11490a0760f560bc099b9acf91ff48`；Accepted Main after = Final
+  Closeout Commit。
+- Final Closeout 最小充分复验（规范解释器 `py -3.14`）：SE-02A focused `88 passed`（contracts 62 +
+  persistence 26）、N01-C focused `6 passed`、full backend `267 passed`（独占窗口）、
+  `alembic heads` 单 head `20260911_0005` 且 `g5/replay.py::schema_head` 同值、
+  Ruff `All checks passed!` / compileall rc=0 / `git diff --check`（工作树 + `b3ac21b..HEAD`）rc=0。
+- Closeout 为 docs-only：`Production code changed = NO` / `Tests changed = NO` /
+  `Migration changed = NO` / `Contract changed = NO`。
+- Claim 边界：**不得**由此声明 SE-02B / runtime opportunity capture / Forward Outcome Calculator /
+  MFE/MAE / Expectancy / KEEP-DOWNWEIGHT-KILL / Real AI Edge 完成（均 `NOT STARTED`）。
+- 详见 `dev_log/2026-09-11-se-02a-edge-contracts-persistence.md` 与 `PROJECT_STATE.md`
+  「SE-02A Result」。
+- 收尾后的下一步：**RETURN TO N01 MAIN WINDOW → N01-6｜15-minute Short Runtime Smoke**
+  （本 Closeout 不开始 N01-6）。
 
 ### N01-C Restart / Recovery / Reconciliation — ACCEPTED / COMPLETE
 

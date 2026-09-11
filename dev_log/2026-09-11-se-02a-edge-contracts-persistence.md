@@ -721,3 +721,120 @@ per-file 计数（§14）：auth 2、group1 6、group2 30、group3 16、group4 7
 
 **不**写 `ACCEPTED / COMPLETE`（AC 未由独立评审裁决）；`N01 overall` 仍未验收，
 `N01-6 / N01-7 / N01-8` 与 Integrated Runtime Host 仍 `NOT STARTED`。
+
+## Final Acceptance Closeout（2026-09-11/12）
+
+> docs-only 收尾。**未**改 production / tests / migration / contract；**未**开 SE-02B / N01-6。
+
+### 1. Review 与 Acceptance
+
+| 项 | 值 |
+|---|---|
+| Independent Review | `PASS` |
+| Human Acceptance | `CONFIRMED` |
+| Reviewed latest-main integration | `134aec5784ace4070a5f77f136bd1d1c8903325f` |
+| Integration merge | `2e7bf6a4755449112fe8e54dfd8f8fd0e0d5f06e` |
+| Current Accepted Main at Review | `b3ac21b89e11490a0760f560bc099b9acf91ff48` |
+| Reviewed implementation source | `0c206c9c598c735d8f708db6603c02fc4d5a3fa3`（未改写） |
+| Historical integration candidate | `9998e1b`（保留、未 merge） |
+
+### 2. Preflight / Drift Guard（全部成立）
+
+- `remote main` = `b3ac21b`（本地 `main` / `origin/main` 三者一致）。
+- `refresh HEAD` = `134aec5`（`git ls-remote` 亦为 `134aec5`）。
+- `git merge-base --is-ancestor b3ac21b 134aec5` = **0**（main 是 refresh HEAD 的祖先）；
+  反向 = 1。⇒ 未发生新的 Accepted-Main drift，**未** rebase / 未强行 merge。
+
+### 3. Review Head Integrity
+
+- HEAD = `134aec5`，与声明的 reviewed SHA **完全一致**。
+- Review 之后的后继差异仅 `dev_log/…edge-contracts-persistence.md`（FINAL REVIEW 记录的刷新
+  验证章节）⇒ `git diff --name-status 2e7bf6a..HEAD -- backend` = **空**：
+  **无 code / test / migration / contract change**。
+- 已评审源与集成树逐字节一致：`git diff --stat 0c206c9 HEAD -- backend/src backend/alembic` = **空**。
+
+### 4. Final Gate（最小充分复验，规范解释器 `py -3.14`）
+
+| 门 | 结果 |
+|---|---|
+| SE-02A focused（§6） | `test_se_02a_edge_contracts.py` + `test_se_02a_edge_persistence.py` = **88 passed**（62 + 26） |
+| N01-C focused（§6） | `test_n01_restart_recovery.py` = **6 passed** |
+| Full backend（§8） | **`267 passed, 1 warning`**（272.02s，独占窗口，collect 267） |
+| Alembic head（§7） | `alembic heads` = `['20260911_0005']`（单 head）；`g5/replay.py::schema_head` = `20260911_0005` |
+| Static（§9） | Ruff `All checks passed!`；`compileall -q` rc=0；`git diff --check` rc=0；`git diff --check b3ac21b..HEAD` rc=0 |
+
+说明：本 Closeout 按任务 §4 不重跑机械化的完整 migration 周期与多轮全量——latest-main refresh
+Gate 已完成完整周期（`0004→0005→0004→0005`，23/23 PASS）
+与本方案之外的重复矩阵；此处只做最小充分复验。
+
+### 5. Test Environment Exclusivity（§5）
+
+- 主机进程普查 **先按进程名**（`python|py\.exe|pytest`）**再匹配命令行** + `pg_stat_activity`
+  （`backend_type='client backend'`）：全量门**前 / 后**两次快照均 `CLEAN`（0 外来 pytest /
+  0 MarketPulse validation writer / 0 soak-runtime writer / 0 外来 disposable 库）。
+- 覆盖整个窗口的 5s 连续采样（`closeout-window`，78 样本）：最大并发 client backend = **2**；
+  观测到的 23 个 disposable 库**全部归属本批自身**测试场景（`marketpulse_se02a_*` /
+  `marketpulse_n01_a|b|c_*` / `marketpulse_n01_g2_*` / `marketpulse_g52|g53|g54_*`），
+  **unknown = 0**；非空 `application_name` 全部在仓库源码中有定义
+  （`marketpulse-n01-b-owned-injected-leak` / `marketpulse-n01-c-owned-process-a-bbo_failure` /
+  `marketpulse-n01-c-owned-process-b-stop` / `marketpulse-n01-vf01-lifecycle-cycle-05`）；
+  primary `marketpulse` 上的连接仅 `<empty>`（仓库 harness）与 `marketpulse-n01-vf01-observer`
+  （N01-A 测试自带）。**无外来写者** ⇒ 全量结果可采信。
+- 未杀任何其它 Agent 进程。
+
+### 6. Closeout Diff
+
+- Closeout commit 仅包含：`PROJECT_STATE.md`、`AI_CONTEXT.md`、
+  `dev_log/2026-09-11-se-02a-edge-contracts-persistence.md`。
+- 未出现 `backend/src` / `backend/tests` / `backend/alembic` 任何变化。
+
+### 7. Accepted Integration Lineage（仅 fast-forward）
+
+```text
+b3ac21b  (Accepted Main before)
+  → 2e7bf6a  SE-02A Latest-Main Integration Refresh（merge reviewed source 0c206c9）
+  → 134aec5  docs(se-02a): append Latest-Main Final Integration Refresh chapter
+  → <Final Closeout Commit>  docs(se-02a): final acceptance closeout
+```
+
+- 无 rebase / squash / force push / history rewrite。
+- Accepted Main before = `b3ac21b`；Accepted Main after = Final Closeout Commit。
+
+### 8. 保留的 Evidence Branches
+
+- `se-02a-contracts-additive-persistence` @ `0c206c9`（reviewed source，保留）
+- `se-02a-final-integration` @ `9998e1b`（historical integration，保留）
+- `se-02a-final-integration-refresh`（本次 accepted lineage 分支，保留）
+- 均**未删除**。
+
+### 9. Final Status
+
+```text
+SE-02A = ACCEPTED / COMPLETE
+
+SE-02B = NOT STARTED
+SE-02C = NOT STARTED
+SE-02D = NOT STARTED
+
+N01-A = ACCEPTED / COMPLETE
+N01-B = ACCEPTED / COMPLETE
+N01-C = ACCEPTED / COMPLETE
+
+N01 overall = NOT ACCEPTED
+
+N01-6 = NOT STARTED
+N01-7 = NOT STARTED
+N01-8 = NOT STARTED
+```
+
+Closeout 阶段四项不变：`Production code changed = NO`、`Tests changed = NO`、
+`Migration changed = NO`、`Contract changed = NO`。
+
+### 10. Claim Boundary / Next Step
+
+不得由此声明：SE-02B complete、runtime opportunity capture complete、Forward Outcome Calculator
+complete、MFE/MAE complete、Expectancy complete、KEEP/DOWNWEIGHT/KILL complete、Real AI Edge
+complete。
+
+下一步：**RETURN TO N01 MAIN WINDOW → `N01-6｜15-minute Short Runtime Smoke`**
+（本 Closeout 不开始 N01-6）。

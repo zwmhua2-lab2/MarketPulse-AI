@@ -2,6 +2,8 @@
 
 ## Current Group
 
+SE-02A — Contracts + Additive Persistence — ACCEPTED / COMPLETE
+
 N01-C — Restart / Recovery / Reconciliation — ACCEPTED / COMPLETE
 
 N01-A — Deterministic Runtime + Resource Lifecycle — ACCEPTED / COMPLETE
@@ -15,14 +17,15 @@ N01 overall — NOT ACCEPTED（N01-6 / N01-7 / N01-8 与 Integrated Runtime Host
 - Visibility: `PRIVATE`
 - Default Branch: `main`
 - Accepted Main Source: Git `main` / `origin/main` — read actual SHA at task preflight（CIP-02）
-- Current Development Status: `N01-C ACCEPTED / COMPLETE`；N01-A / N01-B 与
-  `N01-VAL-FIX-01/02/03` 均维持已验收结论，N01 overall 仍未验收
+- Current Development Status: `SE-02A ACCEPTED / COMPLETE`；`N01-C ACCEPTED / COMPLETE`；
+  N01-A / N01-B 与 `N01-VAL-FIX-01/02/03` 均维持已验收结论，N01 overall 仍未验收
 
 ## Branch / Source
 
 - Current Accepted Branch: `main`
 - Current Group Branch: `n01-c-restart-recovery-reconciliation`（N01-C accepted validation
-  lineage；仅 fast-forward 收编至 `main`，历史分支保留）
+  lineage；仅 fast-forward 收编至 `main`，历史分支保留）；最近新增 SE-02A accepted lineage
+  `se-02a-final-integration-refresh`（仅 fast-forward 收编至 `main`）
 - Last Accepted Group Branch: `n01-c-restart-recovery-reconciliation`（历史证据，保留未删）；更早 `n01-a-runtime-resource-lifecycle`
 - Accepted Main Source: Git `main` / `origin/main` — read actual SHA at task preflight（CIP-02）
 - G5-1 Implementation Acceptance Basis: `34da62a0cc9dbe95b95faadb770fbd06179a6975`
@@ -147,21 +150,24 @@ N01 overall — NOT ACCEPTED（N01-6 / N01-7 / N01-8 与 Integrated Runtime Host
   `e0dab188 → 67b0cb5 → 14f387a → 13049a0 → Consolidated Closeout Commit`；investigation branch
   `investigate/n01-g4-protection-limit-fill-race`（`201d9a8`）**保留、不 merge**。
 - Group 4（持仓安全与恢复）已实现：Position Protection（SL/TP/Protective Exit/幂等）、Position Re-evaluation（HOLD/ADD/REDUCE/CLOSE/CANCEL_ADD/UPDATE_STOP/UPDATE_TP/UPDATE_INVALIDATION/REPLACE_PLAN）、System Safety State、Control（Pause/Resume/Emergency Stop/Emergency Recovery/Symbol Block/Manual Close/Safe Mode）、Recovery Manager（PostgreSQL SoT + Restart Recovery + Reconciliation Gate + Plan/Order Revalidation + EXECUTION_GAP）、Health Registry 与 Incident Manager。
+- SE-02A｜Contracts + Additive Persistence：`ACCEPTED / COMPLETE`（2026-09-11/12；专项
+  SE｜Strategy & Trading Edge 的第一个 Implementation Acceptance Batch；Independent Review =
+  `PASS`；Human Acceptance = `CONFIRMED`）。只落地 Edge domain contracts 与 4 张 additive Edge 表
+  + Alembic `20260911_0005`；**未**接 runtime capture、**未**实现 forward outcome calculator、
+  **未**修改 G2/G3/G4/G5 业务语义。Final Acceptance Closeout 为 docs-only；accepted lineage
+  （仅 fast-forward）：`b3ac21b → 2e7bf6a → 134aec5 → Final Closeout Commit`。
+  Closeout 阶段 `Production code changed = NO` / `Tests changed = NO` / `Migration changed = NO`
+  / `Contract changed = NO`。详见 `dev_log/2026-09-11-se-02a-edge-contracts-persistence.md`
+  与本文「SE-02A Result」。
 
 ## In Progress
 
-- SE-02A｜Contracts + Additive Persistence = `LATEST-MAIN INTEGRATION VERIFIED / READY FOR
-  INDEPENDENT REVIEW`（**非** ACCEPTED；未经人工 Acceptance 不 merge `main`）
-  （专项 SE｜Strategy & Trading Edge 的第一个 Implementation Acceptance Batch；reviewed
-  implementation source = branch `se-02a-contracts-additive-persistence` @ `0c206c9`；
-  refresh integration branch = `se-02a-final-integration-refresh`）。只落地 Edge domain contracts
-  与 4 张 additive Edge 表 + Alembic `20260911_0005`；未接 runtime capture、未实现 forward outcome
-  calculator、未修改 G2/G3/G4/G5 业务语义。Independent Acceptance Review 的 3 个 contract
-  blocker（P0-1 reference BBO 可空 / P0-2 forward outcome 终态语义 / P0-3 BBO 因果身份与幂等）
-  已由 **Acceptance Fix #1** 关闭。详见 `dev_log/2026-09-11-se-02a-edge-contracts-persistence.md`
-  （§14 = Acceptance Fix #1；末尾「Latest-Main Final Integration Refresh」章节 = 主线刷新验证）
-  与本文「SE-02A Result」。SE-02B / SE-02C / SE-02D / runtime capture / Real AI / Live 均
-  **NOT STARTED**。
+- 无进行中的 Acceptance Batch。**SE-02A｜Contracts + Additive Persistence 已完成验收收尾
+  （`ACCEPTED / COMPLETE`；见 Completed 与本文「SE-02A Result」）**。其 reviewed implementation
+  source = branch `se-02a-contracts-additive-persistence` @ `0c206c9`；最终收编经 refresh
+  integration branch `se-02a-final-integration-refresh`（`b3ac21b → 2e7bf6a → 134aec5 →
+  Final Closeout Commit`，仅 fast-forward）。SE-02B / SE-02C / SE-02D / runtime opportunity
+  capture / Forward Outcome Calculator / Real AI Edge / Live 均 **NOT STARTED**。
 - 无进行中的 N01 Acceptance Group。**N01-A / N01-B / N01-C 均已 `ACCEPTED / COMPLETE`**（见
   Completed）；N01 overall 仍未验收，也不由任何单门 N01 验收推断。
 - N01 Continuous Runtime / Soak 本身仍 `NOT ACCEPTED`；不得由 N01-B 验收推断 N01 整体验收。
@@ -421,8 +427,20 @@ N01 overall — NOT ACCEPTED（N01-6 / N01-7 / N01-8 与 Integrated Runtime Host
   `dev_log/2026-09-11-se-02a-edge-contracts-persistence.md` 末尾
   「Latest-Main Final Integration Refresh」章节（含 N01-A/B/C 在 `20260911_0005` integration
   tree 下共同成立的证据）。
-- 状态：`LATEST-MAIN INTEGRATION VERIFIED / READY FOR INDEPENDENT REVIEW`
-  （**未**自行 Acceptance、**未** merge `main`；SE-02B / SE-02C / SE-02D 仍未开始）。
+- **Final Acceptance Closeout（2026-09-11/12，docs-only）**：Independent Review = `PASS`；
+  Human Acceptance = `CONFIRMED`。在 reviewed refresh HEAD `134aec5` 之上创建 docs-only
+  closeout commit（仅 `PROJECT_STATE.md` / `AI_CONTEXT.md` / SE-02A dev_log），随后
+  **fast-forward only** 将 `main` 从 `b3ac21b` 收编 `2e7bf6a → 134aec5 → Final Closeout Commit`
+  （无 rebase / squash / force / history rewrite）。Closeout 最小充分复验：SE-02A focused `88 passed`
+  （62 + 26）、N01-C focused `6 passed`（规范解释器 `py -3.14`）、full backend `267 passed`
+  （独占窗口）、`alembic heads` 单 head `20260911_0005` 且 `g5/replay.py::schema_head` 同值、
+  Ruff `All checks passed!` / compileall rc=0 / `git diff --check`（工作树 + `b3ac21b..HEAD`）rc=0。
+- **Accepted Main before** = `b3ac21b89e11490a0760f560bc099b9acf91ff48`；
+  **Accepted Main after** = Final Closeout Commit（`main` 已 fast-forward，仅 fast-forward）。
+- Closeout 阶段四项不变：`Production code changed = NO`、`Tests changed = NO`、
+  `Migration changed = NO`、`Contract changed = NO`。
+- 状态：`ACCEPTED / COMPLETE`（SE-02B / SE-02C / SE-02D / runtime capture / Real AI / Live
+  仍未开始，不在本批 claim 边界内）。
 - 备注（Repository Truth 差异）：仓库中不存在 SE-02 设计 / approved contract 文档，本批契约依据
   为任务书与既有仓库约定；本批自行确定的契约决策已在上述 dev_log §3 逐条列出。
 - 备注（主库）：本地 `marketpulse` 主库仍在 `20260905_0004`，本批**未**对其执行 migration
