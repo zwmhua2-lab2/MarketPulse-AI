@@ -590,3 +590,134 @@ Fix #1 的 push 完成时（2026-09-11 06:4x）实测发现 **Accepted Main 已�
    `test_group4.py` / `test_n01_*.py` 增量不在其中。若后续把本 branch 合并进新 main，
    全量总数应高于 `259`，需在合并后窗口重新计数（本批不代理该动作）。
    漂移文件与 SE-02A 文件零重叠 ⇒ 预期无 textual conflict（**未验证合并**，不作断言）。
+
+## Latest-Main Final Integration Refresh（2026-09-11）
+
+> 目的：在**最新 Accepted `main`** 上重新构建 SE-02A 集成候选并重跑全部门禁，使
+> 集成结果不再绑定被后续 commit 追越的旧基线。本批**不**写 `ACCEPTED / COMPLETE`、
+> **不**合并 `main`、**不**改写已评审源码（`0c206c9`）、**不**删除历史分支。
+
+| 项 | 值 |
+|---|---|
+| 上一次集成时的 main（Previous Integration Main） | `6cc4c36e11c380f638872598e4766a4436d0d255` |
+| 当前 Accepted main（Current Accepted Main） | `b3ac21b89e11490a0760f560bc099b9acf91ff48` |
+| 已评审 SE-02A 源（Reviewed SE Source，未改写） | `0c206c9c598c735d8f708db6603c02fc4d5a3fa3` |
+| 历史集成候选（Historical，仅作证据保留） | `9998e1b`（branch `se-02a-final-integration`） |
+| 新集成分支 | `se-02a-final-integration-refresh`（worktree `E:\Documents\MarketPulse-AI-se02a-refresh`） |
+| 新集成候选（merge commit） | `2e7bf6a`（parents = `b3ac21b` + `0c206c9`） |
+| merge-base(`b3ac21b`, `0c206c9`) | `e0dab188e55c32b7607c18a66644d25449dc2236` |
+
+### 1. 漂移来源与集成构造
+
+- 最新 `main` 在旧集成基线 `6cc4c36` 之上仅新增（`git diff --name-status 6cc4c36 b3ac21b`）：
+  `AI_CONTEXT.md`(M)、`PROJECT_STATE.md`(M)、`backend/tests/test_n01_restart_recovery.py`(A)、
+  `dev_log/2026-09-11-n01-c-restart-recovery-reconciliation.md`(A)。**未触碰 `backend/src`**。
+- 构造方式：`git reset --hard b3ac21b` → `git merge --no-ff 0c206c9`。
+  SE-02A 的代码 / 测试 / migration **全部无冲突自动合并**；唯一冲突为 `PROJECT_STATE.md`（`UU`）。
+- 语义重叠面：两侧都改写 `PROJECT_STATE.md`（SE-02A 侧 blob 基于 `e0dab188`，相对最新 main
+  删除了已验收的 N01-VAL-FIX-01/02/03 与 N01-C 记录）。因此冲突解决采用
+  **非回归语义并集**：以最新 main blob 为底（保留 CRLF），仅重新施加 SE-02A 真正新增的增量
+  （Migration Head → `20260911_0005`、In Progress 状态行、新增 `## SE-02A Result` 段）。
+  验收记录 N01-A/B/C、N01-VAL-FIX-01/02/03、Consolidated Closeout 与 Known Issues 全部保留。
+
+### 2. Diff Integrity（§6，全部 PASS）
+
+对 `b3ac21b..HEAD` 的差异面做四重核验（脚本落盘取证，非目测）：
+
+| 检查 | 方法 | 结果 |
+|---|---|---|
+| A. 新增文件字节级等同 | `0c206c9:<f>` vs `HEAD:<f>` SHA256 | **9/9 IDENTICAL**（migration 0005、`edge/*` 5 文件、`test_se_02a_*` 2 文件、dev_log） |
+| B. `g5/replay.py` 增量等同 | `delta(e0dab188→0c206c9)` vs `delta(b3ac21b→HEAD)` | **IDENTICAL**（仅 `schema_head` 常量 + 注释） |
+| C. `db/models.py` 增量等同 | 归一化 added-line 集合比对 | **EQUAL**（各 14037 bytes / 245 行） |
+| D. 越界文件扫描 | 白名单外路径 | **0 个**（改动文件恰 12 个，全部属 SE-02A 面） |
+
+改动文件全集（12）：`PROJECT_STATE.md`、`20260911_0005_edge_evidence_foundation.py`、
+`db/models.py`、`edge/{__init__,hashing,identity,models,repository}.py`、`g5/replay.py`、
+`test_se_02a_edge_contracts.py`、`test_se_02a_edge_persistence.py`、
+`dev_log/2026-09-11-se-02a-edge-contracts-persistence.md`。
+
+### 3. Contract / Production Integrity（§17，PASS）
+
+- `git diff --name-status 6cc4c36 b3ac21b -- backend/src` = **空** ⇒ 最新 main 未改动任何生产源码。
+- `git diff --name-status 0c206c9 HEAD -- backend/src` = **空** ⇒ 本 refresh **未新增任何** backend/src 改动。
+- `git diff --name-only 0c206c9 HEAD -- backend/src/marketpulse/edge` = **空** ⇒ `edge/*` 与已评审源字节级相同。
+
+结论：refresh 引入的**新增业务实现 = 0**；本批唯一的集成产物是 `PROJECT_STATE.md` 的语义并集与
+merge commit 本身。
+
+### 4. Migration Truth（§8）
+
+`alembic heads`（refresh tree）实测 = `['20260911_0005']` —— **单 head**，
+`20260911_0005`（additive Edge evidence revision，`down_revision = 20260905_0004`）。
+`backend/src/marketpulse/g5/replay.py::ReplayTradingRunner.schema_head` 实测 = `20260911_0005`，与唯一 head 一致。
+
+### 5. Migration Cycle（§9，disposable PostgreSQL）
+
+在 disposable 库 `marketpulse_se02a_refresh_mig_<hex>` 上执行
+`0004 → upgrade head(0005) → downgrade 0004 → upgrade head(0005)`：
+
+- **23 断言 / 0 失败**，`RESULT=PASS`。
+- 单 head、step1 edge 4 表缺席、step2 edge 4 表出现且既有表仍在（**additive**）、
+  `edge_opportunity_evidence.reference_bid/reference_ask/reference_received_at` 三者 `is_nullable = YES`、
+  `reference_data_reason` **缺席**（字段已删除）、Edge evidence / BBO / ForwardOutcome 约束组齐备
+  （`ck_edge_outcome_{horizon,calculation_status,lifecycle,supersedes_required,revision_positive}` 等）、
+  step3 edge 4 表移除且既有表保留、step4 重新升级回 `20260911_0005`。
+- 收尾断言：无残留 disposable 库；`primary` 库 `alembic_version` 保持 `20260905_0004`（**未被升级**）。
+- 脚本缺陷已修：`backend/alembic/env.py` 以 `os.getenv("DATABASE_URL", …)` 优先，故周期内显式把
+  `DATABASE_URL` 锚定到 disposable 库（结束还原）；Alembic 同步 command API 经 `asyncio.to_thread()`
+  派发，规避 `env.py` 内 `asyncio.run()` 的运行中事件循环冲突。
+
+### 6. Test Environment Exclusivity（§10，CLEAN）
+
+- 主机进程普查（**先按进程名过滤** `python|py\.exe|pytest`，再匹配命令行）与
+  `pg_stat_activity`（`backend_type='client backend'`）双视图：
+  全量门**前 / 后**两次快照均 `CLEAN`（0 外来 pytest / 0 外来 MarketPulse 写者 / 0 外来 disposable 库）。
+- 覆盖整个验证窗口的 5s 连续采样（t=0→724s）：期间出现的所有 `marketpulse_*` 库名逐一对应**本批自身**
+  测试场景（`marketpulse_se02a_evidence_*` / `_bbo*` / `_outcome_*` / `marketpulse_n01_a|b|c_*` /
+  `marketpulse_g52|g53|g54_*` / `_migration_*`），且 `backends=1`（单一写者）。
+  其中 `marketpulse_n01_c_7a56d17b35eb` / `..._8a5b359d43b7` 与本批首次 N01-C 运行的失败输出库名一一吻合，
+  归属明确。
+- primary `marketpulse` 上的连接仅 `marketpulse||`（仓库 harness）与 N01-A/B 测试自带的
+  `marketpulse-n01-vf01-observer` / `marketpulse-n01-b-observer`。
+
+### 7. 解释器口径（本批发现，重要）
+
+N01-C 的 `_run_child()` 断言 `payload["pid"] == Popen.pid`。**Windows venv 的
+`…\.venv\Scripts\python.exe` 是重定向启动器**，会再 fork 真实解释器 ⇒ `Popen.pid` 落在启动器上、
+子进程 `os.getpid()` 落在真实解释器上，断言必然失败（实测 `17340 ≠ 940`）。
+
+- 这是**调用解释器选择**造成的环境伪影，**不是**产品缺陷、也**不是** refresh 引入的回归。
+- 项目规范测试解释器为 `py -3.14`（`C:\Users\hua\AppData\Local\Programs\Python\Python314\python.exe`，
+  非重定向；实测 `Popen.pid == 子进程 getpid`），依赖齐备（pytest 8.4.2 / SQLAlchemy 2.0.52 / asyncpg / alembic）。
+- 因此本批**全部测试门统一以 `py -3.14` 执行**；凡以 venv `python.exe` 直接调用 pytest 的结果不计入验收。
+
+### 8. 验证结果（§11–§16）
+
+| 门 | 命令 | 结果 |
+|---|---|---|
+| SE-02A 定向（§11） | `pytest test_se_02a_edge_contracts.py test_se_02a_edge_persistence.py` | **88 passed**（contracts 62 + persistence 26） |
+| N01-A（§12） | `pytest test_n01_runtime_resource_lifecycle.py` | **6 passed** |
+| N01-B（§12） | `pytest test_n01_okx_paper_safety.py` | **4 passed** |
+| N01-C（§12） | `pytest test_n01_restart_recovery.py` | **6 passed** |
+| G2 / G3 / G4（§13） | `pytest test_group2.py test_group3.py test_group4.py` | **30 / 16 / 77 passed** |
+| G5（§13） | `pytest test_group5_1..5_4` | **32 passed**（10+7+5+10） |
+| collect-only 计数（§14） | `pytest backend/tests --collect-only -q` | **267** = 最新 main 基线 **179** + SE-02A **88**（零偏差） |
+| 全量后端（§15） | `PYTHONPATH=backend/src py -3.14 -m pytest backend/tests -q` | **267 passed, 1 warning**（263.74s，独占窗口） |
+| 静态门（§16） | `ruff check backend/src backend/tests scripts` | `All checks passed!` |
+| 静态门（§16） | `compileall -q backend/src backend/tests` | rc=0（无输出） |
+| 静态门（§16） | `git diff --check` / `git diff --check b3ac21b..HEAD` | rc=0 / rc=0 |
+
+per-file 计数（§14）：auth 2、group1 6、group2 30、group3 16、group4 77、group5 32、n01 16、se_02a 88 ⇒ 267。
+
+### 9. 本批特有产物与边界
+
+- **refresh 特有的生产改动 = 无**（§17 已证 `0c206c9→HEAD` 的 `backend/src` 差分为空）。
+- 本批仅产出：merge commit `2e7bf6a`、`PROJECT_STATE.md` 语义并集、本 dev_log 章节。
+- 历史候选 `9998e1b` 与已评审源 `0c206c9` 保留不动；**未** merge `main`；**未** 开启 SE-02B / N01-6。
+
+### 10. 状态
+
+`SE-02A = LATEST-MAIN INTEGRATION VERIFIED / READY FOR INDEPENDENT REVIEW`
+
+**不**写 `ACCEPTED / COMPLETE`（AC 未由独立评审裁决）；`N01 overall` 仍未验收，
+`N01-6 / N01-7 / N01-8` 与 Integrated Runtime Host 仍 `NOT STARTED`。
