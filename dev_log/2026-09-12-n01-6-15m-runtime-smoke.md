@@ -206,7 +206,25 @@ Close（`_controlled_close`，`manual_close` on 最后一笔真实 fresh BTC BBO
 
 **Exclusivity（回归门窗口）**：`n01_6_proc_scan.ps1` 于 regression 前/后各扫一次，均仅见 2 个
 **无关**的 crypto-MCP `python.exe`（`crypto-derivatives-free-mcp/.venv` 启动，`matches_validation=no`），
-无任何 validation/ pytest 进程存活；PG 监控采样仅见本批 owned `marketpulse-n01-6-*` 会话。
+无任何 validation/ pytest 进程存活。
+
+**回归窗口 PG 会话连续采样（补充证据）**：`n01_6_pg_monitor.ps1` 于 `01:26:00 → 01:40:59`
+连续采样 **171** 次（5 s 间隔；输出 `E:/Temp/n01_6_pg_during_regression.txt`），覆盖 focused 与
+full backend 两个门。采样到的会话**全部可归属到本批自身**，未出现仓库外标识：
+
+| 观测对象 | 说明 |
+|---|---|
+| `marketpulse:psql:active` | 监控脚本自身查询 `pg_stat_activity` 的连接（每样本出现） |
+| `marketpulse:<empty>:active` | 本批 pytest 在 **primary** 库上的连接（本仓库套件 `application_name` 为空，属已知事实） |
+| `marketpulse_g53_run_a_*` / `marketpulse_g54_*` / `marketpulse_n01_b_*`（含 `marketpulse-n01-b-owned-freshness`）/ `marketpulse_se02a_*` | 本批 pytest 的 disposable 测试库；前缀全部属本仓库测试模块命名，出现区间 `01:27:51 → 01:30:24` **完全落在** full backend 运行窗口（≈`01:25:45 → 01:30:33`）内 |
+| `marketpulse:marketpulse-n01-vf01-observer:idle` | 本批 N01-VAL-FIX-01 测试模块的 observer 连接 |
+
+未观测到任何**仓库外** `application_name`、任何非本仓库前缀的 disposable 库，也无并发第二个套件
+的痕迹（若有并发 full suite，按已知并发签名必然互坏，而本门在同一窗口内干净 `267 passed`）。
+
+**局限（如实记录）**：两次进程扫描位于窗口**两端**（`01:24:46` / `01:30:44`），因此「恰好起止于
+两次扫描之间」的外部会话无法仅凭进程证据排除；但 DB 级连续采样 + 前缀归属 + 本门 267/267 干净
+通过三者一致，未发现任何外部写者迹象。该局限不改变本门结论，仅界定其证据强度。
 
 ## 12. Reconnaissance / Shutdown / 资源清理
 
@@ -349,6 +367,7 @@ harness 输出 `checks`（**37 项**，全部 `true` ⇒ `failures=[]`、`result
 `n01_6_sample_agg.txt`、`n01_6_focused.txt`、`n01_6_collect_raw.txt`、`n01_6_collect.txt`、
 `n01_6_full_backend.txt`、`n01_6_static_final.txt`、`n01_6_proc_before/after_regression.txt`、
 `n01_6_pre_smoke_db.txt`、`n01_6_post_regression_db.txt`、`n01_6_heads.txt`、`n01_6_midrun*.txt`、
+`n01_6_pg_during_regression.txt`（回归窗口 171 样本 PG 会话采样）、
 `n01_6_pg_monitor.ps1`、`n01_6_proc_scan.ps1`。
 
 ## 23. 状态
