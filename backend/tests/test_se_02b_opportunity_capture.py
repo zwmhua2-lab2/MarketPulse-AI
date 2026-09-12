@@ -809,6 +809,14 @@ def _reference_cases() -> dict[str, tuple[object, str]]:
         "missing": (None, "REFERENCE_MISSING"),
         "future": (_quote(at=START + timedelta(seconds=1)), "REFERENCE_STALE"),
         "stale": (_quote(at=START - timedelta(minutes=2)), "REFERENCE_STALE"),
+        "data_quality_stale": (
+            _quote(data_quality=DataQuality.STALE),
+            "REFERENCE_STALE",
+        ),
+        "data_quality_unavailable": (
+            _quote(data_quality=DataQuality.UNAVAILABLE),
+            "REFERENCE_STALE",
+        ),
         "wrong_instrument": (_quote(instrument_id="ETH-USDT"), "REFERENCE_STALE"),
         "wrong_market_type": (_quote(market_type=MarketType.SWAP), "REFERENCE_STALE"),
         "untradable": (_quote(tradable=False), "REFERENCE_STALE"),
@@ -1019,6 +1027,26 @@ def test_stored_evidence_reconstructs_the_frozen_setup_without_runtime_state():
     }
     assert observed["provenance"]["source_identity"] == "okx-ws-bbo"
     assert observed["reference_status"] == "OK"
+    assert observed["supplied_quote"] == {
+        "instrument_id": INSTRUMENT,
+        "market_type": "SPOT",
+        "bid": 99.5,
+        "ask": 100.5,
+        "received_at": START.isoformat(),
+        "data_quality": "FRESH",
+        "tradable": True,
+    }
+    assert observed["accepted_reference"] == {
+        "bid": 99.5,
+        "ask": 100.5,
+        "received_at": START.isoformat(),
+    }
+    assert observed["row_reference"] == {
+        "status": "OK",
+        "bid": 99.5,
+        "ask": 100.5,
+        "received_at": START,
+    }
     assert observed["hash_rebuild"] is True
     assert observed["id_rebuild"] is True
     assert observed["feature_hash_rebuild"] is True
@@ -1041,6 +1069,7 @@ async def _reconstruction_scenario(url: str) -> dict[str, object]:
             candidate_id=candidate.candidate_id,
         )
         reference = payload["reference_data"]
+        supplied = reference["supplied_quote"]
         rebuilt = build_opportunity_evidence(
             event=event,
             timeline=SignalTimelineEvent.model_validate(payload["timeline"]),
@@ -1053,17 +1082,20 @@ async def _reconstruction_scenario(url: str) -> dict[str, object]:
                 source_identity=payload["provenance"]["source_identity"],
                 source_manifest_id=payload["provenance"]["source_manifest_id"],
             ),
+            # Rebuilt from the *supplied* quote rather than the accepted metrics:
+            # the stored payload alone must reproduce the same status and the same
+            # evidence hash -- including for a quote that ends up refused.
             reference_quote=(
                 None
-                if reference["status"] != "OK"
+                if supplied is None
                 else ReferenceQuote(
-                    instrument_id=reference["instrument_id"],
-                    market_type=MarketType(reference["market_type"]),
-                    bid=reference["bid"],
-                    ask=reference["ask"],
-                    received_at=datetime.fromisoformat(reference["received_at"]),
-                    data_quality=DataQuality(reference["data_quality"]),
-                    tradable=reference["tradable"],
+                    instrument_id=supplied["instrument_id"],
+                    market_type=MarketType(supplied["market_type"]),
+                    bid=supplied["bid"],
+                    ask=supplied["ask"],
+                    received_at=datetime.fromisoformat(supplied["received_at"]),
+                    data_quality=DataQuality(supplied["data_quality"]),
+                    tradable=supplied["tradable"],
                 )
             ),
         )
@@ -1082,6 +1114,14 @@ async def _reconstruction_scenario(url: str) -> dict[str, object]:
             "versions": payload["versions"],
             "provenance": payload["provenance"],
             "reference_status": reference["status"],
+            "supplied_quote": supplied,
+            "accepted_reference": reference["accepted_reference"],
+            "row_reference": {
+                "status": row.reference_data_status,
+                "bid": row.reference_bid,
+                "ask": row.reference_ask,
+                "received_at": row.reference_received_at,
+            },
             "hash_rebuild": rebuilt.evidence_hash == row.evidence_hash,
             "id_rebuild": rebuilt.evidence_id == row.evidence_id,
             "feature_hash_rebuild": rebuilt.feature_snapshot_hash == row.feature_snapshot_hash,
@@ -1133,61 +1173,181 @@ async def _runtime_scenario(url: str) -> dict[str, object]:
             }
 
 
-# --- H. reference identity facts (P0-1) -------------------------------------------------
+# --- H. reference quote quality and provenance (P0-1) -----------------------------------
 
 
-def test_capture_payload_keeps_the_v2_reference_identity_facts():
-    with _capture_database("payload") as url:
-        observed = asyncio.run(_payload_scenario(url))
+def _supplied(**overrides: object) -> dict[str, object]:
+    """The payload's ``supplied_quote`` half for the default ``_quote()``.
 
-    usable = observed["usable"]
-    assert usable["capture_version"] == "se02b-runtime-capture-v2"
-    assert usable["reference_data"] == {
-        "status": "OK",
+    Each case states only the field it actually changes, so the expectation stays
+    readable while the comparison remains a full dict equality against the stored
+    payload.
+    """
+
+    return {
+        "instrument_id": INSTRUMENT,
+        "market_type": "SPOT",
         "bid": 99.5,
         "ask": 100.5,
         "received_at": START.isoformat(),
-        "instrument_id": INSTRUMENT,
-        "market_type": "SPOT",
         "data_quality": "FRESH",
         "tradable": True,
-    }
-    # A refused quote stays auditable -- the facts it *did* carry are kept -- while
-    # its metrics are NULL rather than a zero placeholder and it is never promoted
-    # to OK evidence for a different instrument.
-    assert observed["wrong_instrument"]["reference_data"] == {
-        "status": "REFERENCE_STALE",
-        "bid": None,
-        "ask": None,
-        "received_at": None,
-        "instrument_id": "ETH-USDT",
-        "market_type": "SPOT",
-        "data_quality": "FRESH",
-        "tradable": True,
-    }
-    assert observed["missing"]["reference_data"] == {
-        "status": "REFERENCE_MISSING",
-        "bid": None,
-        "ask": None,
-        "received_at": None,
-        "instrument_id": None,
-        "market_type": None,
-        "data_quality": None,
-        "tradable": None,
+        **overrides,
     }
 
 
-async def _payload_scenario(url: str) -> dict[str, object]:
-    cases = {
-        "usable": _quote(),
-        "wrong_instrument": _quote(instrument_id="ETH-USDT"),
-        "missing": None,
+_ACCEPTED_REFERENCE = {"bid": 99.5, "ask": 100.5, "received_at": START.isoformat()}
+_NO_ACCEPTED_REFERENCE = {"bid": None, "ask": None, "received_at": None}
+
+
+def _provenance_cases() -> dict[str, tuple[object, str, object, object]]:
+    """Every adverse reference state, plus the usable one, with its exact payload.
+
+    ``evidence_at`` is the qualifying candidate's ``created_at`` (``START`` here),
+    so a quote received later than ``START`` is *future* data for this opportunity
+    and must be refused rather than treated as fresh.
+    """
+
+    refused = _NO_ACCEPTED_REFERENCE
+    return {
+        "usable": (_quote(), "OK", _supplied(), _ACCEPTED_REFERENCE),
+        "future": (
+            _quote(at=START + timedelta(seconds=1)),
+            "REFERENCE_STALE",
+            _supplied(received_at=(START + timedelta(seconds=1)).isoformat()),
+            refused,
+        ),
+        "time_stale": (
+            _quote(at=START - timedelta(minutes=2)),
+            "REFERENCE_STALE",
+            _supplied(received_at=(START - timedelta(minutes=2)).isoformat()),
+            refused,
+        ),
+        "data_quality_stale": (
+            _quote(data_quality=DataQuality.STALE),
+            "REFERENCE_STALE",
+            _supplied(data_quality="STALE"),
+            refused,
+        ),
+        "data_quality_unavailable": (
+            _quote(data_quality=DataQuality.UNAVAILABLE),
+            "REFERENCE_STALE",
+            _supplied(data_quality="UNAVAILABLE"),
+            refused,
+        ),
+        "wrong_instrument": (
+            _quote(instrument_id="ETH-USDT"),
+            "REFERENCE_STALE",
+            _supplied(instrument_id="ETH-USDT"),
+            refused,
+        ),
+        "wrong_market_type": (
+            _quote(market_type=MarketType.SWAP),
+            "REFERENCE_STALE",
+            _supplied(market_type="SWAP"),
+            refused,
+        ),
+        "untradable": (
+            _quote(tradable=False),
+            "REFERENCE_STALE",
+            _supplied(tradable=False),
+            refused,
+        ),
+        "crossed": (
+            _quote(bid=101.0, ask=100.0),
+            "REFERENCE_STALE",
+            _supplied(bid=101.0, ask=100.0),
+            refused,
+        ),
+        "non_positive": (
+            _quote(bid=0.0, ask=100.0),
+            "REFERENCE_STALE",
+            _supplied(bid=0.0, ask=100.0),
+            refused,
+        ),
+        # ``NaN`` cannot be stored as a JSON number and the canonical hashing
+        # contract fails closed on it, so the raw input is kept by name.
+        "non_finite": (
+            _quote(bid=float("nan")),
+            "REFERENCE_STALE",
+            _supplied(bid="NaN"),
+            refused,
+        ),
+        # No quote was supplied at all, so there is nothing to keep.
+        "missing": (None, "REFERENCE_MISSING", None, refused),
     }
-    observed: dict[str, object] = {}
+
+
+def test_every_supplied_quote_is_kept_verbatim_while_only_ok_is_accepted():
+    labels = sorted(_provenance_cases())
+    with _capture_database("provenance") as url:
+        observed = asyncio.run(_provenance_scenario(url, labels))
+
+    cases = _provenance_cases()
+    for label in labels:
+        _, status, supplied, accepted = cases[label]
+        item = observed[label]
+        # An unusable reference never removes the opportunity sample.
+        assert item["persisted"] is True, label
+        assert item["capture_version"] == "se02b-runtime-capture-v3", label
+        assert item["reference_data"] == {
+            "status": status,
+            "supplied_quote": supplied,
+            "accepted_reference": accepted,
+        }, label
+        # SE-02A's top-level reference contract is unchanged: the refused metrics
+        # stay NULL there, never a zero placeholder.
+        assert item["row"] == {
+            "status": status,
+            "bid": None if status != "OK" else 99.5,
+            "ask": None if status != "OK" else 100.5,
+            "received_at": None if status != "OK" else START,
+        }, label
+
+
+def test_stale_and_unavailable_feed_quality_is_never_accepted_as_reference():
+    """A well-formed quote is refused purely because the feed flagged its quality."""
+
+    assert DataQuality.STALE is not DataQuality.FRESH
+    assert DataQuality.UNAVAILABLE is not DataQuality.FRESH
+
+    labels = ["data_quality_stale", "data_quality_unavailable"]
+    with _capture_database("quality") as url:
+        observed = asyncio.run(_provenance_scenario(url, labels))
+
+    # The same quote is accepted verbatim when FRESH (see the ``usable`` case), so
+    # the only difference under test here is the quality flag itself.
+    for label, quality in (
+        ("data_quality_stale", "STALE"),
+        ("data_quality_unavailable", "UNAVAILABLE"),
+    ):
+        item = observed[label]
+        assert item["persisted"] is True, label
+        assert item["reference_data"]["status"] != "OK", label
+        assert item["reference_data"]["status"] == "REFERENCE_STALE", label
+        assert item["reference_data"]["supplied_quote"] == _supplied(
+            data_quality=quality
+        ), label
+        assert item["reference_data"]["accepted_reference"] == {
+            "bid": None,
+            "ask": None,
+            "received_at": None,
+        }, label
+        assert item["row"] == {
+            "status": "REFERENCE_STALE",
+            "bid": None,
+            "ask": None,
+            "received_at": None,
+        }, label
+
+
+async def _provenance_scenario(url: str, labels: list[str]) -> dict[str, object]:
+    cases = _provenance_cases()
+    candidate_by_label: dict[str, str] = {}
     async with _sessions(url) as sessions:
-        candidate_by_label: dict[str, str] = {}
-        for label, quote in cases.items():
-            facts = _facts(event_id=f"evt-payload-{label}")
+        for label in labels:
+            quote, _, _, _ = cases[label]
+            facts = _facts(event_id=f"evt-provenance-{label}")
             candidate_by_label[label] = _breakout_candidate(
                 facts["candidates"]
             ).candidate_id
@@ -1196,13 +1356,25 @@ async def _payload_scenario(url: str) -> dict[str, object]:
             rows = list(
                 (await session.scalars(select(EdgeOpportunityEvidenceRecord))).all()
             )
-        by_candidate = {row.candidate_id: row for row in rows}
-        for label, candidate_id in candidate_by_label.items():
-            payload = dict(by_candidate[candidate_id].evidence_payload)
-            observed[label] = {
-                "capture_version": payload["capture"]["payload_version"],
-                "reference_data": payload["reference_data"],
-            }
+    by_candidate = {row.candidate_id: row for row in rows}
+    observed: dict[str, object] = {}
+    for label, candidate_id in candidate_by_label.items():
+        row = by_candidate.get(candidate_id)
+        if row is None:
+            observed[label] = {"persisted": False}
+            continue
+        payload = dict(row.evidence_payload)
+        observed[label] = {
+            "persisted": True,
+            "capture_version": payload["capture"]["payload_version"],
+            "reference_data": payload["reference_data"],
+            "row": {
+                "status": row.reference_data_status,
+                "bid": row.reference_bid,
+                "ask": row.reference_ask,
+                "received_at": row.reference_received_at,
+            },
+        }
     return observed
 
 

@@ -23,6 +23,17 @@ Two causal rules are frozen here (SE-02B-FIX-01):
   ``0 <= evidence_at - reference_received_at <= reference_max_age``. A quote that
   was received *after* the evidence anchor is lookahead, not freshness.
 
+One reference-data rule is frozen here (SE-02B-FIX-02):
+
+* ``OK`` is the conjunction of every usability condition -- identity, **feed
+  quality**, tradability, finite and positively ordered prices, and causal
+  freshness (see :meth:`EdgeCaptureContext.classify_reference`). Anything else is
+  ``REFERENCE_STALE`` and the opportunity is still captured, with the accepted
+  reference metrics left NULL;
+* a refused quote is still evidence *of what was supplied*: the immutable payload
+  keeps the caller's raw ``supplied_quote`` next to ``accepted_reference``, so a
+  refusal stays auditable without ever being promoted to ``OK``.
+
 Deliberately absent (SE-02C / SE-02D): continuous quote-path capture, forward
 outcome calculation, MFE, MAE, forward returns, expectancy, family aggregation,
 KEEP / DOWNWEIGHT / KILL.
@@ -69,10 +80,18 @@ RUNTIME_CAPTURE_REVISION = 1
 
 # Contracts version of the captured payload. It is frozen: changing the payload
 # shape of a runtime capture changes the stored evidence hash, so a new shape
-# needs a new tag rather than a silent in-place edit. ``v2`` records the received
-# reference quote's own identity / quality facts next to the frozen reference
-# metrics (SE-02B-FIX-01 P0-1).
-RUNTIME_CAPTURE_PAYLOAD_VERSION = "se02b-runtime-capture-v2"
+# needs a new tag rather than a silent in-place edit.
+#
+# * ``v1`` -- original shape;
+# * ``v2`` -- the received reference quote's own identity / quality facts were
+#   recorded next to the frozen reference metrics (SE-02B-FIX-01 P0-1), but a
+#   *refused* quote kept only its identity / quality fields: its raw ``bid`` /
+#   ``ask`` / ``received_at`` were dropped;
+# * ``v3`` -- ``reference_data`` separates ``supplied_quote`` (the caller's raw
+#   input, kept verbatim even when refused) from ``accepted_reference`` (the
+#   metrics actually accepted as this opportunity's reference)
+#   (SE-02B-FIX-02 P0-1). ``v2`` is therefore not a valid tag for this shape.
+RUNTIME_CAPTURE_PAYLOAD_VERSION = "se02b-runtime-capture-v3"
 
 # Default reference-quote age above which a supplied quote is not usable. It
 # mirrors the accepted G3 execution freshness window so the Edge layer does not
@@ -89,8 +108,10 @@ class ReferenceQuote(BaseModel):
 
     The quote carries its own market identity and quality facts so an unusable
     quote can never be mistaken for this opportunity's reference: a quote for
-    another instrument or another market type is not usable evidence here, and a
-    quote received after the evidence anchor is future data, not freshness.
+    another instrument or another market type is not usable evidence here, a quote
+    the feed itself flagged ``STALE`` / ``UNAVAILABLE`` is not fresh evidence even
+    when its prices look well-formed, and a quote received after the evidence
+    anchor is future data, not freshness.
 
     Reference data can never decide whether an opportunity exists: an unusable
     quote is classified as ``REFERENCE_STALE`` and the sample is still
@@ -115,9 +136,17 @@ class ReferenceQuote(BaseModel):
             raise ValueError("reference quote received_at must be timezone-aware")
         return value
 
-    def _is_well_formed(self) -> bool:
-        """Usable shape only: tradable, finite and positively ordered."""
+    def _is_usable(self) -> bool:
+        """The frozen usability rule: fresh, tradable, finite, positively ordered.
 
+        ``data_quality`` is part of usability, not decoration: a quote the upstream
+        feed itself marked ``STALE`` or ``UNAVAILABLE`` is not a reference this
+        opportunity may be evidenced by, even when its prices happen to look
+        well-formed. Quality can only *refuse* a quote -- it never creates one.
+        """
+
+        if self.data_quality is not DataQuality.FRESH:
+            return False
         if not self.tradable:
             return False
         if not math.isfinite(self.bid) or not math.isfinite(self.ask):
@@ -134,6 +163,48 @@ class ReferenceQuote(BaseModel):
         """Does this quote belong to the opportunity's exact market identity?"""
 
         return self.instrument_id == instrument_id and self.market_type == market_type
+
+
+def _json_safe_price(value: float) -> float | str:
+    """Render a supplied price so it survives canonical hashing and JSON storage.
+
+    Neither the canonical hashing contract (which fails closed on non-finite
+    numbers) nor a ``JSON`` column can carry ``NaN`` / ``Infinity``. Such a price
+    is recorded as its canonical name instead of being dropped or nulled, so the
+    caller's real input -- however malformed -- stays auditable.
+    """
+
+    if math.isfinite(value):
+        return value
+    if math.isnan(value):
+        return "NaN"
+    return "Infinity" if value > 0 else "-Infinity"
+
+
+def _supplied_quote_payload(quote: ReferenceQuote | None) -> dict[str, Any] | None:
+    """Record the quote the caller actually supplied for one capture, verbatim.
+
+    A quote that was *refused* -- future, time-stale, ``STALE`` / ``UNAVAILABLE``
+    quality, another instrument or market type, untradable, crossed, non-positive,
+    non-finite -- is still the fact the caller supplied, so it is kept rather than
+    discarded. The immutable evidence must be able to answer "what did we actually
+    receive, and why was it not accepted?" long after the runtime state is gone.
+
+    Nothing here is synthesized: every field is the quote's own fact. ``None``
+    means no quote was supplied at all.
+    """
+
+    if quote is None:
+        return None
+    return {
+        "instrument_id": quote.instrument_id,
+        "market_type": quote.market_type.value,
+        "bid": _json_safe_price(quote.bid),
+        "ask": _json_safe_price(quote.ask),
+        "received_at": quote.received_at.isoformat(),
+        "data_quality": quote.data_quality.value,
+        "tradable": quote.tradable,
+    }
 
 
 class EdgeCaptureContext(BaseModel):
@@ -180,6 +251,20 @@ class EdgeCaptureContext(BaseModel):
     ) -> tuple[ReferenceDataStatus, ReferenceQuote | None]:
         """Return the frozen reference-data status plus the quote to persist.
 
+        ``OK`` requires *every* frozen condition to hold at once:
+
+        1. a quote exists;
+        2. ``quote.instrument_id == instrument_id``;
+        3. ``quote.market_type == market_type``;
+        4. ``quote.data_quality is FRESH``;
+        5. ``quote.tradable``;
+        6. ``bid`` / ``ask`` finite;
+        7. ``bid > 0``; 8. ``ask > 0``; 9. ``bid <= ask``;
+        10. ``0 <= at - quote.received_at <= reference_max_age``.
+
+        Any failure yields ``REFERENCE_STALE`` (``REFERENCE_MISSING`` when no quote
+        exists at all) and the opportunity sample is still persisted.
+
         The returned quote is ``None`` whenever the status is not ``OK`` so a
         missing or unusable metric can only ever be written as ``NULL`` -- never
         as a zero placeholder and never as a fabricated quote. A quote for
@@ -191,7 +276,7 @@ class EdgeCaptureContext(BaseModel):
             return ReferenceDataStatus.REFERENCE_MISSING, None
         if not quote.matches(instrument_id=instrument_id, market_type=market_type):
             return ReferenceDataStatus.REFERENCE_STALE, None
-        if not quote._is_well_formed():
+        if not quote._is_usable():
             return ReferenceDataStatus.REFERENCE_STALE, None
         if not quote._is_causally_available(at=at, max_age=self.reference_max_age):
             return ReferenceDataStatus.REFERENCE_STALE, None
@@ -394,28 +479,24 @@ def build_opportunity_evidence(
             "source_identity": context.source_identity,
             "source_manifest_id": context.source_manifest_id,
         },
-        # ``reference_data`` keeps the frozen reference-metric contract: the quote
+        # ``reference_data`` separates what was *supplied* from what was
+        # *accepted*, so the immutable evidence answers both "which metrics did
+        # this opportunity get?" and "what quote did the caller actually hand us,
+        # and why was it refused?" -- without promoting a refused quote to
+        # evidence. The accepted half keeps the frozen reference-metric contract:
         # metrics are present only for ``OK`` and are NULL (never 0) otherwise.
-        # The supplied quote's own identity / quality facts are recorded next to
-        # them so a refused quote stays auditable ("a quote existed, and this is
-        # what it was") without ever being promoted to ``OK`` evidence.
+        # SE-02A's top-level reference contract is unchanged: the rejected metrics
+        # stay NULL on ``EdgeOpportunityEvidence`` itself.
         "reference_data": {
             "status": reference_status.value,
-            "bid": usable_quote.bid if usable_quote is not None else None,
-            "ask": usable_quote.ask if usable_quote is not None else None,
-            "received_at": (
-                usable_quote.received_at.isoformat() if usable_quote is not None else None
-            ),
-            "instrument_id": (
-                reference_quote.instrument_id if reference_quote is not None else None
-            ),
-            "market_type": (
-                reference_quote.market_type.value if reference_quote is not None else None
-            ),
-            "data_quality": (
-                reference_quote.data_quality.value if reference_quote is not None else None
-            ),
-            "tradable": reference_quote.tradable if reference_quote is not None else None,
+            "supplied_quote": _supplied_quote_payload(reference_quote),
+            "accepted_reference": {
+                "bid": usable_quote.bid if usable_quote is not None else None,
+                "ask": usable_quote.ask if usable_quote is not None else None,
+                "received_at": (
+                    usable_quote.received_at.isoformat() if usable_quote is not None else None
+                ),
+            },
         },
     }
     return build_evidence_revision(
