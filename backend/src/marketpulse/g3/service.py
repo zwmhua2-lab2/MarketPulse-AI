@@ -26,6 +26,11 @@ from marketpulse.db.models import (
     TradePlanScenarioRecord,
     TradeRecord,
 )
+from marketpulse.edge.attribution import (
+    RISK_AUTHORITY_CAPACITY_POLICY,
+    RISK_AUTHORITY_SYSTEM_RISK_GATE,
+    EdgeAttributionRecorder,
+)
 from marketpulse.g2.models import FeatureSnapshot, StrategyCandidate, SymbolStateRecord
 
 from .models import (
@@ -280,7 +285,12 @@ class TradePlanManager:
         return plan
 
 
-async def persist_trade_plan(sessions: async_sessionmaker[AsyncSession], plan: TradePlan) -> None:
+async def persist_trade_plan(
+    sessions: async_sessionmaker[AsyncSession],
+    plan: TradePlan,
+    *,
+    attribution: EdgeAttributionRecorder | None = None,
+) -> None:
     """Atomically replace the one active plan for a symbol and persist non-executable backups."""
     async with sessions() as session, session.begin():
         await session.execute(
@@ -317,6 +327,14 @@ async def persist_trade_plan(sessions: async_sessionmaker[AsyncSession], plan: T
             )
             for index, scenario in enumerate(plan.backup_scenarios)
         )
+        if attribution is not None:
+            await attribution.record_plan_created(
+                session,
+                plan_id=plan.plan_id,
+                decision_id=plan.decision_id,
+                snapshot_id=plan.snapshot_id,
+                occurred_at=plan.created_at,
+            )
 
 
 class DecisionService:
@@ -340,6 +358,7 @@ class DecisionService:
         current_state_version: Callable[[str], Awaitable[int]],
         *,
         retries: int = 1,
+        attribution: EdgeAttributionRecorder | None = None,
     ) -> tuple[str, DecisionStatus, AIAnalysis | None]:
         prompt = PromptBuilder().build(snapshot)
         response: AIAnalysis | None = None
@@ -394,6 +413,21 @@ class DecisionService:
                     created_at=self.clock.now(),
                 )
             )
+            if attribution is not None:
+                # Same transaction as the durable decision: a process death between
+                # the business commit and the lineage append cannot drop the event.
+                await attribution.record_ai_decision(
+                    session,
+                    decision_id=decision_id,
+                    status=status,
+                    direction=response.direction if response is not None else None,
+                    selected_strategy_ids=(
+                        list(response.selected_strategy_ids) if response is not None else []
+                    ),
+                    snapshot_strategy_ids=[item.strategy_id for item in snapshot.strategies],
+                    provider_error=response is None and error is not None,
+                    occurred_at=self.clock.now(),
+                )
         return decision_id, status, response
 
 
@@ -417,11 +451,14 @@ class G3Workflow:
         snapshot: DecisionSnapshot,
         current_state_version: Callable[[str], Awaitable[int]],
         current_equity: float,
+        *,
+        attribution: EdgeAttributionRecorder | None = None,
     ) -> tuple[DecisionStatus, TradePlan | None]:
         decision_id, status, analysis = await self.decision_service.decide(
-            snapshot, current_state_version
+            snapshot, current_state_version, attribution=attribution
         )
         if status is not DecisionStatus.VALID or analysis is None:
+            await self._record_plan_not_created(attribution, decision_id, snapshot, str(status))
             return status, None
         plan = self.plan_manager.from_analysis(
             decision_id=decision_id,
@@ -429,9 +466,35 @@ class G3Workflow:
             analysis=analysis,
             current_equity=current_equity,
         )
-        if plan is not None:
-            await persist_trade_plan(self.sessions, plan)
+        if plan is None:
+            await self._record_plan_not_created(attribution, decision_id, snapshot, "no_long_plan")
+        else:
+            await persist_trade_plan(self.sessions, plan, attribution=attribution)
         return status, plan
+
+    async def _record_plan_not_created(
+        self,
+        attribution: EdgeAttributionRecorder | None,
+        decision_id: str,
+        snapshot: DecisionSnapshot,
+        reason: str,
+    ) -> None:
+        """Attribution-only: no plan is a real lineage outcome, never a deleted sample.
+
+        There is no accompanying business write on this path, so the lineage fact
+        owns a small transaction of its own rather than being smuggled into the
+        decision transaction (which already committed).
+        """
+
+        if attribution is None:
+            return
+        async with self.sessions() as session, session.begin():
+            await attribution.record_plan_not_created(
+                session,
+                reason=reason,
+                decision_id=decision_id,
+                snapshot_id=snapshot.snapshot_id,
+            )
 
 
 class PaperExecutionService:
@@ -490,13 +553,16 @@ class PaperExecutionService:
         now: datetime | None = None,
         *,
         session: AsyncSession | None = None,
+        attribution: EdgeAttributionRecorder | None = None,
     ) -> ExecutionResult:
         """Execute one intent. When `session` is supplied the caller owns the transaction."""
         now = now or self.clock.now()
         if session is not None:
-            return await self._execute_once(intent, plan, now, session=session)
+            return await self._execute_once(
+                intent, plan, now, session=session, attribution=attribution
+            )
         try:
-            return await self._execute_once(intent, plan, now)
+            return await self._execute_once(intent, plan, now, attribution=attribution)
         except IntegrityError:
             async with self.sessions() as fallback:
                 order = await fallback.scalar(
@@ -517,10 +583,13 @@ class PaperExecutionService:
         plan: TradePlan,
         now: datetime,
         session: AsyncSession | None = None,
+        attribution: EdgeAttributionRecorder | None = None,
     ) -> ExecutionResult:
         if session is None:
             async with self.sessions() as inner, inner.begin():
-                return await self._execute_once(intent, plan, now, session=inner)
+                return await self._execute_once(
+                    intent, plan, now, session=inner, attribution=attribution
+                )
         existing = await session.scalar(
             select(PaperOrderRecord).where(PaperOrderRecord.intent_id == intent.intent_id)
         )
@@ -549,6 +618,17 @@ class PaperExecutionService:
                     created_at=now,
                 )
             )
+            if attribution is not None:
+                # Authoritative admission refusal: recorded with the exact gate
+                # authority and the exact reason, never collapsed into "REJECTED".
+                await attribution.record_risk_rejected(
+                    session,
+                    authority=RISK_AUTHORITY_SYSTEM_RISK_GATE,
+                    reason=gate_reason,
+                    intent_id=intent.intent_id,
+                    plan_id=intent.plan_id,
+                    occurred_at=now,
+                )
             return ExecutionResult(
                 intent_id=intent.intent_id, status=IntentStatus.REJECTED, reason=gate_reason
             )
@@ -569,6 +649,17 @@ class PaperExecutionService:
                     created_at=now,
                 )
             )
+            if attribution is not None:
+                # Execution validation outcome (expired plan, changed state version,
+                # stale/untradable BBO, price outside the entry zone). It is never
+                # mislabelled as a risk refusal.
+                await attribution.record_execution_rejected(
+                    session,
+                    reason=reason,
+                    intent_id=intent.intent_id,
+                    plan_id=intent.plan_id,
+                    occurred_at=now,
+                )
             return ExecutionResult(
                 intent_id=intent.intent_id, status=IntentStatus.REJECTED, reason=reason
             )
@@ -612,6 +703,16 @@ class PaperExecutionService:
                     created_at=now,
                 )
             )
+            if attribution is not None:
+                # Stale position marks are an execution validation outcome, not a
+                # risk-policy refusal.
+                await attribution.record_execution_rejected(
+                    session,
+                    reason="CORE_POSITION_MARK_STALE",
+                    intent_id=intent.intent_id,
+                    plan_id=intent.plan_id,
+                    occurred_at=now,
+                )
             return ExecutionResult(
                 intent_id=intent.intent_id,
                 status=IntentStatus.REJECTED,
@@ -646,6 +747,17 @@ class PaperExecutionService:
                     created_at=now,
                 )
             )
+            if attribution is not None:
+                # Capacity-policy refusal is a risk rejection with its own exact
+                # authority, distinct from the authoritative gate refusal above.
+                await attribution.record_risk_rejected(
+                    session,
+                    authority=RISK_AUTHORITY_CAPACITY_POLICY,
+                    reason="CAPACITY_BLOCKED",
+                    intent_id=intent.intent_id,
+                    plan_id=intent.plan_id,
+                    occurred_at=now,
+                )
             return ExecutionResult(
                 intent_id=intent.intent_id,
                 status=IntentStatus.REJECTED,
@@ -653,10 +765,10 @@ class PaperExecutionService:
             )
         if plan.order_type is OrderType.LIMIT:
             return await self._reserve_limit(
-                session, intent, plan, account, position, quantity, now
+                session, intent, plan, account, position, quantity, now, attribution=attribution
             )
         return await self._fill_market(
-            session, intent, plan, account, position, quantity, price, now
+            session, intent, plan, account, position, quantity, price, now, attribution=attribution
         )
 
     async def _risk_gate_reason(
@@ -813,6 +925,7 @@ class PaperExecutionService:
         position: PositionRecord | None,
         quantity: float,
         now: datetime,
+        attribution: EdgeAttributionRecorder | None = None,
     ) -> ExecutionResult:
         order_id = stable_id("order", intent.intent_id)
         reserve_cash = (
@@ -851,6 +964,27 @@ class PaperExecutionService:
                 created_at=now,
             )
         )
+        if attribution is not None:
+            # Risk was admitted (this is the first funnel past every refusal) and an
+            # order is now OPEN. An OPEN order is never evidence of a fill.
+            await attribution.record_risk_accepted(
+                session,
+                intent_id=intent.intent_id,
+                plan_id=intent.plan_id,
+                order_id=order_id,
+                occurred_at=now,
+            )
+            await attribution.record_order_open(
+                session,
+                order_id=order_id,
+                intent_id=intent.intent_id,
+                plan_id=intent.plan_id,
+                quantity=quantity,
+                limit_price=(
+                    plan.entry_zone.lower if plan.side is OrderSide.BUY else plan.entry_zone.upper
+                ),
+                occurred_at=now,
+            )
         return ExecutionResult(
             intent_id=intent.intent_id, status=IntentStatus.EXECUTED, order_id=order_id
         )
@@ -865,6 +999,7 @@ class PaperExecutionService:
         quantity: float,
         price: float,
         now: datetime,
+        attribution: EdgeAttributionRecorder | None = None,
     ) -> ExecutionResult:
         order_id = stable_id("order", intent.intent_id)
         order = PaperOrderRecord(
@@ -895,7 +1030,17 @@ class PaperExecutionService:
             )
         )
         session.add(order)
-        return await self._settle_order(session, account, position, order, price, now)
+        if attribution is not None:
+            await attribution.record_risk_accepted(
+                session,
+                intent_id=intent.intent_id,
+                plan_id=intent.plan_id,
+                order_id=order_id,
+                occurred_at=now,
+            )
+        return await self._settle_order(
+            session, account, position, order, price, now, attribution=attribution
+        )
 
     async def execute_risk_reducing_exit(
         self,
@@ -909,6 +1054,7 @@ class PaperExecutionService:
         now: datetime | None = None,
         on_settled: Callable[[AsyncSession, PaperOrderRecord, str], Awaitable[None]] | None = None,
         session: AsyncSession | None = None,
+        attribution: EdgeAttributionRecorder | None = None,
     ) -> ExecutionResult:
         """G4 risk-reducing SELL at the current executable Best Bid.
 
@@ -928,6 +1074,7 @@ class PaperExecutionService:
                 now=now,
                 on_settled=on_settled,
                 session=session,
+                attribution=attribution,
             )
         async with self.sessions() as inner, inner.begin():
             return await self._risk_reducing_exit_once(
@@ -940,6 +1087,7 @@ class PaperExecutionService:
                 now=now,
                 on_settled=on_settled,
                 session=inner,
+                attribution=attribution,
             )
 
     async def _risk_reducing_exit_once(
@@ -954,6 +1102,7 @@ class PaperExecutionService:
         now: datetime,
         on_settled: Callable[[AsyncSession, PaperOrderRecord, str], Awaitable[None]] | None,
         session: AsyncSession,
+        attribution: EdgeAttributionRecorder | None = None,
     ) -> ExecutionResult:
         existing = await session.scalar(
             select(PaperOrderRecord).where(PaperOrderRecord.intent_id == intent_id)
@@ -1031,6 +1180,7 @@ class PaperExecutionService:
             now,
             exit_reason=exit_reason,
             on_settled=on_settled,
+            attribution=attribution,
         )
 
     async def _settle_order(
@@ -1044,14 +1194,18 @@ class PaperExecutionService:
         *,
         exit_reason: str | None = None,
         on_settled: Callable[[AsyncSession, PaperOrderRecord, str], Awaitable[None]] | None = None,
+        attribution: EdgeAttributionRecorder | None = None,
     ) -> ExecutionResult:
         """Persist one all-or-none fill and every G3 settlement record atomically."""
         if order.status != OrderStatus.OPEN:
             raise RuntimeError("only_open_orders_can_settle")
         fill_id = stable_id("fill", order.intent_id)
+        ledger_entry_id = stable_id("ledger", fill_id)
         gross, fee = price * order.quantity, price * order.quantity * self.fee_rate
         trade_id: str | None = position.trade_id if position else None
         realized = 0.0
+        opens_trade = False
+        closes_trade = False
         if order.side == OrderSide.BUY:
             if account.reserved_cash + 1e-12 < order.reserved_cash:
                 raise RuntimeError("reserved_cash_underflow")
@@ -1061,6 +1215,7 @@ class PaperExecutionService:
             account.cash_balance -= gross + fee
             if position is None or position.quantity <= 1e-12:
                 trade_id = stable_id("trade", order.run_mode, order.instrument_id, fill_id)
+                opens_trade = True
                 if position is None:
                     position = PositionRecord(
                         position_id=stable_id("pos", order.run_mode, order.instrument_id),
@@ -1108,6 +1263,7 @@ class PaperExecutionService:
                 position.quantity = 0
                 position.average_cost = 0
                 if trade_id:
+                    closes_trade = True
                     values: dict[str, object] = {"status": "CLOSED", "closed_at": now}
                     if exit_reason is not None:
                         values["exit_reason"] = exit_reason
@@ -1132,7 +1288,7 @@ class PaperExecutionService:
         )
         session.add(
             LedgerEntryRecord(
-                entry_id=stable_id("ledger", fill_id),
+                entry_id=ledger_entry_id,
                 account_id=account.account_id,
                 fill_id=fill_id,
                 entry_type=entry_type,
@@ -1159,6 +1315,48 @@ class PaperExecutionService:
                     created_at=now,
                 )
             )
+        if attribution is not None:
+            # Only an actual fill proves that trading occurred, and only an actual
+            # closing fill proves the trade's economic result exists. Both facts are
+            # observed from the settlement that already produced them.
+            if order.side == OrderSide.BUY:
+                await attribution.record_buy_filled(
+                    session,
+                    order_id=order.order_id,
+                    fill_id=fill_id,
+                    price=price,
+                    quantity=order.quantity,
+                    fee=fee,
+                    occurred_at=now,
+                )
+                if opens_trade and trade_id is not None:
+                    await attribution.record_trade_opened(
+                        session,
+                        trade_id=trade_id,
+                        fill_id=fill_id,
+                        price=price,
+                        quantity=order.quantity,
+                        occurred_at=now,
+                    )
+            elif closes_trade and trade_id is not None:
+                await attribution.record_trade_closed(
+                    session,
+                    trade_id=trade_id,
+                    fill_id=fill_id,
+                    exit_reason=exit_reason,
+                    realized_pnl=realized,
+                    occurred_at=now,
+                )
+                await attribution.record_economic_result(
+                    session,
+                    fill_id=fill_id,
+                    ledger_entry_id=ledger_entry_id,
+                    realized_pnl=realized,
+                    fee=fee,
+                    cash_delta=cash_delta,
+                    exit_reason=exit_reason,
+                    occurred_at=now,
+                )
         if on_settled is not None:
             await on_settled(session, order, fill_id)
         if self.after_settlement:
@@ -1171,7 +1369,12 @@ class PaperExecutionService:
         )
 
     async def process_open_orders(
-        self, run_mode: RunMode, bbo: BestBidAsk, now: datetime | None = None
+        self,
+        run_mode: RunMode,
+        bbo: BestBidAsk,
+        now: datetime | None = None,
+        *,
+        attribution: EdgeAttributionRecorder | None = None,
     ) -> list[ExecutionResult]:
         """Process candidate OPEN limits; final qualification uses action-time facts only."""
         candidate_now = now or self.clock.now()
@@ -1192,13 +1395,18 @@ class PaperExecutionService:
             )
         results: list[ExecutionResult] = []
         for order_id in order_ids:
-            result = await self._process_open_order(order_id, bbo, now)
+            result = await self._process_open_order(order_id, bbo, now, attribution=attribution)
             if result is not None:
                 results.append(result)
         return results
 
     async def _process_open_order(
-        self, order_id: str, bbo: BestBidAsk, now: datetime | None
+        self,
+        order_id: str,
+        bbo: BestBidAsk,
+        now: datetime | None,
+        *,
+        attribution: EdgeAttributionRecorder | None = None,
     ) -> ExecutionResult | None:
         async with self.sessions() as session, session.begin():
             # Preview without a row lock so the G4 gate can take the global runtime-control lock
@@ -1367,7 +1575,9 @@ class PaperExecutionService:
                     reason="SELL_RESERVATION_EXCEEDS_POSITION",
                     order_id=order.order_id,
                 )
-            return await self._settle_order(session, account, position, order, price, action_now)
+            return await self._settle_order(
+                session, account, position, order, price, action_now, attribution=attribution
+            )
 
     def _limit_fill_plan_guard(
         self,
@@ -1533,6 +1743,7 @@ class PaperExecutionService:
         now: datetime | None = None,
         *,
         session: AsyncSession | None = None,
+        attribution: EdgeAttributionRecorder | None = None,
     ) -> OrderCancelResult:
         """Cancel an OPEN order and release its reservation in the same transaction.
 
@@ -1541,12 +1752,16 @@ class PaperExecutionService:
         """
         now = now or self.clock.now()
         if session is not None:
-            return await self._cancel_order_once(order_id, now, session)
+            return await self._cancel_order_once(order_id, now, session, attribution=attribution)
         async with self.sessions() as inner, inner.begin():
-            return await self._cancel_order_once(order_id, now, inner)
+            return await self._cancel_order_once(order_id, now, inner, attribution=attribution)
 
     async def _cancel_order_once(
-        self, order_id: str, now: datetime, session: AsyncSession
+        self,
+        order_id: str,
+        now: datetime,
+        session: AsyncSession,
+        attribution: EdgeAttributionRecorder | None = None,
     ) -> OrderCancelResult:
         order = await session.scalar(
             select(PaperOrderRecord).where(PaperOrderRecord.order_id == order_id).with_for_update()
@@ -1583,6 +1798,10 @@ class PaperExecutionService:
                 created_at=now,
             )
         )
+        if attribution is not None:
+            await attribution.record_order_cancelled(
+                session, order_id=order_id, reason="order_cancelled", occurred_at=now
+            )
         return OrderCancelResult(order_id=order_id, status=OrderStatus.CANCELLED, cancelled=True)
 
     async def reconciliation(

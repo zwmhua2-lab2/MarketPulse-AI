@@ -11,6 +11,7 @@ from marketpulse.db.models import (
     StrategyCandidateRecord,
     SymbolStateStore,
 )
+from marketpulse.edge.capture import EdgeCaptureContext, capture_opportunity
 
 from .models import (
     FeatureSnapshot,
@@ -51,8 +52,16 @@ class InMemoryG2Repository:
 
 
 class PostgresG2Repository:
-    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
+    def __init__(
+        self,
+        session_factory: async_sessionmaker[AsyncSession],
+        *,
+        capture: EdgeCaptureContext | None = None,
+    ) -> None:
         self._session_factory = session_factory
+        # SE-02B opportunity capture is opt-in. ``None`` (the default) keeps the
+        # accepted G2 behaviour byte-for-byte: no Edge write, no Edge failure mode.
+        self._capture = capture
 
     async def get_state(self, instrument_id: str) -> SymbolStateRecord | None:
         async with self._session_factory() as session:
@@ -76,4 +85,19 @@ class PostgresG2Repository:
             session.add(StateTransitionRecord(**transition.model_dump(mode="python")))
             session.add_all(StrategyCandidateRecord(**candidate.model_dump(mode="python")) for candidate in candidates)
             session.add(DerivedObservationRecord(observation_id=deterministic_id("obs", observation.instrument_id, observation.event_time.isoformat(), event.event_id), instrument_id=observation.instrument_id, event_time=observation.event_time, config_version=event.config_version, payload=observation.model_dump(mode="json")))
+            if self._capture is not None:
+                # Same session, same transaction: the durable G2 facts and the Edge
+                # opportunity evidence commit together or not at all. An Edge
+                # integrity failure propagates so this transaction fails closed --
+                # it is never converted into a silent "skip evidence".
+                await capture_opportunity(
+                    session,
+                    event=event,
+                    timeline=timeline,
+                    state=state,
+                    transition=transition,
+                    candidates=candidates,
+                    observation=observation,
+                    context=self._capture,
+                )
         return True
