@@ -12,7 +12,7 @@
 | Project | MarketPulse AI（BTC/ETH 量化纸面交易终端，Modular Monolith） |
 | Current Acceptance Group | SE-02B — Opportunity Capture + Attribution — ACCEPTED / COMPLETE |
 | Accepted Main Source | Git `main` / `origin/main`；须在任务 preflight 按 CIP-02 实时读取，不以文档静态 SHA 为准 |
-| Current State | `SE-02B = ACCEPTED / COMPLETE`（2026-09-12 Human Acceptance & Final Acceptance Closeout，已 fast-forward only 收编 `main`）；`SE-02A = ACCEPTED / COMPLETE`；`SE-02C / SE-02D = NOT STARTED`；`N01-C = ACCEPTED / COMPLETE`；N01-A / N01-B 与 N01 验证修复 `N01-VAL-FIX-01/02/03` 均维持 `ACCEPTED / COMPLETE`；`N01-6 = ACCEPTED / COMPLETE`（Reviewed HEAD `3f591a7`）；**`N01-7-F01 = ACCEPTED / COMPLETE`**（2026-09-13 Human Acceptance = `CONFIRMED` + Final Main Integration；reviewed candidate `7c0ea7d` @ integration merge `ddf39f2`；已 fast-forward only 收编 `main`）；**`N01-7 = NOT STARTED / READY TO RESUME`**；`N01-8` / Integrated Runtime Host 仍 `NOT STARTED`；**N01 overall 仍 `NOT ACCEPTED`** |
+| Current State | `SE-02B = ACCEPTED / COMPLETE`（2026-09-12 Human Acceptance & Final Acceptance Closeout，已 fast-forward only 收编 `main`）；`SE-02A = ACCEPTED / COMPLETE`；`SE-02C / SE-02D = NOT STARTED`；`N01-C = ACCEPTED / COMPLETE`；N01-A / N01-B 与 N01 验证修复 `N01-VAL-FIX-01/02/03` 均维持 `ACCEPTED / COMPLETE`；`N01-6 = ACCEPTED / COMPLETE`（Reviewed HEAD `3f591a7`）；**`N01-7-F01 = ACCEPTED / COMPLETE`**（2026-09-13 Human Acceptance = `CONFIRMED` + Final Main Integration；reviewed candidate `7c0ea7d` @ integration merge `ddf39f2`；已 fast-forward only 收编 `main`）；**`N01-7 = BLOCKED / FIX REQUIRED`**（2026-09-13 首次 2h Medium Runtime Soak 已实际执行：`active 7200.369 s` 单次连续、62 项检查 61 项通过、F01 = `LONG_LIVED_PROTECTION_WITNESSED`；因 §21 内存持续单调增长 NEW FINDING 而 STOP acceptance，未写 `VALIDATED`；次生 harness 检查设计缺陷；`main` 未变）；`N01-8` / Integrated Runtime Host 仍 `NOT STARTED`；**N01 overall 仍 `NOT ACCEPTED`** |
 | Last Accepted Group | SE-02B — Opportunity Capture + Attribution |
 | Current Group Branch | `se-02b-opportunity-capture-attribution`（accepted lineage；仅 fast-forward 收编至 `main`，历史分支保留）；更早 `n01-6-15m-runtime-smoke`、`n01-c-restart-recovery-reconciliation` |
 
@@ -58,7 +58,7 @@
 | Current Group | N01-6 — 15-minute Short Runtime Smoke — `ACCEPTED / COMPLETE` |
 | Last accepted subgroup | N01-6 — 15-minute Short Runtime Smoke (`ACCEPTED / COMPLETE`)；SE-02A / N01-C / N01-A / N01-B 亦维持 `ACCEPTED / COMPLETE`；N01 overall 仍 `NOT ACCEPTED` |
 | Next Group Design | `NOT STARTED`（须另开窗口） |
-| Next Group name/number | N01-7 — 2-hour Medium Runtime Soak — `NOT STARTED / READY TO RESUME`（其前置 `N01-7-F01 = ACCEPTED / COMPLETE`（2026-09-13）；`N01-8` / Integrated Runtime Host = `NOT STARTED`） |
+| Next Group name/number | N01-7 — 2-hour Medium Runtime Soak — `BLOCKED / FIX REQUIRED`（2026-09-13 已实际执行一次正式 7200 s：61/62 检查通过、F01 见证成立；阻断于 §21 内存持续单调增长（归因未完成）+ harness 检查设计缺陷；重跑前须解决两项并按 §26-B 从零重启；其前置 `N01-7-F01 = ACCEPTED / COMPLETE`（2026-09-13）；`N01-8` / Integrated Runtime Host = `NOT STARTED`） |
 
 - G4 **没有**提前实现完整 Replay / ReplayClock Engine。
 - 仓库中仅存在：`Clock` Protocol 的 `ReplayClock` 实现（`backend/src/marketpulse/clock.py`）与 `RunMode.REPLAY` 枚举（`config.py`）——这是既有 Clock 边界，**不是**完整回放引擎。

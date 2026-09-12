@@ -19,8 +19,9 @@ N01-6 — 15-minute Short Runtime Smoke — ACCEPTED / COMPLETE
 N01-7-F01 — Durable Protection Snapshot（N01-7 前置 Fix）— ACCEPTED / COMPLETE
 
 N01 overall — NOT ACCEPTED（`N01-7-F01 = ACCEPTED / COMPLETE`（2026-09-13 Human Acceptance
-Confirmed + Final Main Integration）；`N01-7 = NOT STARTED / READY TO RESUME`；N01-8 与
-Integrated Runtime Host 仍 `NOT STARTED`；N01-6 的验收不得推断 Continuous Runtime / soak /
+Confirmed + Final Main Integration）；`N01-7 = BLOCKED / FIX REQUIRED`（2026-09-13 首次 2h
+Medium Runtime Soak 已实际执行，因 §21 内存持续单调增长发现而 STOP acceptance，未写 VALIDATED）；
+N01-8 与 Integrated Runtime Host 仍 `NOT STARTED`；N01-6 的验收不得推断 Continuous Runtime / soak /
 7x24 / Integrated Runtime Host）
 
 ## GitHub Repository
@@ -266,8 +267,17 @@ Integrated Runtime Host 仍 `NOT STARTED`；N01-6 的验收不得推断 Continuo
   已复审 F01 源 `c0ce0af`，true merge、`Reviewed Source Preserved = YES`；已 fast-forward only
   收编 `main`；见 Completed、Acceptance Record 与
   `dev_log/2026-09-13-n01-7-f01-final-acceptance-closeout.md`）。
-- **`N01-7 = NOT STARTED / READY TO RESUME`**（2-hour Medium Runtime Soak 尚未启动；
-  重启前须做一次全新 Repository Truth rebuild，并以实时 `origin/main` 为 Accepted Main）。
+- **`N01-7 = BLOCKED / FIX REQUIRED`**（2026-09-13 首次 2h Medium Runtime Soak 已按批准的门**实际执行**：
+  branch `n01-7-2h-runtime-soak-after-f01`（base `71abb07`）、真实 OKX 公共行情 + 任务专属 disposable
+  PostgreSQL、`active 7200.369 s` 单次连续运行；**62 项检查 61 项通过**，含
+  **F01 = `LONG_LIVED_PROTECTION_WITNESSED`**、13 项 reconciliation 不变量全真、经济不变量全一致、
+  共享主库零写入、残留 0。因 §21 判据 —— RSS **持续单调增长**（8/8 窗口均值严格递增、`+9.066 MB/h`、
+  总 `+19.785 MB`、final == peak，约 15–16 MB 归因未完成）—— 构成 NEW FINDING ⇒ **STOP acceptance**，
+  **不写 `VALIDATED`**。次生项：`dedupe_long_run_turnover` 检查设计缺陷（§26-B，检查挂在从不饱和的
+  `EventRuntime._dedupe` 上；实际承载 §20 语义的 `ScannerPipeline._trade_dedupe` 已触顶 8192 并持续接
+  收新事件）。**未**修改任何 production code / migration / 已验收测试；**未** merge / 修改 `main`；
+  **未**启动 N01-8。详见 `dev_log/2026-09-13-n01-7-2h-runtime-soak.md`）。
+  重启须先解决 F-1 内存归因与 F-2 检查设计，并做一次全新 Repository Truth rebuild。
 - **`N01-8 = NOT STARTED`**；**`Integrated Runtime Host = NOT STARTED`**。
 - **N01-A / N01-B / N01-C / N01-6 / N01-7-F01 均已 `ACCEPTED / COMPLETE`**（见 Completed）；
   N01 overall 仍未验收，也不由任何单门 N01 验收推断。
@@ -278,7 +288,17 @@ Integrated Runtime Host 仍 `NOT STARTED`；N01-6 的验收不得推断 Continuo
 
 ## Blocked
 
-- 无阻塞。
+- **N01-7｜2-hour Medium Runtime Soak = `BLOCKED / FIX REQUIRED`**（2026-09-13）。阻断项：
+  - **F-1（Runtime 内存，归因未完成）**：2h 连续运行出现持续单调 RSS 增长（8/8 窗口均值严格递增
+    `116.887 → 131.545 MB`；`+9.066 MB/h`；总 `+19.785 MB（+17.3%）`；final == peak，关停时仍在上升）。
+    已排除测量伪影（读当前 RSS 非峰值）、生产去重结构（pipeline trade-dedupe 于 ≈4500 s 触顶后停止增长，
+    而 RSS 仍以 ≈8.7 MB/h 上升）、本 harness 自身 `samples` 列表（约 3–4 MB）。约 15–16 MB 未归因。
+    建议另开 memory-attribution 窗口（`tracemalloc` / 对象计数，30–60 min）定位增长生产者。
+  - **F-2（Validation harness，§26-B）**：`dedupe_long_run_turnover` 检查挂在从不饱和的
+    `EventRuntime._dedupe` 上 ⇒ 周转结构性不可观测；应改为挂在会触顶的
+    `ScannerPipeline._trade_dedupe` 上。修复后正式 7200 s 须从零重启（§26-B）。
+  - **解除方式**：完成 F-1 归因并决定结论（有界碎片 vs 真实累加器）、修复 F-2，然后重跑正式 7200 s。
+  详见 `dev_log/2026-09-13-n01-7-2h-runtime-soak.md`。
 
 ## Current Architecture Baseline
 
