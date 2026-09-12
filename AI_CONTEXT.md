@@ -19,6 +19,11 @@
 - G1–G4 acceptance 状态：`ACCEPTED` / `ACCEPTED` / `ACCEPTED` / `ACCEPTED`。
 - G5-0 / G5-1 / G5-2 / G5-3 / G5-4 acceptance 状态：`ACCEPTED`。
 - G5 overall = `ACCEPTED / COMPLETE`。
+- SE-ARCH-FIX-01 Stable Evidence Anchor = `INTEGRATED / READY FOR INDEPENDENT RE-REVIEW`：
+  reviewed lineage `51053757 → bdb1af2` 已以独立 integration commit（true merge，未 rebase / squash / force）
+  集成到 latest accepted main `71abb077` 之上；`main` 本身未移动，本批不构成人工 Acceptance；
+  其 branch-local migration collision 已透明重编号为 `20260913_0007 → 20260913_0008`，而 accepted
+  N01-7 `20260912_0006` 保持不变。详见 `dev_log/2026-09-12-se-arch-fix-01-stable-evidence-anchor.md`。
 
 ## 2. Source of Truth（事实源优先级，从高到低）
 

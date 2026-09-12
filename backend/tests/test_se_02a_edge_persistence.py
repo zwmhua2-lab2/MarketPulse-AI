@@ -61,16 +61,18 @@ START = datetime(2026, 1, 2, 9, 30, tzinfo=UTC)
 PRIMARY_URL = Settings().database_url
 BACKEND = Path(__file__).resolve().parents[1]
 PREVIOUS_REVISION = "20260905_0004"
-# The head moves with the schema, exactly like `ReplayTradingRunner.schema_head`. N01-7-F01 adds
-# the additive positions protection-snapshot revision on top of the SE-02A Edge revision, so the
-# expected head is `20260912_0006`. SE-02A's own evidence (`20260911_0005` = 4 Edge tables) is
-# unchanged: the cycle below still walks head -> 0004 -> head and still requires the Edge tables at
-# head and their absence at 0004.
-HEAD_REVISION = "20260912_0006"
+# The head moves with the schema, exactly like `ReplayTradingRunner.schema_head`.
+# The final integrated chain contains N01-7 position protection at `20260912_0006`
+# followed by the two pre-acceptance FIX-01 revisions at `20260913_0007` and
+# `20260913_0008`. SE-02A's four evidence tables are unchanged: this cycle still
+# walks head -> 0004 -> head and requires those tables at head and their absence
+# at 0004.
+HEAD_REVISION = "20260913_0008"
 EDGE_TABLES = frozenset(
     {
         "edge_opportunity_evidence",
         "edge_bbo_observations",
+        "edge_opportunity_capture_anchors",
         "edge_forward_outcomes",
         "edge_attribution_events",
     }
@@ -1052,14 +1054,13 @@ def test_migration_cycle_only_adds_and_removes_edge_tables():
         assert EDGE_TABLES <= reupgraded_tables
 
 
-def test_migration_reaches_revision_0005_through_a_full_cycle():
-    """`0004 -> upgrade head -> head -> downgrade 0004 -> upgrade head -> head`.
+def test_migration_reaches_current_head_through_a_full_cycle():
+    """`0004 -> head -> 0004 -> head` preserves both accepted and FIX schemas.
 
-    The function name keeps its original SE-02A identity (it is referenced by the append-only
-    `dev_log/2026-09-11-se-02a-edge-contracts-persistence.md`); the asserted head is
-    `HEAD_REVISION`, which N01-7-F01 moved to `20260912_0006`. The SE-02A property under test is
-    unchanged: at head the 4 Edge tables exist, at `0004` they are gone, and re-upgrading restores
-    them.
+    The final head walks through the accepted N01-7 protection revision and
+    both unpublished FIX-01 revisions. At head, Edge tables and `positions`
+    coexist; downgrade removes only the post-0004 additive schema; re-upgrade
+    restores the final integrated contract.
     """
 
     with _edge_database("migration_cycle", revision=PREVIOUS_REVISION) as (_, url):
@@ -1069,6 +1070,52 @@ def test_migration_reaches_revision_0005_through_a_full_cycle():
         _upgrade(url, "head")
         assert asyncio.run(_alembic_version(url)) == HEAD_REVISION
         assert EDGE_TABLES <= asyncio.run(_table_names(url))
+
+
+def test_integrated_migration_chain_preserves_protection_then_adds_fix_schema():
+    """Exercise the collision-resolved linear chain on disposable PostgreSQL."""
+
+    protection_columns = {
+        "protection_plan_id",
+        "protection_plan_version",
+        "protection_stop_loss",
+        "protection_take_profit",
+        "protection_updated_at",
+    }
+    anchor_table = "edge_opportunity_capture_anchors"
+    orphan_table = "edge_opportunity_capture_anchor_orphans"
+    async def columns(url: str, table: str) -> set[str]:
+        return set((await _column_nullability(url, table)).keys())
+
+    with _edge_database("integrated_chain", revision="20260911_0005") as (_, url):
+        assert asyncio.run(_alembic_version(url)) == "20260911_0005"
+        assert not (protection_columns & asyncio.run(columns(url, "positions")))
+        assert anchor_table not in asyncio.run(_table_names(url))
+
+        _upgrade(url, "20260912_0006")
+        assert asyncio.run(_alembic_version(url)) == "20260912_0006"
+        assert protection_columns <= asyncio.run(columns(url, "positions"))
+        assert anchor_table not in asyncio.run(_table_names(url))
+
+        _upgrade(url, "20260913_0007")
+        assert asyncio.run(_alembic_version(url)) == "20260913_0007"
+        assert anchor_table in asyncio.run(_table_names(url))
+        assert orphan_table not in asyncio.run(_table_names(url))
+
+        _upgrade(url, "20260913_0008")
+        assert asyncio.run(_alembic_version(url)) == "20260913_0008"
+        assert orphan_table in asyncio.run(_table_names(url))
+
+        _downgrade(url, "20260911_0005")
+        assert asyncio.run(_alembic_version(url)) == "20260911_0005"
+        assert anchor_table not in asyncio.run(_table_names(url))
+        assert orphan_table not in asyncio.run(_table_names(url))
+        assert not (protection_columns & asyncio.run(columns(url, "positions")))
+
+        _upgrade(url, "head")
+        assert asyncio.run(_alembic_version(url)) == HEAD_REVISION
+        assert protection_columns <= asyncio.run(columns(url, "positions"))
+        assert {anchor_table, orphan_table} <= asyncio.run(_table_names(url))
 
         _downgrade(url, PREVIOUS_REVISION)
         assert asyncio.run(_alembic_version(url)) == PREVIOUS_REVISION

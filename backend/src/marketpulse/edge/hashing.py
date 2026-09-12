@@ -38,6 +38,10 @@ EVIDENCE_HASH_DOMAIN = "se02-evidence-hash-v1"
 CALCULATION_DIGEST_DOMAIN = "se02-outcome-calculation-digest-v1"
 OUTCOME_RECORD_HASH_DOMAIN = "se02-outcome-record-hash-v1"
 ATTRIBUTION_PAYLOAD_HASH_DOMAIN = "se02-attribution-payload-hash-v1"
+CAPTURE_ANCHOR_HASH_DOMAIN = "se02-capture-anchor-hash-v1"
+CAPTURE_ANCHOR_ORPHAN_HASH_DOMAIN = "se02-capture-anchor-orphan-hash-v1"
+FORWARD_ADMISSION_EVENT_HASH_DOMAIN = "se02-forward-admission-event-hash-v1"
+FORWARD_ADMISSION_PROOF_HASH_DOMAIN = "se02-forward-admission-proof-hash-v1"
 
 
 class CanonicalHashError(ValueError):
@@ -128,3 +132,27 @@ def attribution_payload_hash(payload: Mapping[str, Any]) -> str:
     """Deterministic hash of an append-only attribution event payload."""
 
     return canonical_digest(ATTRIBUTION_PAYLOAD_HASH_DOMAIN, dict(payload))
+
+
+def capture_anchor_hash(payload: Mapping[str, Any]) -> str:
+    """Deterministic digest of the immutable capture-admission payload."""
+
+    return canonical_digest(CAPTURE_ANCHOR_HASH_DOMAIN, dict(payload))
+
+
+def capture_anchor_orphan_hash(payload: Mapping[str, Any]) -> str:
+    """Deterministic digest of one append-only anchor orphan classification."""
+
+    return canonical_digest(CAPTURE_ANCHOR_ORPHAN_HASH_DOMAIN, dict(payload))
+
+
+def forward_admission_event_hash(payload: Mapping[str, Any]) -> str:
+    """Digest of the exact G2 event a live ingress capability admits."""
+
+    return canonical_digest(FORWARD_ADMISSION_EVENT_HASH_DOMAIN, dict(payload))
+
+
+def forward_admission_proof_hash(payload: Mapping[str, Any]) -> str:
+    """Digest of a signed Forward admission proof stored in an anchor payload."""
+
+    return canonical_digest(FORWARD_ADMISSION_PROOF_HASH_DOMAIN, dict(payload))

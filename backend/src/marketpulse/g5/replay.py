@@ -444,11 +444,12 @@ class ReplayTradingRunner:
     """Orchestrates historical frames through accepted G2/G3/G4 components only."""
 
     # The replay guard verifies the replay workspace is migrated to the *current*
-    # Alembic head and is empty. SE-02A adds the additive Edge evidence revision
-    # 20260911_0005 and N01-7-F01 adds the additive positions protection-snapshot
-    # revision 20260912_0006, so the expected head moves with the schema; the guard's
-    # behaviour (separate + migrated + clean workspace) is unchanged.
-    schema_head = "20260912_0006"
+    # Alembic head and is empty. The linear chain is SE-02A Edge evidence
+    # (20260911_0005), N01-7 position protection (20260912_0006), then the
+    # pre-acceptance FIX-01 capture-anchor and review-fix revisions
+    # (20260913_0007 -> 20260913_0008). Its separate + migrated + clean
+    # workspace behaviour is unchanged.
+    schema_head = "20260913_0008"
 
     def __init__(
         self,

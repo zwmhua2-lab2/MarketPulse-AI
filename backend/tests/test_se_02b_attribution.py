@@ -52,7 +52,11 @@ from marketpulse.edge.attribution import (
     link_for_durable_order,
     link_for_opportunity,
 )
-from marketpulse.edge.capture import EdgeCaptureContext, ReferenceQuote
+from marketpulse.edge.capture import (
+    EdgeCaptureContext,
+    ForwardAdmissionAuthority,
+    ReferenceQuote,
+)
 from marketpulse.edge.models import (
     EdgeFamily,
     EvidenceSource,
@@ -340,11 +344,32 @@ async def _captured_opportunity(factory, *, event_id: str = "evt-attr-1"):
         ask=100.5,
         received_at=NOW,
         data_quality=DataQuality.FRESH,
+        source_event_time=NOW,
+        source="fixture-bbo",
+        source_sequence=1,
+    )
+    authority = ForwardAdmissionAuthority(
+        session_id="fixture-live-forward-session",
+        secret=b"se-arch-fix-01-attribution-live-ingress-secret",
     )
     repository = PostgresG2Repository(
-        factory, capture=context, reference_quote_for=lambda _instrument_id: quote
+        factory,
+        capture=context,
+        reference_quote_for=lambda _instrument_id: quote,
+        forward_admission_authority=authority,
+        forward_admission_proof_for=authority.admit_live_input,
     )
-    await repository.persist(event, timeline, state, transition, candidates, features)
+    precondition = await repository.get_state(INSTRUMENT)
+    await repository.persist(
+        event,
+        timeline,
+        state,
+        transition,
+        candidates,
+        features,
+        precondition_state=precondition
+        or SymbolStateRecord(instrument_id=INSTRUMENT, symbol=INSTRUMENT),
+    )
     candidate = _breakout(candidates)
     async with factory() as session:
         # Unique predicate: a scenario may capture more than one opportunity.

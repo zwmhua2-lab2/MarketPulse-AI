@@ -42,7 +42,13 @@ class G2Repository(Protocol):
         transition: StateTransition,
         candidates: list[StrategyCandidate],
         observation: FeatureSnapshot,
+        *,
+        precondition_state: SymbolStateRecord | None = None,
     ) -> bool: ...
+
+    async def resume_capture_anchor(
+        self, event: MarketEvent, precondition_state: SymbolStateRecord
+    ) -> object | None: ...
 
 
 @dataclass
@@ -189,6 +195,7 @@ class EventRuntime:
         self, event: MarketEvent, features: FeatureSnapshot, action: LifecycleAction
     ) -> ApplyOutcome:
         await self.current_state(event.instrument_id, event.symbol)
+        precondition_state = self.state_manager.snapshot_for(event.instrument_id, event.symbol)
         state, transition = self.state_manager.prepare_apply(event, action)
         timeline = SignalTimelineEvent(
             timeline_id=deterministic_id("tl", event.event_id, action),
@@ -206,13 +213,31 @@ class EventRuntime:
             state_version=state.state_version,
             config_version=event.config_version,
         )
-        candidates = (
-            self.strategy_engine.candidates(features, event, state.state_version)
-            if transition.result in {StateApplyResult.APPLIED, StateApplyResult.NO_CHANGE}
-            else []
-        )
+        anchored = await self.repository.resume_capture_anchor(event, precondition_state)
+        if anchored is not None:
+            # A durable capture anchor is the only admissible source for retry.
+            # It is deliberately checked before StrategyEngine so retry cannot
+            # manufacture a new candidate timestamp or causal payload.
+            event = anchored.event
+            timeline = anchored.timeline
+            state = anchored.state
+            transition = anchored.transition
+            candidates = anchored.candidates
+            features = anchored.observation
+        else:
+            candidates = (
+                self.strategy_engine.candidates(features, event, state.state_version)
+                if transition.result in {StateApplyResult.APPLIED, StateApplyResult.NO_CHANGE}
+                else []
+            )
         persisted = await self.repository.persist(
-            event, timeline, state, transition, candidates, features
+            event,
+            timeline,
+            state,
+            transition,
+            candidates,
+            features,
+            precondition_state=precondition_state,
         )
         if persisted:
             self.state_manager.commit(state)

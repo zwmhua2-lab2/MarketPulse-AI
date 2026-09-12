@@ -49,8 +49,9 @@ Integrated Runtime Host 仍 `NOT STARTED`；N01-6 的验收不得推断 Continuo
 - Last Accepted Group Branch: `n01-c-restart-recovery-reconciliation`（历史证据，保留未删）；更早 `n01-a-runtime-resource-lifecycle`、`n01-b-okx-paper-safety-continuity`
 - Accepted Main Source: Git `main` / `origin/main` — read actual SHA at task preflight（CIP-02）
 - G5-1 Implementation Acceptance Basis: `34da62a0cc9dbe95b95faadb770fbd06179a6975`
-- Migration Head: `20260912_0006`（SE-02A `20260911_0005` Edge evidence + F01
-  `20260912_0006` Position Protection Snapshot；`alembic heads` 实测单 head）
+- Migration Head: `20260913_0008`（SE-02A `20260911_0005` Edge evidence + N01-7-F01
+  `20260912_0006` Position Protection Snapshot + SE-ARCH-FIX-01 `20260913_0007` Capture
+  Anchor + `20260913_0008` Review Fix / Orphan；集成验证须保持单 head）
 - Real AI Provider Status: `DEFERRED`（`OPENAI_API_KEY=MISSING`；测试用 deterministic Fake Provider）
 
 ## Completed
@@ -244,6 +245,20 @@ Integrated Runtime Host 仍 `NOT STARTED`；N01-6 的验收不得推断 Continuo
 
 ## In Progress
 
+- **SE-ARCH-FIX-01｜Stable Evidence Anchor = `INTEGRATED / READY FOR INDEPENDENT RE-REVIEW`**（Latest
+  Main Integration 基于 accepted `main` `71abb07707e9d28e5f2a3a5c5c58c8694f7a3b3f`；Original Task Base
+  `1579707eff083007f1ac7ec65e10e6043f32b31e`；review lineage `51053757 → bdb1af2` 保留；Human-approved
+  Option 2 + Hybrid A+B：新增 append-only `edge_opportunity_capture_anchors`，复用
+  `edge_bbo_observations`，anchor durable 后重试/重启复用 frozen T0/BBO/causal payload；
+  Anchor 从未 durable 后 crash 属 Human-approved capture coverage loss，禁止事后以新 clock/BBO
+  重建。Formal `G2 State + Edge Evidence` 原子边界保持不变；不构成 FIX-02、SE-02C、SE-02D、
+  Real AI、Live、N01 或 Runtime Host 的进度。详见
+  `dev_log/2026-09-12-se-arch-fix-01-stable-evidence-anchor.md`。并行 batch 均从
+  `20260911_0005` 创建的 `20260912_0006` collision 已在 pre-acceptance integration 中透明处理：
+  accepted N01 identity 保持 `20260912_0006`，unpublished FIX migrations 重编号为
+  `20260913_0007` / `20260913_0008`。Review Fix R1 补充 live-ingress event-bound proof、anchor 内容重建/哈希
+  复核、完整 BBO provenance、PostgreSQL 原子 append、durable orphan 分类以及 bounded
+  pending-anchor overload；仍未构成人工 Acceptance 或 `main` 合并。）
 - **SE-02C｜Forward Outcome Calculator = `NOT STARTED`**（forward outcome 仍未计算：无 MFE / MAE /
   无 forward returns；horizon `30s` / `5m` / `15m` / `1h` 的 calculation 尚未实现）。
 - **SE-02D｜Family Aggregation / Expectancy = `NOT STARTED`**（family aggregation、expectancy、
