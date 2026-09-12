@@ -1,10 +1,12 @@
-"""N01-7-F01-R1 migration gate -- disposable PostgreSQL proof for `20260912_0006`.
+"""N01-7-F01 migration gate -- disposable PostgreSQL proof for `20260912_0006`.
 
-Acceptance Batch: N01-7-F01-R1 (Protection Authority Closure + Validation Environment Recovery).
+Acceptance Batch: N01-7-F01-R1 (Protection Authority Closure + Validation Environment Recovery),
+extended by N01-7-F01-R2 (Legacy Authority Proof Closure, finding N01-7-F01-R1-R01). The filename
+keeps the R1 name for review lineage; the batch this file now proves is R2.
 Scope: this script only *verifies*. It creates its own throwaway database, never writes the shared
 primary `marketpulse` database, and never touches application code.
 
-What it proves (task sections 8 and 11):
+What it proves (task sections 8 and 11 of R1; sections 5-14 of R2):
 
 1. `20260912_0006` is a single head whose `down_revision` is `20260911_0005`.
 2. `0005 -> 0006` is additive: exactly five new `positions` columns and three new CHECK
@@ -12,14 +14,19 @@ What it proves (task sections 8 and 11):
 3. The one-time legacy conversion (Candidate A compatibility matrix) produces exactly the approved
    answers on a real 0005 database:
      * CASE A  FLAT position (`quantity <= 0`)                      -> left NULL;
-     * CASE B  OPEN position + one authoritative ACTIVE plan         -> SL/TP copied, TTL ignored;
+     * CASE B  OPEN position + one fully authoritative ACTIVE plan    -> SL/TP copied, TTL ignored;
      * CASE C  OPEN position whose authority is missing / ambiguous
-               / corrupt                                           -> left NULL, never guessed.
-4. `0006 -> 0005` removes only the F01 delta: the three constraints and five columns disappear and
+               / corrupt / identity-mismatched                       -> left NULL, never guessed.
+4. The expanded CASE C matrix of R2: eight row/payload identity mismatches plus an incomplete
+   pseudo-plan that the R1 predicate accepted outright, each seeded as a real `0005` row.
+5. Teeth proof (R2 section 9): the reviewed R1 predicate is loaded from the reviewed R1 commit and
+   evaluated on the very same probe rows, so the report shows which probes it accepted -- i.e. the
+   exact R1-R01 gap -- and that R2 refuses every one of them.
+6. `0006 -> 0005` removes only the F01 delta: the three constraints and five columns disappear and
    every legacy column keeps its exact value.
-5. `0005 -> 0006` again reproduces byte-identical conversion values, because the conversion copies
+7. `0005 -> 0006` again reproduces byte-identical conversion values, because the conversion copies
    `trade_plans.created_at` instead of reading a clock.
-6. The shared primary database is left at `20260905_0004` and no disposable database survives.
+8. The shared primary database is left at `20260905_0004` and no disposable database survives.
 
 usage:  py -3.14 scripts/verify_n01_7_f01_r1_migration_gate.py
 """
@@ -30,7 +37,9 @@ import asyncio
 import importlib.util
 import json
 import os
+import subprocess
 import sys
+import tempfile
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
@@ -57,6 +66,9 @@ FOUNDATION_REVISION = "20260911_0005"
 F01_REVISION = "20260912_0006"
 SHARED_PRIMARY_BASELINE = "20260905_0004"  # task section 3/4: shared primary recovery target
 MIGRATION_FILE = BACKEND / "alembic" / "versions" / "20260912_0006_position_protection_snapshot.py"
+MIGRATION_REPO_PATH = "backend/alembic/versions/20260912_0006_position_protection_snapshot.py"
+#: The reviewed R1 commit whose predicate is replayed as the teeth witness for this gate.
+R1_REVIEWED_HEAD = "979e5d2ee6b2cc4f26ae382cd3e46020d868a088"
 
 PROTECTION_COLUMNS = (
     "protection_plan_id",
@@ -93,8 +105,8 @@ INSERT_LEGACY_POSITION_SQL = (
 INSERT_LEGACY_PLAN_SQL = (
     "INSERT INTO trade_plans (plan_id, snapshot_id, decision_id, instrument_id, symbol, run_mode, "
     "state_version, plan_version, status, created_at, expires_at, payload) VALUES "
-    "(:plan_id, 'snap-r1', 'decision-r1', :instrument_id, :instrument_id, 'REPLAY', 7, "
-    ":plan_version, :status, :created_at, :expires_at, CAST(:payload AS json))"
+    "(:plan_id, :snapshot_id, :decision_id, :instrument_id, :symbol, 'REPLAY', "
+    ":state_version, :plan_version, :status, :created_at, :expires_at, CAST(:payload AS json))"
 )
 
 #: A second ACTIVE plan for one symbol, used to find out whether `uq_trade_plans_one_active`
@@ -104,6 +116,71 @@ INSERT_AMBIGUOUS_PLAN_SQL = (
     "state_version, plan_version, status, created_at, expires_at, payload) VALUES "
     "('plan-r1-amb-2', 'snap-r1', 'decision-r1', 'DDD-USDT', 'DDD-USDT', 'REPLAY', 7, 1, 'ACTIVE', "
     ":now, :expires_at, CAST(:payload AS json))"
+)
+
+#: Every payload key the R1 predicate never looked at. Dropping all of them leaves exactly
+#: `plan_id / run_mode / instrument_id / plan_version / status / stop_loss / take_profit`, which is
+#: the incomplete pseudo-plan R1 accepted and R2 must refuse (R2 task section 9).
+_PSEUDO_PLAN_DROP = (
+    "snapshot_id",
+    "decision_id",
+    "symbol",
+    "state_version",
+    "created_at",
+    "expires_at",
+    "entry_zone",
+    "intended_notional",
+    "order_type",
+    "side",
+    "invalidation",
+    "probe",
+    "backup_scenarios",
+)
+
+#: The R2 authority-proof negative matrix. Every entry is one independent CASE C probe that
+#: perturbs exactly one authoritative identity field between the `trade_plans` row and its
+#: serialized payload (`payload`), or removes the fields R1 never checked (`drop`). No entry can be
+#: blocked by the schema: `trade_plans` has no constraint on any of these columns, so every probe is
+#: really seeded and really exercised.
+_LEGACY_NEGATIVE_MATRIX: dict[str, dict[str, Any]] = {
+    "SNAPSHOT_ID_MISMATCH": {"payload": {"snapshot_id": "snap-other"}},
+    "DECISION_ID_MISMATCH": {"payload": {"decision_id": "decision-other"}},
+    "SYMBOL_MISMATCH": {"payload": {"symbol": "OTHER-USDT"}},
+    "STATE_VERSION_MISMATCH": {"payload": {"state_version": 8}},
+    "CREATED_AT_MISMATCH": {"payload": {"created_at": (NOW - timedelta(days=2)).isoformat()}},
+    "EXPIRES_AT_MISMATCH": {"payload": {"expires_at": (NOW + timedelta(days=1)).isoformat()}},
+    "RUN_MODE_MISMATCH": {"payload": {"run_mode": "TEST"}},
+    "INSTRUMENT_ID_MISMATCH": {"payload": {"instrument_id": "OTHER-USDT"}},
+    "INCOMPLETE_PSEUDO_PLAN": {"drop": _PSEUDO_PLAN_DROP},
+    # Identity-complete but not a TradePlan: `load_active_plan()` runs `TradePlan.model_validate`,
+    # which fails closed on a missing required field, so this probe must fail closed here too. It is
+    # the case that gives the *shape* proof teeth -- the pseudo-plan above is already refused by the
+    # identity proof, because dropping its identity fields is itself a row/payload disagreement.
+    "SCHEMA_INCOMPLETE_PAYLOAD": {"drop": ("entry_zone", "intended_notional")},
+    # Identity-complete and shape-complete except for one badly typed optional field, which
+    # `TradePlan.model_validate` also rejects.
+    "INVALID_OPTIONAL_FIELD": {"payload": {"side": "LONG"}},
+    # Robustness probes: an unhashable payload value must fail closed, never raise. Written after a
+    # self-review found that `value not in frozenset(...)` raises `TypeError` for a dict/list, which
+    # would abort the whole upgrade on one corrupt row instead of leaving that row NULL.
+    "MALFORMED_ENUM_VALUE": {"payload": {"run_mode": {}}},
+    "UNHASHABLE_OPTIONAL_FIELD": {"payload": {"side": ["BUY"]}},
+}
+
+#: The probes the reviewed R1 predicate accepted: the R1-R01 gap, which R2 must refuse in full.
+#: (`CASE_C_MALFORMED_ENUM_VALUE` is deliberately absent: R1 already refused it, because an
+#: unhashable value simply fails its `!=` comparison. It is kept as the no-raise probe.)
+_R1_GAP_CASES = (
+    "CASE_C_SNAPSHOT_ID_MISMATCH",
+    "CASE_C_DECISION_ID_MISMATCH",
+    "CASE_C_SYMBOL_MISMATCH",
+    "CASE_C_STATE_VERSION_MISMATCH",
+    "CASE_C_CREATED_AT_MISMATCH",
+    "CASE_C_EXPIRES_AT_MISMATCH",
+    "CASE_C_INCOMPLETE_PSEUDO_PLAN",
+    "CASE_C_SCHEMA_INCOMPLETE_PAYLOAD",
+    "CASE_C_INVALID_OPTIONAL_FIELD",
+    "CASE_C_UNHASHABLE_OPTIONAL_FIELD",
 )
 
 
@@ -137,6 +214,87 @@ def _plan_json(
         intended_notional=50.0,
     )
     return plan.model_dump(mode="json")
+
+
+def _legacy_plan(
+    *,
+    plan_id: str,
+    instrument: str,
+    plan_version: int = 1,
+    status: str = "ACTIVE",
+    created_at: datetime = NOW,
+    row: dict[str, Any] | None = None,
+    payload: dict[str, Any] | None = None,
+    raw_payload: dict[str, Any] | None = None,
+    drop: tuple[str, ...] = (),
+) -> dict[str, Any]:
+    """One legacy `trade_plans` row plus the serialized payload stored next to it.
+
+    Row and payload agree on every authoritative identity field by default, which is CASE B.
+    `row` changes only the `trade_plans` columns, `payload` only the serialized `TradePlan`,
+    `raw_payload` replaces the serialized plan outright (a payload that is not a TradePlan at all),
+    and `drop` removes payload keys -- the ways a probe makes the two disagree.
+    """
+    identity: dict[str, Any] = {
+        "snapshot_id": "snap-r1",
+        "decision_id": "decision-r1",
+        "symbol": instrument,
+        "state_version": 7,
+    }
+    row_identity = {**identity, **(row or {})}
+    if raw_payload is not None:
+        serialized: dict[str, Any] = dict(raw_payload)
+    else:
+        serialized = _plan_json(
+            plan_id=plan_id,
+            instrument=instrument,
+            status=status,
+            plan_version=plan_version,
+            created_at=created_at,
+        )
+        serialized.update(row_identity)
+        serialized.update(payload or {})
+    for key in drop:
+        serialized.pop(key, None)
+    return {
+        "plan_id": plan_id,
+        "instrument_id": instrument,
+        "plan_version": plan_version,
+        "status": status,
+        "created_at": created_at,
+        "expires_at": created_at + timedelta(minutes=5),
+        **row_identity,
+        "payload": serialized,
+    }
+
+
+def _candidate_from_fixture(fixture: dict[str, Any]) -> dict[str, Any]:
+    """Reproduce, in Python, the candidate row `_LEGACY_CANDIDATES` returns for one fixture."""
+    position_id, _instrument, _quantity = fixture["position"]
+    plan = fixture["plans"][0]
+    return {
+        "position_id": position_id,
+        "run_mode": "REPLAY",
+        "instrument_id": plan["instrument_id"],
+        "plan_id": plan["plan_id"],
+        "snapshot_id": plan["snapshot_id"],
+        "decision_id": plan["decision_id"],
+        "symbol": plan["symbol"],
+        "state_version": plan["state_version"],
+        "plan_version": plan["plan_version"],
+        "status": plan["status"],
+        "created_at": plan["created_at"],
+        "expires_at": plan["expires_at"],
+        "payload": json.dumps(plan["payload"]),
+    }
+
+
+def _r1_candidate(row: dict[str, Any]) -> dict[str, Any]:
+    """The same candidate under the column aliases the reviewed R1 migration selected."""
+    renamed = dict(row)
+    renamed["plan_status"] = renamed.pop("status")
+    renamed["plan_created_at"] = renamed.pop("created_at")
+    return renamed
 
 
 @contextmanager
@@ -198,37 +356,27 @@ def _seed_fixtures(url: str) -> dict[str, dict[str, Any]]:
     """Seed the legacy states at 0005 and return the expectations the conversion must meet."""
     case_b_created_at = NOW - timedelta(days=1)
     expired_created_at = NOW - timedelta(days=30)
-    fixtures = {
+    fixtures: dict[str, dict[str, Any]] = {
         # CASE A: a flat position keeps a legal NULL authority.
         "CASE_A_FLAT": {
             "position": ("pos-r1-case-a", "AAA-USDT", 0.0),
             "plans": [
-                (
-                    "plan-r1-case-a",
-                    "AAA-USDT",
-                    1,
-                    "ACTIVE",
-                    case_b_created_at,
-                    _plan_json(plan_id="plan-r1-case-a", instrument="AAA-USDT"),
+                _legacy_plan(
+                    plan_id="plan-r1-case-a",
+                    instrument="AAA-USDT",
+                    created_at=case_b_created_at,
                 )
             ],
             "expect": None,
         },
-        # CASE B: exactly one authoritative ACTIVE plan, deliberately long expired.
+        # CASE B: exactly one fully authoritative ACTIVE plan, deliberately long expired.
         "CASE_B_OPEN": {
             "position": ("pos-r1-case-b", "BBB-USDT", 0.25),
             "plans": [
-                (
-                    "plan-r1-case-b",
-                    "BBB-USDT",
-                    1,
-                    "ACTIVE",
-                    expired_created_at,
-                    _plan_json(
-                        plan_id="plan-r1-case-b",
-                        instrument="BBB-USDT",
-                        created_at=expired_created_at,
-                    ),
+                _legacy_plan(
+                    plan_id="plan-r1-case-b",
+                    instrument="BBB-USDT",
+                    created_at=expired_created_at,
                 )
             ],
             "expect": ("plan-r1-case-b", 1, 80.0, 140.0, expired_created_at),
@@ -243,13 +391,10 @@ def _seed_fixtures(url: str) -> dict[str, dict[str, Any]]:
         "CASE_C_CORRUPT_PAYLOAD": {
             "position": ("pos-r1-case-c2", "CCC2-USDT", 0.5),
             "plans": [
-                (
-                    "plan-r1-case-c2",
-                    "CCC2-USDT",
-                    1,
-                    "ACTIVE",
-                    NOW,
-                    {"corrupt": "not-a-trade-plan"},
+                _legacy_plan(
+                    plan_id="plan-r1-case-c2",
+                    instrument="CCC2-USDT",
+                    raw_payload={"corrupt": "not-a-trade-plan"},
                 )
             ],
             "expect": None,
@@ -258,13 +403,12 @@ def _seed_fixtures(url: str) -> dict[str, dict[str, Any]]:
         "CASE_C_IDENTITY_MISMATCH": {
             "position": ("pos-r1-case-c3", "CCC3-USDT", 0.5),
             "plans": [
-                (
-                    "plan-r1-case-c3",
-                    "CCC3-USDT",
-                    1,
-                    "ACTIVE",
-                    NOW,
-                    _plan_json(plan_id="different-plan-id", instrument="CCC3-USDT"),
+                _legacy_plan(
+                    plan_id="plan-r1-case-c3",
+                    instrument="CCC3-USDT",
+                    raw_payload=_plan_json(
+                        plan_id="different-plan-id", instrument="CCC3-USDT"
+                    ),
                 )
             ],
             "expect": None,
@@ -273,18 +417,10 @@ def _seed_fixtures(url: str) -> dict[str, dict[str, Any]]:
         "CASE_C_INVERTED_LEVELS": {
             "position": ("pos-r1-case-c4", "CCC4-USDT", 0.5),
             "plans": [
-                (
-                    "plan-r1-case-c4",
-                    "CCC4-USDT",
-                    1,
-                    "ACTIVE",
-                    NOW,
-                    _plan_json(
-                        plan_id="plan-r1-case-c4",
-                        instrument="CCC4-USDT",
-                        stop_loss=140.0,
-                        take_profit=80.0,
-                    ),
+                _legacy_plan(
+                    plan_id="plan-r1-case-c4",
+                    instrument="CCC4-USDT",
+                    payload={"stop_loss": 140.0, "take_profit": 80.0},
                 )
             ],
             "expect": None,
@@ -293,15 +429,12 @@ def _seed_fixtures(url: str) -> dict[str, dict[str, Any]]:
         "CASE_C_PLAN_VERSION_ZERO": {
             "position": ("pos-r1-case-c5", "CCC5-USDT", 0.5),
             "plans": [
-                (
-                    "plan-r1-case-c5",
-                    "CCC5-USDT",
-                    0,
-                    "ACTIVE",
-                    NOW,
-                    _plan_json(
-                        plan_id="plan-r1-case-c5", instrument="CCC5-USDT", plan_version=0
-                    ),
+                _legacy_plan(
+                    plan_id="plan-r1-case-c5",
+                    instrument="CCC5-USDT",
+                    plan_version=0,
+                    row={"state_version": 7},
+                    payload={"plan_version": 0},
                 )
             ],
             "expect": None,
@@ -312,19 +445,30 @@ def _seed_fixtures(url: str) -> dict[str, dict[str, Any]]:
         # what actually happened, so the "DO NOT GUESS a tie" rule is verified either way.
         "AMBIGUITY_PROBE": {
             "position": ("pos-r1-amb", "DDD-USDT", 0.5),
-            "plans": [
-                (
-                    "plan-r1-amb-1",
-                    "DDD-USDT",
-                    1,
-                    "ACTIVE",
-                    NOW,
-                    _plan_json(plan_id="plan-r1-amb-1", instrument="DDD-USDT"),
-                )
-            ],
+            "plans": [_legacy_plan(plan_id="plan-r1-amb-1", instrument="DDD-USDT")],
             "expect": "DYNAMIC",
         },
     }
+    # R2 expanded CASE C matrix: each probe is a real OPEN position whose single ACTIVE plan is
+    # authoritative in every respect except the one field it perturbs. `trade_plans` constrains none
+    # of these columns, so nothing here is "NOT SEEDABLE BY SCHEMA" -- each probe is genuinely
+    # inserted and genuinely exercised by the conversion.
+    for index, (name, perturbation) in enumerate(_LEGACY_NEGATIVE_MATRIX.items(), start=6):
+        slug = name.lower().replace("_", "-")
+        instrument = f"CCC{index}-USDT"
+        fixtures[f"CASE_C_{name}"] = {
+            "position": (f"pos-r2-{slug}", instrument, 0.5),
+            "plans": [
+                _legacy_plan(
+                    plan_id=f"plan-r2-{slug}",
+                    instrument=instrument,
+                    created_at=case_b_created_at,
+                    payload=perturbation.get("payload"),
+                    drop=perturbation.get("drop", ()),
+                )
+            ],
+            "expect": None,
+        }
     statements: list[tuple[str, dict[str, Any]]] = []
     for fixture in fixtures.values():
         position_id, instrument, quantity = fixture["position"]
@@ -340,18 +484,22 @@ def _seed_fixtures(url: str) -> dict[str, dict[str, Any]]:
                 },
             )
         )
-        for plan_id, plan_instrument, plan_version, status, created_at, payload in fixture["plans"]:
+        for plan in fixture["plans"]:
             statements.append(
                 (
                     INSERT_LEGACY_PLAN_SQL,
                     {
-                        "plan_id": plan_id,
-                        "instrument_id": plan_instrument,
-                        "plan_version": plan_version,
-                        "status": status,
-                        "created_at": created_at,
-                        "expires_at": created_at + timedelta(minutes=5),
-                        "payload": json.dumps(payload),
+                        "plan_id": plan["plan_id"],
+                        "snapshot_id": plan["snapshot_id"],
+                        "decision_id": plan["decision_id"],
+                        "instrument_id": plan["instrument_id"],
+                        "symbol": plan["symbol"],
+                        "state_version": plan["state_version"],
+                        "plan_version": plan["plan_version"],
+                        "status": plan["status"],
+                        "created_at": plan["created_at"],
+                        "expires_at": plan["expires_at"],
+                        "payload": json.dumps(plan["payload"]),
                     },
                 )
             )
@@ -514,14 +662,20 @@ def _load_migration_module() -> Any:
 
 
 def _candidate_row(plan_id: str, *, position_id: str = "pos-amb") -> dict[str, Any]:
+    """One row exactly as `_LEGACY_CANDIDATES` returns it (row columns + serialized payload)."""
     return {
         "position_id": position_id,
         "run_mode": "REPLAY",
         "instrument_id": "AMB-USDT",
         "plan_id": plan_id,
+        "snapshot_id": "snap-r1",
+        "decision_id": "decision-r1",
+        "symbol": "AMB-USDT",
+        "state_version": 7,
         "plan_version": 1,
-        "plan_status": "ACTIVE",
-        "plan_created_at": NOW,
+        "status": "ACTIVE",
+        "created_at": NOW,
+        "expires_at": NOW + timedelta(minutes=5),
         "payload": json.dumps(_plan_json(plan_id=plan_id, instrument="AMB-USDT")),
     }
 
@@ -545,6 +699,56 @@ def _ambiguity_guard() -> dict[str, Any]:
         "unparsable_payload_not_authoritative": corrupt_tally["not_authoritative"],
         "unparsable_payload_updates": len(corrupt.updates),
     }
+
+
+def _r1_authority_predicate() -> Any | None:
+    """Load the *reviewed* R1 migration (`979e5d2`) and return its `_legacy_authority`.
+
+    Used only as a historical witness: evaluating the same probe rows with the R1 predicate shows
+    which of the new CASE C probes it accepted, i.e. the actual R1-R01 gap. Returns `None` when the
+    reviewed blob is not reachable from this checkout, which the caller reports instead of hiding.
+    """
+    try:
+        blob = subprocess.run(
+            ["git", "show", f"{R1_REVIEWED_HEAD}:{MIGRATION_REPO_PATH}"],
+            cwd=REPOSITORY_ROOT,
+            capture_output=True,
+            check=True,
+            text=True,
+        ).stdout
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    staged = Path(tempfile.mkdtemp()) / "r1_migration_0006.py"
+    staged.write_text(blob, encoding="utf-8")
+    spec = importlib.util.spec_from_file_location("n01_7_f01_r1_migration_0006", staged)
+    if spec is None or spec.loader is None:
+        return None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module._legacy_authority
+
+
+def _authority_proof_teeth(fixtures: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    """Evaluate every CASE C probe with both the R2 and the reviewed R1 predicate.
+
+    `r2_authoritative` must be False everywhere (the fix). `r1_authoritative` is the historical
+    witness: it is True for exactly the probes named in `_R1_GAP_CASES`, which is the R1-R01 gap.
+    """
+    module = _load_migration_module()
+    r1_predicate = _r1_authority_predicate()
+    witness: dict[str, Any] = {}
+    for name, fixture in sorted(fixtures.items()):
+        if not fixture["plans"] or not name.startswith("CASE_C_"):
+            continue
+        row = _candidate_from_fixture(fixture)
+        witness[name] = {
+            "r2_authoritative": module._legacy_authority(row) is not None,
+            "r1_authoritative": (
+                None if r1_predicate is None else r1_predicate(_r1_candidate(row)) is not None
+            ),
+            "in_r1_gap": name in _R1_GAP_CASES,
+        }
+    return witness
 
 
 def _single_head() -> dict[str, Any]:
@@ -590,7 +794,11 @@ def _ambiguity_in_schema(url: str) -> dict[str, Any]:
 
 
 def main() -> int:
-    report: dict[str, Any] = {"batch": "N01-7-F01-R1", "gate": "disposable-migration-0006"}
+    report: dict[str, Any] = {
+        "batch": "N01-7-F01-R2",
+        "gate": "disposable-migration-0006",
+        "extends": "N01-7-F01-R1",
+    }
     primary_before = asyncio.run(_primary_state())
     report["shared_primary_before"] = primary_before
     assert primary_before["alembic_version"] == SHARED_PRIMARY_BASELINE, primary_before
@@ -687,6 +895,28 @@ def main() -> int:
         assert report["step_5_ambiguity_guard"]["two_candidates_updates"] == 0
         assert report["step_5_ambiguity_guard"]["unparsable_payload_not_authoritative"] == 1
         assert report["step_5_ambiguity_guard"]["unparsable_payload_updates"] == 0
+
+        # R2 authority-proof teeth: the same probe rows, evaluated by both predicates. R2 must
+        # refuse every CASE C probe, and the reviewed R1 predicate must have accepted exactly the
+        # `_R1_GAP_CASES` -- which is the R1-R01 finding, now closed.
+        teeth = _authority_proof_teeth(fixtures)
+        report["step_5b_authority_proof_teeth"] = {
+            "r1_predicate_loaded": any(
+                entry["r1_authoritative"] is not None for entry in teeth.values()
+            ),
+            "probes": teeth,
+        }
+        for name, entry in teeth.items():
+            assert entry["r2_authoritative"] is False, (name, entry)
+        r1_accepted = {
+            name
+            for name, entry in teeth.items()
+            if entry["r1_authoritative"] is True
+        }
+        assert r1_accepted == set(_R1_GAP_CASES), (sorted(r1_accepted), sorted(_R1_GAP_CASES))
+        # The four R1 CASE C probes that do carry a plan, plus every R2 probe (CASE_C_NO_PLAN has
+        # no plan row to reason about, so it is asserted through the database matrix only).
+        assert len(teeth) == 4 + len(_LEGACY_NEGATIVE_MATRIX), sorted(teeth)
 
         _migrate(url, downgrade_to=FOUNDATION_REVISION)
         report["step_6_downgrade"] = {

@@ -26,7 +26,7 @@ PostgreSQL does not expose `isfinite(double precision)` on every target version,
 expressed with the two infinities: `x < 'Infinity'::float8` rejects NaN and +Infinity together
 (PostgreSQL orders NaN above every value) and `x > '-Infinity'::float8` rejects -Infinity.
 
-Legacy conversion (Candidate A, N01-7-F01-R1) ------------------------------------------------
+Legacy conversion (Candidate A, N01-7-F01-R1; authority proof closed by N01-7-F01-R2) --------
 
 The durable snapshot is the *sole* protection-lifetime authority, so a position that predates this
 revision would otherwise be reported POSITION_UNPROTECTED even though a plan was protecting it.
@@ -35,17 +35,45 @@ Candidate A compatibility matrix, and only for the states that have exactly one 
 answer:
 
 * CASE A -- existing FLAT position (`quantity <= 0`): left NULL, which is the legal state.
-* CASE B -- existing OPEN position with exactly one identity-consistent, business-valid ACTIVE
-  plan: the plan's SL/TP are copied onto the position row. For this conversion only the plan TTL
-  is intentionally ignored (`expires_at` is not consulted), because a legacy plan is expected to
-  be long expired and TTL is the risk-increasing freshness authority, never a protection-lifetime
-  authority. This does **not** restore BUY / ADD authority: the plan row itself is untouched, so
-  TTL + `state_version` keep gating every risk-increasing action exactly as before.
+* CASE B -- existing OPEN position with exactly one *fully authoritative* ACTIVE plan: the plan's
+  SL/TP are copied onto the position row, together with the plan's `created_at` as the deterministic
+  `protection_updated_at`.
 * CASE C -- existing OPEN position whose authority is missing, ambiguous or corrupt (no plan row,
-  more than one ACTIVE plan, an identity mismatch between row and payload, non-finite or inverted
-  levels): left NULL. The migration refuses to guess; the runtime then reports
-  POSITION_UNPROTECTED, latches SAFE_MODE, refuses resume and cancels risk-increasing BUYs, while
-  an explicit risk-reducing manual close stays available.
+  more than one ACTIVE plan, an identity mismatch between row and payload, an incomplete payload,
+  non-finite or inverted levels): left NULL. The migration refuses to guess; the runtime then
+  reports POSITION_UNPROTECTED, latches SAFE_MODE, refuses resume and cancels risk-increasing
+  BUYs, while an explicit risk-reducing manual close stays available.
+
+"Fully authoritative" is the same bar the accepted pre-migration runtime applies in
+`marketpulse.g4.planning.load_active_plan()`, and it is deliberately never *looser* than that bar:
+this conversion promotes a plan's levels from "a plan row that merely exists" to a durable
+protection authority, so a plan the runtime would have refused must be refused here too. There
+must never be a state where the runtime says invalid but the migration says authoritative. The
+proof therefore has three parts, all of them frozen inside this file (a shipped migration must not
+change meaning when application code later moves):
+
+1. the payload parses as a JSON object and matches the frozen `TradePlan` authority shape: every
+   field the model requires without a default is present with the right JSON type, and every
+   optional field that *is* present has the right type;
+2. every one of `plan_id`, `snapshot_id`, `decision_id`, `instrument_id`, `symbol`, `run_mode`,
+   `state_version`, `plan_version`, `status`, `created_at` and `expires_at` agrees between the
+   `trade_plans` row and its serialized payload -- the exact identity list `load_active_plan()`
+   compares before it trusts a durable plan;
+3. the protection contract is business-valid: finite levels, `stop_loss < take_profit`, and a
+   finite ordered `entry_zone` (`marketpulse.g4.planning.plan_business_errors`).
+
+(R1 proved only part of (1) and a subset of (2) -- `plan_id`, `run_mode`, `instrument_id`,
+`plan_version`, `status` -- so a payload that disagreed on `snapshot_id`, `decision_id`, `symbol`,
+`state_version`, `created_at` or `expires_at` could still be backfilled even though the runtime
+rejected it. N01-7-F01-R2 closes that gap; the finding is N01-7-F01-R1-R01.)
+
+The one deliberate difference from the runtime is the TTL: `now < expires_at` is *not* consulted,
+because a legacy plan is expected to be long expired and TTL is the risk-increasing freshness
+authority, never a protection-lifetime authority. Ignoring the TTL means "do not compare `now`
+with `expires_at`"; it never means "do not compare `expires_at` with its row", which is part (2)
+above. Nothing here restores BUY / ADD / pending risk-increasing authority either: the plan row
+itself is untouched, so TTL + `state_version` keep gating every risk-increasing action exactly as
+before.
 
 The conversion is a pure function of the row data (it copies `trade_plans.created_at` into
 `protection_updated_at` instead of reading a clock), so a downgrade/upgrade cycle reproduces
@@ -56,6 +84,7 @@ from __future__ import annotations
 
 import json
 import math
+from datetime import datetime
 from typing import Any
 
 import sqlalchemy as sa
@@ -110,9 +139,14 @@ _LEGACY_CANDIDATES = sa.text(
            p.run_mode         AS run_mode,
            p.instrument_id    AS instrument_id,
            tp.plan_id         AS plan_id,
+           tp.snapshot_id     AS snapshot_id,
+           tp.decision_id     AS decision_id,
+           tp.symbol          AS symbol,
+           tp.state_version   AS state_version,
            tp.plan_version    AS plan_version,
-           tp.status          AS plan_status,
-           tp.created_at      AS plan_created_at,
+           tp.status          AS status,
+           tp.created_at      AS created_at,
+           tp.expires_at      AS expires_at,
            tp.payload::text   AS payload
     FROM positions p
     JOIN trade_plans tp
@@ -125,6 +159,122 @@ _LEGACY_CANDIDATES = sa.text(
     """
 )
 
+#: Row columns that must agree with the identically named serialized payload key. This is exactly
+#: the list `marketpulse.g4.planning.load_active_plan()` compares before it trusts a durable plan;
+#: a plan it would have refused must never be promoted to durable protection authority.
+_LEGACY_IDENTITY_FIELDS = (
+    "plan_id",
+    "snapshot_id",
+    "decision_id",
+    "instrument_id",
+    "symbol",
+    "run_mode",
+    "state_version",
+    "plan_version",
+    "status",
+)
+
+#: Serialized instants, compared as parsed instants (never as raw text) and never against a clock.
+_LEGACY_INSTANT_FIELDS = ("created_at", "expires_at")
+
+#: Enum member sets the runtime's `TradePlan.model_validate` accepts; anything else fails closed.
+_LEGACY_RUN_MODES = frozenset({"LIVE_PAPER", "REPLAY", "TEST"})
+_LEGACY_PLAN_STATUSES = frozenset(
+    {"ACTIVE", "EXPIRED", "CANCELLED", "REPLACED", "CAPACITY_BLOCKED"}
+)
+
+#: Optional `TradePlan` fields with a default: absent is legal, present must still be a valid member.
+_LEGACY_OPTIONAL_ENUMS = {
+    "order_type": frozenset({"MARKET", "LIMIT"}),
+    "side": frozenset({"BUY", "SELL"}),
+}
+
+
+def _legacy_number(value: Any) -> bool:
+    """JSON number, excluding `bool` (a Python `bool` is an `int`) and every non-finite value."""
+    return not isinstance(value, bool) and isinstance(value, (int, float)) and math.isfinite(value)
+
+
+def _legacy_integer(value: Any) -> bool:
+    return not isinstance(value, bool) and isinstance(value, int)
+
+
+def _legacy_instant(value: Any) -> datetime | None:
+    """Parse the timezone-aware ISO-8601 instant a serialized `TradePlan` carries.
+
+    A naive or unparsable value is not a serialized `TradePlan`, so it is rejected rather than
+    guessed at: comparing a naive instant with a `timestamptz` column would be meaningless anyway.
+    """
+    if not isinstance(value, str):
+        return None
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo is not None else None
+
+
+def _legacy_identity_mismatch(row: Any, payload: dict[str, Any]) -> bool:
+    """True when the payload disagrees with its own row on any authoritative identity field."""
+    for field in _LEGACY_IDENTITY_FIELDS:
+        value = payload.get(field)
+        if field == "plan_version":
+            if not _legacy_integer(value) or value < 1 or value != row["plan_version"]:
+                return True
+        elif field == "state_version":
+            if not _legacy_integer(value) or value != row["state_version"]:
+                return True
+        elif field in ("run_mode", "status"):
+            # `isinstance` first: an unhashable payload value must fail closed, not raise.
+            allowed = _LEGACY_RUN_MODES if field == "run_mode" else _LEGACY_PLAN_STATUSES
+            if not isinstance(value, str) or value not in allowed or value != row[field]:
+                return True
+        elif not isinstance(value, str) or value != row[field]:
+            return True
+    for field in _LEGACY_INSTANT_FIELDS:
+        # Identity only: the TTL exception below is about `now`, never about this comparison.
+        if _legacy_instant(payload.get(field)) != row[field]:
+            return True
+    return False
+
+
+def _legacy_shape_invalid(payload: dict[str, Any]) -> bool:
+    """True when the payload is not a frozen `TradePlan` authority shape.
+
+    Mirrors `TradePlan.model_validate` (which `load_active_plan()` runs and which fails closed) plus
+    `plan_business_errors`, so a pseudo-plan that merely carries `plan_id` / `stop_loss` /
+    `take_profit` can never be mistaken for an authoritative TradePlan.
+    """
+    entry_zone = payload.get("entry_zone")
+    if not isinstance(entry_zone, dict):
+        return True
+    lower, upper = entry_zone.get("lower"), entry_zone.get("upper")
+    if not _legacy_number(lower) or not _legacy_number(upper) or lower > upper:
+        return True
+    stop_loss, take_profit = payload.get("stop_loss"), payload.get("take_profit")
+    if not _legacy_number(stop_loss) or not _legacy_number(take_profit):
+        return True
+    if not stop_loss < take_profit:
+        return True
+    if not _legacy_number(payload.get("intended_notional")):
+        return True
+    for field, allowed in _LEGACY_OPTIONAL_ENUMS.items():
+        # `isinstance` first: an unhashable payload value must fail closed, not raise.
+        if field in payload and (
+            not isinstance(payload[field], str) or payload[field] not in allowed
+        ):
+            return True
+    if "invalidation" in payload and not (
+        payload["invalidation"] is None or isinstance(payload["invalidation"], str)
+    ):
+        return True
+    if "probe" in payload and not isinstance(payload["probe"], bool):
+        return True
+    scenarios = payload.get("backup_scenarios")
+    return "backup_scenarios" in payload and not (
+        isinstance(scenarios, list) and all(isinstance(item, str) for item in scenarios)
+    )
+
 
 def _legacy_authority(row: Any) -> tuple[str, int, float, float] | None:
     """Derive the durable authority of one legacy candidate, or None when it is not unambiguous.
@@ -133,36 +283,33 @@ def _legacy_authority(row: Any) -> tuple[str, int, float, float] | None:
     is left NULL, so the runtime reaches its normal POSITION_UNPROTECTED / SAFE_MODE verdict
     instead of the migration inventing a protection level.
 
-    This mirrors the executable-plan contract (`marketpulse.g4.planning.plan_business_errors`)
-    without importing application code, so a later application refactor can never change what an
-    already-shipped migration did.
+    Three independent proofs are required, and each one is frozen in this file rather than imported
+    from application code, so a later application refactor can never change what an already-shipped
+    migration did -- and so the migration can never accept a plan the runtime would have refused:
+
+      1. the payload is a JSON object matching the frozen `TradePlan` authority shape;
+      2. it agrees with its `trade_plans` row on every authoritative identity field, including both
+         serialized instants;
+      3. its protection contract is business-valid.
+
+    The TTL (`now < expires_at`) is deliberately not consulted; see the module docstring.
     """
-    plan_version = row["plan_version"]
-    if isinstance(plan_version, bool) or not isinstance(plan_version, int) or plan_version < 1:
-        return None
     try:
         payload = json.loads(row["payload"])
     except (TypeError, ValueError):
         return None
     if not isinstance(payload, dict):
         return None
-    if (
-        payload.get("plan_id") != row["plan_id"]
-        or payload.get("run_mode") != row["run_mode"]
-        or payload.get("instrument_id") != row["instrument_id"]
-        or payload.get("plan_version") != plan_version
-        or payload.get("status") != row["plan_status"]
-    ):
+    if _legacy_identity_mismatch(row, payload):
         return None
-    stop_loss, take_profit = payload.get("stop_loss"), payload.get("take_profit")
-    for level in (stop_loss, take_profit):
-        if isinstance(level, bool) or not isinstance(level, (int, float)):
-            return None
-        if not math.isfinite(level):
-            return None
-    if not stop_loss < take_profit:
+    if _legacy_shape_invalid(payload):
         return None
-    return row["plan_id"], plan_version, float(stop_loss), float(take_profit)
+    return (
+        row["plan_id"],
+        row["plan_version"],
+        float(payload["stop_loss"]),
+        float(payload["take_profit"]),
+    )
 
 
 def backfill_legacy_position_protection(connection: sa.Connection) -> dict[str, int]:
@@ -201,7 +348,7 @@ def backfill_legacy_position_protection(connection: sa.Connection) -> dict[str, 
                 "plan_version": plan_version,
                 "stop_loss": stop_loss,
                 "take_profit": take_profit,
-                "updated_at": rows[0]["plan_created_at"],
+                "updated_at": rows[0]["created_at"],
                 "position_id": position_id,
             },
         )
