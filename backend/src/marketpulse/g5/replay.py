@@ -445,9 +445,10 @@ class ReplayTradingRunner:
 
     # The replay guard verifies the replay workspace is migrated to the *current*
     # Alembic head and is empty. SE-02A adds the additive Edge evidence revision
-    # 20260911_0005, so the expected head moves with the schema; the guard's
+    # 20260911_0005 and N01-7-F01 adds the additive positions protection-snapshot
+    # revision 20260912_0006, so the expected head moves with the schema; the guard's
     # behaviour (separate + migrated + clean workspace) is unchanged.
-    schema_head = "20260911_0005"
+    schema_head = "20260912_0006"
 
     def __init__(
         self,

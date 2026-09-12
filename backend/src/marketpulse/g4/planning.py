@@ -8,8 +8,26 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from marketpulse.clock import Clock, SystemClock
-from marketpulse.db.models import PaperOrderRecord, PositionEventRecord, TradePlanRecord
-from marketpulse.g3.models import OrderSide, OrderStatus, PlanStatus, RunMode, TradePlan
+from marketpulse.db.models import (
+    PaperOrderRecord,
+    PositionEventRecord,
+    PositionRecord,
+    TradePlanRecord,
+)
+from marketpulse.g3.models import (
+    OrderSide,
+    OrderStatus,
+    PlanStatus,
+    PositionProtectionAuthority,
+    RunMode,
+    TradePlan,
+)
+from marketpulse.g3.protection_snapshot import (
+    apply_position_protection,
+    authority_from_plan,
+    clear_position_protection,
+    read_position_protection,
+)
 from marketpulse.g3.service import PaperExecutionService, stable_id
 
 from .models import PositionEventType
@@ -144,6 +162,26 @@ class PlanManager:
                 session=session,
                 stale_plan_ids={previous.plan_id},
             )
+        # The new version is now the plan that protects this symbol, so the OPEN position's durable
+        # authority must move with it. Skipping this would leave a stop-loss update live on the
+        # plan while protection kept triggering on the superseded level. Taken last to keep the
+        # global lock order (Plan -> ... -> Positions); a replacement that cannot yield a legal
+        # authority clears the snapshot and therefore fails closed to POSITION_UNPROTECTED, which
+        # is the same verdict `load_valid_long_active_plan` already returns for that plan.
+        position = await session.scalar(
+            select(PositionRecord)
+            .where(
+                PositionRecord.run_mode == next_plan.run_mode,
+                PositionRecord.instrument_id == next_plan.instrument_id,
+            )
+            .with_for_update()
+        )
+        if position is not None and position.quantity > 1e-12:
+            authority = authority_from_plan(next_plan)
+            if authority is None:
+                clear_position_protection(position)
+            else:
+                apply_position_protection(position, authority, now=now)
         session.add(
             PositionEventRecord(
                 event_id=stable_id("pevt", event_type, next_plan.plan_id),
@@ -305,3 +343,34 @@ async def load_valid_long_active_plan(
     if plan_business_errors(plan):
         return None
     return plan
+
+
+def resolve_open_position_protection(
+    position: PositionRecord,
+) -> PositionProtectionAuthority | None:
+    """The one authority that decides whether this OPEN LONG is protected right now.
+
+    Candidate A (N01-7-F01-R1) makes the durable position snapshot the *sole* protection-lifetime
+    authority. A TradePlan is only the *source* of a protection authority, and it becomes
+    authoritative only after its values have been atomically committed onto the position row --
+    by G3 settlement for a risk-increasing BUY fill, or by `PlanManager.replace` for a
+    superseding plan version. Two consequences follow, and both are load-bearing:
+
+    * a merely *valid* ACTIVE TradePlan can never override, replace or unprotect an
+      already-committed snapshot. The previous implementation preferred a valid ACTIVE plan and
+      fell back to the snapshot only on TTL expiry, so a plan replacement that did not move the
+      snapshot silently changed live protection (the authority-precedence defect this fix removes);
+    * plan TTL expiry is never a protection-lifetime event. It stays the *risk-increasing*
+      freshness authority for new BUY / ADD / pending limit fills and recovery revalidation of
+      risk-increasing orders, which is `load_valid_long_active_plan`.
+
+    A legacy OPEN position that predates this migration is converted once, deterministically, by
+    migration `20260912_0006` (CASE B). Protection is deliberately *not* re-derived from whatever
+    plan happens to be ACTIVE at read time: that would let a newly created ACTIVE plan become
+    protection authority merely because it is valid, which Candidate A forbids outright.
+
+    `None` means unprotected: callers must open POSITION_UNPROTECTED and allow only risk-reducing
+    exits. A missing, partial, non-finite or inverted snapshot returns `None`, so a corrupt
+    authority fails closed exactly as before.
+    """
+    return read_position_protection(position)

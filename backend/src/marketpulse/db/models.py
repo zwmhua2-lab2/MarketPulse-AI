@@ -231,9 +231,47 @@ class FillRecord(Base):
 
 
 class PositionRecord(Base):
+    """G3 position plus the durable protection authority of an OPEN LONG.
+
+    `protection_plan_id` / `protection_plan_version` / `protection_stop_loss` /
+    `protection_take_profit` / `protection_updated_at` carry the SL/TP authority written by the
+    risk-increasing fill that opened (or last increased) the position. Reading the authority from
+    this row is what lets protection outlive the originating TradePlan TTL: the plan TTL stays the
+    *risk-increasing* freshness authority, while the OPEN position's protection lifetime lives
+    here. All five columns are additive and nullable; the CHECK constraints below forbid a
+    half-written authority and reject non-finite or inverted levels.
+    """
+
     __tablename__ = "positions"
     __table_args__ = (
         UniqueConstraint("run_mode", "instrument_id", name="uq_positions_mode_instrument"),
+        CheckConstraint(
+            "(protection_plan_id IS NULL AND protection_plan_version IS NULL "
+            "AND protection_stop_loss IS NULL AND protection_take_profit IS NULL "
+            "AND protection_updated_at IS NULL) "
+            "OR (protection_plan_id IS NOT NULL AND protection_plan_version IS NOT NULL "
+            "AND protection_stop_loss IS NOT NULL AND protection_take_profit IS NOT NULL "
+            "AND protection_updated_at IS NOT NULL)",
+            name="ck_positions_protection_complete",
+        ),
+        CheckConstraint(
+            "protection_plan_version IS NULL OR protection_plan_version >= 1",
+            name="ck_positions_protection_version_positive",
+        ),
+        # PostgreSQL does not expose isfinite(double precision) on every target version, so
+        # finiteness is expressed with the two infinities: `x < 'Infinity'::float8` rejects NaN and
+        # +Infinity together (PostgreSQL orders NaN above every value), and
+        # `x > '-Infinity'::float8` rejects -Infinity. The relation rule is deliberately exactly
+        # the executable-plan contract (`stop_loss < take_profit`) and adds nothing stricter, so a
+        # plan G4 accepts can never produce a position G4 then calls POSITION_UNPROTECTED.
+        CheckConstraint(
+            "protection_stop_loss IS NULL OR (protection_stop_loss > '-Infinity'::float8 "
+            "AND protection_stop_loss < 'Infinity'::float8 "
+            "AND protection_take_profit > '-Infinity'::float8 "
+            "AND protection_take_profit < 'Infinity'::float8 "
+            "AND protection_stop_loss < protection_take_profit)",
+            name="ck_positions_protection_prices",
+        ),
     )
     position_id: Mapped[str] = mapped_column(String(64), primary_key=True)
     run_mode: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
@@ -243,6 +281,13 @@ class PositionRecord(Base):
     realized_pnl: Mapped[float] = mapped_column(Float, nullable=False, default=0)
     trade_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    protection_plan_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    protection_plan_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    protection_stop_loss: Mapped[float | None] = mapped_column(Float, nullable=True)
+    protection_take_profit: Mapped[float | None] = mapped_column(Float, nullable=True)
+    protection_updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
 
 class TradeRecord(Base):
