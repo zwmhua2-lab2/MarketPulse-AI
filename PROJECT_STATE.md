@@ -198,6 +198,18 @@ N01 overall — NOT ACCEPTED（N01-7 / N01-8 与 Integrated Runtime Host 仍 `NO
   `se-02b-opportunity-capture-attribution`，**未** merge `main`；**无** migration 变更，
   `alembic heads` 单 head 仍 `20260911_0005`）。详见
   `dev_log/2026-09-12-se-02b-fix-01-acceptance-blockers.md`。
+  **Independent Re-review 结论（实测记录）**：P0-2 / P0-3 / P0-4 / P1 = **PASS**；
+  P0-1 Reference BBO = **CHANGES REQUIRED** ⇒ 由 SE-02B-FIX-02 接管，本项不再单独 claim 可验收。
+- **SE-02B-FIX-02｜Reference Quote Quality & Provenance = `IMPLEMENTED / VERIFIED / READY FOR INDEPENDENT RE-REVIEW`**
+  （只关闭 Re-review 后剩余的 P0-1 两个 Acceptance Blocker：①`ReferenceDataStatus.OK` 现要求
+  `data_quality == FRESH`（`STALE` / `UNAVAILABLE` 一律 `REFERENCE_STALE`，顶层 reference 三列 NULL）；
+  ②不可变 payload 的 `reference_data` 拆为 `supplied_quote`（被拒报价的真实输入逐字保留）
+  + `accepted_reference`（仅 OK 非空），`RUNTIME_CAPTURE_PAYLOAD_VERSION` `v2 → v3`。
+  reviewed HEAD `b8a5fe3…` → fix commit `0b8a275…`；仍在 branch
+  `se-02b-opportunity-capture-attribution`，**未** merge `main`；**无** migration 变更，
+  `alembic heads` 单 head 仍 `20260911_0005`；focused 134 / G2-G4 123 / full backend 313）。
+  详见 `dev_log/2026-09-12-se-02b-fix-02-reference-quality-provenance.md`。
+  仍 **NOT** accepted：本窗口不自行 Acceptance。
 - **SE-02A｜Contracts + Additive Persistence 已完成验收收尾
   （`ACCEPTED / COMPLETE`；见 Completed 与本文「SE-02A Result」）**。其 reviewed implementation
   source = branch `se-02a-contracts-additive-persistence` @ `0c206c9`；最终收编经 refresh
