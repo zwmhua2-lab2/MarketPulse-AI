@@ -16,8 +16,9 @@ N01-A — Deterministic Runtime + Resource Lifecycle — ACCEPTED / COMPLETE
 
 N01-6 — 15-minute Short Runtime Smoke — ACCEPTED / COMPLETE
 
-N01 overall — NOT ACCEPTED（N01-7 / N01-8 与 Integrated Runtime Host 仍 `NOT STARTED`；N01-6 的验收
-不得推断 Continuous Runtime / soak / 7x24 / Integrated Runtime Host）
+N01 overall — NOT ACCEPTED（`N01-7-F01 = INTEGRATED / AWAITING FINAL REVIEW`（**未** ACCEPTED）；
+`N01-7 = BLOCKED / WAITING F01 ACCEPTANCE`；N01-8 与 Integrated Runtime Host 仍 `NOT STARTED`；
+N01-6 的验收不得推断 Continuous Runtime / soak / 7x24 / Integrated Runtime Host）
 
 ## GitHub Repository
 
@@ -234,13 +235,18 @@ N01 overall — NOT ACCEPTED（N01-7 / N01-8 与 Integrated Runtime Host 仍 `NO
   Final Closeout Commit`，仅 fast-forward）。SE-02C / SE-02D / Forward Outcome Calculator /
   Real AI Edge / Live 仍 **NOT STARTED**；runtime opportunity capture 已由 SE-02B 落地
   （`ACCEPTED / COMPLETE`，见上）。
-- 无进行中的 N01 Acceptance Group。**N01-A / N01-B / N01-C / N01-6 均已 `ACCEPTED / COMPLETE`**
-  （见 Completed）；N01 overall 仍未验收，也不由任何单门 N01 验收推断。
+- **N01-7-F01｜Durable Protection Snapshot（N01-7 前置 Fix）= `INTEGRATED / AWAITING FINAL REVIEW`**
+  （branch `n01-7-f01-latest-main-integration`；integration merge commit `ddf39f2` = 最新 main
+  `1579707` × 已复审 F01 源 `c0ce0af`，true merge、`Reviewed Source Preserved = YES`；集成证据见
+  `dev_log/2026-09-12-n01-7-f01-latest-main-integration.md`）。**未**标记 `ACCEPTED`，**未** merge 入 `main`。
+- **`N01-7 = BLOCKED / WAITING F01 ACCEPTANCE`**（2-hour Medium Runtime Soak 尚未启动）。
+- **`N01-8 = NOT STARTED`**；**`Integrated Runtime Host = NOT STARTED`**。
+- **N01-A / N01-B / N01-C / N01-6 均已 `ACCEPTED / COMPLETE`**（见 Completed）；N01 overall
+  仍未验收，也不由任何单门 N01 验收推断。
 - N01 Continuous Runtime / Soak 本身仍 `NOT ACCEPTED`；不得由 N01-B / N01-6 验收推断 N01 整体验收。
 - N01-6 15m Runtime Smoke 已完成 Final Acceptance Closeout 并 `ACCEPTED / COMPLETE`（见 Completed 与
-  `dev_log/2026-09-12-n01-6-15m-runtime-smoke.md`）；下一 Acceptance Batch = N01-7｜2-hour Medium
-  Runtime Soak（本窗口未启动）。N01-7 2h Soak、N01-8 12h Soak 与 Integrated Runtime Host 仍
-  `NOT STARTED`，须另开窗口并按各自批准的门执行。
+  `dev_log/2026-09-12-n01-6-15m-runtime-smoke.md`）。N01-7 2h Soak、N01-8 12h Soak 与
+  Integrated Runtime Host 仍 `NOT STARTED`，须另开窗口并按各自批准的门执行。
 
 ## Blocked
 
