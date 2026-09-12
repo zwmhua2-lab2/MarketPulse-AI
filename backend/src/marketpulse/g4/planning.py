@@ -345,34 +345,32 @@ async def load_valid_long_active_plan(
     return plan
 
 
-async def resolve_open_position_protection(
-    session: AsyncSession,
+def resolve_open_position_protection(
     position: PositionRecord,
-    *,
-    now: datetime,
 ) -> PositionProtectionAuthority | None:
     """The one authority that decides whether this OPEN LONG is protected right now.
 
-    The plan that currently protects the position wins, so every verdict that existed before the
-    durable snapshot is preserved unchanged. The durable snapshot is then consulted only when the
-    *one* reason the plan is unusable is TTL expiry: an expired plan is the normal end of a short
-    planning window and must never leave a real position unprotected, whereas a missing,
-    unreadable, identity-inconsistent or business-invalid plan is evidence of a data problem and
-    keeps failing closed to POSITION_UNPROTECTED exactly as before.
+    Candidate A (N01-7-F01-R1) makes the durable position snapshot the *sole* protection-lifetime
+    authority. A TradePlan is only the *source* of a protection authority, and it becomes
+    authoritative only after its values have been atomically committed onto the position row --
+    by G3 settlement for a risk-increasing BUY fill, or by `PlanManager.replace` for a
+    superseding plan version. Two consequences follow, and both are load-bearing:
+
+    * a merely *valid* ACTIVE TradePlan can never override, replace or unprotect an
+      already-committed snapshot. The previous implementation preferred a valid ACTIVE plan and
+      fell back to the snapshot only on TTL expiry, so a plan replacement that did not move the
+      snapshot silently changed live protection (the authority-precedence defect this fix removes);
+    * plan TTL expiry is never a protection-lifetime event. It stays the *risk-increasing*
+      freshness authority for new BUY / ADD / pending limit fills and recovery revalidation of
+      risk-increasing orders, which is `load_valid_long_active_plan`.
+
+    A legacy OPEN position that predates this migration is converted once, deterministically, by
+    migration `20260912_0006` (CASE B). Protection is deliberately *not* re-derived from whatever
+    plan happens to be ACTIVE at read time: that would let a newly created ACTIVE plan become
+    protection authority merely because it is valid, which Candidate A forbids outright.
 
     `None` means unprotected: callers must open POSITION_UNPROTECTED and allow only risk-reducing
-    exits. `authority_from_plan` accepts exactly the levels `plan_business_errors` accepts, so a
-    plan that survives the check above always yields an authority.
+    exits. A missing, partial, non-finite or inverted snapshot returns `None`, so a corrupt
+    authority fails closed exactly as before.
     """
-    plan = await load_valid_long_active_plan(
-        session, position.run_mode, position.instrument_id, now=now
-    )
-    if plan is not None:
-        return authority_from_plan(plan)
-    durable = read_position_protection(position)
-    if durable is None:
-        return None
-    expired = await load_active_plan(session, position.run_mode, position.instrument_id)
-    if expired is None or expired.expires_at > now or plan_business_errors(expired):
-        return None
-    return durable
+    return read_position_protection(position)

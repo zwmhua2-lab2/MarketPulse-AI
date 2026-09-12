@@ -8,12 +8,18 @@ shared resolver `marketpulse.g4.planning.resolve_open_position_protection`, whos
 * `g4.protection.evaluate` / `_close_position_in` -- the SL/TP trigger authority;
 * `g4.control._open_position_protection_gate` -- the resume / safe-mode-recovery gate;
 * `g4.recovery` -- transitively, through its `RESTORE_POSITION_PROTECTION` protection restore;
-* `g4.reconciliation` -- invariant #13, which surfaces an OPEN LONG whose snapshot is missing.
+* `g4.reconciliation` -- invariant #13, which uses this same reader as the canonical
+  durable-position protection contract.
 
-`g4.reevaluation` deliberately does not read it and needs no change: its `POSITION_UNPROTECTED`
-branch fires only when `load_active_plan` finds no ACTIVE plan at all, and
-`resolve_open_position_protection` returns `None` for exactly that state (the TTL carve-out below
-requires an ACTIVE plan that is merely expired). Both layers therefore already agree.
+`read_position_protection` is the *sole* protection-lifetime authority (Candidate A,
+N01-7-F01-R1). A TradePlan never participates in it: it is only the *source* of an authority, and
+its values become authoritative only once committed here -- by G3 settlement for a risk-increasing
+BUY fill, or by `PlanManager.replace` for a superseding plan version. A merely valid ACTIVE plan
+therefore cannot override, replace or unprotect an already-committed snapshot, and plan TTL expiry
+is not a protection-lifetime event.
+
+`g4.reevaluation` does not read this module. Its `POSITION_UNPROTECTED` branch fires only when it
+has no ACTIVE plan to review, which is a plan-review precondition, not an authority verdict.
 
 Placement note: this module holds the write side, and the write happens inside G3's economic
 transaction, so it lives with G3. The dependency direction in this codebase is strictly

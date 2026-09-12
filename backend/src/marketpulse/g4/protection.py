@@ -125,7 +125,7 @@ class PositionProtectionService:
                 return ProtectionOutcome(
                     instrument_id=instrument_id, triggered=False, reason="NO_POSITION"
                 )
-            authority = await resolve_open_position_protection(session, position, now=now)
+            authority = resolve_open_position_protection(position)
             if authority is None:
                 await self.incidents.open(
                     incident_type=IncidentType.POSITION_UNPROTECTED,
@@ -277,9 +277,10 @@ class PositionProtectionService:
             )
         # The exit is identified by the authority that actually protects the position, so a close
         # after the plan TTL expired still has a stable identity instead of the empty one it would
-        # get from a plan that is no longer usable. While a valid plan exists this is the same
-        # plan_id / plan_version the plan itself carries, so existing exit identities are unchanged.
-        authority = await resolve_open_position_protection(session, position, now=now)
+        # get from a plan that is no longer usable. While a valid snapshot exists this is the same
+        # plan_id / plan_version the plan itself carried, so protected exit identities keep their
+        # (plan_id, plan_version) component and gain the lifecycle identity `trade_id`.
+        authority = resolve_open_position_protection(position)
         plan_id = authority.plan_id if authority else ""
         plan_version = authority.plan_version if authority else 0
 
@@ -290,8 +291,35 @@ class PositionProtectionService:
         )
 
         exit_quantity = position.quantity if quantity is None else min(quantity, position.quantity)
-        intent_id = stable_id(
-            "exit", run_mode, instrument_id, plan_id, plan_version, exit_reason, exit_quantity
+        # Risk-reducing exit identity must be unique per *economic* exit, not per plan artefact.
+        # A protected exit is identified by the durable authority plus the trade lifecycle; an
+        # unprotected (missing / corrupt snapshot) close has no plan identity at all, so it is
+        # identified by the position and the trade lifecycle instead. Neither form may collapse to
+        # the old `plan_id="" / plan_version=0` pair, which made two unprotected full closes in
+        # successive trade lifecycles on the same symbol hash to one intent and silently degrade
+        # the second close into a `duplicate_intent` no-op with the position still open.
+        trade_id = position.trade_id or ""
+        intent_id = (
+            stable_id(
+                "exit",
+                run_mode,
+                instrument_id,
+                trade_id,
+                plan_id,
+                plan_version,
+                exit_reason,
+                exit_quantity,
+            )
+            if authority is not None
+            else stable_id(
+                "exit",
+                run_mode,
+                instrument_id,
+                position.position_id,
+                trade_id,
+                exit_reason,
+                exit_quantity,
+            )
         )
 
         async def on_settled(

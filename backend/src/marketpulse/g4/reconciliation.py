@@ -20,7 +20,6 @@ from marketpulse.g3.protection_snapshot import read_position_protection
 from marketpulse.g3.service import PaperExecutionService
 
 from .models import OperatorState, ReconciliationReport, SystemState
-from .planning import load_active_plan, load_valid_long_active_plan, plan_business_errors
 
 TOLERANCE = 1e-8
 
@@ -81,34 +80,23 @@ async def reconcile(
             select(RuntimeControlRecord).where(RuntimeControlRecord.run_mode == run_mode)
         )
 
-        # 13. An OPEN LONG must not lose protection merely because its planning window closed.
-        # When the symbol's ACTIVE plan is expired but otherwise valid, the position's durable
-        # snapshot is the protection authority; a missing snapshot means it is silently
-        # unprotected, which is exactly the state this invariant exists to surface. These reads
-        # stay inside this single REPEATABLE READ snapshot so the G3 facts and this G4 invariant
-        # observe one consistent view (and share this session, which the surrounding context
-        # closes exactly once).
+        # 13. An OPEN LONG must carry its own durable protection authority. Candidate A
+        # (N01-7-F01-R1) makes the position-row snapshot the *sole* protection-lifetime authority,
+        # so this invariant is now the canonical durable-position protection contract itself --
+        # `read_position_protection` -- instead of a second, plan-first carve-out that could
+        # disagree with the evaluator it is supposed to cross-check. It therefore reports exactly
+        # the states the evaluator fails closed on: missing, partial, non-finite or inverted
+        # snapshots. An expired (or otherwise plan-level) TradePlan alone is deliberately NOT a
+        # finding: the plan TTL is the risk-increasing freshness authority and never un-protects an
+        # already-open position. These reads stay inside this single REPEATABLE READ snapshot so
+        # the G3 facts and this G4 invariant observe one consistent view.
         ttl_unprotected: list[dict[str, Any]] = []
         for position in sorted(positions, key=lambda p: p.instrument_id):
             if position.quantity <= TOLERANCE:
                 continue
-            if (
-                await load_valid_long_active_plan(
-                    session, run_mode, position.instrument_id, now=now
-                )
-                is not None
-            ):
-                continue
-            expired = await load_active_plan(session, run_mode, position.instrument_id)
-            if expired is None or expired.expires_at > now or plan_business_errors(expired):
-                continue
             if read_position_protection(position) is None:
                 ttl_unprotected.append(
-                    {
-                        "instrument_id": position.instrument_id,
-                        "plan_id": expired.plan_id,
-                        "reason": "NO_SNAPSHOT",
-                    }
+                    {"instrument_id": position.instrument_id, "reason": "NO_DURABLE_AUTHORITY"}
                 )
     diagnostics: list[str] = list(base.get("diagnostics", []))
     invariants: dict[str, bool] = {
@@ -246,8 +234,11 @@ async def reconcile(
         diagnostics.append("runtime_control_inconsistent")
     details["runtime_control"] = {**control_snapshot, "issues": control_issues}
 
-    # 13 (report merge). The durable-snapshot reads above already ran inside the single
-    # REPEATABLE READ snapshot; here the result only folds into the report.
+    # 13 (report merge). The durable-authority reads above already ran inside the single
+    # REPEATABLE READ snapshot; here the result only folds into the report. The invariant key and
+    # diagnostic string are kept verbatim for report-consumer stability; both now mean "an OPEN
+    # position still carries a durable protection authority", which is exactly what the evaluator
+    # enforces, rather than a plan-TTL carve-out.
     invariants["open_position_protection_survives_plan_ttl"] = not ttl_unprotected
     if ttl_unprotected:
         diagnostics.append("open_position_unprotected_after_plan_ttl")

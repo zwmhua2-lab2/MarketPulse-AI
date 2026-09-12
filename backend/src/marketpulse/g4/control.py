@@ -164,7 +164,7 @@ class SystemControlService:
             ).all()
         )
         for position in positions:
-            authority = await resolve_open_position_protection(session, position, now=now)
+            authority = resolve_open_position_protection(position)
             if authority is None:
                 return "POSITION_UNPROTECTED"
         return None
