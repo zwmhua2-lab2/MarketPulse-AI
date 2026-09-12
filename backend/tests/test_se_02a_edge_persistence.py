@@ -61,7 +61,12 @@ START = datetime(2026, 1, 2, 9, 30, tzinfo=UTC)
 PRIMARY_URL = Settings().database_url
 BACKEND = Path(__file__).resolve().parents[1]
 PREVIOUS_REVISION = "20260905_0004"
-HEAD_REVISION = "20260911_0005"
+# The head moves with the schema, exactly like `ReplayTradingRunner.schema_head`. N01-7-F01 adds
+# the additive positions protection-snapshot revision on top of the SE-02A Edge revision, so the
+# expected head is `20260912_0006`. SE-02A's own evidence (`20260911_0005` = 4 Edge tables) is
+# unchanged: the cycle below still walks head -> 0004 -> head and still requires the Edge tables at
+# head and their absence at 0004.
+HEAD_REVISION = "20260912_0006"
 EDGE_TABLES = frozenset(
     {
         "edge_opportunity_evidence",
@@ -1048,7 +1053,14 @@ def test_migration_cycle_only_adds_and_removes_edge_tables():
 
 
 def test_migration_reaches_revision_0005_through_a_full_cycle():
-    """`0004 -> upgrade head -> 0005 -> downgrade 0004 -> upgrade head -> 0005`."""
+    """`0004 -> upgrade head -> head -> downgrade 0004 -> upgrade head -> head`.
+
+    The function name keeps its original SE-02A identity (it is referenced by the append-only
+    `dev_log/2026-09-11-se-02a-edge-contracts-persistence.md`); the asserted head is
+    `HEAD_REVISION`, which N01-7-F01 moved to `20260912_0006`. The SE-02A property under test is
+    unchanged: at head the 4 Edge tables exist, at `0004` they are gone, and re-upgrading restores
+    them.
+    """
 
     with _edge_database("migration_cycle", revision=PREVIOUS_REVISION) as (_, url):
         assert asyncio.run(_alembic_version(url)) == PREVIOUS_REVISION

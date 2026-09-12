@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any, Protocol, runtime_checkable
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
@@ -172,6 +172,39 @@ class TradePlan(BaseModel):
     invalidation: str | None = None
     probe: bool = False
     backup_scenarios: list[str] = Field(default_factory=list)
+
+
+class PositionProtectionAuthority(BaseModel):
+    """Durable SL/TP authority carried by a risk-increasing fill.
+
+    G3 settlement (`PaperExecutionService._settle_order`) writes these four facts onto the position
+    row inside the same economic transaction as the fill. G4 then reads them as the OPEN position's
+    *protection lifetime* authority, independent of the originating TradePlan TTL and of
+    `SymbolStateStore.state_version`. A plan therefore stays only the authority *source*; the
+    position owns the durability.
+
+    Acceptance is deliberately *exactly* the established executable-plan contract, no stricter:
+    finite levels plus `stop_loss < take_profit` (see `marketpulse.g4.planning.plan_business_errors`
+    and `marketpulse.g4.models.ProtectionContext`). Adding an extra rule here — for example
+    positivity — would make a plan G4 currently accepts produce a position G4 then calls
+    POSITION_UNPROTECTED, i.e. it would silently turn protection on and off between two layers that
+    must agree. Aligning instead means the snapshot accepts precisely what the plan contract
+    accepts, so no position changes protection status because of this migration.
+    """
+
+    plan_id: str
+    plan_version: int = Field(ge=1)
+    stop_loss: float
+    take_profit: float
+
+    _finite_stop = field_validator("stop_loss")(_finite)
+    _finite_tp = field_validator("take_profit")(_finite)
+
+    @model_validator(mode="after")
+    def _ordered(self) -> PositionProtectionAuthority:
+        if self.stop_loss >= self.take_profit:
+            raise ValueError("stop_loss must be below take_profit")
+        return self
 
 
 class ExecutionIntent(BaseModel):

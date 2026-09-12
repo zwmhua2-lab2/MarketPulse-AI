@@ -8,8 +8,26 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from marketpulse.clock import Clock, SystemClock
-from marketpulse.db.models import PaperOrderRecord, PositionEventRecord, TradePlanRecord
-from marketpulse.g3.models import OrderSide, OrderStatus, PlanStatus, RunMode, TradePlan
+from marketpulse.db.models import (
+    PaperOrderRecord,
+    PositionEventRecord,
+    PositionRecord,
+    TradePlanRecord,
+)
+from marketpulse.g3.models import (
+    OrderSide,
+    OrderStatus,
+    PlanStatus,
+    PositionProtectionAuthority,
+    RunMode,
+    TradePlan,
+)
+from marketpulse.g3.protection_snapshot import (
+    apply_position_protection,
+    authority_from_plan,
+    clear_position_protection,
+    read_position_protection,
+)
 from marketpulse.g3.service import PaperExecutionService, stable_id
 
 from .models import PositionEventType
@@ -144,6 +162,26 @@ class PlanManager:
                 session=session,
                 stale_plan_ids={previous.plan_id},
             )
+        # The new version is now the plan that protects this symbol, so the OPEN position's durable
+        # authority must move with it. Skipping this would leave a stop-loss update live on the
+        # plan while protection kept triggering on the superseded level. Taken last to keep the
+        # global lock order (Plan -> ... -> Positions); a replacement that cannot yield a legal
+        # authority clears the snapshot and therefore fails closed to POSITION_UNPROTECTED, which
+        # is the same verdict `load_valid_long_active_plan` already returns for that plan.
+        position = await session.scalar(
+            select(PositionRecord)
+            .where(
+                PositionRecord.run_mode == next_plan.run_mode,
+                PositionRecord.instrument_id == next_plan.instrument_id,
+            )
+            .with_for_update()
+        )
+        if position is not None and position.quantity > 1e-12:
+            authority = authority_from_plan(next_plan)
+            if authority is None:
+                clear_position_protection(position)
+            else:
+                apply_position_protection(position, authority, now=now)
         session.add(
             PositionEventRecord(
                 event_id=stable_id("pevt", event_type, next_plan.plan_id),
@@ -305,3 +343,36 @@ async def load_valid_long_active_plan(
     if plan_business_errors(plan):
         return None
     return plan
+
+
+async def resolve_open_position_protection(
+    session: AsyncSession,
+    position: PositionRecord,
+    *,
+    now: datetime,
+) -> PositionProtectionAuthority | None:
+    """The one authority that decides whether this OPEN LONG is protected right now.
+
+    The plan that currently protects the position wins, so every verdict that existed before the
+    durable snapshot is preserved unchanged. The durable snapshot is then consulted only when the
+    *one* reason the plan is unusable is TTL expiry: an expired plan is the normal end of a short
+    planning window and must never leave a real position unprotected, whereas a missing,
+    unreadable, identity-inconsistent or business-invalid plan is evidence of a data problem and
+    keeps failing closed to POSITION_UNPROTECTED exactly as before.
+
+    `None` means unprotected: callers must open POSITION_UNPROTECTED and allow only risk-reducing
+    exits. `authority_from_plan` accepts exactly the levels `plan_business_errors` accepts, so a
+    plan that survives the check above always yields an authority.
+    """
+    plan = await load_valid_long_active_plan(
+        session, position.run_mode, position.instrument_id, now=now
+    )
+    if plan is not None:
+        return authority_from_plan(plan)
+    durable = read_position_protection(position)
+    if durable is None:
+        return None
+    expired = await load_active_plan(session, position.run_mode, position.instrument_id)
+    if expired is None or expired.expires_at > now or plan_business_errors(expired):
+        return None
+    return durable

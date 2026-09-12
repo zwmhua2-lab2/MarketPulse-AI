@@ -43,10 +43,16 @@ from .models import (
     OrderStatus,
     OrderType,
     PlanStatus,
+    PositionProtectionAuthority,
     RiskGate,
     RunMode,
     StrategyContext,
     TradePlan,
+)
+from .protection_snapshot import (
+    apply_position_protection,
+    authority_from_plan,
+    clear_position_protection,
 )
 from .provider import AIProvider
 
@@ -895,7 +901,15 @@ class PaperExecutionService:
             )
         )
         session.add(order)
-        return await self._settle_order(session, account, position, order, price, now)
+        return await self._settle_order(
+            session,
+            account,
+            position,
+            order,
+            price,
+            now,
+            protection=authority_from_plan(plan) if order.side == OrderSide.BUY else None,
+        )
 
     async def execute_risk_reducing_exit(
         self,
@@ -1043,9 +1057,16 @@ class PaperExecutionService:
         now: datetime,
         *,
         exit_reason: str | None = None,
+        protection: PositionProtectionAuthority | None = None,
         on_settled: Callable[[AsyncSession, PaperOrderRecord, str], Awaitable[None]] | None = None,
     ) -> ExecutionResult:
-        """Persist one all-or-none fill and every G3 settlement record atomically."""
+        """Persist one all-or-none fill and every G3 settlement record atomically.
+
+        A risk-increasing BUY fill also writes its durable protection authority onto the position
+        row inside this same transaction, and a fill that flattens the position clears it. The
+        snapshot is therefore never observable half-written and never outlives its position.
+        `protection` is only supplied for a BUY: SELL fills reduce or clear, never re-protect.
+        """
         if order.status != OrderStatus.OPEN:
             raise RuntimeError("only_open_orders_can_settle")
         fill_id = stable_id("fill", order.intent_id)
@@ -1094,6 +1115,8 @@ class PaperExecutionService:
                 )
                 position.quantity += order.quantity
                 position.updated_at = now
+            if protection is not None:
+                apply_position_protection(position, protection, now=now)
             cash_delta, entry_type = -(gross + fee), "BUY_FILL"
         else:
             if position is None or order.quantity > position.quantity + 1e-12:
@@ -1107,6 +1130,7 @@ class PaperExecutionService:
             if position.quantity <= 1e-12:
                 position.quantity = 0
                 position.average_cost = 0
+                clear_position_protection(position)
                 if trade_id:
                     values: dict[str, object] = {"status": "CLOSED", "closed_at": now}
                     if exit_reason is not None:
@@ -1325,7 +1349,7 @@ class PaperExecutionService:
                     reason="CORE_POSITION_MARK_STALE",
                     order_id=order.order_id,
                 )
-            plan_guard_reason = self._limit_fill_plan_guard(
+            plan_guard_reason, fill_plan = self._limit_fill_plan_guard(
                 order, plan_record, action_bbo, action_now, state_version
             )
             if plan_guard_reason is not None:
@@ -1367,7 +1391,19 @@ class PaperExecutionService:
                     reason="SELL_RESERVATION_EXCEEDS_POSITION",
                     order_id=order.order_id,
                 )
-            return await self._settle_order(session, account, position, order, price, action_now)
+            return await self._settle_order(
+                session,
+                account,
+                position,
+                order,
+                price,
+                action_now,
+                protection=(
+                    authority_from_plan(fill_plan)
+                    if order.side == OrderSide.BUY and fill_plan is not None
+                    else None
+                ),
+            )
 
     def _limit_fill_plan_guard(
         self,
@@ -1376,38 +1412,43 @@ class PaperExecutionService:
         bbo: BestBidAsk,
         now: datetime,
         state_version: int,
-    ) -> str | None:
-        """Fail closed on any order/plan drift before a risk-changing limit fill."""
+    ) -> tuple[str | None, TradePlan | None]:
+        """Fail closed on any order/plan drift before a risk-changing limit fill.
+
+        Returns `(reason, plan)`. `reason` is set when the fill must not happen; on success the
+        validated executable plan is returned so the caller can derive its durable protection
+        authority without parsing the stored payload a second time.
+        """
         if plan_record is None:
-            return "PLAN_MISSING"
+            return "PLAN_MISSING", None
         if (
             plan_record.run_mode != order.run_mode
             or plan_record.instrument_id != order.instrument_id
         ):
-            return "PLAN_ORDER_MISMATCH"
+            return "PLAN_ORDER_MISMATCH", None
         if plan_record.status != PlanStatus.ACTIVE:
-            return "PLAN_NOT_ACTIVE"
+            return "PLAN_NOT_ACTIVE", None
         if now >= plan_record.expires_at:
-            return "PLAN_EXPIRED"
+            return "PLAN_EXPIRED", None
         if state_version != plan_record.state_version:
-            return "STATE_VERSION_CHANGED"
+            return "STATE_VERSION_CHANGED", None
         try:
             plan = TradePlan.model_validate(plan_record.payload)
         except Exception:  # noqa: BLE001 - invalid durable plan evidence must fail closed
-            return "PLAN_PAYLOAD_INVALID"
+            return "PLAN_PAYLOAD_INVALID", None
         if (
             plan.plan_id != plan_record.plan_id
             or plan.run_mode != order.run_mode
             or plan.instrument_id != order.instrument_id
         ):
-            return "PLAN_PAYLOAD_MISMATCH"
+            return "PLAN_PAYLOAD_MISMATCH", None
         if order.side == OrderSide.BUY:
             price = bbo.ask
             if price <= plan.stop_loss:
-                return "BUY_STOP_LOSS_BREACHED"
+                return "BUY_STOP_LOSS_BREACHED", None
             if not plan.entry_zone.contains(price):
-                return "BUY_PRICE_OUTSIDE_ENTRY_ZONE"
-        return None
+                return "BUY_PRICE_OUTSIDE_ENTRY_ZONE", None
+        return None, plan
 
     async def _load_action_time_bbo(self, instrument_id: str) -> BestBidAsk | None:
         try:

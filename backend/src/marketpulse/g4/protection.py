@@ -20,8 +20,8 @@ from marketpulse.g3.models import (
     IntentStatus,
     OrderSide,
     OrderStatus,
+    PositionProtectionAuthority,
     RunMode,
-    TradePlan,
 )
 from marketpulse.g3.service import PaperExecutionService, stable_id
 from marketpulse.runtime import HealthRegistry
@@ -36,7 +36,7 @@ from .models import (
     ProtectionOutcome,
     ProtectionTrigger,
 )
-from .planning import load_valid_long_active_plan
+from .planning import resolve_open_position_protection
 
 TOLERANCE = 1e-12
 
@@ -125,14 +125,12 @@ class PositionProtectionService:
                 return ProtectionOutcome(
                     instrument_id=instrument_id, triggered=False, reason="NO_POSITION"
                 )
-            plan = await load_valid_long_active_plan(
-                session, run_mode, instrument_id, now=now
-            )
-            if plan is None:
+            authority = await resolve_open_position_protection(session, position, now=now)
+            if authority is None:
                 await self.incidents.open(
                     incident_type=IncidentType.POSITION_UNPROTECTED,
                     run_mode=run_mode,
-                    reason="open_position_without_active_plan",
+                    reason="open_position_without_durable_protection",
                     instrument_id=instrument_id,
                     payload={"quantity": position.quantity},
                     session=session,
@@ -141,7 +139,7 @@ class PositionProtectionService:
                 return ProtectionOutcome(
                     instrument_id=instrument_id, triggered=False, reason="POSITION_UNPROTECTED"
                 )
-            trigger = self._trigger(quote.bid, plan)
+            trigger = self._trigger(quote.bid, authority)
             if trigger is ProtectionTrigger.NONE:
                 return ProtectionOutcome(
                     instrument_id=instrument_id, triggered=False, trigger=trigger, reason="HOLD"
@@ -277,9 +275,13 @@ class PositionProtectionService:
             return ProtectionOutcome(
                 instrument_id=instrument_id, triggered=False, reason="NO_POSITION"
             )
-        plan = await load_valid_long_active_plan(session, run_mode, instrument_id, now=now)
-        plan_id = plan.plan_id if plan else ""
-        plan_version = plan.plan_version if plan else 0
+        # The exit is identified by the authority that actually protects the position, so a close
+        # after the plan TTL expired still has a stable identity instead of the empty one it would
+        # get from a plan that is no longer usable. While a valid plan exists this is the same
+        # plan_id / plan_version the plan itself carries, so existing exit identities are unchanged.
+        authority = await resolve_open_position_protection(session, position, now=now)
+        plan_id = authority.plan_id if authority else ""
+        plan_version = authority.plan_version if authority else 0
 
         # A stop-loss or force-close must invalidate every pending risk-increasing BUY first,
         # otherwise a stale add limit order could re-open the position after the exit.
@@ -310,8 +312,8 @@ class PositionProtectionService:
                     "exit_reason": exit_reason,
                     "quantity": order.quantity,
                     "best_bid": quote.bid,
-                    "stop_loss": plan.stop_loss if plan else None,
-                    "take_profit": plan.take_profit if plan else None,
+                    "stop_loss": authority.stop_loss if authority else None,
+                    "take_profit": authority.take_profit if authority else None,
                     "cancelled_order_ids": cancelled,
                 },
                 now=now,
@@ -395,10 +397,10 @@ class PositionProtectionService:
         )
 
     @staticmethod
-    def _trigger(best_bid: float, plan: TradePlan) -> ProtectionTrigger:
-        if best_bid <= plan.stop_loss:
+    def _trigger(best_bid: float, authority: PositionProtectionAuthority) -> ProtectionTrigger:
+        if best_bid <= authority.stop_loss:
             return ProtectionTrigger.STOP_LOSS
-        if best_bid >= plan.take_profit:
+        if best_bid >= authority.take_profit:
             return ProtectionTrigger.TAKE_PROFIT
         return ProtectionTrigger.NONE
 

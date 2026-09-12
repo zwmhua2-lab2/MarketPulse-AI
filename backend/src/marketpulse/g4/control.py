@@ -34,7 +34,7 @@ from .models import (
     ReconciliationReport,
     SystemState,
 )
-from .planning import load_valid_long_active_plan
+from .planning import resolve_open_position_protection
 from .protection import PositionProtectionService
 from .risk_gate import SystemRiskGate
 from .state import SystemStateService, effective_state
@@ -164,13 +164,8 @@ class SystemControlService:
             ).all()
         )
         for position in positions:
-            plan = await load_valid_long_active_plan(
-                session,
-                run_mode,
-                position.instrument_id,
-                now=now,
-            )
-            if plan is None:
+            authority = await resolve_open_position_protection(session, position, now=now)
+            if authority is None:
                 return "POSITION_UNPROTECTED"
         return None
 

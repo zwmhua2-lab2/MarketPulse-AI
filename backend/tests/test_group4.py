@@ -37,6 +37,7 @@ from marketpulse.g3.models import (
     RunMode,
     TradePlan,
 )
+from marketpulse.g3.protection_snapshot import authority_from_plan, read_position_protection
 from marketpulse.g3.service import PaperExecutionService, persist_trade_plan, stable_id
 from marketpulse.g4.control import SystemControlService
 from marketpulse.g4.incidents import IncidentManager
@@ -44,6 +45,7 @@ from marketpulse.g4.models import (
     ExitReason,
     HealthComponent,
     HealthStatus,
+    IncidentStatus,
     IncidentType,
     OperatorState,
     PositionEventType,
@@ -3596,22 +3598,49 @@ def test_fg_c_c01_case_a_valid_all_three_valid():
     assert control.system_state == SystemState.RUNNING.value
 
 
-def test_fg_c_c01_case_b_expired_all_three_invalid():
-    """C01 Case B: expired ACTIVE plan -> all three INVALID."""
+def test_fg_c_c01_case_b_expired_plan_durable_snapshot_keeps_all_three_valid():
+    """C01 Case B (superseded by N01-7-F01 Candidate A): an expired ACTIVE plan no longer leaves
+    the OPEN LONG unprotected.
+
+    Formerly `test_fg_c_c01_case_b_expired_all_three_invalid`, which asserted protection
+    POSITION_UNPROTECTED / resume refused / recovery SAFE_MODE for an expired-but-otherwise-valid
+    plan. That verdict is the defect Candidate A fixes: the plan TTL is the *risk-increasing*
+    freshness authority and must never be the protection-lifetime authority. The position carries
+    its own durable snapshot, so all three conclusions stay VALID after the planning window closes.
+
+    The FG-C safeguard is deliberately preserved by making the carve-out TTL-only: a missing,
+    corrupt, identity-inconsistent or business-invalid plan still fails closed to
+    POSITION_UNPROTECTED (cases C / D / E / F below, unchanged).
+    """
 
     async def case():
         h = Harness()
         await h.boot()
         plan, _ = await open_position(h, notional=50, bid=99, ask=100, stop=80, tp=140)
-        async with SESSIONS() as session, session.begin():
-            await session.execute(
-                update(TradePlanRecord)
-                .where(TradePlanRecord.plan_id == plan.plan_id)
-                .values(expires_at=NOW - timedelta(seconds=1))
+        # Real TTL expiry (row + payload together), matching _expire_plan below.
+        await _expire_plan(plan)
+        async with SESSIONS() as session:
+            expired_position = await session.scalar(
+                select(PositionRecord).where(
+                    PositionRecord.run_mode == RunMode.REPLAY,
+                    PositionRecord.instrument_id == "SOL-USDT",
+                )
             )
-        return await _assert_three_way_invalid({"SOL-USDT": (99.0, 100.0)})
+        return plan, expired_position, await _c01_three_way({"SOL-USDT": (99.0, 100.0)})
 
-    asyncio.run(case())
+    plan, expired_position, (protection, resume, report, control) = asyncio.run(case())
+    # The durable snapshot still carries the originating plan's authority after the TTL expired.
+    assert expired_position.quantity > 0
+    assert expired_position.protection_plan_id == plan.plan_id
+    assert expired_position.protection_plan_version == plan.plan_version
+    assert expired_position.protection_stop_loss == plan.stop_loss
+    assert expired_position.protection_take_profit == plan.take_profit
+    assert expired_position.protection_updated_at is not None
+    # All three conclusions are therefore VALID, exactly as for a live plan.
+    assert protection.triggered is False and protection.reason == "HOLD"
+    assert resume.accepted
+    assert report.final_system_state is SystemState.RUNNING
+    assert control.system_state == SystemState.RUNNING.value
 
 
 def test_fg_c_c01_case_c_corrupt_payload_identity_all_three_invalid():
@@ -3827,3 +3856,628 @@ def test_fg_c_c01_case_h_stale_risk_increasing_buy_rejected():
     # so recovery lands RUNNING with the position intact.
     assert report.final_system_state is SystemState.RUNNING
     assert position.quantity > 0
+
+
+# ---------------------------------------------------------------------------------------
+# N01-7-F01 -- durable OPEN-position protection snapshot (Candidate A)
+#
+# Contract: an OPEN LONG keeps its stop-loss / take-profit authority independently of the
+# originating TradePlan TTL. G3 settlement persists that authority on the `positions` row inside
+# the fill's economic transaction, and every G4 consumer reads it back through the single shared
+# resolver `marketpulse.g4.planning.resolve_open_position_protection`. The plan therefore stays
+# only the authority *source*; the position owns the durability.
+#
+# The carve-out is deliberately TTL-only, so that no accepted FG-C verdict is silently widened: a
+# missing / corrupt / identity-inconsistent / business-invalid plan still fails closed to
+# POSITION_UNPROTECTED (F01-13 ... F01-16).
+# ---------------------------------------------------------------------------------------
+
+
+async def _position_row(instrument: str = "SOL-USDT") -> PositionRecord:
+    async with SESSIONS() as session:
+        return await session.scalar(
+            select(PositionRecord).where(
+                PositionRecord.run_mode == RunMode.REPLAY,
+                PositionRecord.instrument_id == instrument,
+            )
+        )
+
+
+async def _open_incident(instrument: str = "SOL-USDT") -> IncidentRecord | None:
+    """The latest durable POSITION_UNPROTECTED incident for the instrument, or None."""
+    async with SESSIONS() as session:
+        return await session.scalar(
+            select(IncidentRecord)
+            .where(
+                IncidentRecord.run_mode == RunMode.REPLAY,
+                IncidentRecord.instrument_id == instrument,
+                IncidentRecord.incident_type == IncidentType.POSITION_UNPROTECTED,
+            )
+            .order_by(IncidentRecord.opened_at.desc(), IncidentRecord.incident_id.desc())
+        )
+
+
+async def _expire_plan(plan: TradePlan) -> None:
+    """Close the plan's planning window for real: the durable row *and* its serialized payload.
+
+    `load_active_plan` reads a row whose payload disagrees with its columns as corrupt, which is a
+    different (and still fail-closed) case from TTL expiry. An elapsed planning window moves
+    `expires_at` in both places, so this is what puts the TTL carve-out on the code path under test.
+    """
+    expires_at = NOW - timedelta(seconds=1)
+    payload = plan.model_dump(mode="json")
+    payload["expires_at"] = expires_at.isoformat()
+    async with SESSIONS() as session, session.begin():
+        await session.execute(
+            update(TradePlanRecord)
+            .where(TradePlanRecord.plan_id == plan.plan_id)
+            .values(expires_at=expires_at, payload=payload)
+        )
+
+
+async def _null_snapshot(instrument: str = "SOL-USDT") -> None:
+    """Remove the durable authority while leaving the position itself OPEN."""
+    async with SESSIONS() as session, session.begin():
+        await session.execute(
+            update(PositionRecord)
+            .where(
+                PositionRecord.run_mode == RunMode.REPLAY,
+                PositionRecord.instrument_id == instrument,
+            )
+            .values(
+                protection_plan_id=None,
+                protection_plan_version=None,
+                protection_stop_loss=None,
+                protection_take_profit=None,
+                protection_updated_at=None,
+            )
+        )
+
+
+async def _mutate_plan_then_evaluate(mutate) -> tuple[PositionRecord, object]:
+    """Open a protected LONG, mutate its durable plan, then ask protection for a verdict."""
+    h = Harness()
+    await h.boot()
+    plan, _ = await open_position(h, notional=50, bid=99, ask=100, stop=80, tp=140)
+    await mutate(plan)
+    h.quotes["SOL-USDT"] = (99.0, 100.0)  # a non-triggering quote for every valid authority
+    outcome = await h.protection.evaluate(
+        RunMode.REPLAY, "SOL-USDT", await h.bbo_for("SOL-USDT"), now=NOW
+    )
+    return await _position_row(), outcome
+
+
+def _assert_snapshot_is(position: PositionRecord, authority: TradePlan) -> None:
+    """The durable snapshot carries exactly the authority of `authority`."""
+    assert position.protection_plan_id == authority.plan_id
+    assert position.protection_plan_version == authority.plan_version
+    assert position.protection_stop_loss == authority.stop_loss
+    assert position.protection_take_profit == authority.take_profit
+    assert position.protection_updated_at is not None
+
+
+def _assert_snapshot_cleared(position: PositionRecord) -> None:
+    assert position.protection_plan_id is None
+    assert position.protection_plan_version is None
+    assert position.protection_stop_loss is None
+    assert position.protection_take_profit is None
+    assert position.protection_updated_at is None
+
+
+def _untracked_position(**overrides) -> PositionRecord:
+    """A transient PositionRecord carrying a complete, legal durable snapshot."""
+    values = {
+        "position_id": "pos-unit-f01",
+        "run_mode": RunMode.REPLAY,
+        "instrument_id": "SOL-USDT",
+        "quantity": 1.0,
+        "average_cost": 100.0,
+        "realized_pnl": 0.0,
+        "trade_id": "trade-unit-f01",
+        "updated_at": NOW,
+        "protection_plan_id": "plan-unit-f01",
+        "protection_plan_version": 1,
+        "protection_stop_loss": 80.0,
+        "protection_take_profit": 140.0,
+        "protection_updated_at": NOW,
+    }
+    values.update(overrides)
+    return PositionRecord(**values)
+
+
+def test_f01_01_market_buy_fill_persists_the_durable_protection_snapshot():
+    """F01-01: the risk-increasing market fill that opens the position writes the authority."""
+
+    async def case():
+        h = Harness()
+        await h.boot()
+        plan, _ = await open_position(h, notional=50, bid=99, ask=100, stop=80, tp=140)
+        return plan, await _position_row()
+
+    plan, position = asyncio.run(case())
+    assert position.quantity > 0
+    _assert_snapshot_is(position, plan)
+    # Written inside the fill's own economic transaction, at the fill time.
+    assert position.protection_updated_at == NOW
+
+
+def test_f01_02_limit_buy_fill_persists_the_durable_protection_snapshot():
+    """F01-02: the limit-fill path (which re-validates the plan at fill time) writes it too."""
+
+    async def case():
+        h = Harness()
+        await h.boot()
+        plan = await open_limit_buy(h, notional=10, limit=95)
+        h.quotes["SOL-USDT"] = (94.0, 95.0)  # ask 95 <= limit 95 -> eligible fill
+        fills = await h.execution.process_open_orders(
+            RunMode.REPLAY, await h.bbo_for("SOL-USDT"), NOW
+        )
+        return plan, fills, await _position_row()
+
+    plan, fills, position = asyncio.run(case())
+    assert [result.status for result in fills] == [IntentStatus.EXECUTED]
+    assert position.quantity > 0
+    _assert_snapshot_is(position, plan)
+
+
+def test_f01_03_partial_reduce_keeps_the_durable_protection_snapshot():
+    """F01-03: a partial risk-reducing exit must not drop the residual position's authority."""
+
+    async def case():
+        h = Harness()
+        await h.boot()
+        plan, _ = await open_position(h, notional=50, bid=99, ask=100, stop=80, tp=140)
+        quantity_before = (await _position_row()).quantity
+        outcome = await h.protection.risk_reducing_exit(
+            RunMode.REPLAY,
+            "SOL-USDT",
+            await h.bbo_for("SOL-USDT"),
+            exit_reason=ExitReason.AI_REDUCE,
+            event_type=PositionEventType.REDUCE,
+            quantity=0.2,
+            now=NOW,
+        )
+        return plan, quantity_before, outcome, await _position_row()
+
+    plan, quantity_before, outcome, position = asyncio.run(case())
+    assert outcome.triggered
+    assert 0 < position.quantity < quantity_before
+    _assert_snapshot_is(position, plan)
+
+
+def test_f01_04_full_close_clears_the_durable_protection_snapshot():
+    """F01-04: the snapshot must never outlive the position it protects."""
+
+    async def case():
+        h = Harness()
+        await h.boot()
+        await open_position(h, notional=50, bid=99, ask=100, stop=80, tp=140)
+        h.quotes["SOL-USDT"] = (79.0, 80.0)
+        outcome = await h.protection.evaluate(
+            RunMode.REPLAY, "SOL-USDT", await h.bbo_for("SOL-USDT"), now=NOW
+        )
+        return outcome, await _position_row()
+
+    outcome, position = asyncio.run(case())
+    assert outcome.triggered is True and outcome.exit_reason is ExitReason.STOP_LOSS
+    assert position.quantity == 0.0
+    _assert_snapshot_cleared(position)
+
+
+def test_f01_05_plan_ttl_expiry_leaves_the_durable_snapshot_unchanged():
+    """F01-05: TTL expiry is not a write. The authority survives the planning window verbatim."""
+
+    async def case():
+        h = Harness()
+        await h.boot()
+        plan, _ = await open_position(h, notional=50, bid=99, ask=100, stop=80, tp=140)
+        before = await _position_row()
+        await _expire_plan(plan)
+        return plan, before, await _position_row()
+
+    plan, before, after = asyncio.run(case())
+    _assert_snapshot_is(before, plan)
+    _assert_snapshot_is(after, plan)
+    assert after.protection_updated_at == before.protection_updated_at
+
+
+def test_f01_06_expired_plan_still_holds_and_opens_no_unprotected_incident():
+    """F01-06: an expired plan with a durable snapshot is protected, not unprotected."""
+
+    async def case():
+        h = Harness()
+        await h.boot()
+        plan, _ = await open_position(h, notional=50, bid=99, ask=100, stop=80, tp=140)
+        await _expire_plan(plan)
+        h.quotes["SOL-USDT"] = (99.0, 100.0)
+        outcome = await h.protection.evaluate(
+            RunMode.REPLAY, "SOL-USDT", await h.bbo_for("SOL-USDT"), now=NOW
+        )
+        return outcome, await _open_incident()
+
+    outcome, incident = asyncio.run(case())
+    assert outcome.triggered is False and outcome.reason == "HOLD"
+    assert incident is None
+
+
+def test_f01_07_expired_plan_still_triggers_stop_loss_and_closes():
+    """F01-07: the stop-loss the plan installed keeps working after the plan TTL expires."""
+
+    async def case():
+        h = Harness()
+        await h.boot()
+        plan, _ = await open_position(h, notional=50, bid=99, ask=100, stop=80, tp=140)
+        await _expire_plan(plan)
+        h.quotes["SOL-USDT"] = (79.0, 80.0)
+        outcome = await h.protection.evaluate(
+            RunMode.REPLAY, "SOL-USDT", await h.bbo_for("SOL-USDT"), now=NOW
+        )
+        position = await _position_row()
+        async with SESSIONS() as session:
+            trade = await session.scalar(
+                select(TradeRecord).where(TradeRecord.run_mode == RunMode.REPLAY)
+            )
+            close_events = list(
+                (
+                    await session.scalars(
+                        select(PositionEventRecord).where(
+                            PositionEventRecord.run_mode == RunMode.REPLAY,
+                            PositionEventRecord.event_type == PositionEventType.CLOSE,
+                        )
+                    )
+                ).all()
+            )
+        return plan, outcome, position, trade, close_events
+
+    plan, outcome, position, trade, close_events = asyncio.run(case())
+    assert outcome.triggered is True and outcome.exit_reason is ExitReason.STOP_LOSS
+    assert outcome.fill_id is not None
+    assert position.quantity == 0.0
+    _assert_snapshot_cleared(position)
+    assert trade.status == "CLOSED" and trade.exit_reason == "STOP_LOSS"
+    # The exit is attributed to the authority that actually protected the position, not to an
+    # empty plan identity that no longer exists.
+    assert [event.plan_id for event in close_events] == [plan.plan_id]
+
+
+def test_f01_08_expired_plan_still_triggers_take_profit_and_closes():
+    """F01-08: the same holds for the take-profit side."""
+
+    async def case():
+        h = Harness()
+        await h.boot()
+        plan, _ = await open_position(h, notional=50, bid=99, ask=100, stop=80, tp=140)
+        await _expire_plan(plan)
+        h.quotes["SOL-USDT"] = (140.0, 141.0)
+        outcome = await h.protection.evaluate(
+            RunMode.REPLAY, "SOL-USDT", await h.bbo_for("SOL-USDT"), now=NOW
+        )
+        return outcome, await _position_row()
+
+    outcome, position = asyncio.run(case())
+    assert outcome.triggered is True and outcome.exit_reason is ExitReason.TAKE_PROFIT
+    assert position.quantity == 0.0
+    _assert_snapshot_cleared(position)
+
+
+def test_f01_09_expired_plan_still_allows_resume():
+    """F01-09: the resume protection gate accepts an OPEN LONG protected only by its snapshot."""
+
+    async def case():
+        h = Harness()
+        await h.boot()
+        plan, _ = await open_position(h, notional=50, bid=99, ask=100, stop=80, tp=140)
+        await _expire_plan(plan)
+        h.quotes["SOL-USDT"] = (99.0, 100.0)
+        paused = await h.control.pause(RunMode.REPLAY, "f01_09")
+        resume = await h.control.resume(RunMode.REPLAY)
+        return paused, resume
+
+    paused, resume = asyncio.run(case())
+    assert paused.accepted
+    assert resume.accepted, resume.reason
+    assert resume.system_state is SystemState.RUNNING
+
+
+def test_f01_10_expired_plan_still_recovers_to_running():
+    """F01-10: a fresh restart must not degrade the runtime because the plan TTL elapsed."""
+
+    async def case():
+        h = Harness()
+        await h.boot()
+        plan, _ = await open_position(h, notional=50, bid=99, ask=100, stop=80, tp=140)
+        await _expire_plan(plan)
+        report, control = await _recover_landing({"SOL-USDT": (99.0, 100.0)})
+        return report, control, await _position_row()
+
+    report, control, position = asyncio.run(case())
+    assert report.final_system_state is SystemState.RUNNING, report.reason
+    assert control.system_state == SystemState.RUNNING.value
+    assert position.quantity > 0
+
+
+def test_f01_11_reconciliation_accepts_an_expired_plan_with_a_durable_snapshot():
+    """F01-11: invariant 13 must not fire while the durable authority is present."""
+
+    async def case():
+        h = Harness()
+        await h.boot()
+        plan, _ = await open_position(h, notional=50, bid=99, ask=100, stop=80, tp=140)
+        await _expire_plan(plan)
+        return await h.reconcile(RunMode.REPLAY)
+
+    report = asyncio.run(case())
+    assert report.invariants["open_position_protection_survives_plan_ttl"] is True
+    assert "open_position_unprotected_after_plan_ttl" not in report.diagnostics
+    assert report.ok is True, report.diagnostics
+
+
+def test_f01_12_reconciliation_flags_an_expired_plan_without_a_durable_snapshot():
+    """F01-12: invariant 13 must fire when the expired plan left the position unprotected."""
+
+    async def case():
+        h = Harness()
+        await h.boot()
+        plan, _ = await open_position(h, notional=50, bid=99, ask=100, stop=80, tp=140)
+        await _expire_plan(plan)
+        await _null_snapshot()
+        return plan, await h.reconcile(RunMode.REPLAY)
+
+    plan, report = asyncio.run(case())
+    assert report.invariants["open_position_protection_survives_plan_ttl"] is False
+    assert "open_position_unprotected_after_plan_ttl" in report.diagnostics
+    assert report.ok is False
+    assert report.details["ttl_unprotected_positions"] == [
+        {"instrument_id": "SOL-USDT", "plan_id": plan.plan_id, "reason": "NO_SNAPSHOT"}
+    ]
+
+
+def test_f01_13_missing_durable_snapshot_still_fails_closed_to_unprotected():
+    """F01-13: no snapshot -> POSITION_UNPROTECTED and the official incident, never a guess."""
+
+    async def case():
+        h = Harness()
+        await h.boot()
+        plan, _ = await open_position(h, notional=50, bid=99, ask=100, stop=80, tp=140)
+        await _expire_plan(plan)
+        await _null_snapshot()
+        h.quotes["SOL-USDT"] = (99.0, 100.0)
+        outcome = await h.protection.evaluate(
+            RunMode.REPLAY, "SOL-USDT", await h.bbo_for("SOL-USDT"), now=NOW
+        )
+        return outcome, await _open_incident()
+
+    outcome, incident = asyncio.run(case())
+    assert outcome.triggered is False and outcome.reason == "POSITION_UNPROTECTED"
+    assert incident is not None
+    assert incident.status == IncidentStatus.OPEN.value
+    assert incident.reason == "open_position_without_durable_protection"
+
+
+def test_f01_14_replaced_active_plan_still_fails_closed_even_with_a_snapshot():
+    """F01-14: the carve-out is TTL-only. 'No unique ACTIVE plan' is a data problem, not TTL."""
+
+    async def case():
+        async def mutate(plan):
+            async with SESSIONS() as session, session.begin():
+                await session.execute(
+                    update(TradePlanRecord)
+                    .where(TradePlanRecord.plan_id == plan.plan_id)
+                    .values(status=PlanStatus.REPLACED)
+                )
+
+        return await _mutate_plan_then_evaluate(mutate)
+
+    position, outcome = asyncio.run(case())
+    assert position.protection_plan_id is not None  # the snapshot itself is intact...
+    assert outcome.triggered is False and outcome.reason == "POSITION_UNPROTECTED"
+
+
+def test_f01_15_corrupt_plan_payload_identity_still_fails_closed_with_a_snapshot():
+    """F01-15: an identity-inconsistent durable plan is corruption, not expiry."""
+
+    async def case():
+        async def mutate(plan):
+            corrupt = plan.model_dump(mode="json")
+            corrupt["plan_id"] = "different-plan-id"
+            async with SESSIONS() as session, session.begin():
+                await session.execute(
+                    update(TradePlanRecord)
+                    .where(TradePlanRecord.plan_id == plan.plan_id)
+                    .values(payload=corrupt)
+                )
+
+        return await _mutate_plan_then_evaluate(mutate)
+
+    position, outcome = asyncio.run(case())
+    assert position.protection_plan_id is not None
+    assert outcome.triggered is False and outcome.reason == "POSITION_UNPROTECTED"
+
+
+def test_f01_16_business_invalid_plan_levels_still_fail_closed_with_a_snapshot():
+    """F01-16: a plan whose own SL/TP relationship is broken is not a TTL problem either."""
+
+    async def case():
+        async def mutate(plan):
+            bad = plan.model_dump(mode="json")
+            bad["stop_loss"] = 140.0
+            bad["take_profit"] = 80.0
+            async with SESSIONS() as session, session.begin():
+                await session.execute(
+                    update(TradePlanRecord)
+                    .where(TradePlanRecord.plan_id == plan.plan_id)
+                    .values(payload=bad)
+                )
+
+        return await _mutate_plan_then_evaluate(mutate)
+
+    position, outcome = asyncio.run(case())
+    assert position.protection_plan_id is not None
+    assert outcome.triggered is False and outcome.reason == "POSITION_UNPROTECTED"
+
+
+def test_f01_17_state_version_advance_keeps_the_durable_snapshot_authority():
+    """F01-17: symbol-state advancement is risk-increasing freshness, never protection lifetime."""
+
+    async def case():
+        h = Harness()
+        await h.boot()
+        plan, _ = await open_position(h, notional=50, bid=99, ask=100, stop=80, tp=140)
+        async with SESSIONS() as session, session.begin():
+            await session.merge(
+                SymbolStateStore(
+                    instrument_id="SOL-USDT",
+                    symbol="SOL-USDT",
+                    state="ACTIVE",
+                    state_version=8,
+                )
+            )
+        h.quotes["SOL-USDT"] = (99.0, 100.0)
+        outcome = await h.protection.evaluate(
+            RunMode.REPLAY, "SOL-USDT", await h.bbo_for("SOL-USDT"), now=NOW
+        )
+        return plan, outcome, await _position_row()
+
+    plan, outcome, position = asyncio.run(case())
+    assert outcome.triggered is False and outcome.reason == "HOLD"
+    _assert_snapshot_is(position, plan)
+
+
+def test_f01_18_plan_replacement_moves_the_durable_snapshot_to_the_new_version():
+    """F01-18: a superseding plan version becomes the position's authority immediately."""
+
+    async def case():
+        h = Harness()
+        await h.boot()
+        plan, _ = await open_position(h, notional=50, bid=99, ask=100, stop=80, tp=140)
+        next_plan = derive_followup_plan(plan, now=NOW, plan_version=2, stop_loss=85.0)
+        replaced, _ = await h.plans.replace(previous=plan, next_plan=next_plan, now=NOW)
+        return plan, replaced, await _position_row()
+
+    plan, next_plan, position = asyncio.run(case())
+    assert next_plan.plan_id != plan.plan_id
+    _assert_snapshot_is(position, next_plan)
+    assert position.protection_stop_loss == 85.0
+
+
+def test_f01_19_plan_replacement_without_a_legal_authority_clears_the_snapshot():
+    """F01-19: a replacement that cannot form a legal authority clears it instead of going stale.
+
+    The new stop (200) sits above the take-profit (140) and above the mark (bid 99), so leaving the
+    superseded level live would make protection trigger on a level no accepted plan ever had.
+    """
+
+    async def case():
+        h = Harness()
+        await h.boot()
+        plan, _ = await open_position(h, notional=50, bid=99, ask=100, stop=80, tp=140)
+        broken = derive_followup_plan(plan, now=NOW, plan_version=2, stop_loss=200.0)
+        await h.plans.replace(previous=plan, next_plan=broken, now=NOW)
+        h.quotes["SOL-USDT"] = (99.0, 100.0)
+        outcome = await h.protection.evaluate(
+            RunMode.REPLAY, "SOL-USDT", await h.bbo_for("SOL-USDT"), now=NOW
+        )
+        return broken, outcome, await _position_row()
+
+    broken, outcome, position = asyncio.run(case())
+    assert broken.stop_loss >= broken.take_profit
+    _assert_snapshot_cleared(position)
+    assert outcome.triggered is False and outcome.reason == "POSITION_UNPROTECTED"
+
+
+def test_f01_20_authority_from_plan_never_raises_and_matches_the_plan_contract():
+    """F01-20: acceptance is exactly the executable-plan contract, never stricter, never a raise."""
+
+    assert authority_from_plan(make_plan("SOL-USDT", stop=80, tp=140)) is not None
+    # Inverted or non-finite levels cannot form an authority; None is the fail-closed answer.
+    assert authority_from_plan(make_plan("SOL-USDT", stop=140.0, tp=80.0)) is None
+    assert authority_from_plan(make_plan("SOL-USDT", stop=float("nan"))) is None
+    assert authority_from_plan(make_plan("SOL-USDT", tp=float("inf"))) is None
+    # No positivity rule exists in the frozen contract: an ordered zero/negative pair is legal.
+    non_positive = authority_from_plan(make_plan("SOL-USDT", stop=-10.0, tp=0.0))
+    assert non_positive is not None
+    assert (non_positive.stop_loss, non_positive.take_profit) == (-10.0, 0.0)
+
+
+def test_f01_21_read_position_protection_fails_closed_on_a_partial_snapshot():
+    """F01-21: a half-written, inverted or non-finite durable snapshot is corruption, not trust."""
+
+    complete = read_position_protection(_untracked_position())
+    assert complete is not None and complete.stop_loss == 80.0
+    for column in (
+        "protection_plan_id",
+        "protection_plan_version",
+        "protection_stop_loss",
+        "protection_take_profit",
+        "protection_updated_at",
+    ):
+        assert read_position_protection(_untracked_position(**{column: None})) is None
+    assert (
+        read_position_protection(
+            _untracked_position(protection_stop_loss=140.0, protection_take_profit=80.0)
+        )
+        is None
+    )
+    assert read_position_protection(_untracked_position(protection_stop_loss=float("nan"))) is None
+
+
+def test_f01_22_failed_protective_exit_does_not_clear_the_durable_snapshot():
+    """F01-22: the snapshot clear lives in the settlement transaction, so a failed exit keeps it.
+
+    Fix AC #2: a full close clears the durable authority inside the same transaction that writes
+    the protective fill. If that fill fails and rolls back, the OPEN position must keep the exact
+    authority it held before the attempt — a half-cleared snapshot would silently un-protect it.
+    """
+
+    async def case():
+        h = Harness()
+        await h.boot()
+        plan, _ = await open_position(h, notional=50, bid=99, ask=100, stop=80, tp=140)
+        h.execution.after_settlement = lambda: (_ for _ in ()).throw(RuntimeError("injected"))
+        h.quotes["SOL-USDT"] = (79.0, 80.0)
+        with pytest.raises(RuntimeError):
+            await h.protection.evaluate(
+                RunMode.REPLAY, "SOL-USDT", await h.bbo_for("SOL-USDT"), now=NOW
+            )
+        h.execution.after_settlement = None
+        return plan, await _position_row()
+
+    plan, position = asyncio.run(case())
+    assert position.quantity > 0
+    _assert_snapshot_is(position, plan)
+
+
+def test_f01_23_manual_close_remains_available_when_unprotected():
+    """F01-23: an unprotected OPEN LONG can still be closed manually with a fresh BBO.
+
+    Fix AC #9: a missing snapshot fails closed for automatic protection and for risk-increasing
+    actions, but the operator's explicit risk-reducing full close must not be refused.
+    """
+
+    async def case():
+        h = Harness()
+        await h.boot()
+        plan, _ = await open_position(h, notional=50, bid=99, ask=100, stop=80, tp=140)
+        await _expire_plan(plan)
+        await _null_snapshot()
+        h.quotes["SOL-USDT"] = (98.0, 99.0)
+        outcome = await h.control.manual_close(
+            RunMode.REPLAY, "SOL-USDT", await h.bbo_for("SOL-USDT"), now=NOW
+        )
+        async with SESSIONS() as session:
+            trade = await session.scalar(
+                select(TradeRecord).where(TradeRecord.run_mode == RunMode.REPLAY)
+            )
+            position = await session.scalar(
+                select(PositionRecord).where(
+                    PositionRecord.run_mode == RunMode.REPLAY,
+                    PositionRecord.instrument_id == "SOL-USDT",
+                )
+            )
+        return outcome, trade, position
+
+    outcome, trade, position = asyncio.run(case())
+    assert outcome.triggered is True and outcome.exit_reason is ExitReason.MANUAL_CLOSE
+    assert position.quantity == 0.0
+    _assert_snapshot_cleared(position)
+    assert trade.exit_reason == ExitReason.MANUAL_CLOSE.value
