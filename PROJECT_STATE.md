@@ -192,6 +192,12 @@ N01 overall — NOT ACCEPTED（N01-7 / N01-8 与 Integrated Runtime Host 仍 `NO
   （branch `se-02b-opportunity-capture-attribution`；isolated worktree
   `E:\Documents\MarketPulse-AI-se-02b`；Task Base / Accepted Main（实测）= `af81414…`；
   **未** merge `main`）。详见 `dev_log/2026-09-12-se-02b-opportunity-capture-attribution.md`。
+- **SE-02B-FIX-01｜Acceptance Blockers Fix = `IMPLEMENTED / VERIFIED / READY FOR INDEPENDENT RE-REVIEW`**
+  （关闭 SE-02B Independent Acceptance Review 的 4 个 P0 Acceptance Blocker + 1 个 P1 cross-fact
+  consistency 补强；reviewed HEAD `f261766…` → fix commit `7e86757…`；仍在 branch
+  `se-02b-opportunity-capture-attribution`，**未** merge `main`；**无** migration 变更，
+  `alembic heads` 单 head 仍 `20260911_0005`）。详见
+  `dev_log/2026-09-12-se-02b-fix-01-acceptance-blockers.md`。
 - **SE-02A｜Contracts + Additive Persistence 已完成验收收尾
   （`ACCEPTED / COMPLETE`；见 Completed 与本文「SE-02A Result」）**。其 reviewed implementation
   source = branch `se-02a-contracts-additive-persistence` @ `0c206c9`；最终收编经 refresh
