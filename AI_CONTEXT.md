@@ -10,11 +10,11 @@
 | 字段 | 值 |
 |---|---|
 | Project | MarketPulse AI（BTC/ETH 量化纸面交易终端，Modular Monolith） |
-| Current Acceptance Group | N01-C — Restart / Recovery / Reconciliation — ACCEPTED / COMPLETE |
+| Current Acceptance Group | SE-02B — Opportunity Capture + Attribution — ACCEPTED / COMPLETE |
 | Accepted Main Source | Git `main` / `origin/main`；须在任务 preflight 按 CIP-02 实时读取，不以文档静态 SHA 为准 |
-| Current State | `N01-C = ACCEPTED / COMPLETE`；N01-A / N01-B 与 N01 验证修复 `N01-VAL-FIX-01/02/03` 均维持 `ACCEPTED / COMPLETE`；`N01-6 = ACCEPTED / COMPLETE`（Reviewed HEAD `3f591a7`）；**N01 overall 仍 `NOT ACCEPTED`** |
-| Last Accepted Group | N01-6 — 15-minute Short Runtime Smoke |
-| Current Group Branch | `n01-6-15m-runtime-smoke`（accepted validation lineage；仅 fast-forward 收编至 `main`，历史分支保留）；更早 `n01-c-restart-recovery-reconciliation` |
+| Current State | `SE-02B = ACCEPTED / COMPLETE`（2026-09-12 Human Acceptance & Final Acceptance Closeout，已 fast-forward only 收编 `main`）；`SE-02A = ACCEPTED / COMPLETE`；`SE-02C / SE-02D = NOT STARTED`；`N01-C = ACCEPTED / COMPLETE`；N01-A / N01-B 与 N01 验证修复 `N01-VAL-FIX-01/02/03` 均维持 `ACCEPTED / COMPLETE`；`N01-6 = ACCEPTED / COMPLETE`（Reviewed HEAD `3f591a7`）；**N01 overall 仍 `NOT ACCEPTED`** |
+| Last Accepted Group | SE-02B — Opportunity Capture + Attribution |
+| Current Group Branch | `se-02b-opportunity-capture-attribution`（accepted lineage；仅 fast-forward 收编至 `main`，历史分支保留）；更早 `n01-6-15m-runtime-smoke`、`n01-c-restart-recovery-reconciliation` |
 
 - G1–G4 acceptance 状态：`ACCEPTED` / `ACCEPTED` / `ACCEPTED` / `ACCEPTED`。
 - G5-0 / G5-1 / G5-2 / G5-3 / G5-4 acceptance 状态：`ACCEPTED`。
@@ -82,6 +82,38 @@
 **禁止依赖**：「上一个聊天应该知道」「前一个 AI 说已经做了」「我记得这个功能是……」。
 
 ## 6. Next Step Entry（下一步工作入口）
+
+### SE-02B Opportunity Capture + Attribution — ACCEPTED / COMPLETE
+
+- 专项 SE｜Strategy & Trading Edge 的第二个 Implementation Acceptance Batch。
+- Independent Review（final）= `PASS`；Human Acceptance = `CONFIRMED`（2026-09-12）；
+  Human-Accepted reviewed branch tip = `6ce0c9214f552c0173e1f925315102506c3e9078`。
+- Task Base / Accepted Main before = `af81414160248c97f59a63b31fe615ea8ae14bbe`；
+  Accepted Main after = Final Closeout Commit。
+- accepted lineage（仅 fast-forward，无 rebase / squash / force）：
+  `af81414 → f261766（feat）→ 7e86757（FIX-01 fix）→ b8a5fe3（FIX-01 docs）
+  → 0b8a275（FIX-02 fix）→ 6ce0c92（FIX-02 docs）→ Final Closeout Commit`；
+  evidence branch `se-02b-opportunity-capture-attribution` 保留、未删除。
+- 已验收能力：① G2 SETUP Opportunity Capture（与 durable G2 facts 同一 PostgreSQL 事务；
+  atomic / fail-closed；immutable / append-only；遵循 SE-02A identity + hash + revision 契约）；
+  ② Attribution（`Opportunity → AI → Plan → Risk → Execution → Economic Result`；append-only；
+  exact authority / reason；显式 AI family selection；deferred LIMIT per-order restart-safe 归因）。
+- Acceptance blocker 闭合链：SE-02B-FIX-01 关闭 P0-2 / P0-3 / P0-4 + P1（P0-1 判 CHANGES
+  REQUIRED）⇒ SE-02B-FIX-02 终局关闭 P0-1（`OK` 要求 `data_quality == FRESH`；payload 拆
+  `supplied_quote` + `accepted_reference`；`RUNTIME_CAPTURE_PAYLOAD_VERSION` `v2 → v3`）。
+- 验证证据（历史门）：SE-02B `focused 46`（capture 15 + attribution 31）；SE-02A `88`；
+  G2/G3/G4 `123`；full backend `313 passed, 1 warning`；Ruff / compileall / `git diff --check` PASS；
+  无新 migration（head 仍 `20260911_0005`）。Final Closeout 复验：`git diff 6ce0c92..HEAD`
+  仅文档 / 状态文件、`git diff --check` rc=0、定向 smoke `46 passed`、`alembic heads` 单 head。
+- Closeout 为 docs-only：`Production code changed = NO` / `Tests changed = NO` /
+  `Migration changed = NO` / `Contract changed = NO`。
+- Claim 边界：**不得**由此声明 SE-02C / SE-02D / Forward Outcome Calculator / MFE-MAE / forward
+  returns / family aggregation / expectancy / KEEP-DOWNWEIGHT-KILL / Real AI Edge / Live 完成
+  （均 `NOT STARTED`）。
+- 详见 `dev_log/2026-09-12-se-02b-final-acceptance-closeout.md` 与 `PROJECT_STATE.md`
+  「SE-02B Result」。
+- 收尾后的下一步：**SE-02B CLOSED. Do not start SE-02C automatically. Return to the SE control
+  window for the next task.**
 
 ### SE-02A Contracts + Additive Persistence — ACCEPTED / COMPLETE
 

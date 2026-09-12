@@ -4,6 +4,12 @@
 
 SE-02A — Contracts + Additive Persistence — ACCEPTED / COMPLETE
 
+SE-02B — Opportunity Capture + Attribution — ACCEPTED / COMPLETE
+
+SE-02C — Forward Outcome Calculator — NOT STARTED
+
+SE-02D — Family Aggregation / Expectancy — NOT STARTED
+
 N01-C — Restart / Recovery / Reconciliation — ACCEPTED / COMPLETE
 
 N01-A — Deterministic Runtime + Resource Lifecycle — ACCEPTED / COMPLETE
@@ -20,17 +26,20 @@ N01 overall — NOT ACCEPTED（N01-7 / N01-8 与 Integrated Runtime Host 仍 `NO
 - Visibility: `PRIVATE`
 - Default Branch: `main`
 - Accepted Main Source: Git `main` / `origin/main` — read actual SHA at task preflight（CIP-02）
-- Current Development Status: `SE-02A ACCEPTED / COMPLETE`；`N01-C ACCEPTED / COMPLETE`；
-  `N01-6 ACCEPTED / COMPLETE`；N01-A / N01-B 与 `N01-VAL-FIX-01/02/03` 均维持已验收结论，
-  N01 overall 仍未验收
+- Current Development Status: `SE-02B ACCEPTED / COMPLETE`（2026-09-12 Human Acceptance &
+  Final Acceptance Closeout，已 fast-forward only 收编 `main`）；`SE-02A ACCEPTED / COMPLETE`；
+  `N01-C ACCEPTED / COMPLETE`；`N01-6 ACCEPTED / COMPLETE`；N01-A / N01-B 与
+  `N01-VAL-FIX-01/02/03` 均维持已验收结论，N01 overall 仍未验收；
+  `SE-02C / SE-02D = NOT STARTED`
 
 ## Branch / Source
 
 - Current Accepted Branch: `main`
 - Current Group Branch: `n01-c-restart-recovery-reconciliation`（N01-C accepted validation
   lineage；仅 fast-forward 收编至 `main`，历史分支保留）；最近新增 SE-02A accepted lineage
-  `se-02a-final-integration-refresh` 与 N01-6 accepted lineage `n01-6-15m-runtime-smoke`
-  （二者均仅 fast-forward 收编至 `main`，历史分支保留）
+  `se-02a-final-integration-refresh`、N01-6 accepted lineage `n01-6-15m-runtime-smoke` 与
+  SE-02B accepted lineage `se-02b-opportunity-capture-attribution`
+  （三者均仅 fast-forward 收编至 `main`，历史分支保留）
 - Last Accepted Group Branch: `n01-c-restart-recovery-reconciliation`（历史证据，保留未删）；更早 `n01-a-runtime-resource-lifecycle`、`n01-b-okx-paper-safety-continuity`
 - Accepted Main Source: Git `main` / `origin/main` — read actual SHA at task preflight（CIP-02）
 - G5-1 Implementation Acceptance Basis: `34da62a0cc9dbe95b95faadb770fbd06179a6975`
@@ -186,30 +195,38 @@ N01 overall — NOT ACCEPTED（N01-7 / N01-8 与 Integrated Runtime Host 仍 `NO
   `n01-6-15m-runtime-smoke` 保留。详见
   `dev_log/2026-09-12-n01-6-15m-runtime-smoke.md`。
 
+- SE-02B｜Opportunity Capture + Attribution：`ACCEPTED / COMPLETE`（2026-09-12 Human Acceptance &
+  Final Acceptance Closeout；Independent Review = `PASS`；Human Acceptance = `CONFIRMED`；
+  Human-Accepted reviewed tip = `6ce0c9214f552c0173e1f925315102506c3e9078`；branch
+  `se-02b-opportunity-capture-attribution`；isolated worktree `E:\Documents\MarketPulse-AI-se-02b`；
+  Task Base / Accepted Main before = `af81414160248c97f59a63b31fe615ea8ae14bbe`）。落地
+  ① G2 SETUP Opportunity Capture（与 durable G2 facts **同一 PostgreSQL 事务**、atomic /
+  fail-closed、immutable / append-only，遵循 SE-02A identity + hash + revision 契约）与
+  ② Attribution（`Opportunity → AI → Plan → Risk → Execution → Economic Result`；append-only；
+  exact authority / reason；显式 AI family selection；deferred LIMIT per-order restart-safe 归因）；
+  新增 `backend/src/marketpulse/edge/capture.py` / `edge/attribution.py`，对 `g2/repository.py` /
+  `g3/service.py` 仅做纯增量接线。**无新 migration**（head 仍 `20260911_0005`）。
+  Acceptance blocker 由 SE-02B-FIX-01（P0-2 / P0-3 / P0-4 + P1）与 SE-02B-FIX-02
+  （P0-1 Reference Quote Quality & Provenance，payload `se02b-runtime-capture-v2 → v3`）闭合后
+  Independent Review = `PASS`。accepted lineage（仅 fast-forward）：
+  `af81414 → f261766 → 7e86757 → b8a5fe3 → 0b8a275 → 6ce0c92 → Final Closeout Commit`。
+  Closeout 阶段四项不变：`Production code changed = NO` / `Tests changed = NO` /
+  `Migration changed = NO` / `Contract changed = NO`。
+  ⚠️ 本验收**不**构成 SE-02C / SE-02D / Forward Outcome Calculator / MFE-MAE / expectancy /
+  Real AI Edge / Live / N01-7 / N01-8 / Integrated Runtime Host 的任何进度。
+  详见 `dev_log/2026-09-12-se-02b-final-acceptance-closeout.md` 与本文「SE-02B Result」。
+
 ## In Progress
 
-- **SE-02B｜Opportunity Capture + Attribution = `IMPLEMENTED / WAITING HUMAN ACCEPTANCE`**
-  （branch `se-02b-opportunity-capture-attribution`；isolated worktree
-  `E:\Documents\MarketPulse-AI-se-02b`；Task Base / Accepted Main（实测）= `af81414…`；
-  **未** merge `main`）。详见 `dev_log/2026-09-12-se-02b-opportunity-capture-attribution.md`。
-- **SE-02B-FIX-01｜Acceptance Blockers Fix = `IMPLEMENTED / VERIFIED / READY FOR INDEPENDENT RE-REVIEW`**
-  （关闭 SE-02B Independent Acceptance Review 的 4 个 P0 Acceptance Blocker + 1 个 P1 cross-fact
-  consistency 补强；reviewed HEAD `f261766…` → fix commit `7e86757…`；仍在 branch
-  `se-02b-opportunity-capture-attribution`，**未** merge `main`；**无** migration 变更，
-  `alembic heads` 单 head 仍 `20260911_0005`）。详见
-  `dev_log/2026-09-12-se-02b-fix-01-acceptance-blockers.md`。
-  **Independent Re-review 结论（实测记录）**：P0-2 / P0-3 / P0-4 / P1 = **PASS**；
-  P0-1 Reference BBO = **CHANGES REQUIRED** ⇒ 由 SE-02B-FIX-02 接管，本项不再单独 claim 可验收。
-- **SE-02B-FIX-02｜Reference Quote Quality & Provenance = `IMPLEMENTED / VERIFIED / READY FOR INDEPENDENT RE-REVIEW`**
-  （只关闭 Re-review 后剩余的 P0-1 两个 Acceptance Blocker：①`ReferenceDataStatus.OK` 现要求
-  `data_quality == FRESH`（`STALE` / `UNAVAILABLE` 一律 `REFERENCE_STALE`，顶层 reference 三列 NULL）；
-  ②不可变 payload 的 `reference_data` 拆为 `supplied_quote`（被拒报价的真实输入逐字保留）
-  + `accepted_reference`（仅 OK 非空），`RUNTIME_CAPTURE_PAYLOAD_VERSION` `v2 → v3`。
-  reviewed HEAD `b8a5fe3…` → fix commit `0b8a275…`；仍在 branch
-  `se-02b-opportunity-capture-attribution`，**未** merge `main`；**无** migration 变更，
-  `alembic heads` 单 head 仍 `20260911_0005`；focused 134 / G2-G4 123 / full backend 313）。
-  详见 `dev_log/2026-09-12-se-02b-fix-02-reference-quality-provenance.md`。
-  仍 **NOT** accepted：本窗口不自行 Acceptance。
+- **SE-02C｜Forward Outcome Calculator = `NOT STARTED`**（forward outcome 仍未计算：无 MFE / MAE /
+  无 forward returns；horizon `30s` / `5m` / `15m` / `1h` 的 calculation 尚未实现）。
+- **SE-02D｜Family Aggregation / Expectancy = `NOT STARTED`**（family aggregation、expectancy、
+  KEEP / DOWNWEIGHT / KILL 均未实现）。
+- 两项均须另开窗口并经批准的门执行；本窗口 **不** 自动开始 SE-02C。
+- **SE-02B 已关闭**：`ACCEPTED / COMPLETE` 并已 fast-forward only 收编 `main`（见 Completed、
+  Acceptance Record 与「SE-02B Result」）；其 3 个历史状态项
+  （`IMPLEMENTED / WAITING HUMAN ACCEPTANCE`、SE-02B-FIX-01 / FIX-02
+  `READY FOR INDEPENDENT RE-REVIEW`）已由本次 Final Acceptance Closeout 取代。
 - **SE-02A｜Contracts + Additive Persistence 已完成验收收尾
   （`ACCEPTED / COMPLETE`；见 Completed 与本文「SE-02A Result」）**。其 reviewed implementation
   source = branch `se-02a-contracts-additive-persistence` @ `0c206c9`；最终收编经 refresh
@@ -346,6 +363,13 @@ N01 overall — NOT ACCEPTED（N01-7 / N01-8 与 Integrated Runtime Host 仍 `NO
   Closeout 期间 `Production code changed = NO` / `Tests changed = NO` / `Harness changed = NO` /
   `Migration changed = NO`。**不得**由本验收推断 2h soak / 12h soak / Continuous Runtime 全量验收 /
   7×24 Runtime / Integrated Runtime Host。
+- SE-02B｜Opportunity Capture + Attribution = `ACCEPTED / COMPLETE`（2026-09-12；Independent Review =
+  `PASS`；Human Acceptance = `CONFIRMED`；Human-Accepted reviewed tip = `6ce0c92…`；accepted lineage
+  仅 fast-forward：`af81414 → f261766 → 7e86757 → b8a5fe3 → 0b8a275 → 6ce0c92 → Final Closeout
+  Commit`）。Closeout 期间 `Production code changed = NO` / `Tests changed = NO` /
+  `Migration changed = NO` / `Contract changed = NO`。**不得**由本验收推断 SE-02C / SE-02D /
+  Forward Outcome Calculator / MFE-MAE / expectancy / Real AI Edge / Live / N01-7 / N01-8 /
+  Integrated Runtime Host。
 
 ## Group 5-1 Result
 
@@ -505,3 +529,51 @@ N01 overall — NOT ACCEPTED（N01-7 / N01-8 与 Integrated Runtime Host 仍 `NO
   （避免未经授权修改外部系统状态）；如需与 head 一致，由 Operator 执行 `alembic upgrade head`。
 - 备注（基线漂移，CIP-03，非本批所致）：本 branch 的 Task Base（Accepted Main）为 `b3ac21b`
   （N01-C 已验收收尾）；此前 SE-02A 作者期的 `e0dab188` / `6cc4c36` 均已为其祖先。
+
+## SE-02B Result
+
+- 任务：SE-02B｜Opportunity Capture + Attribution（专项 SE｜Strategy & Trading Edge 的第二个
+  Implementation Acceptance Batch）。
+- **Human-Accepted reviewed branch tip** = `6ce0c9214f552c0173e1f925315102506c3e9078`
+  （branch `se-02b-opportunity-capture-attribution`）。
+- **Task Base / Accepted Main before** = `af81414160248c97f59a63b31fe615ea8ae14bbe`；
+  **Accepted Main after** = Final Closeout Commit（`main` 已 fast-forward，仅 fast-forward）。
+- **Independent Review（final）** = `PASS`；**Human Acceptance** = `CONFIRMED`。
+- 交付能力：
+  ① **G2 SETUP Opportunity Capture** — qualifying `BREAKOUT_RETEST` Opportunity Evidence 与 durable
+  G2 facts 在**同一 PostgreSQL 事务**内写入；atomic / fail-closed；immutable / append-only；
+  遵循已验收 SE-02A identity + hash + revision 契约。
+  ② **Attribution** — `Opportunity → AI → Plan → Risk → Execution → Economic Result` 全链
+  append-only 归因；exact authority / reason；**显式 AI family selection**
+  （`selected_strategy_ids` 必须显式包含 `BREAKOUT_RETEST`，不依赖 snapshot fallback）；
+  deferred LIMIT 经 durable `ORDER_OPEN` 事实做 **per-order restart-safe** 归因。
+- 主要变更：新增 `backend/src/marketpulse/edge/capture.py`（含 opt-in `EdgeCaptureContext`）与
+  `backend/src/marketpulse/edge/attribution.py`；`edge/__init__.py` docstring；
+  `backend/src/marketpulse/g2/repository.py` 与 `backend/src/marketpulse/g3/service.py`
+  仅做**纯增量**接线（keyword-only 参数 + `None` 守卫，legacy 行为不变）；新增
+  `backend/tests/test_se_02b_opportunity_capture.py`（15）与
+  `backend/tests/test_se_02b_attribution.py`（31）。
+- **无新 migration**：`backend/alembic/` 零改动，head 仍 `20260911_0005`；
+  SE-02A 冻结契约文件 `edge/{models,identity,hashing,repository}.py` / `db/models.py` 零 diff。
+- Acceptance blocker 闭合链：**SE-02B-FIX-01** 关闭 P0-2（`evidence_at` 因果锚点
+  = `candidate.created_at`）、P0-3（显式 AI family selection）、P0-4（deferred LIMIT per-order
+  restart-safe 归因）、P1（cross-fact consistency，5 项 + negative admission matrix）；
+  P0-1 判 `CHANGES REQUIRED` ⇒ 由 **SE-02B-FIX-02** 终局闭合（`ReferenceDataStatus.OK` 现要求
+  `data_quality == FRESH`；不可变 payload 拆为 `supplied_quote`（被拒报价原始输入逐字保留）
+  + `accepted_reference`（仅 OK 非空）；payload version `se02b-runtime-capture-v2 → v3`）。
+- 验证证据（历史门，均真实执行）：SE-02B `focused 46`（capture 15 + attribution 31）；
+  SE-02A 契约 + 持久化 `88`；G2 / G3 / G4 `123`；full backend `313 passed, 1 warning`
+  （独占写者窗口 + 进程/PG 会话双证据）；Ruff `All checks passed!` / compileall rc=0 /
+  `git diff --check` rc=0；`alembic heads` 单 head `20260911_0005`。
+- **Final Acceptance Closeout（2026-09-12，docs-only）**：在 reviewed HEAD `6ce0c92` 之上创建
+  docs-only closeout commit（仅 `dev_log/2026-09-12-se-02b-final-acceptance-closeout.md` /
+  `PROJECT_STATE.md` / `AI_CONTEXT.md`），随后 **fast-forward only** 收编 `main`
+  （无 rebase / squash / cherry-pick / force / history rewrite）。Closeout 最小充分复验：
+  `git diff 6ce0c92..HEAD` 仅含上述文档 / 状态文件；`git diff --check` rc=0；
+  SE-02B 定向 smoke `46 passed`；`alembic heads` 单 head `20260911_0005`。
+- Closeout 阶段四项不变：`Production code changed = NO`、`Tests changed = NO`、
+  `Migration changed = NO`、`Contract changed = NO`。
+- 边界：**SE-02C / SE-02D = `NOT STARTED`**；Forward Outcome Calculator / MFE-MAE / forward
+  returns / family aggregation / expectancy / KEEP-DOWNWEIGHT-KILL / Real AI Edge / Live /
+  N01-7 / N01-8 / Integrated Runtime Host 均不在本批 claim 边界内。
+- 备注：本批次**未**对共享 primary PostgreSQL 库执行任何 migration / downgrade（保留其它窗口状态）。
