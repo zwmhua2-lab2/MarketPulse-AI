@@ -1089,50 +1089,279 @@ def _aggregate_windows(
     return windows
 
 
+def _fifo_head_changes(saturated: list[dict[str, Any]], key: str) -> int:
+    """How many times `key` (a FIFO head) changed across consecutive saturated samples."""
+    changes = 0
+    previous = None
+    for item in saturated:
+        current = item.get(key)
+        if previous is not None and current != previous:
+            changes += 1
+        previous = current
+    return changes
+
+
+def _trade_events(item: dict[str, Any]) -> int:
+    """Accepted trade-stream arrivals observed so far, across both symbols."""
+    return int(item.get("btc_trades") or 0) + int(item.get("eth_trades") or 0)
+
+
 def _dedupe_analysis(samples: list[dict[str, Any]]) -> dict[str, Any]:
-    sizes = [item["dedupe_size"] for item in samples if item.get("dedupe_size") is not None]
+    """Two dedupe structures, two different questions (N01-7-INV-01 section 5).
+
+    `EventRuntime._dedupe` keys on *published* event ids. Under the accepted workload it does not
+    reach its capacity, so requiring turnover from it is structurally unobservable -- it may only
+    be checked for boundedness (`size <= capacity`).
+
+    `ScannerPipeline._trade_dedupe` is the structure the accepted section 20 trade-stream
+    semantics actually describe: it keys on `(exchange, instrument_id, market_type, trade_id)`
+    and *must* saturate under a long trade stream. Once saturated, `_remember_trade` evicts the
+    FIFO head before admitting a new key, so a moving FIFO head is the turnover witness.
+
+    The turnover witness therefore requires all three of:
+      * `_trade_dedupe` reached its capacity,
+      * its FIFO head changed while saturated,
+      * trade events were still observed arriving after the first saturation sample.
+
+    The last item is a corroborating count, not a substitute: a FIFO head can only move through
+    `_remember_trade`, which is reached only for a key that is not already remembered.
+    """
+    runtime_capacity = next(
+        (item["dedupe_capacity"] for item in samples if item.get("dedupe_capacity")), None
+    )
+    trade_capacity = next(
+        (item["trade_dedupe_capacity"] for item in samples if item.get("trade_dedupe_capacity")),
+        None,
+    )
+    runtime_sizes = [item["dedupe_size"] for item in samples if item.get("dedupe_size") is not None]
     trade_sizes = [
         item["trade_dedupe_size"] for item in samples if item.get("trade_dedupe_size") is not None
     ]
-    capacity = next(
-        (item["dedupe_capacity"] for item in samples if item.get("dedupe_capacity")), None
+
+    runtime_saturated = [
+        item for item in samples if runtime_capacity and item.get("dedupe_size") == runtime_capacity
+    ]
+    trade_saturated = [
+        item
+        for item in samples
+        if trade_capacity and item.get("trade_dedupe_size") == trade_capacity
+    ]
+    runtime_head_changes = _fifo_head_changes(runtime_saturated, "dedupe_oldest")
+    trade_head_changes = _fifo_head_changes(trade_saturated, "trade_dedupe_oldest")
+
+    first_trade_saturated = trade_saturated[0] if trade_saturated else None
+    trades_after_first_saturation = None
+    if first_trade_saturated is not None and samples:
+        trades_after_first_saturation = _trade_events(samples[-1]) - _trade_events(
+            first_trade_saturated
+        )
+
+    runtime_within_capacity = all(
+        (item.get("dedupe_size") or 0) <= (item.get("dedupe_capacity") or 0) for item in samples
     )
-    saturated = [item for item in samples if item.get("dedupe_size") == capacity and capacity]
-    oldest_changes = 0
-    previous = None
-    for item in saturated:
-        current = item.get("dedupe_oldest")
-        if previous is not None and current != previous:
-            oldest_changes += 1
-        previous = current
-    events_after_saturation = None
-    if saturated and sizes:
-        first_saturated_events = saturated[0]["total_events"]
-        events_after_saturation = samples[-1]["total_events"] - first_saturated_events
-    dedupe_accepting = None
-    if len(sizes) >= 2:
-        dedupe_accepting = sizes[-1] >= sizes[0]
+    trade_within_capacity = all(
+        (item.get("trade_dedupe_size") or 0) <= (item.get("trade_dedupe_capacity") or 0)
+        for item in samples
+    )
+
+    trade_reached_capacity = bool(trade_saturated)
+    trade_head_moved = trade_head_changes > 0
+    trades_kept_arriving = bool(
+        trades_after_first_saturation is not None and trades_after_first_saturation > 0
+    )
+
     return {
-        "dedupe_capacity": capacity,
-        "dedupe_size_first": sizes[0] if sizes else None,
-        "dedupe_size_last": sizes[-1] if sizes else None,
-        "dedupe_size_max": max(sizes) if sizes else None,
-        "dedupe_size_min": min(sizes) if sizes else None,
-        "dedupe_reached_capacity": bool(saturated),
-        "dedupe_saturated_sample_count": len(saturated),
-        "dedupe_oldest_key_changes_while_saturated": oldest_changes,
-        "events_ingested_after_first_saturation": events_after_saturation,
-        "trade_dedupe_size_max": max(trade_sizes) if trade_sizes else None,
-        "trade_dedupe_capacity": next(
-            (
-                item["trade_dedupe_capacity"]
-                for item in samples
-                if item.get("trade_dedupe_capacity")
-            ),
-            None,
+        "turnover_basis": "scanner_pipeline_trade_dedupe",
+        "runtime_dedupe_saturation_required": False,
+        "runtime_dedupe": {
+            "capacity": runtime_capacity,
+            "size_first": runtime_sizes[0] if runtime_sizes else None,
+            "size_last": runtime_sizes[-1] if runtime_sizes else None,
+            "size_max": max(runtime_sizes) if runtime_sizes else None,
+            "size_min": min(runtime_sizes) if runtime_sizes else None,
+            "reached_capacity": bool(runtime_saturated),
+            "saturated_sample_count": len(runtime_saturated),
+            "oldest_key_at_first_saturation": runtime_saturated[0].get("dedupe_oldest")
+            if runtime_saturated
+            else None,
+            "oldest_key_changes_while_saturated": runtime_head_changes,
+            "size_within_capacity_all_samples": runtime_within_capacity,
+        },
+        "trade_dedupe": {
+            "capacity": trade_capacity,
+            "size_first": trade_sizes[0] if trade_sizes else None,
+            "size_last": trade_sizes[-1] if trade_sizes else None,
+            "size_max": max(trade_sizes) if trade_sizes else None,
+            "size_min": min(trade_sizes) if trade_sizes else None,
+            "reached_capacity": trade_reached_capacity,
+            "saturated_sample_count": len(trade_saturated),
+            "saturation_elapsed_seconds": first_trade_saturated.get("elapsed_seconds")
+            if first_trade_saturated
+            else None,
+            "saturation_at": first_trade_saturated.get("at") if first_trade_saturated else None,
+            "oldest_key_at_first_saturation": first_trade_saturated.get("trade_dedupe_oldest")
+            if first_trade_saturated
+            else None,
+            "oldest_key_last": trade_saturated[-1].get("trade_dedupe_oldest")
+            if trade_saturated
+            else None,
+            "oldest_key_changes_while_saturated": trade_head_changes,
+            "trade_events_at_first_saturation": _trade_events(first_trade_saturated)
+            if first_trade_saturated
+            else None,
+            "trade_events_after_first_saturation": trades_after_first_saturation,
+            "size_within_capacity_all_samples": trade_within_capacity,
+        },
+        "trade_dedupe_reached_capacity": trade_reached_capacity,
+        "trade_dedupe_fifo_head_changed_while_saturated": trade_head_moved,
+        "trade_dedupe_kept_accepting_after_saturation": trades_kept_arriving,
+        "turnover_observed": bool(
+            trade_reached_capacity and trade_head_moved and trades_kept_arriving
         ),
-        "dedupe_kept_accepting_after_saturation": dedupe_accepting,
-        "turnover_observed": bool(saturated) and oldest_changes >= 2,
+    }
+
+
+# ---------------------------------------------------------------------------------------------
+# Deterministic self-check for the corrected turnover analyser (N01-7-INV-01 section 5)
+# ---------------------------------------------------------------------------------------------
+_SELF_CHECK_CAPACITY = 4
+
+
+def _synthetic_sample(
+    *,
+    index: int,
+    runtime_size: int,
+    runtime_head: str,
+    trade_size: int,
+    trade_head: str,
+    trade_events: int,
+    capacity: int,
+) -> dict[str, Any]:
+    """One synthetic sample carrying only the fields `_dedupe_analysis` reads."""
+    return {
+        "at": f"synthetic-{index}",
+        "elapsed_seconds": float(index * 10),
+        "dedupe_size": runtime_size,
+        "dedupe_capacity": capacity,
+        "dedupe_oldest": runtime_head,
+        "trade_dedupe_size": trade_size,
+        "trade_dedupe_capacity": capacity,
+        "trade_dedupe_oldest": trade_head,
+        "btc_trades": trade_events,
+        "eth_trades": 0,
+        "total_events": trade_events,
+    }
+
+
+def _self_check() -> dict[str, Any]:
+    """Prove the corrected turnover analyser still has teeth, without any runtime or network.
+
+    Synthetic sample data only. Four sequences are required to be classified exactly as stated;
+    the check fails closed if any one of them is mis-classified. Two of them are deliberately
+    chosen so that the *old* (defective) model -- keyed on `EventRuntime._dedupe` -- would have
+    answered them the other way round, which is what makes this a regression guard for F-2.
+    """
+    capacity = _SELF_CHECK_CAPACITY
+
+    def sequence(
+        *,
+        trade_sizes: list[int],
+        trade_heads: list[str],
+        runtime_sizes: list[int],
+        runtime_heads: list[str],
+        trade_events: list[int],
+    ) -> list[dict[str, Any]]:
+        return [
+            _synthetic_sample(
+                index=index,
+                runtime_size=runtime_sizes[index],
+                runtime_head=runtime_heads[index],
+                trade_size=trade_sizes[index],
+                trade_head=trade_heads[index],
+                trade_events=trade_events[index],
+                capacity=capacity,
+            )
+            for index in range(len(trade_sizes))
+        ]
+
+    sequences = {
+        # Saturated AND the FIFO head keeps moving AND trades keep arriving -> the section 20
+        # witness. The runtime dedupe is saturated and rotating too here, so a passing verdict
+        # must NOT be attributable to the runtime structure.
+        "saturated_and_rotating": sequence(
+            trade_sizes=[2, 3, capacity, capacity, capacity, capacity],
+            trade_heads=["t0", "t1", "t2", "t3", "t4", "t5"],
+            runtime_sizes=[1, 2, 3, 4, 4, 4],
+            runtime_heads=["r0", "r1", "r2", "r3", "r4", "r5"],
+            trade_events=[0, 10, 20, 30, 40, 50],
+        ),
+        # Saturated but the trade FIFO head never moves -> NOT turnover, even though the runtime
+        # dedupe IS saturated and rotating. The defective model returned True for this shape.
+        "saturated_not_rotating": sequence(
+            trade_sizes=[2, 3, capacity, capacity, capacity, capacity],
+            trade_heads=["t0", "t1", "t2", "t2", "t2", "t2"],
+            runtime_sizes=[1, 2, 3, 4, 4, 4],
+            runtime_heads=["r0", "r1", "r2", "r3", "r4", "r5"],
+            trade_events=[0, 10, 20, 30, 40, 50],
+        ),
+        # Trade dedupe never saturates -> structurally unobservable, must not be reported as
+        # turnover even when the runtime dedupe is saturated and rotating. The defective model
+        # returned True for this shape as well.
+        "never_saturated": sequence(
+            trade_sizes=[1, 2, 3, 3, 3, 3],
+            trade_heads=["t0", "t1", "t2", "t3", "t4", "t5"],
+            runtime_sizes=[1, 2, 3, 4, 4, 4],
+            runtime_heads=["r0", "r1", "r2", "r3", "r4", "r5"],
+            trade_events=[0, 10, 20, 30, 40, 50],
+        ),
+        # Saturated, head moved, but no further trade event ever arrived afterwards -> the third
+        # arm of the witness is required, so this must NOT be accepted.
+        "saturated_no_further_trades": sequence(
+            trade_sizes=[2, 3, capacity, capacity],
+            trade_heads=["t0", "t1", "t2", "t3"],
+            runtime_sizes=[1, 2, 3, 4],
+            runtime_heads=["r0", "r1", "r2", "r3"],
+            trade_events=[0, 10, 20, 20],
+        ),
+    }
+    expected = {
+        "saturated_and_rotating": True,
+        "saturated_not_rotating": False,
+        "never_saturated": False,
+        "saturated_no_further_trades": False,
+    }
+
+    observed: dict[str, bool] = {}
+    detail: dict[str, Any] = {}
+    for name, samples in sequences.items():
+        analysis = _dedupe_analysis(samples)
+        observed[name] = bool(analysis["turnover_observed"])
+        detail[name] = {
+            "turnover_observed": analysis["turnover_observed"],
+            "turnover_basis": analysis["turnover_basis"],
+            "trade_dedupe_reached_capacity": analysis["trade_dedupe_reached_capacity"],
+            "trade_dedupe_fifo_head_changed_while_saturated": analysis[
+                "trade_dedupe_fifo_head_changed_while_saturated"
+            ],
+            "trade_dedupe_kept_accepting_after_saturation": analysis[
+                "trade_dedupe_kept_accepting_after_saturation"
+            ],
+            "runtime_dedupe_reached_capacity": analysis["runtime_dedupe"]["reached_capacity"],
+            "runtime_dedupe_oldest_key_changes_while_saturated": analysis["runtime_dedupe"][
+                "oldest_key_changes_while_saturated"
+            ],
+            "trade_dedupe_oldest_key_changes_while_saturated": analysis["trade_dedupe"][
+                "oldest_key_changes_while_saturated"
+            ],
+        }
+
+    return {
+        "passed": observed == expected,
+        "expected": expected,
+        "observed": observed,
+        "runtime_dedupe_saturation_required": False,
+        "capacity_used": capacity,
+        "detail": detail,
     }
 
 
@@ -1213,8 +1442,17 @@ def _build_report(
     checks["queue_within_capacity_all_samples"] = all(
         (item.get("queue_size") or 0) <= (item.get("queue_capacity") or 0) for item in samples
     )
-    checks["dedupe_within_capacity_all_samples"] = all(
-        (item.get("dedupe_size") or 0) <= (item.get("dedupe_capacity") or 0) for item in samples
+    checks["runtime_dedupe_within_capacity_all_samples"] = dedupe["runtime_dedupe"][
+        "size_within_capacity_all_samples"
+    ]
+    checks["trade_dedupe_within_capacity_all_samples"] = dedupe["trade_dedupe"][
+        "size_within_capacity_all_samples"
+    ]
+    # Kept as the aggregate of both structures so an existing reader of this key still sees the
+    # full boundedness claim; the two named checks above are the precise ones.
+    checks["dedupe_within_capacity_all_samples"] = (
+        checks["runtime_dedupe_within_capacity_all_samples"]
+        and checks["trade_dedupe_within_capacity_all_samples"]
     )
     checks["dedupe_long_run_turnover"] = bool(dedupe["turnover_observed"])
     checks["rss_no_unbounded_growth"] = not memory["unbounded_growth_detected"]
@@ -1424,7 +1662,20 @@ def main() -> int:
     parser.add_argument("--window-seconds", type=float, default=DEFAULT_WINDOW_SECONDS)
     parser.add_argument("--window-count", type=int, default=DEFAULT_WINDOW_COUNT)
     parser.add_argument("--raw-out", type=str, default=None)
+    parser.add_argument(
+        "--self-check",
+        action="store_true",
+        help=(
+            "run only the deterministic dedupe-turnover analyser self-check and exit; "
+            "no network, no database and no runtime are touched"
+        ),
+    )
     args = parser.parse_args()
+
+    if args.self_check:
+        result = _self_check()
+        print(json.dumps(result, indent=2))
+        return 0 if result["passed"] else 1
 
     strict = args.seconds >= ACCEPTANCE_MIN_ACTIVE_SECONDS
     if not strict and args.seconds > PROBE_MAX_ACTIVE_SECONDS:
