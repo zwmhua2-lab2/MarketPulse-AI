@@ -12,7 +12,7 @@
 | Project | MarketPulse AI（BTC/ETH 量化纸面交易终端，Modular Monolith） |
 | Current Acceptance Group | SE-02B — Opportunity Capture + Attribution — ACCEPTED / COMPLETE |
 | Accepted Main Source | Git `main` / `origin/main`；须在任务 preflight 按 CIP-02 实时读取，不以文档静态 SHA 为准 |
-| Current State | `SE-02B = ACCEPTED / COMPLETE`（2026-09-12 Human Acceptance & Final Acceptance Closeout，已 fast-forward only 收编 `main`）；`SE-02A = ACCEPTED / COMPLETE`；`SE-02C / SE-02D = NOT STARTED`；`N01-C = ACCEPTED / COMPLETE`；N01-A / N01-B 与 N01 验证修复 `N01-VAL-FIX-01/02/03` 均维持 `ACCEPTED / COMPLETE`；`N01-6 = ACCEPTED / COMPLETE`（Reviewed HEAD `3f591a7`）；**`N01-7-F01 = INTEGRATED / AWAITING FINAL REVIEW`**（branch `n01-7-f01-latest-main-integration` @ merge `ddf39f2`；**未** ACCEPTED、**未** 收入 `main`）；**`N01-7 = BLOCKED / WAITING F01 ACCEPTANCE`**；`N01-8` / Integrated Runtime Host 仍 `NOT STARTED`；**N01 overall 仍 `NOT ACCEPTED`** |
+| Current State | `SE-02B = ACCEPTED / COMPLETE`（2026-09-12 Human Acceptance & Final Acceptance Closeout，已 fast-forward only 收编 `main`）；`SE-02A = ACCEPTED / COMPLETE`；`SE-02C / SE-02D = NOT STARTED`；`N01-C = ACCEPTED / COMPLETE`；N01-A / N01-B 与 N01 验证修复 `N01-VAL-FIX-01/02/03` 均维持 `ACCEPTED / COMPLETE`；`N01-6 = ACCEPTED / COMPLETE`（Reviewed HEAD `3f591a7`）；**`N01-7-F01 = ACCEPTED / COMPLETE`**（2026-09-13 Human Acceptance = `CONFIRMED` + Final Main Integration；reviewed candidate `7c0ea7d` @ integration merge `ddf39f2`；已 fast-forward only 收编 `main`）；**`N01-7 = NOT STARTED / READY TO RESUME`**；`N01-8` / Integrated Runtime Host 仍 `NOT STARTED`；**N01 overall 仍 `NOT ACCEPTED`** |
 | Last Accepted Group | SE-02B — Opportunity Capture + Attribution |
 | Current Group Branch | `se-02b-opportunity-capture-attribution`（accepted lineage；仅 fast-forward 收编至 `main`，历史分支保留）；更早 `n01-6-15m-runtime-smoke`、`n01-c-restart-recovery-reconciliation` |
 
@@ -58,7 +58,7 @@
 | Current Group | N01-6 — 15-minute Short Runtime Smoke — `ACCEPTED / COMPLETE` |
 | Last accepted subgroup | N01-6 — 15-minute Short Runtime Smoke (`ACCEPTED / COMPLETE`)；SE-02A / N01-C / N01-A / N01-B 亦维持 `ACCEPTED / COMPLETE`；N01 overall 仍 `NOT ACCEPTED` |
 | Next Group Design | `NOT STARTED`（须另开窗口） |
-| Next Group name/number | N01-7 — 2-hour Medium Runtime Soak — `BLOCKED / WAITING F01 ACCEPTANCE`（其前置 `N01-7-F01 = INTEGRATED / AWAITING FINAL REVIEW`，**未** ACCEPTED；`N01-8` / Integrated Runtime Host = `NOT STARTED`） |
+| Next Group name/number | N01-7 — 2-hour Medium Runtime Soak — `NOT STARTED / READY TO RESUME`（其前置 `N01-7-F01 = ACCEPTED / COMPLETE`（2026-09-13）；`N01-8` / Integrated Runtime Host = `NOT STARTED`） |
 
 - G4 **没有**提前实现完整 Replay / ReplayClock Engine。
 - 仓库中仅存在：`Clock` Protocol 的 `ReplayClock` 实现（`backend/src/marketpulse/clock.py`）与 `RunMode.REPLAY` 枚举（`config.py`）——这是既有 Clock 边界，**不是**完整回放引擎。
@@ -172,7 +172,7 @@
   `N01 overall` 仍 `NOT ACCEPTED`。详见
   `dev_log/2026-09-12-n01-6-15m-runtime-smoke.md`。
 
-### N01-7-F01 Durable Protection Snapshot — INTEGRATED / AWAITING FINAL REVIEW
+### N01-7-F01 Durable Protection Snapshot — ACCEPTED / COMPLETE
 
 - Task: `N01-7-F01-I1-C1`｜Integration Evidence Closeout（**非**新实现；docs/state-only）。
 - branch = `n01-7-f01-latest-main-integration`；isolated worktree =
@@ -189,14 +189,23 @@
   = **`INVALIDATED BY ENVIRONMENT`**（并发外来窗口 `se-arch-fix-01` 无 `DATABASE_URL`/`.env`，
   静默写共享主库 `:5432/marketpulse`）；**既非 PASS，也非 product failure**，且未放松该门规则。
   原始证据在外部 `E:\Temp\n01-7-f01-i1-e1\`，**未**入库。
-- 状态：**`N01-7-F01-I1 = INTEGRATED / VERIFIED`**；**`N01-7-F01 = INTEGRATED / AWAITING FINAL
-  REVIEW`**（**不**是 `ACCEPTED`）；**`N01-7 = BLOCKED / WAITING F01 ACCEPTANCE`**；
-  **`N01-8 = NOT STARTED`**；**`Integrated Runtime Host = NOT STARTED`**。
-- `Production Code Changed after ddf39f2 = NO` / `Tests Changed = NO` / `Migration Changed = NO`；
-  本批 delta = docs/state only。详见
+- Task（本批）：`N01-7-F01-A1`｜Final Human Acceptance + Main Integration（Final Acceptance
+  Closeout；**非**新实现；docs/state-only）。
+- Human Acceptance = **`CONFIRMED`**（人工原文「确认 N01-7-F01 Human Acceptance，并执行 Final
+  Main Integration」）；Final Independent Review = `PASS`；R2 Independent Re-Review = `PASS`；
+  Integration Review = `PASS`。
+- 状态：**`N01-7-F01-I1 = INTEGRATED / VERIFIED`**（历史）；**`N01-7-F01 = ACCEPTED /
+  COMPLETE`**（2026-09-13；已 fast-forward only 收编 `main`）；**`N01-7 = NOT STARTED / READY
+  TO RESUME`**；**`N01-8 = NOT STARTED`**；**`Integrated Runtime Host = NOT STARTED`**。
+- accepted lineage（仅 fast-forward，无 merge commit / rebase / squash / force）：
+  `ddf39f2 → 7c0ea7d → Final Acceptance Closeout Commit`。
+- `Production Code Changed after ddf39f2 = NO` / `Tests Changed = NO` / `Migration Changed = NO`;
+  Final Acceptance Closeout delta = docs/state only（本 devlog + `PROJECT_STATE.md` +
+  `AI_CONTEXT.md` + `DECISIONS.md` 最小决策引用）。详见
+  `dev_log/2026-09-13-n01-7-f01-final-acceptance-closeout.md` 与
   `dev_log/2026-09-12-n01-7-f01-latest-main-integration.md`。
-- 边界：本 Closeout **不**表示 F01 已人工验收；**不**启动 N01-7 2h soak / N01-8 / Integrated
-  Runtime Host；`N01 overall` 仍 `NOT ACCEPTED`。Final Review 通过前不得 merge 入 `main`。
+- 边界：本验收 **不**启动 N01-7 2h soak / N01-8 / Integrated Runtime Host；`N01 overall` 仍
+  `NOT ACCEPTED`。重启 N01-7 前须做一次全新 Repository Truth rebuild。
 
 ### N01-C Restart / Recovery / Reconciliation — ACCEPTED / COMPLETE
 
