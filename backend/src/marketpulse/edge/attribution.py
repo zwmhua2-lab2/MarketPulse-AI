@@ -17,6 +17,8 @@ Frozen properties (task §10):
   type, payload and occurrence time;
 * idempotent -- re-emitting the identical event returns ``IDEMPOTENT``;
 * linked to the exact ``opportunity_id`` (and ``evidence_id`` where applicable);
+* restart-safe -- a deferred order's lineage is resolved from durable facts by
+  :func:`link_for_durable_order`, never from a live in-memory recorder;
 * non-authoritative -- no existing business or economic fact is rewritten.
 """
 
@@ -27,9 +29,14 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from marketpulse.clock import Clock, SystemClock
+from marketpulse.db.models import (
+    EdgeAttributionEventRecord,
+    EdgeOpportunityEvidenceRecord,
+)
 from marketpulse.g3.models import DecisionStatus, Direction
 
 from .capture import OPPORTUNITY_FAMILY_STRATEGY_ID
@@ -114,21 +121,71 @@ def link_for_opportunity(
     )
 
 
-def family_is_selected(
-    *, selected_strategy_ids: list[str], snapshot_strategy_ids: list[str]
-) -> bool:
-    """Does the accepted AI result apply to the opportunity family?
+def family_is_selected(*, selected_strategy_ids: list[str]) -> bool:
+    """Did the accepted AI result explicitly select the opportunity family?
 
     ``AI_ACCEPTED_LONG`` must never be inferred from the mere existence of a later
-    TradePlan (task §11). The determination is made from the decision itself: the
-    provider explicitly selected the family strategy, or -- when the provider
-    selected nothing explicitly -- the frozen snapshot it decided on offered the
-    family strategy.
+    TradePlan (task §7.4), and it must never be inferred from the family strategy
+    being *present in the snapshot* either: the snapshot only proves that the AI
+    could see the strategy, not that it selected it. Only an explicit entry in the
+    provider's ``selected_strategy_ids`` counts (task §7.1 - §7.2).
     """
 
-    if selected_strategy_ids:
-        return OPPORTUNITY_FAMILY_STRATEGY_ID in selected_strategy_ids
-    return OPPORTUNITY_FAMILY_STRATEGY_ID in snapshot_strategy_ids
+    return OPPORTUNITY_FAMILY_STRATEGY_ID in selected_strategy_ids
+
+
+async def link_for_durable_order(
+    session: AsyncSession, order_id: str
+) -> OpportunityLink | None:
+    """Resolve one durable order's exact opportunity lineage from durable facts.
+
+    This is the restart-safe replacement for "the in-memory recorder that created
+    the order is still alive" (task §8.1 - §8.3). A deferred LIMIT order can fill
+    long after the process that opened it is gone, so the linkage is read back
+    from durable facts instead:
+
+    * the ``ORDER_OPEN`` attribution fact of *this* ``order_id`` -- written in the
+      same transaction that made the order durable, and therefore the exact
+      observed linkage rather than a re-derivation;
+    * verified against the accepted ``edge_opportunity_evidence`` revision it
+      names, so lineage can only descend from an opportunity that was really
+      captured.
+
+    Returns ``None`` when the order has no recorded linkage, when the recorded
+    linkage is missing or names several different opportunities, or when the
+    named evidence revision does not exist. Callers must treat ``None`` as "this
+    order has no attributable opportunity" and must never fabricate a link.
+    """
+
+    rows = list(
+        (
+            await session.scalars(
+                select(EdgeAttributionEventRecord).where(
+                    EdgeAttributionEventRecord.subject_type
+                    == AttributionSubjectType.EXECUTION.value,
+                    EdgeAttributionEventRecord.event_type
+                    == AttributionEventType.ORDER_OPEN.value,
+                    EdgeAttributionEventRecord.subject_id == order_id,
+                )
+            )
+        ).all()
+    )
+    links = {(row.opportunity_id, row.evidence_id) for row in rows}
+    if len(links) != 1:
+        # No ORDER_OPEN fact at all, or contradictory facts for one order.
+        return None
+    opportunity_id, evidence_id = links.pop()
+    if not opportunity_id or not evidence_id:
+        return None
+    captured = await session.scalar(
+        select(EdgeOpportunityEvidenceRecord.evidence_id).where(
+            EdgeOpportunityEvidenceRecord.evidence_id == evidence_id,
+            EdgeOpportunityEvidenceRecord.opportunity_id == opportunity_id,
+        )
+    )
+    if captured is None:
+        return None
+    return OpportunityLink(opportunity_id=opportunity_id, evidence_id=evidence_id)
 
 
 def ai_attribution_event_type(
@@ -217,7 +274,6 @@ class EdgeAttributionRecorder:
         status: DecisionStatus | None,
         direction: Direction | None,
         selected_strategy_ids: list[str] | None = None,
-        snapshot_strategy_ids: list[str] | None = None,
         provider_error: bool = False,
         occurred_at: datetime | None = None,
     ) -> str:
@@ -227,7 +283,6 @@ class EdgeAttributionRecorder:
             provider_error=provider_error,
             applies_to_family=family_is_selected(
                 selected_strategy_ids=list(selected_strategy_ids or []),
-                snapshot_strategy_ids=list(snapshot_strategy_ids or []),
             ),
         )
         return await self.record(

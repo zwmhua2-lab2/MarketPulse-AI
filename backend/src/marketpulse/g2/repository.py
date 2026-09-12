@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -11,7 +13,11 @@ from marketpulse.db.models import (
     StrategyCandidateRecord,
     SymbolStateStore,
 )
-from marketpulse.edge.capture import EdgeCaptureContext, capture_opportunity
+from marketpulse.edge.capture import (
+    EdgeCaptureContext,
+    ReferenceQuote,
+    capture_opportunity,
+)
 
 from .models import (
     FeatureSnapshot,
@@ -22,6 +28,12 @@ from .models import (
     SymbolStateRecord,
     deterministic_id,
 )
+
+# Bounded accessor for the caller's *current* reference quote of one instrument.
+# It is consulted once per persisted event, so the quote it returns belongs to the
+# capture that is happening now. It must be an in-process read of already-held
+# market state (no I/O), because it runs inside the G2 persistence transaction.
+ReferenceQuoteFor = Callable[[str], ReferenceQuote | None]
 
 
 class InMemoryG2Repository:
@@ -57,11 +69,16 @@ class PostgresG2Repository:
         session_factory: async_sessionmaker[AsyncSession],
         *,
         capture: EdgeCaptureContext | None = None,
+        reference_quote_for: ReferenceQuoteFor | None = None,
     ) -> None:
         self._session_factory = session_factory
         # SE-02B opportunity capture is opt-in. ``None`` (the default) keeps the
         # accepted G2 behaviour byte-for-byte: no Edge write, no Edge failure mode.
         self._capture = capture
+        # The reference quote is a per-capture causal fact, never a constructor
+        # constant: one repository instance serves many events, so a quote stored
+        # here would silently become the reference of every later opportunity.
+        self._reference_quote_for = reference_quote_for
 
     async def get_state(self, instrument_id: str) -> SymbolStateRecord | None:
         async with self._session_factory() as session:
@@ -99,5 +116,10 @@ class PostgresG2Repository:
                     candidates=candidates,
                     observation=observation,
                     context=self._capture,
+                    reference_quote=(
+                        None
+                        if self._reference_quote_for is None
+                        else self._reference_quote_for(event.instrument_id)
+                    ),
                 )
         return True

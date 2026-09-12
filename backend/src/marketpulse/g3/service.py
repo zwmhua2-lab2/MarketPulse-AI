@@ -30,6 +30,8 @@ from marketpulse.edge.attribution import (
     RISK_AUTHORITY_CAPACITY_POLICY,
     RISK_AUTHORITY_SYSTEM_RISK_GATE,
     EdgeAttributionRecorder,
+    OpportunityLink,
+    family_is_selected,
 )
 from marketpulse.g2.models import FeatureSnapshot, StrategyCandidate, SymbolStateRecord
 
@@ -59,6 +61,13 @@ from .provider import AIProvider
 def stable_id(prefix: str, *parts: object) -> str:
     value = json.dumps([str(item) for item in parts], separators=(",", ":"), sort_keys=True)
     return f"{prefix}_{hashlib.sha256(value.encode()).hexdigest()[:24]}"
+
+
+# Resolves one *durable* order to its exact opportunity lineage. The deferred
+# execution path takes this callable instead of a ready-made recorder, because a
+# batch of OPEN orders can belong to several different opportunities and a
+# restart must not need the process that opened them (SE-02B-FIX-01 P0-4).
+OrderLinkResolver = Callable[[AsyncSession, str], Awaitable[OpportunityLink | None]]
 
 
 def redact(value: Any) -> Any:
@@ -424,7 +433,6 @@ class DecisionService:
                     selected_strategy_ids=(
                         list(response.selected_strategy_ids) if response is not None else []
                     ),
-                    snapshot_strategy_ids=[item.strategy_id for item in snapshot.strategies],
                     provider_error=response is None and error is not None,
                     occurred_at=self.clock.now(),
                 )
@@ -468,8 +476,14 @@ class G3Workflow:
         )
         if plan is None:
             await self._record_plan_not_created(attribution, decision_id, snapshot, "no_long_plan")
-        else:
+        elif family_is_selected(selected_strategy_ids=list(analysis.selected_strategy_ids)):
             await persist_trade_plan(self.sessions, plan, attribution=attribution)
+        else:
+            # The accepted G3 authority created a LONG plan, but the AI did not
+            # select this opportunity's strategy family. The plan is still written
+            # unchanged; it simply is not the lineage of *this* opportunity, so no
+            # PLAN_CREATED fact is attributed here (SE-02B-FIX-01 §7.4).
+            await persist_trade_plan(self.sessions, plan)
         return status, plan
 
     async def _record_plan_not_created(
@@ -1374,9 +1388,18 @@ class PaperExecutionService:
         bbo: BestBidAsk,
         now: datetime | None = None,
         *,
-        attribution: EdgeAttributionRecorder | None = None,
+        order_link_resolver: OrderLinkResolver | None = None,
     ) -> list[ExecutionResult]:
-        """Process candidate OPEN limits; final qualification uses action-time facts only."""
+        """Process candidate OPEN limits; final qualification uses action-time facts only.
+
+        Deferred outcomes are attributed per order: one batch can hold OPEN orders
+        that descend from different opportunities, so the caller supplies a resolver
+        (see ``marketpulse.edge.attribution.link_for_durable_order``) that reads each
+        order's own exact opportunity lineage back from durable facts. A single
+        recorder for the whole batch would silently attribute every fill to one
+        opportunity, and a recorder held only in memory would be useless after a
+        restart (SE-02B-FIX-01 P0-4).
+        """
         candidate_now = now or self.clock.now()
         if not self._is_fresh_bbo(bbo, candidate_now):
             return []
@@ -1395,10 +1418,69 @@ class PaperExecutionService:
             )
         results: list[ExecutionResult] = []
         for order_id in order_ids:
-            result = await self._process_open_order(order_id, bbo, now, attribution=attribution)
+            result = await self._process_open_order(
+                order_id, bbo, now, order_link_resolver=order_link_resolver
+            )
             if result is not None:
                 results.append(result)
         return results
+
+    async def _deferred_order_attribution(
+        self,
+        session: AsyncSession,
+        order_id: str,
+        *,
+        resolver: OrderLinkResolver | None,
+    ) -> EdgeAttributionRecorder | None:
+        """Resolve one order's own opportunity lineage from durable facts.
+
+        ``None`` means "this order has no attributable opportunity": its deferred
+        outcome is still processed and returned exactly as before, it simply carries
+        no lineage -- and it is never linked to some other opportunity's lineage.
+        """
+
+        if resolver is None:
+            return None
+        link = await resolver(session, order_id)
+        return None if link is None else EdgeAttributionRecorder(link, clock=self.clock)
+
+    async def _record_deferred_refusal(
+        self,
+        session: AsyncSession,
+        attribution: EdgeAttributionRecorder | None,
+        *,
+        order: PaperOrderRecord,
+        reason: str,
+        risk_authority: str | None,
+        occurred_at: datetime,
+    ) -> None:
+        """Record a fill-time refusal with its exact reason and exact authority.
+
+        A refused deferred fill is a real lineage fact. A ``SystemRiskGate`` or
+        ``CapacityPolicy`` refusal keeps its own authority, every other refusal is an
+        execution-validation outcome, and neither is collapsed into a generic
+        rejection. Recording the fact never changes how the order was processed.
+        """
+
+        if attribution is None:
+            return
+        if risk_authority is None:
+            await attribution.record_execution_rejected(
+                session,
+                reason=reason,
+                intent_id=order.intent_id,
+                plan_id=order.plan_id,
+                occurred_at=occurred_at,
+            )
+            return
+        await attribution.record_risk_rejected(
+            session,
+            authority=risk_authority,
+            reason=reason,
+            intent_id=order.intent_id,
+            plan_id=order.plan_id,
+            occurred_at=occurred_at,
+        )
 
     async def _process_open_order(
         self,
@@ -1406,8 +1488,15 @@ class PaperExecutionService:
         bbo: BestBidAsk,
         now: datetime | None,
         *,
-        attribution: EdgeAttributionRecorder | None = None,
+        order_link_resolver: OrderLinkResolver | None = None,
     ) -> ExecutionResult | None:
+        """Process one OPEN LIMIT order, attributing it to its own opportunity.
+
+        Every refusal below is attributed with the clock that actually decided it:
+        the pre-lock admission preview uses ``candidate_now`` and the action-time
+        guards use ``action_now``, so the lineage keeps the real decision time rather
+        than the settlement timestamp.
+        """
         async with self.sessions() as session, session.begin():
             # Preview without a row lock so the G4 gate can take the global runtime-control lock
             # first. Every caller then re-reads the order with FOR UPDATE before mutating it,
@@ -1422,12 +1511,26 @@ class PaperExecutionService:
                 or preview.instrument_id != bbo.instrument_id
             ):
                 return None
+            # Per order, from durable facts: this is what makes a deferred fill of an
+            # order opened by an earlier process still attributable to its own
+            # opportunity.
+            attribution = await self._deferred_order_attribution(
+                session, order_id, resolver=order_link_resolver
+            )
             # Preserve the global G4 order: RuntimeControl -> Order -> Plan -> Account -> Positions.
             # This is an ordering/admission preview only; the gate is evaluated again using
             # action-time facts before settlement.
             candidate_now = now or self.clock.now()
             gate_reason = await self._risk_gate_reason_for_order(session, preview, candidate_now)
             if gate_reason is not None:
+                await self._record_deferred_refusal(
+                    session,
+                    attribution,
+                    order=preview,
+                    reason=gate_reason,
+                    risk_authority=RISK_AUTHORITY_SYSTEM_RISK_GATE,
+                    occurred_at=candidate_now,
+                )
                 return ExecutionResult(
                     intent_id=preview.intent_id,
                     status=IntentStatus.EXECUTED,
@@ -1450,6 +1553,14 @@ class PaperExecutionService:
             ):
                 return None
             if order.limit_price is None:
+                await self._record_deferred_refusal(
+                    session,
+                    attribution,
+                    order=order,
+                    reason="LIMIT_PRICE_MISSING",
+                    risk_authority=None,
+                    occurred_at=candidate_now,
+                )
                 return ExecutionResult(
                     intent_id=order.intent_id,
                     status=IntentStatus.EXECUTED,
@@ -1485,6 +1596,14 @@ class PaperExecutionService:
             )
             action_bbos = await self._load_action_time_bbos(order.instrument_id, positions)
             if action_bbos is None:
+                await self._record_deferred_refusal(
+                    session,
+                    attribution,
+                    order=order,
+                    reason="ACTION_TIME_BBO_UNAVAILABLE",
+                    risk_authority=None,
+                    occurred_at=candidate_now,
+                )
                 return ExecutionResult(
                     intent_id=order.intent_id,
                     status=IntentStatus.EXECUTED,
@@ -1494,6 +1613,14 @@ class PaperExecutionService:
             action_bbo = action_bbos[order.instrument_id]
             state_version = await self._action_time_state_version(order.instrument_id)
             if state_version is None:
+                await self._record_deferred_refusal(
+                    session,
+                    attribution,
+                    order=order,
+                    reason="ACTION_TIME_STATE_UNAVAILABLE",
+                    risk_authority=None,
+                    occurred_at=candidate_now,
+                )
                 return ExecutionResult(
                     intent_id=order.intent_id,
                     status=IntentStatus.EXECUTED,
@@ -1505,6 +1632,14 @@ class PaperExecutionService:
             action_now = self.clock.now()
             gate_reason = await self._risk_gate_reason_for_order(session, order, action_now)
             if gate_reason is not None:
+                await self._record_deferred_refusal(
+                    session,
+                    attribution,
+                    order=order,
+                    reason=gate_reason,
+                    risk_authority=RISK_AUTHORITY_SYSTEM_RISK_GATE,
+                    occurred_at=action_now,
+                )
                 return ExecutionResult(
                     intent_id=order.intent_id,
                     status=IntentStatus.EXECUTED,
@@ -1517,6 +1652,14 @@ class PaperExecutionService:
             if action_bbo.instrument_id != order.instrument_id or not self._is_fresh_bbo(
                 action_bbo, action_now
             ):
+                await self._record_deferred_refusal(
+                    session,
+                    attribution,
+                    order=order,
+                    reason="CORE_MARKET_DATA_STALE",
+                    risk_authority=None,
+                    occurred_at=action_now,
+                )
                 return ExecutionResult(
                     intent_id=order.intent_id,
                     status=IntentStatus.EXECUTED,
@@ -1527,6 +1670,14 @@ class PaperExecutionService:
                 account, positions, action_bbos, action_now
             )
             if equity_and_marks is None:
+                await self._record_deferred_refusal(
+                    session,
+                    attribution,
+                    order=order,
+                    reason="CORE_POSITION_MARK_STALE",
+                    risk_authority=None,
+                    occurred_at=action_now,
+                )
                 return ExecutionResult(
                     intent_id=order.intent_id,
                     status=IntentStatus.EXECUTED,
@@ -1537,6 +1688,14 @@ class PaperExecutionService:
                 order, plan_record, action_bbo, action_now, state_version
             )
             if plan_guard_reason is not None:
+                await self._record_deferred_refusal(
+                    session,
+                    attribution,
+                    order=order,
+                    reason=plan_guard_reason,
+                    risk_authority=None,
+                    occurred_at=action_now,
+                )
                 return ExecutionResult(
                     intent_id=order.intent_id,
                     status=IntentStatus.EXECUTED,
@@ -1562,6 +1721,14 @@ class PaperExecutionService:
                     or position_value + pending_exposure > equity * 0.20
                     or account.reserved_cash + 1e-12 < order.reserved_cash
                 ):
+                    await self._record_deferred_refusal(
+                        session,
+                        attribution,
+                        order=order,
+                        reason="CAPACITY_BLOCKED",
+                        risk_authority=RISK_AUTHORITY_CAPACITY_POLICY,
+                        occurred_at=action_now,
+                    )
                     return ExecutionResult(
                         intent_id=order.intent_id,
                         status=IntentStatus.EXECUTED,
@@ -1569,6 +1736,14 @@ class PaperExecutionService:
                         order_id=order.order_id,
                     )
             elif position is None or order.quantity > position.quantity + 1e-12:
+                await self._record_deferred_refusal(
+                    session,
+                    attribution,
+                    order=order,
+                    reason="SELL_RESERVATION_EXCEEDS_POSITION",
+                    risk_authority=None,
+                    occurred_at=action_now,
+                )
                 return ExecutionResult(
                     intent_id=order.intent_id,
                     status=IntentStatus.EXECUTED,

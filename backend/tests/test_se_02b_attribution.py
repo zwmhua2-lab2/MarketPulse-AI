@@ -49,6 +49,7 @@ from marketpulse.edge.attribution import (
     EdgeAttributionRecorder,
     ai_attribution_event_type,
     family_is_selected,
+    link_for_durable_order,
     link_for_opportunity,
 )
 from marketpulse.edge.capture import EdgeCaptureContext, ReferenceQuote
@@ -96,7 +97,7 @@ from marketpulse.g3.service import (
     persist_trade_plan,
     stable_id,
 )
-from marketpulse.market_data.models import MarketType
+from marketpulse.market_data.models import DataQuality, MarketType
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
@@ -316,10 +317,10 @@ def _breakout(candidates: list[StrategyCandidate]) -> StrategyCandidate:
     return next(item for item in candidates if item.strategy_id == FAMILY)
 
 
-async def _captured_opportunity(factory):
+async def _captured_opportunity(factory, *, event_id: str = "evt-attr-1"):
     """Persist one real qualifying G2 SETUP and return the captured Edge facts."""
 
-    event = _event()
+    event = _event(event_id=event_id)
     features = _features()
     state = _state()
     transition = _transition(event=event, state=state)
@@ -329,13 +330,31 @@ async def _captured_opportunity(factory):
         source_type=EvidenceSource.FORWARD_PAPER,
         source_identity="okx-ws-bbo",
         source_manifest_id="manifest-se02b",
-        reference_quote=ReferenceQuote(bid=99.5, ask=100.5, received_at=NOW),
     )
-    repository = PostgresG2Repository(factory, capture=context)
+    # The quote is supplied per capture through the repository accessor, matching
+    # how production supplies a bounded in-process read of current market state.
+    quote = ReferenceQuote(
+        instrument_id=INSTRUMENT,
+        market_type=MarketType.SPOT,
+        bid=99.5,
+        ask=100.5,
+        received_at=NOW,
+        data_quality=DataQuality.FRESH,
+    )
+    repository = PostgresG2Repository(
+        factory, capture=context, reference_quote_for=lambda _instrument_id: quote
+    )
     await repository.persist(event, timeline, state, transition, candidates, features)
     candidate = _breakout(candidates)
     async with factory() as session:
-        evidence = (await session.scalars(select(EdgeOpportunityEvidenceRecord))).one()
+        # Unique predicate: a scenario may capture more than one opportunity.
+        evidence = (
+            await session.scalars(
+                select(EdgeOpportunityEvidenceRecord).where(
+                    EdgeOpportunityEvidenceRecord.candidate_id == candidate.candidate_id
+                )
+            )
+        ).one()
     opportunity = build_opportunity_identity(
         family_id=EdgeFamily.BREAKOUT_RETEST,
         family_version=candidate.strategy_version,
@@ -382,7 +401,12 @@ def _analysis(
     )
 
 
-def _snapshot(*, candidates: list[StrategyCandidate], state_version: int = STATE_VERSION):
+def _snapshot(
+    *,
+    candidates: list[StrategyCandidate],
+    state_version: int = STATE_VERSION,
+    snapshot_at: datetime = NOW,
+):
     state = _state(version=state_version)
     features = _features()
     bbo = BestBidAsk(instrument_id=INSTRUMENT, bid=99.5, ask=100.5, received_at=NOW)
@@ -395,7 +419,7 @@ def _snapshot(*, candidates: list[StrategyCandidate], state_version: int = STATE
         timeline=[{"event_id": "evt-attr-1"}],
         config_version="g2-v1",
         trading_context={"current_position": None, "open_orders": []},
-        now=NOW,
+        now=snapshot_at,
     )
 
 
@@ -428,10 +452,12 @@ def _execution_service(
     factory,
     *,
     bbo_at: datetime = T2,
+    bid: float = 99.5,
+    ask: float = 100.5,
     risk_gate=None,
     initial_balance: float = 1000.0,
 ) -> PaperExecutionService:
-    bbo = BestBidAsk(instrument_id=INSTRUMENT, bid=99.5, ask=100.5, received_at=bbo_at)
+    bbo = BestBidAsk(instrument_id=INSTRUMENT, bid=bid, ask=ask, received_at=bbo_at)
     return PaperExecutionService(
         factory,
         lambda _: asyncio.sleep(0, result=bbo),
@@ -454,6 +480,7 @@ async def _accepted_plan(
     notional: float = 100.0,
     decision_at: datetime = T0,
     plan_at: datetime = T1,
+    snapshot_at: datetime = NOW,
 ):
     """Run the real accepted decision + plan persistence for one LONG plan.
 
@@ -462,7 +489,7 @@ async def _accepted_plan(
     """
 
     zone = zone or PriceZone(lower=99.0, upper=101.0)
-    snapshot = _snapshot(candidates=[candidate])
+    snapshot = _snapshot(candidates=[candidate], snapshot_at=snapshot_at)
     service = DecisionService(
         factory,
         DeterministicFakeAIProvider(
@@ -683,14 +710,20 @@ def test_provider_failure_records_the_provider_error_and_no_plan_but_keeps_the_s
     assert observed["fills"] == 0
 
 
-async def _rejected_scenario(url: str, *, direction=None, provider=None) -> dict[str, object]:
+async def _rejected_scenario(
+    url: str,
+    *,
+    direction=None,
+    provider=None,
+    selected: tuple[str, ...] = (FAMILY,),
+) -> dict[str, object]:
     async with _sessions(url) as factory:
         opportunity, candidate, _ = await _captured_opportunity(factory)
         link = link_for_opportunity(opportunity)
         recorder = EdgeAttributionRecorder(link, clock=ReplayClock(T0))
         snapshot = _snapshot(candidates=[candidate])
         if provider is None:
-            provider = DeterministicFakeAIProvider(_analysis(direction))
+            provider = DeterministicFakeAIProvider(_analysis(direction, selected=selected))
         workflow = G3Workflow(
             DecisionService(factory, provider, model="fake-model", clock=ReplayClock(T0)),
             TradePlanManager(clock=ReplayClock(T1)),
@@ -1197,17 +1230,446 @@ def test_ai_attribution_vocabulary_matrix(
 
 
 @pytest.mark.parametrize(
-    ("selected", "snapshot", "expected"),
+    ("selected", "expected"),
     [
-        ([FAMILY], [], True),
-        ([], [FAMILY], True),
-        (["TREND_PULLBACK"], [FAMILY], False),
-        ([], ["TREND_PULLBACK"], False),
-        ([], [], False),
+        ([FAMILY], True),
+        (["TREND_PULLBACK"], False),
+        (["TREND_PULLBACK", FAMILY], True),
+        ([], False),
     ],
 )
-def test_family_selection_never_follows_a_later_plan(selected, snapshot, expected):
-    assert (
-        family_is_selected(selected_strategy_ids=selected, snapshot_strategy_ids=snapshot)
-        is expected
+def test_family_selection_requires_an_explicit_ai_selection(selected, expected):
+    """Presence in the snapshot is not selection: only the AI's own list counts."""
+
+    assert family_is_selected(selected_strategy_ids=selected) is expected
+
+
+# --- I. AI family selection and plan attribution (P0-3) ---------------------------------
+
+
+def test_missing_explicit_family_selection_is_not_an_ai_acceptance():
+    with _attribution_database("noselect") as url:
+        observed = asyncio.run(
+            _rejected_scenario(url, direction=Direction.LONG_BIAS, selected=())
+        )
+
+    assert observed["status"] == "VALID"
+    # An empty selection list must never be read as acceptance, even though the
+    # snapshot handed to the AI contains the BREAKOUT_RETEST candidate.
+    assert observed["event_types"] == [
+        AttributionEventType.AI_NOT_SELECTED_THIS_FAMILY.value
+    ]
+    assert AttributionEventType.AI_ACCEPTED_LONG.value not in observed["event_types"]
+    # The accepted G3 authority still created the plan; only the lineage differs.
+    assert observed["plan"] is not None
+    assert observed["plans"] == 1
+    assert observed["evidence_rows"] == 1
+    assert observed["all_linked"] is True
+
+
+def test_a_long_plan_for_another_family_is_never_attributed_to_this_opportunity():
+    with _attribution_database("otherfamily") as url:
+        observed = asyncio.run(
+            _rejected_scenario(
+                url, direction=Direction.LONG_BIAS, selected=("TREND_PULLBACK",)
+            )
+        )
+
+    assert observed["status"] == "VALID"
+    assert observed["event_types"] == [
+        AttributionEventType.AI_NOT_SELECTED_THIS_FAMILY.value
+    ]
+    # A LONG plan created for a different family must never carry this
+    # opportunity's PLAN_CREATED fact.
+    assert AttributionEventType.PLAN_CREATED.value not in observed["event_types"]
+    assert observed["plan"] is not None
+    assert observed["plans"] == 1
+    assert observed["evidence_rows"] == 1
+
+
+# --- J. deferred open orders resolve their own lineage (P0-4) ---------------------------
+
+
+async def _open_limit_order(
+    factory,
+    *,
+    opportunity,
+    candidate,
+    intent_id: str,
+    service: PaperExecutionService,
+    notional: float = 20.0,
+    zone: PriceZone | None = None,
+    snapshot_at: datetime = NOW,
+) -> tuple[str, str]:
+    """Create one durable OPEN LIMIT order through the accepted reservation path."""
+
+    recorder = EdgeAttributionRecorder(
+        link_for_opportunity(opportunity), clock=ReplayClock(T0)
     )
+    _, _, plan = await _accepted_plan(
+        factory,
+        recorder=recorder,
+        candidate=candidate,
+        order_type=OrderType.LIMIT,
+        zone=zone,
+        notional=notional,
+        snapshot_at=snapshot_at,
+    )
+    result = await service.execute(
+        _intent(plan, intent_id=intent_id), plan, T2, attribution=recorder
+    )
+    assert result.status is IntentStatus.EXECUTED
+    async with factory() as session:
+        order = await session.get(PaperOrderRecord, result.order_id)
+        assert order is not None and order.status == OrderStatus.OPEN
+    return result.order_id, plan.plan_id
+
+
+def _settlement_bbo(at: datetime) -> BestBidAsk:
+    """A quote that reaches the LIMIT BUY price (``ask <= limit_price``)."""
+
+    return BestBidAsk(instrument_id=INSTRUMENT, bid=98.5, ask=99.0, received_at=at)
+
+
+def _deferred_event_types(events: list[dict[str, object]]) -> list[str]:
+    """Only the lineage facts the deferred settlement stage can produce."""
+
+    return [
+        str(item["event_type"])
+        for item in events
+        if item["event_type"]
+        in {
+            AttributionEventType.RISK_REJECTED.value,
+            AttributionEventType.EXECUTION_REJECTED.value,
+            AttributionEventType.BUY_FILLED.value,
+            AttributionEventType.TRADE_OPEN.value,
+        }
+    ]
+
+
+def _order_lineage(
+    events: list[dict[str, object]], order_id: str, intent_id: str, opportunity
+) -> dict[str, object]:
+    """Every deferred-settlement fact that belongs to one durable order.
+
+    A fact belongs to the order when it names the order, its intent, or the fill
+    that order produced -- which is how a refusal (keyed by intent) and a trade
+    (keyed by fill) are still resolved to the order that caused them.
+    """
+
+    expected_evidence_id = link_for_opportunity(opportunity).evidence_id
+    stage_types = {
+        AttributionEventType.ORDER_OPEN.value,
+        AttributionEventType.RISK_REJECTED.value,
+        AttributionEventType.EXECUTION_REJECTED.value,
+        AttributionEventType.BUY_FILLED.value,
+        AttributionEventType.TRADE_OPEN.value,
+    }
+
+    def owned_by_order(item: dict[str, object]) -> bool:
+        payload = item["payload"]
+        return (
+            item["subject_id"] in {order_id, intent_id}
+            or payload.get("order_id") == order_id
+            or payload.get("intent_id") == intent_id
+        )
+
+    owned = [
+        item for item in events if item["event_type"] in stage_types and owned_by_order(item)
+    ]
+    filled = [
+        item for item in owned if item["event_type"] == AttributionEventType.BUY_FILLED.value
+    ]
+    fill_id = filled[0]["payload"].get("fill_id") if filled else None
+    if fill_id is not None:
+        owned.extend(
+            item
+            for item in events
+            if item["event_type"] == AttributionEventType.TRADE_OPEN.value
+            and item["payload"].get("fill_id") == fill_id
+        )
+    refusal = next(
+        (
+            item
+            for item in owned
+            if item["event_type"]
+            in {
+                AttributionEventType.RISK_REJECTED.value,
+                AttributionEventType.EXECUTION_REJECTED.value,
+            }
+        ),
+        None,
+    )
+    return {
+        "order_id": order_id,
+        "intent_id": intent_id,
+        "opportunity_id": opportunity.opportunity_id,
+        "evidence_id": expected_evidence_id,
+        "sorted_event_types": sorted(str(item["event_type"]) for item in owned),
+        "opportunity_ids": sorted({str(item["opportunity_id"]) for item in owned}),
+        "evidence_ids": sorted({str(item["evidence_id"]) for item in owned}),
+        "all_linked_to_own_opportunity": all(
+            item["opportunity_id"] == opportunity.opportunity_id
+            and item["evidence_id"] == expected_evidence_id
+            for item in owned
+        ),
+        "refusal_reason": (
+            None if refusal is None else refusal["payload"].get("reason")
+        ),
+        "fill_id": fill_id,
+    }
+
+
+def test_deferred_open_orders_resolve_each_order_to_its_own_opportunity():
+    with _attribution_database("deferredlineage") as url:
+        observed = asyncio.run(_deferred_lineage_scenario(url))
+
+    first, second = observed["first"], observed["second"]
+    # Two OPEN orders for the same instrument, opened from two different opportunities.
+    assert first["opportunity_id"] != second["opportunity_id"]
+    # Every deferred fact of an order names only that order's own opportunity and
+    # its stored evidence revision -- never the other order's.
+    assert first["all_linked_to_own_opportunity"] is True
+    assert second["all_linked_to_own_opportunity"] is True
+    assert first["opportunity_ids"] == [first["opportunity_id"]]
+    assert first["evidence_ids"] == [first["evidence_id"]]
+    assert second["opportunity_ids"] == [second["opportunity_id"]]
+    assert second["evidence_ids"] == [second["evidence_id"]]
+    # One plan supersedes the other (accepted G3 semantics: a single active plan
+    # per instrument), so one order fills and the other is refused -- and the
+    # refusal is an execution-validation outcome of *that* order's opportunity.
+    assert first["sorted_event_types"] == [
+        AttributionEventType.EXECUTION_REJECTED.value,
+        AttributionEventType.ORDER_OPEN.value,
+    ]
+    assert first["refusal_reason"] == "PLAN_NOT_ACTIVE"
+    assert first["fill_id"] is None
+    # The order that does fill proves trading happened, and it opens the trade.
+    assert second["sorted_event_types"] == [
+        AttributionEventType.BUY_FILLED.value,
+        AttributionEventType.ORDER_OPEN.value,
+        AttributionEventType.TRADE_OPEN.value,
+    ]
+    assert second["fill_id"] is not None
+    assert observed["trade_open_count"] == 1
+    assert observed["trade_open_opportunity"] == second["opportunity_id"]
+    # Restart-safe: a brand new pool + engine resolves the identical linkage from
+    # durable facts alone.
+    assert observed["resolved_after_restart"] == {
+        first["order_id"]: first["opportunity_id"],
+        second["order_id"]: second["opportunity_id"],
+    }
+    # An order that was never opened resolves to nothing rather than to a guess.
+    assert observed["unlinked_order_link"] is None
+
+
+async def _deferred_lineage_scenario(url: str) -> dict[str, object]:
+    async with _sessions(url) as factory:
+        first_opportunity, first_candidate, _ = await _captured_opportunity(
+            factory, event_id="evt-attr-1"
+        )
+        second_opportunity, second_candidate, _ = await _captured_opportunity(
+            factory, event_id="evt-attr-2"
+        )
+        service = _execution_service(factory, bbo_at=T2, bid=98.5, ask=99.0)
+        await service.bootstrap_account(RunMode.REPLAY)
+        first_order, _ = await _open_limit_order(
+            factory,
+            opportunity=first_opportunity,
+            candidate=first_candidate,
+            intent_id="intent-deferred-1",
+            service=service,
+        )
+        second_order, _ = await _open_limit_order(
+            factory,
+            opportunity=second_opportunity,
+            candidate=second_candidate,
+            intent_id="intent-deferred-2",
+            service=service,
+            # A distinct snapshot instant, because snapshot identity is derived from
+            # instrument / state version / config / time (not from the candidate).
+            snapshot_at=T1,
+        )
+        # No recorder is supplied: the deferred fills can only be attributed from
+        # each order's own durable ORDER_OPEN fact.
+        results = await service.process_open_orders(
+            RunMode.REPLAY,
+            _settlement_bbo(T2),
+            T2,
+            order_link_resolver=link_for_durable_order,
+        )
+        assert len(results) == 2
+        events = await _event_summary(factory)
+        trade_open = [
+            item
+            for item in events
+            if item["event_type"] == AttributionEventType.TRADE_OPEN.value
+        ]
+        # Simulate a restart: fresh engine, fresh pool, no in-memory state at all.
+        async with _sessions(url) as restarted:
+            restored: dict[str, object] = {}
+            for order_id in (first_order, second_order):
+                async with restarted() as session:
+                    link = await link_for_durable_order(session, order_id)
+                restored[order_id] = None if link is None else link.opportunity_id
+            async with restarted() as session:
+                unlinked = await link_for_durable_order(session, "order-never-opened")
+        return {
+            "first": _order_lineage(
+                events, first_order, "intent-deferred-1", first_opportunity
+            ),
+            "second": _order_lineage(
+                events, second_order, "intent-deferred-2", second_opportunity
+            ),
+            "trade_open_count": len(trade_open),
+            "trade_open_opportunity": (
+                trade_open[0]["opportunity_id"] if trade_open else None
+            ),
+            "resolved_after_restart": restored,
+            "unlinked_order_link": unlinked,
+        }
+
+
+async def _deferred_refusal_scenario(url: str, *, authority: str) -> dict[str, object]:
+    async with _sessions(url) as factory:
+        opportunity, candidate, _ = await _captured_opportunity(factory)
+        creator = _execution_service(factory, bbo_at=T2)
+        await creator.bootstrap_account(RunMode.REPLAY)
+        order_id, plan_id = await _open_limit_order(
+            factory,
+            opportunity=opportunity,
+            candidate=candidate,
+            intent_id=f"intent-deferred-{authority}",
+            service=creator,
+        )
+        risk_gate = None
+        if authority == "gate":
+            risk_gate = _RefusingRiskGate("DEFERRED_GATE_TEST_REFUSAL")
+        elif authority == "capacity":
+            # Drain the account after the order exists so the capacity policy is
+            # what refuses the fill, not the admission check at open time.
+            async with factory() as session, session.begin():
+                account = await session.scalar(
+                    select(AccountRecord)
+                    .where(AccountRecord.run_mode == RunMode.REPLAY)
+                    .with_for_update()
+                )
+                assert account is not None
+                account.cash_balance = 10.0
+        refuser = _execution_service(
+            factory, bbo_at=T2, bid=98.5, ask=99.0, risk_gate=risk_gate
+        )
+        results = await refuser.process_open_orders(
+            RunMode.REPLAY,
+            _settlement_bbo(T2),
+            T2,
+            order_link_resolver=link_for_durable_order,
+        )
+        assert len(results) == 1
+        events = await _event_summary(factory)
+        by_type = _by_type(events)
+        async with factory() as session:
+            order = await session.get(PaperOrderRecord, order_id)
+            fills = await _count(session, FillRecord)
+        return {
+            "result_reason": results[0].reason,
+            "event_types": [str(item["event_type"]) for item in events],
+            "deferred_event_types": _deferred_event_types(events),
+            "refusal": by_type.get(AttributionEventType.RISK_REJECTED.value),
+            "plan_id": plan_id,
+            "order_status": order.status,
+            "fills": fills,
+        }
+
+
+def test_deferred_fill_blocked_by_the_system_risk_gate_keeps_its_authority_and_reason():
+    with _attribution_database("deferredgate") as url:
+        observed = asyncio.run(_deferred_refusal_scenario(url, authority="gate"))
+
+    assert observed["result_reason"] == "DEFERRED_GATE_TEST_REFUSAL"
+    assert observed["deferred_event_types"] == [
+        AttributionEventType.RISK_REJECTED.value
+    ]
+    assert observed["refusal"]["subject_type"] == "RISK"
+    assert (
+        observed["refusal"]["payload"]["authority"] == RISK_AUTHORITY_SYSTEM_RISK_GATE
+    )
+    assert observed["refusal"]["payload"]["reason"] == "DEFERRED_GATE_TEST_REFUSAL"
+    assert observed["refusal"]["payload"]["plan_id"] == observed["plan_id"]
+    assert AttributionEventType.EXECUTION_REJECTED.value not in observed["event_types"]
+    assert AttributionEventType.BUY_FILLED.value not in observed["event_types"]
+    assert observed["order_status"] == OrderStatus.OPEN.value
+    assert observed["fills"] == 0
+
+
+def test_deferred_fill_blocked_by_capacity_keeps_its_own_distinct_authority():
+    with _attribution_database("deferredcapacity") as url:
+        observed = asyncio.run(_deferred_refusal_scenario(url, authority="capacity"))
+
+    assert observed["result_reason"] == "CAPACITY_BLOCKED"
+    assert observed["deferred_event_types"] == [
+        AttributionEventType.RISK_REJECTED.value
+    ]
+    assert observed["refusal"]["subject_type"] == "RISK"
+    assert (
+        observed["refusal"]["payload"]["authority"] == RISK_AUTHORITY_CAPACITY_POLICY
+    )
+    assert observed["refusal"]["payload"]["reason"] == "CAPACITY_BLOCKED"
+    assert (
+        observed["refusal"]["payload"]["authority"] != RISK_AUTHORITY_SYSTEM_RISK_GATE
+    )
+    assert AttributionEventType.EXECUTION_REJECTED.value not in observed["event_types"]
+    assert observed["fills"] == 0
+
+
+async def _deferred_expired_scenario(url: str) -> dict[str, object]:
+    async with _sessions(url) as factory:
+        opportunity, candidate, _ = await _captured_opportunity(factory)
+        creator = _execution_service(factory, bbo_at=T2)
+        await creator.bootstrap_account(RunMode.REPLAY)
+        order_id, plan_id = await _open_limit_order(
+            factory,
+            opportunity=opportunity,
+            candidate=candidate,
+            intent_id="intent-deferred-expired",
+            service=creator,
+        )
+        # The plan lifetime is 5 minutes; settle well after it expired.
+        expired_at = T1 + timedelta(minutes=30)
+        refuser = _execution_service(factory, bbo_at=expired_at, bid=98.5, ask=99.0)
+        results = await refuser.process_open_orders(
+            RunMode.REPLAY,
+            _settlement_bbo(expired_at),
+            expired_at,
+            order_link_resolver=link_for_durable_order,
+        )
+        assert len(results) == 1
+        events = await _event_summary(factory)
+        by_type = _by_type(events)
+        async with factory() as session:
+            fills = await _count(session, FillRecord)
+        return {
+            "result_reason": results[0].reason,
+            "event_types": [str(item["event_type"]) for item in events],
+            "deferred_event_types": _deferred_event_types(events),
+            "refusal": by_type.get(AttributionEventType.EXECUTION_REJECTED.value),
+            "plan_id": plan_id,
+            "order_id": order_id,
+            "fills": fills,
+        }
+
+
+def test_deferred_execution_validation_refusal_is_never_a_risk_refusal():
+    with _attribution_database("deferredexpired") as url:
+        observed = asyncio.run(_deferred_expired_scenario(url))
+
+    assert observed["result_reason"] == "PLAN_EXPIRED"
+    assert observed["deferred_event_types"] == [
+        AttributionEventType.EXECUTION_REJECTED.value
+    ]
+    assert observed["refusal"]["subject_type"] == "EXECUTION"
+    assert observed["refusal"]["payload"]["reason"] == "PLAN_EXPIRED"
+    assert observed["refusal"]["payload"]["plan_id"] == observed["plan_id"]
+    # Not one of the two authoritative risk refusals.
+    assert AttributionEventType.RISK_REJECTED.value not in observed["event_types"]
+    assert observed["fills"] == 0

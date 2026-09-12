@@ -13,6 +13,16 @@ accepted ``EvidenceRevision`` contract object and hands it to
 ``marketpulse.edge.repository.append_evidence_revision``, so every accepted
 SE-02A identity / hash / revision / idempotency rule is reused unchanged.
 
+Two causal rules are frozen here (SE-02B-FIX-01):
+
+* the reference quote is a **per-capture** fact. The caller supplies it through a
+  bounded accessor on every persist, so one long-lived quote can never be re-used
+  as if it were still current for a later opportunity;
+* the evidence horizon is anchored on the moment the opportunity became knowable
+  (``qualifying_candidate.created_at``), and a reference quote is ``OK`` only when
+  ``0 <= evidence_at - reference_received_at <= reference_max_age``. A quote that
+  was received *after* the evidence anchor is lookahead, not freshness.
+
 Deliberately absent (SE-02C / SE-02D): continuous quote-path capture, forward
 outcome calculation, MFE, MAE, forward returns, expectancy, family aggregation,
 KEEP / DOWNWEIGHT / KILL.
@@ -24,7 +34,7 @@ import math
 from datetime import datetime, timedelta
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from marketpulse.g2.models import (
@@ -39,6 +49,7 @@ from marketpulse.g2.models import (
     SymbolState,
     SymbolStateRecord,
 )
+from marketpulse.market_data.models import DataQuality, MarketType
 
 from .models import (
     EdgeFamily,
@@ -58,8 +69,10 @@ RUNTIME_CAPTURE_REVISION = 1
 
 # Contracts version of the captured payload. It is frozen: changing the payload
 # shape of a runtime capture changes the stored evidence hash, so a new shape
-# needs a new tag rather than a silent in-place edit.
-RUNTIME_CAPTURE_PAYLOAD_VERSION = "se02b-runtime-capture-v1"
+# needs a new tag rather than a silent in-place edit. ``v2`` records the received
+# reference quote's own identity / quality facts next to the frozen reference
+# metrics (SE-02B-FIX-01 P0-1).
+RUNTIME_CAPTURE_PAYLOAD_VERSION = "se02b-runtime-capture-v2"
 
 # Default reference-quote age above which a supplied quote is not usable. It
 # mirrors the accepted G3 execution freshness window so the Edge layer does not
@@ -68,11 +81,16 @@ DEFAULT_REFERENCE_MAX_AGE = timedelta(seconds=5)
 
 
 class ReferenceQuote(BaseModel):
-    """Reference L1 quote facts supplied by the caller.
+    """Reference L1 quote facts supplied by the caller for exactly one capture.
 
     SE-02B does not capture a continuous quote path (that is SE-02C). The caller
     owns the live market state and passes the reference quote it already holds;
     G2 itself owns no bid/ask.
+
+    The quote carries its own market identity and quality facts so an unusable
+    quote can never be mistaken for this opportunity's reference: a quote for
+    another instrument or another market type is not usable evidence here, and a
+    quote received after the evidence anchor is future data, not freshness.
 
     Reference data can never decide whether an opportunity exists: an unusable
     quote is classified as ``REFERENCE_STALE`` and the sample is still
@@ -83,9 +101,12 @@ class ReferenceQuote(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
+    instrument_id: str = Field(min_length=1)
+    market_type: MarketType
     bid: float
     ask: float
     received_at: datetime
+    data_quality: DataQuality
     tradable: bool = True
 
     @field_validator("received_at")
@@ -94,26 +115,40 @@ class ReferenceQuote(BaseModel):
             raise ValueError("reference quote received_at must be timezone-aware")
         return value
 
-    def _is_usable(self, *, at: datetime, max_age: timedelta) -> bool:
-        """A quote is usable only when it is tradable, well-formed and fresh."""
+    def _is_well_formed(self) -> bool:
+        """Usable shape only: tradable, finite and positively ordered."""
 
         if not self.tradable:
             return False
         if not math.isfinite(self.bid) or not math.isfinite(self.ask):
             return False
-        if self.bid <= 0 or self.ask <= 0 or self.bid > self.ask:
-            return False
-        return at - self.received_at <= max_age
+        return self.bid > 0 and self.ask > 0 and self.bid <= self.ask
+
+    def _is_causally_available(self, *, at: datetime, max_age: timedelta) -> bool:
+        """``0 <= at - received_at <= max_age`` -- no future data, no stale data."""
+
+        age = at - self.received_at
+        return timedelta(0) <= age <= max_age
+
+    def matches(self, *, instrument_id: str, market_type: MarketType) -> bool:
+        """Does this quote belong to the opportunity's exact market identity?"""
+
+        return self.instrument_id == instrument_id and self.market_type == market_type
 
 
 class EdgeCaptureContext(BaseModel):
     """Everything the G2 persistence path needs that G2 itself does not own.
 
     This is the smallest existing-compatible injection boundary: provenance that
-    only the caller can know, plus the optional reference quote. Provenance
-    identifiers are caller supplied and stable -- they are never generated per
-    call, so re-capturing the same facts is idempotent instead of producing a new
-    sample.
+    only the caller can know, plus the reference-data freshness window.
+    Provenance identifiers are caller supplied and stable -- they are never
+    generated per call, so re-capturing the same facts is idempotent instead of
+    producing a new sample.
+
+    The reference quote is deliberately **not** part of this context: a context is
+    constructed once per run, while a quote is only meaningful for the capture it
+    was observed at. The caller supplies the current quote per persist through
+    ``PostgresG2Repository(reference_quote_for=...)``.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -121,7 +156,6 @@ class EdgeCaptureContext(BaseModel):
     source_type: EvidenceSource
     source_identity: str
     source_manifest_id: str
-    reference_quote: ReferenceQuote | None = None
     reference_max_age: timedelta = DEFAULT_REFERENCE_MAX_AGE
 
     @field_validator("source_identity", "source_manifest_id")
@@ -136,19 +170,32 @@ class EdgeCaptureContext(BaseModel):
             raise ValueError("reference_max_age must be positive")
         return value
 
-    def classify_reference(self, *, at: datetime) -> tuple[ReferenceDataStatus, ReferenceQuote | None]:
+    def classify_reference(
+        self,
+        *,
+        quote: ReferenceQuote | None,
+        instrument_id: str,
+        market_type: MarketType,
+        at: datetime,
+    ) -> tuple[ReferenceDataStatus, ReferenceQuote | None]:
         """Return the frozen reference-data status plus the quote to persist.
 
         The returned quote is ``None`` whenever the status is not ``OK`` so a
         missing or unusable metric can only ever be written as ``NULL`` -- never
-        as a zero placeholder and never as a fabricated quote.
+        as a zero placeholder and never as a fabricated quote. A quote for
+        another instrument or market type is refused here, so one opportunity can
+        never be evidenced by another symbol's BBO.
         """
 
-        if self.reference_quote is None:
+        if quote is None:
             return ReferenceDataStatus.REFERENCE_MISSING, None
-        if not self.reference_quote._is_usable(at=at, max_age=self.reference_max_age):
+        if not quote.matches(instrument_id=instrument_id, market_type=market_type):
             return ReferenceDataStatus.REFERENCE_STALE, None
-        return ReferenceDataStatus.OK, self.reference_quote
+        if not quote._is_well_formed():
+            return ReferenceDataStatus.REFERENCE_STALE, None
+        if not quote._is_causally_available(at=at, max_age=self.reference_max_age):
+            return ReferenceDataStatus.REFERENCE_STALE, None
+        return ReferenceDataStatus.OK, quote
 
 
 def qualifies(
@@ -219,6 +266,8 @@ def _candidate_agrees(
         return False
     if candidate.instrument_id != event.instrument_id:
         return False
+    if candidate.symbol != event.symbol:
+        return False
     if candidate.state_version != transition.state_version:
         return False
     if candidate.config_version != event.config_version:
@@ -231,12 +280,22 @@ def _candidate_agrees(
         return False
     if state.instrument_id != event.instrument_id:
         return False
+    if state.symbol != event.symbol:
+        return False
     if state.state_version != transition.state_version:
         return False
-    # Timeline agreement.
+    # Timeline agreement. The timeline entry is the durable record of *this*
+    # signal, so its symbol, signal type and config version must describe the same
+    # facts as the event it was derived from.
     if timeline.event_id != event.event_id:
         return False
     if timeline.instrument_id != event.instrument_id:
+        return False
+    if timeline.symbol != event.symbol:
+        return False
+    if timeline.signal_type is not event.event_type:
+        return False
+    if timeline.config_version != event.config_version:
         return False
     if timeline.state_version != state.state_version:
         return False
@@ -257,6 +316,7 @@ def build_opportunity_evidence(
     candidate: StrategyCandidate,
     observation: FeatureSnapshot,
     context: EdgeCaptureContext,
+    reference_quote: ReferenceQuote | None = None,
 ) -> EvidenceRevision:
     """Build the immutable, self-sufficient evidence revision for one capture.
 
@@ -265,6 +325,19 @@ def build_opportunity_evidence(
     feature snapshot, so the question "what exactly did the system know at the
     instant this opportunity became a durable SETUP?" can be answered from the
     stored evidence alone, without reading mutable current runtime state.
+
+    Causal anchors (frozen):
+
+    * ``detected_at``  -- ``event.event_time``: when the triggering market fact
+      happened;
+    * ``evidence_at``  -- ``candidate.created_at``: when the qualifying candidate
+      existed, i.e. the earliest moment the system could know this opportunity.
+      Reference-quote freshness is measured against *this* anchor, and every
+      forward horizon (SE-02C) starts from it;
+    * ``created_at``   -- ``event.received_time``: the deterministic capture
+      record timestamp of the accepted SE-02A contract (the recovery point of the
+      triggering event), kept separate from ``evidence_at`` rather than folded
+      into it.
     """
 
     opportunity = build_opportunity_identity(
@@ -274,8 +347,13 @@ def build_opportunity_evidence(
         market_type=event.market_type,
         candidate_id=candidate.candidate_id,
     )
-    at = event.received_time
-    reference_status, reference_quote = context.classify_reference(at=at)
+    evidence_at = candidate.created_at
+    reference_status, usable_quote = context.classify_reference(
+        quote=reference_quote,
+        instrument_id=candidate.instrument_id,
+        market_type=event.market_type,
+        at=evidence_at,
+    )
     expires_at = state.watch_expires_at
     assert expires_at is not None  # guaranteed by ``qualifies``
 
@@ -316,29 +394,44 @@ def build_opportunity_evidence(
             "source_identity": context.source_identity,
             "source_manifest_id": context.source_manifest_id,
         },
+        # ``reference_data`` keeps the frozen reference-metric contract: the quote
+        # metrics are present only for ``OK`` and are NULL (never 0) otherwise.
+        # The supplied quote's own identity / quality facts are recorded next to
+        # them so a refused quote stays auditable ("a quote existed, and this is
+        # what it was") without ever being promoted to ``OK`` evidence.
         "reference_data": {
             "status": reference_status.value,
-            "bid": reference_quote.bid if reference_quote is not None else None,
-            "ask": reference_quote.ask if reference_quote is not None else None,
+            "bid": usable_quote.bid if usable_quote is not None else None,
+            "ask": usable_quote.ask if usable_quote is not None else None,
             "received_at": (
-                reference_quote.received_at.isoformat() if reference_quote is not None else None
+                usable_quote.received_at.isoformat() if usable_quote is not None else None
             ),
+            "instrument_id": (
+                reference_quote.instrument_id if reference_quote is not None else None
+            ),
+            "market_type": (
+                reference_quote.market_type.value if reference_quote is not None else None
+            ),
+            "data_quality": (
+                reference_quote.data_quality.value if reference_quote is not None else None
+            ),
+            "tradable": reference_quote.tradable if reference_quote is not None else None,
         },
     }
     return build_evidence_revision(
         opportunity=opportunity,
         evidence_revision=RUNTIME_CAPTURE_REVISION,
         detected_at=event.event_time,
-        evidence_at=event.received_time,
+        evidence_at=evidence_at,
         expires_at=expires_at,
         source_type=context.source_type,
         source_identity=context.source_identity,
         source_manifest_id=context.source_manifest_id,
         reference_data_status=reference_status,
-        reference_bid=reference_quote.bid if reference_quote is not None else None,
-        reference_ask=reference_quote.ask if reference_quote is not None else None,
+        reference_bid=usable_quote.bid if usable_quote is not None else None,
+        reference_ask=usable_quote.ask if usable_quote is not None else None,
         reference_received_at=(
-            reference_quote.received_at if reference_quote is not None else None
+            usable_quote.received_at if usable_quote is not None else None
         ),
         evidence_payload=evidence_payload,
         feature_snapshot_payload=observation.model_dump(mode="json"),
@@ -356,11 +449,16 @@ async def capture_opportunity(
     candidates: list[StrategyCandidate],
     observation: FeatureSnapshot,
     context: EdgeCaptureContext,
+    reference_quote: ReferenceQuote | None = None,
 ) -> str | None:
     """Persist the qualifying opportunity through the accepted append-only writer.
 
     Returns ``None`` when the G2 facts do not qualify, otherwise the accepted
     writer's ``INSERTED`` / ``IDEMPOTENT`` result.
+
+    ``reference_quote`` is the quote the caller holds *for this capture*: it is
+    never cached inside the context, so a later opportunity can never be evidenced
+    by an earlier market observation.
 
     The caller owns the transaction. Any Edge integrity failure propagates
     unchanged so the surrounding G2 transaction fails closed: evidence is never
@@ -385,5 +483,6 @@ async def capture_opportunity(
         candidate=candidate,
         observation=observation,
         context=context,
+        reference_quote=reference_quote,
     )
     return await append_evidence_revision(session, revision)

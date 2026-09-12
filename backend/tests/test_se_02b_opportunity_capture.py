@@ -71,7 +71,7 @@ from marketpulse.g2.models import (
 from marketpulse.g2.repository import PostgresG2Repository
 from marketpulse.g2.runtime import EventRuntime
 from marketpulse.g2.strategy import StrategyEngine
-from marketpulse.market_data.models import MarketType
+from marketpulse.market_data.models import DataQuality, MarketType
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
@@ -191,6 +191,7 @@ def _event(
     kind: EventType = EventType.BREAKOUT,
     strength: float = 0.9,
     instrument_id: str = INSTRUMENT,
+    received_at: datetime | None = None,
 ) -> MarketEvent:
     return MarketEvent(
         event_id=event_id,
@@ -199,7 +200,7 @@ def _event(
         market_type=MarketType.SPOT,
         event_type=kind,
         event_time=at,
-        received_time=at,
+        received_time=received_at or at,
         source="fixture",
         strength=strength,
         priority=80,
@@ -215,10 +216,11 @@ def _state(
     version: int = 1,
     state: SymbolState = SymbolState.SETUP,
     expires: bool = True,
+    instrument_id: str = INSTRUMENT,
 ) -> SymbolStateRecord:
     return SymbolStateRecord(
-        instrument_id=INSTRUMENT,
-        symbol=INSTRUMENT,
+        instrument_id=instrument_id,
+        symbol=instrument_id,
         state=state,
         state_version=version,
         last_event_time=at,
@@ -267,11 +269,20 @@ def _timeline(*, event: MarketEvent, state: SymbolStateRecord) -> SignalTimeline
 
 
 def _candidates(
-    features: FeatureSnapshot, event: MarketEvent, state_version: int
+    features: FeatureSnapshot,
+    event: MarketEvent,
+    state_version: int,
+    *,
+    created_at: datetime | None = None,
 ) -> list[StrategyCandidate]:
-    """Candidates from the real accepted G2 strategy engine, never hand-rolled."""
+    """Candidates from the real accepted G2 strategy engine, never hand-rolled.
 
-    return StrategyEngine(clock=ReplayClock(event.received_time)).candidates(
+    ``created_at`` defaults to the event receipt time, which is what the accepted
+    runtime does. A test may stage a strictly later candidate time to separate the
+    event's own receipt from the moment the candidate became knowable.
+    """
+
+    return StrategyEngine(clock=ReplayClock(created_at or event.received_time)).candidates(
         features, event, state_version
     )
 
@@ -281,22 +292,41 @@ def _breakout_candidate(candidates: list[StrategyCandidate]) -> StrategyCandidat
 
 
 def _quote(
-    *, bid: float = 99.5, ask: float = 100.5, at: datetime = START, tradable: bool = True
+    *,
+    bid: float = 99.5,
+    ask: float = 100.5,
+    at: datetime = START,
+    tradable: bool = True,
+    instrument_id: str = INSTRUMENT,
+    market_type: MarketType = MarketType.SPOT,
+    data_quality: DataQuality = DataQuality.FRESH,
 ) -> ReferenceQuote:
-    return ReferenceQuote(bid=bid, ask=ask, received_at=at, tradable=tradable)
+    return ReferenceQuote(
+        instrument_id=instrument_id,
+        market_type=market_type,
+        bid=bid,
+        ask=ask,
+        received_at=at,
+        data_quality=data_quality,
+        tradable=tradable,
+    )
 
 
 def _context(
     *,
-    quote: ReferenceQuote | None = None,
     source_type: EvidenceSource = EvidenceSource.FORWARD_PAPER,
     max_age: timedelta = DEFAULT_REFERENCE_MAX_AGE,
 ) -> EdgeCaptureContext:
+    """The reference quote is deliberately *not* part of the capture context.
+
+    A context lives for a whole run while a quote is only valid for the capture it
+    was observed at, so each persist supplies its own quote (P0-1).
+    """
+
     return EdgeCaptureContext(
         source_type=source_type,
         source_identity="okx-ws-bbo",
         source_manifest_id="manifest-se02b",
-        reference_quote=quote,
         reference_max_age=max_age,
     )
 
@@ -308,13 +338,25 @@ def _facts(
     state_version: int = 1,
     kind: EventType = EventType.BREAKOUT,
     strength: float = 0.9,
+    instrument_id: str = INSTRUMENT,
+    received_at: datetime | None = None,
+    created_at: datetime | None = None,
 ) -> dict[str, object]:
-    event = _event(event_id=event_id, at=at, kind=kind, strength=strength)
-    features = _features(at=at)
-    state = _state(at=at, version=state_version)
+    event = _event(
+        event_id=event_id,
+        at=at,
+        kind=kind,
+        strength=strength,
+        instrument_id=instrument_id,
+        received_at=received_at,
+    )
+    features = _features(at=at, instrument_id=instrument_id)
+    state = _state(at=at, version=state_version, instrument_id=instrument_id)
     transition = _transition(event=event, state=state)
     timeline = _timeline(event=event, state=state)
-    candidates = _candidates(features, event, state.state_version)
+    candidates = _candidates(
+        features, event, state.state_version, created_at=created_at
+    )
     return {
         "event": event,
         "features": features,
@@ -335,8 +377,36 @@ def _opportunity_for(candidate: StrategyCandidate):
     )
 
 
-async def _persist(sessions, facts, context: EdgeCaptureContext | None):
-    repository = PostgresG2Repository(sessions, capture=context)
+async def _persist(
+    sessions,
+    facts,
+    context: EdgeCaptureContext | None,
+    *,
+    quote: ReferenceQuote | None = None,
+    quotes_by_instrument: dict[str, ReferenceQuote] | None = None,
+):
+    """Persist one G2 event through the real repository, with a per-capture quote.
+
+    The quote reaches the capture through the repository's bounded accessor, which
+    is how production supplies it: one repository instance serves many events, so
+    the quote can never be a constructor constant (P0-1).
+
+    A single ``quote`` is handed to *this* event's instrument, which is what lets a
+    test stage a quote that does not actually belong to the instrument being
+    captured. ``quotes_by_instrument`` states the mapping explicitly instead.
+    """
+
+    if quotes_by_instrument is None and quote is not None:
+        quotes_by_instrument = {facts["event"].instrument_id: quote}
+    repository = PostgresG2Repository(
+        sessions,
+        capture=context,
+        reference_quote_for=(
+            None
+            if quotes_by_instrument is None
+            else lambda instrument_id: quotes_by_instrument.get(instrument_id)
+        ),
+    )
     return await repository.persist(
         facts["event"],
         facts["timeline"],
@@ -384,8 +454,8 @@ def test_qualifying_setup_captures_exactly_one_deterministic_evidence_revision()
 async def _qualifying_capture_scenario(url: str) -> dict[str, object]:
     async with _sessions(url) as sessions:
         facts = _facts()
-        context = _context(quote=_quote())
-        persisted = await _persist(sessions, facts, context)
+        context = _context()
+        persisted = await _persist(sessions, facts, context, quote=_quote())
         candidate = _breakout_candidate(facts["candidates"])
         opportunity = _opportunity_for(candidate)
         revisions = [
@@ -397,6 +467,7 @@ async def _qualifying_capture_scenario(url: str) -> dict[str, object]:
                 candidate=candidate,
                 observation=facts["features"],
                 context=context,
+                reference_quote=_quote(),
             )
             for _ in range(2)
         ]
@@ -461,8 +532,8 @@ def test_rebuilding_the_same_facts_twice_is_deterministic():
 async def _determinism_scenario(url: str) -> bool:
     async with _sessions(url) as sessions:
         facts = _facts()
-        context = _context(quote=_quote())
-        await _persist(sessions, facts, context)
+        context = _context()
+        await _persist(sessions, facts, context, quote=_quote())
         candidate = _breakout_candidate(facts["candidates"])
         first = build_opportunity_evidence(
             event=facts["event"],
@@ -472,6 +543,7 @@ async def _determinism_scenario(url: str) -> bool:
             candidate=candidate,
             observation=facts["features"],
             context=context,
+            reference_quote=_quote(),
         )
         async with sessions() as session:
             row = (await session.scalars(select(EdgeOpportunityEvidenceRecord))).one()
@@ -564,6 +636,27 @@ def _mutations(event_id: str = "evt-breakout-1") -> dict[str, dict[str, object]]
         },
         "disagreeing_candidate_event": {"candidates": replace_candidate(event_id="other-event")},
         "disagreeing_candidate_version": {"candidates": replace_candidate(state_version=99)},
+        # P1 cross-fact consistency: the durable facts must describe the *same*
+        # symbol / signal / config as the event they were derived from. G2 still
+        # persists each of these, but none may be admitted as this opportunity's
+        # evidence.
+        "candidate_symbol_mismatch": {
+            "candidates": replace_candidate(symbol="OTHER-SYMBOL")
+        },
+        "timeline_symbol_mismatch": {
+            "timeline": base["timeline"].model_copy(update={"symbol": "OTHER-SYMBOL"})
+        },
+        "timeline_config_version_mismatch": {
+            "timeline": base["timeline"].model_copy(update={"config_version": "g2-v9"})
+        },
+        "timeline_signal_type_mismatch": {
+            "timeline": base["timeline"].model_copy(
+                update={"signal_type": EventType.VOLUME_ANOMALY}
+            )
+        },
+        "state_symbol_mismatch": {
+            "state": base["state"].model_copy(update={"symbol": "OTHER-SYMBOL"})
+        },
     }
 
 
@@ -602,7 +695,9 @@ async def _negative_scenario(url: str, mutations: list[str]) -> dict[str, object
             facts = dict(_facts(event_id=f"evt-{name}"))
             facts.update(_mutations(event_id=f"evt-{name}")[name])
             expected_candidates += len(facts["candidates"])
-            persisted[name] = await _persist(sessions, facts, _context(quote=_quote()))
+            persisted[name] = await _persist(
+                sessions, facts, _context(), quote=_quote()
+            )
             async with sessions() as session:
                 evidence_rows[name] = await _count(session, EdgeOpportunityEvidenceRecord)
         async with sessions() as session:
@@ -630,9 +725,9 @@ def test_duplicate_market_event_replay_does_not_inflate_the_sample_count():
 async def _duplicate_scenario(url: str) -> dict[str, object]:
     async with _sessions(url) as sessions:
         facts = _facts()
-        context = _context(quote=_quote())
-        first = await _persist(sessions, facts, context)
-        second = await _persist(sessions, facts, context)
+        context = _context()
+        first = await _persist(sessions, facts, context, quote=_quote())
+        second = await _persist(sessions, facts, context, quote=_quote())
         async with sessions() as session:
             return {
                 "first": first,
@@ -666,7 +761,8 @@ async def _idempotency_scenario(url: str) -> dict[str, object]:
                         transition=facts["transition"],
                         candidates=facts["candidates"],
                         observation=facts["features"],
-                        context=_context(quote=_quote()),
+                        context=_context(),
+                        reference_quote=_quote(),
                     )
                 )
         conflict = None
@@ -682,7 +778,8 @@ async def _idempotency_scenario(url: str) -> dict[str, object]:
                     transition=facts["transition"],
                     candidates=facts["candidates"],
                     observation=facts["features"],
-                    context=_context(quote=None),
+                    context=_context(),
+                    reference_quote=None,
                 )
         except EdgeEvidenceConflict:
             conflict = "EdgeEvidenceConflict"
@@ -700,13 +797,24 @@ async def _idempotency_scenario(url: str) -> dict[str, object]:
 
 
 def _reference_cases() -> dict[str, tuple[object, str]]:
+    """Every adverse reference state the caller can supply, plus the usable one.
+
+    ``evidence_at`` is the qualifying candidate's ``created_at`` (``START`` here),
+    so a quote received at ``START + 1s`` is *future* data relative to this
+    opportunity and must be refused rather than treated as fresh.
+    """
+
     return {
+        "usable": (_quote(), "OK"),
         "missing": (None, "REFERENCE_MISSING"),
+        "future": (_quote(at=START + timedelta(seconds=1)), "REFERENCE_STALE"),
         "stale": (_quote(at=START - timedelta(minutes=2)), "REFERENCE_STALE"),
+        "wrong_instrument": (_quote(instrument_id="ETH-USDT"), "REFERENCE_STALE"),
+        "wrong_market_type": (_quote(market_type=MarketType.SWAP), "REFERENCE_STALE"),
         "untradable": (_quote(tradable=False), "REFERENCE_STALE"),
         "crossed": (_quote(bid=101.0, ask=100.0), "REFERENCE_STALE"),
         "non_positive": (_quote(bid=0.0, ask=100.0), "REFERENCE_STALE"),
-        "usable": (_quote(), "OK"),
+        "non_finite": (_quote(bid=float("nan"), ask=100.0), "REFERENCE_STALE"),
     }
 
 
@@ -736,7 +844,7 @@ async def _reference_scenario(url: str, labels: list[str]) -> dict[str, object]:
             quote, _ = cases[label]
             facts = _facts(event_id=f"evt-{label}")
             candidate_by_label[label] = _breakout_candidate(facts["candidates"]).candidate_id
-            await _persist(sessions, facts, _context(quote=quote))
+            await _persist(sessions, facts, _context(), quote=quote)
         async with sessions() as session:
             rows = list((await session.scalars(select(EdgeOpportunityEvidenceRecord))).all())
     rows_by_candidate = {row.candidate_id: row for row in rows}
@@ -828,7 +936,7 @@ async def _conflict_rollback_scenario(url: str) -> dict[str, object]:
             )
         raised = None
         try:
-            await _persist(sessions, facts, _context(quote=_quote()))
+            await _persist(sessions, facts, _context(), quote=_quote())
         except EdgeEvidenceConflict:
             raised = "EdgeEvidenceConflict"
         async with sessions() as session:
@@ -877,7 +985,7 @@ async def _staged_failure_scenario(url: str, monkeypatch) -> dict[str, object]:
         facts = _facts()
         raised = None
         try:
-            await _persist(sessions, facts, _context(quote=_quote()))
+            await _persist(sessions, facts, _context(), quote=_quote())
         except _InjectedEdgeFailure:
             raised = "_InjectedEdgeFailure"
         async with sessions() as session:
@@ -919,7 +1027,7 @@ def test_stored_evidence_reconstructs_the_frozen_setup_without_runtime_state():
 async def _reconstruction_scenario(url: str) -> dict[str, object]:
     async with _sessions(url) as sessions:
         facts = _facts()
-        await _persist(sessions, facts, _context(quote=_quote()))
+        await _persist(sessions, facts, _context(), quote=_quote())
         async with sessions() as session:
             row = (await session.scalars(select(EdgeOpportunityEvidenceRecord))).one()
         payload = dict(row.evidence_payload)
@@ -944,16 +1052,19 @@ async def _reconstruction_scenario(url: str) -> dict[str, object]:
                 source_type=EvidenceSource(payload["provenance"]["source_type"]),
                 source_identity=payload["provenance"]["source_identity"],
                 source_manifest_id=payload["provenance"]["source_manifest_id"],
-                reference_quote=(
-                    None
-                    if reference["status"] != "OK"
-                    else ReferenceQuote(
-                        bid=reference["bid"],
-                        ask=reference["ask"],
-                        received_at=datetime.fromisoformat(reference["received_at"]),
-                        tradable=True,
-                    )
-                ),
+            ),
+            reference_quote=(
+                None
+                if reference["status"] != "OK"
+                else ReferenceQuote(
+                    instrument_id=reference["instrument_id"],
+                    market_type=MarketType(reference["market_type"]),
+                    bid=reference["bid"],
+                    ask=reference["ask"],
+                    received_at=datetime.fromisoformat(reference["received_at"]),
+                    data_quality=DataQuality(reference["data_quality"]),
+                    tradable=reference["tradable"],
+                )
             ),
         )
         return {
@@ -997,7 +1108,9 @@ def test_event_runtime_persists_the_setup_and_its_evidence_in_one_transaction():
 
 async def _runtime_scenario(url: str) -> dict[str, object]:
     async with _sessions(url) as sessions:
-        repository = PostgresG2Repository(sessions, capture=_context(quote=_quote()))
+        repository = PostgresG2Repository(
+            sessions, capture=_context(), reference_quote_for=lambda _instrument_id: _quote()
+        )
         runtime = EventRuntime(repository, worker_count=1)
         await runtime.start()
         try:
@@ -1018,3 +1131,186 @@ async def _runtime_scenario(url: str) -> dict[str, object]:
                 "g2": await _g2_counts(session),
                 "worker_exceptions": len(runtime.worker_exceptions),
             }
+
+
+# --- H. reference identity facts (P0-1) -------------------------------------------------
+
+
+def test_capture_payload_keeps_the_v2_reference_identity_facts():
+    with _capture_database("payload") as url:
+        observed = asyncio.run(_payload_scenario(url))
+
+    usable = observed["usable"]
+    assert usable["capture_version"] == "se02b-runtime-capture-v2"
+    assert usable["reference_data"] == {
+        "status": "OK",
+        "bid": 99.5,
+        "ask": 100.5,
+        "received_at": START.isoformat(),
+        "instrument_id": INSTRUMENT,
+        "market_type": "SPOT",
+        "data_quality": "FRESH",
+        "tradable": True,
+    }
+    # A refused quote stays auditable -- the facts it *did* carry are kept -- while
+    # its metrics are NULL rather than a zero placeholder and it is never promoted
+    # to OK evidence for a different instrument.
+    assert observed["wrong_instrument"]["reference_data"] == {
+        "status": "REFERENCE_STALE",
+        "bid": None,
+        "ask": None,
+        "received_at": None,
+        "instrument_id": "ETH-USDT",
+        "market_type": "SPOT",
+        "data_quality": "FRESH",
+        "tradable": True,
+    }
+    assert observed["missing"]["reference_data"] == {
+        "status": "REFERENCE_MISSING",
+        "bid": None,
+        "ask": None,
+        "received_at": None,
+        "instrument_id": None,
+        "market_type": None,
+        "data_quality": None,
+        "tradable": None,
+    }
+
+
+async def _payload_scenario(url: str) -> dict[str, object]:
+    cases = {
+        "usable": _quote(),
+        "wrong_instrument": _quote(instrument_id="ETH-USDT"),
+        "missing": None,
+    }
+    observed: dict[str, object] = {}
+    async with _sessions(url) as sessions:
+        candidate_by_label: dict[str, str] = {}
+        for label, quote in cases.items():
+            facts = _facts(event_id=f"evt-payload-{label}")
+            candidate_by_label[label] = _breakout_candidate(
+                facts["candidates"]
+            ).candidate_id
+            await _persist(sessions, facts, _context(), quote=quote)
+        async with sessions() as session:
+            rows = list(
+                (await session.scalars(select(EdgeOpportunityEvidenceRecord))).all()
+            )
+        by_candidate = {row.candidate_id: row for row in rows}
+        for label, candidate_id in candidate_by_label.items():
+            payload = dict(by_candidate[candidate_id].evidence_payload)
+            observed[label] = {
+                "capture_version": payload["capture"]["payload_version"],
+                "reference_data": payload["reference_data"],
+            }
+    return observed
+
+
+# --- I. per-opportunity reference quote (P0-1) ------------------------------------------
+
+
+def test_each_opportunity_is_evidenced_only_by_its_own_reference_quote():
+    with _capture_database("perquote") as url:
+        observed = asyncio.run(_per_quote_scenario(url))
+
+    assert observed["btc"]["status"] == "OK"
+    assert observed["btc"]["bid"] == 99.5
+    assert observed["btc"]["ask"] == 100.5
+    assert observed["eth"]["status"] == "OK"
+    assert observed["eth"]["bid"] == 2500.0
+    assert observed["eth"]["ask"] == 2501.0
+    # A symbol with no quote of its own must never inherit another symbol's BBO.
+    assert observed["sol"]["status"] == "REFERENCE_MISSING"
+    assert observed["sol"]["bid"] is None
+    assert observed["sol"]["ask"] is None
+
+
+async def _per_quote_scenario(url: str) -> dict[str, object]:
+    quotes = {
+        "BTC-USDT": _quote(bid=99.5, ask=100.5, instrument_id="BTC-USDT"),
+        "ETH-USDT": _quote(bid=2500.0, ask=2501.0, instrument_id="ETH-USDT"),
+    }
+    observed: dict[str, object] = {}
+    async with _sessions(url) as sessions:
+        candidate_by_label: dict[str, str] = {}
+        for label, instrument_id in (
+            ("btc", "BTC-USDT"),
+            ("eth", "ETH-USDT"),
+            ("sol", "SOL-USDT"),
+        ):
+            facts = _facts(event_id=f"evt-{label}", instrument_id=instrument_id)
+            candidate_by_label[label] = _breakout_candidate(
+                facts["candidates"]
+            ).candidate_id
+            await _persist(
+                sessions, facts, _context(), quotes_by_instrument=quotes
+            )
+        async with sessions() as session:
+            rows = list(
+                (await session.scalars(select(EdgeOpportunityEvidenceRecord))).all()
+            )
+        by_candidate = {row.candidate_id: row for row in rows}
+        for label, candidate_id in candidate_by_label.items():
+            row = by_candidate[candidate_id]
+            observed[label] = {
+                "status": row.reference_data_status,
+                "bid": row.reference_bid,
+                "ask": row.reference_ask,
+            }
+    return observed
+
+
+# --- J. causal anchor of the evidence horizon (P0-2) ------------------------------------
+
+
+def test_evidence_horizon_is_anchored_on_the_candidate_not_the_event_receipt():
+    with _capture_database("anchor") as url:
+        observed = asyncio.run(_anchor_scenario(url))
+
+    # Strictly ordered: event happened, then was received, then the candidate existed.
+    for item in observed.values():
+        assert item["detected_at"] == START
+        assert item["created_at"] == START + timedelta(seconds=1)
+        assert item["evidence_at"] == START + timedelta(seconds=10)
+    # A quote received at the candidate's own moment is fresh: 0 <= 0 <= max_age.
+    assert observed["at_evidence_anchor"]["status"] == "OK"
+    # A quote received at the *event receipt* is 9s older than the evidence anchor,
+    # so it is stale against the real horizon. Had freshness been measured from the
+    # event receipt the age would have been 0 and it would have been accepted.
+    assert observed["at_event_receipt"]["status"] == "REFERENCE_STALE"
+
+
+async def _anchor_scenario(url: str) -> dict[str, object]:
+    received_at = START + timedelta(seconds=1)
+    candidate_at = START + timedelta(seconds=10)
+    observed: dict[str, object] = {}
+    async with _sessions(url) as sessions:
+        for label, quote_at in (
+            ("at_evidence_anchor", candidate_at),
+            ("at_event_receipt", received_at),
+        ):
+            facts = _facts(
+                event_id=f"evt-{label}",
+                at=START,
+                received_at=received_at,
+                created_at=candidate_at,
+            )
+            candidate = _breakout_candidate(facts["candidates"])
+            assert candidate.created_at == candidate_at
+            await _persist(sessions, facts, _context(), quote=_quote(at=quote_at))
+            async with sessions() as session:
+                row = (
+                    await session.scalars(
+                        select(EdgeOpportunityEvidenceRecord).where(
+                            EdgeOpportunityEvidenceRecord.candidate_id
+                            == candidate.candidate_id
+                        )
+                    )
+                ).one()
+            observed[label] = {
+                "status": row.reference_data_status,
+                "detected_at": row.detected_at,
+                "evidence_at": row.evidence_at,
+                "created_at": row.created_at,
+            }
+    return observed
