@@ -19,12 +19,15 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from uuid import uuid4
 
+import marketpulse.g2.repository as g2_repository_module
 from alembic import command
 from alembic.config import Config
 from marketpulse.clock import ReplayClock
 from marketpulse.config import Settings
 from marketpulse.db.models import (
     DerivedObservationRecord,
+    EdgeBboObservationRecord,
+    EdgeOpportunityCaptureAnchorRecord,
     EdgeOpportunityEvidenceRecord,
     MarketEventRecord,
     SignalTimelineRecord,
@@ -36,6 +39,7 @@ from marketpulse.edge.capture import (
     DEFAULT_REFERENCE_MAX_AGE,
     EdgeCaptureContext,
     ReferenceQuote,
+    build_capture_anchor,
     build_opportunity_evidence,
     capture_opportunity,
     qualifies,
@@ -50,7 +54,9 @@ from marketpulse.edge.models import (
 from marketpulse.edge.repository import (
     IDEMPOTENT,
     INSERTED,
+    EdgeCaptureAnchorConflict,
     EdgeEvidenceConflict,
+    append_capture_anchor,
 )
 from marketpulse.g2.models import (
     DirectionBias,
@@ -68,7 +74,11 @@ from marketpulse.g2.models import (
     Zone,
     deterministic_id,
 )
-from marketpulse.g2.repository import PostgresG2Repository
+from marketpulse.g2.repository import (
+    CaptureAdmissionRejected,
+    CaptureAnchorOrphan,
+    PostgresG2Repository,
+)
 from marketpulse.g2.runtime import EventRuntime
 from marketpulse.g2.strategy import StrategyEngine
 from marketpulse.market_data.models import DataQuality, MarketType
@@ -300,6 +310,9 @@ def _quote(
     instrument_id: str = INSTRUMENT,
     market_type: MarketType = MarketType.SPOT,
     data_quality: DataQuality = DataQuality.FRESH,
+    source_event_time: datetime | None = None,
+    source: str | None = None,
+    source_sequence: int | None = None,
 ) -> ReferenceQuote:
     return ReferenceQuote(
         instrument_id=instrument_id,
@@ -309,6 +322,9 @@ def _quote(
         received_at=at,
         data_quality=data_quality,
         tradable=tradable,
+        source_event_time=source_event_time,
+        source=source,
+        source_sequence=source_sequence,
     )
 
 
@@ -327,6 +343,11 @@ def _context(
         source_type=source_type,
         source_identity="okx-ws-bbo",
         source_manifest_id="manifest-se02b",
+        forward_admission_session_id=(
+            "fixture-live-forward-session"
+            if source_type is EvidenceSource.FORWARD_PAPER
+            else None
+        ),
         reference_max_age=max_age,
     )
 
@@ -1486,3 +1507,317 @@ async def _anchor_scenario(url: str) -> dict[str, object]:
                 "created_at": row.created_at,
             }
     return observed
+
+
+# --- K. SE-ARCH-FIX-01 durable capture admission ---------------------------------------
+
+
+def test_stable_anchor_reuses_original_t0_bbo_and_payload_after_formal_failure():
+    with _capture_database("stable_anchor_retry") as url:
+        observed = asyncio.run(_stable_anchor_retry_scenario(url))
+
+    assert observed["anchor_count"] == 1
+    assert observed["evidence_count"] == 1
+    assert observed["bbo_count"] == 1
+    assert observed["evidence_at"] == START
+    assert observed["reference_bbo_id"] == observed["anchor_bbo_id"]
+    assert observed["bid"] == 99.5
+    assert observed["ask"] == 100.5
+    assert observed["evidence_hash"] == observed["frozen_evidence_hash"]
+
+
+async def _stable_anchor_retry_scenario(url: str) -> dict[str, object]:
+    precondition = SymbolStateRecord(instrument_id=INSTRUMENT, symbol=INSTRUMENT)
+    original_facts = _facts(created_at=START)
+    later_facts = _facts(created_at=START + timedelta(seconds=10))
+    original_quote = _quote(
+        bid=99.5,
+        ask=100.5,
+        source="okx-bbo-tbt",
+        source_event_time=START,
+        source_sequence=101,
+    )
+    later_quote = _quote(
+        bid=101.5,
+        ask=102.5,
+        at=START + timedelta(seconds=10),
+        source="okx-bbo-tbt",
+        source_event_time=START + timedelta(seconds=10),
+        source_sequence=102,
+    )
+    quotes = [original_quote]
+    async with _sessions(url) as sessions:
+        repository = PostgresG2Repository(
+            sessions,
+            capture=_context(),
+            reference_quote_for=lambda _instrument_id: quotes[0],
+        )
+        original_capture = g2_repository_module.capture_opportunity
+
+        async def fail_formal(*_args, **_kwargs):
+            raise RuntimeError("injected formal transaction failure")
+
+        g2_repository_module.capture_opportunity = fail_formal
+        try:
+            try:
+                await repository.persist(
+                    original_facts["event"],
+                    original_facts["timeline"],
+                    original_facts["state"],
+                    original_facts["transition"],
+                    original_facts["candidates"],
+                    original_facts["features"],
+                    precondition_state=precondition,
+                )
+            except RuntimeError as error:
+                assert str(error) == "injected formal transaction failure"
+            else:
+                raise AssertionError("formal failure must propagate")
+        finally:
+            g2_repository_module.capture_opportunity = original_capture
+
+        # The second caller has different current clock/BBO facts. The durable
+        # anchor, not these later inputs, must drive the Formal transaction.
+        quotes[0] = later_quote
+        assert await repository.persist(
+            later_facts["event"],
+            later_facts["timeline"],
+            later_facts["state"],
+            later_facts["transition"],
+            later_facts["candidates"],
+            later_facts["features"],
+            precondition_state=precondition,
+        )
+        async with sessions() as session:
+            anchor = (await session.scalars(select(EdgeOpportunityCaptureAnchorRecord))).one()
+            evidence = (await session.scalars(select(EdgeOpportunityEvidenceRecord))).one()
+            bbo = (await session.scalars(select(EdgeBboObservationRecord))).one()
+            return {
+                "anchor_count": await _count(session, EdgeOpportunityCaptureAnchorRecord),
+                "evidence_count": await _count(session, EdgeOpportunityEvidenceRecord),
+                "bbo_count": await _count(session, EdgeBboObservationRecord),
+                "evidence_at": evidence.evidence_at,
+                "reference_bbo_id": anchor.reference_bbo_observation_id,
+                "anchor_bbo_id": bbo.observation_id,
+                "bid": evidence.reference_bid,
+                "ask": evidence.reference_ask,
+                "evidence_hash": evidence.evidence_hash,
+                "frozen_evidence_hash": anchor.anchor_payload["formal_evidence_hash"],
+            }
+
+
+def test_fresh_repository_resumes_durable_anchor_without_current_quote():
+    with _capture_database("stable_anchor_restart") as url:
+        observed = asyncio.run(_fresh_repository_resume_scenario(url))
+
+    assert observed == {"resumed": 1, "anchors": 1, "evidence": 1}
+
+
+async def _fresh_repository_resume_scenario(url: str) -> dict[str, int]:
+    precondition = SymbolStateRecord(instrument_id=INSTRUMENT, symbol=INSTRUMENT)
+    facts = _facts(created_at=START)
+    async with _sessions(url) as sessions:
+        process_a = PostgresG2Repository(
+            sessions,
+            capture=_context(),
+            reference_quote_for=lambda _instrument_id: _quote(
+                source="okx-bbo-tbt", source_event_time=START, source_sequence=101
+            ),
+        )
+        original_capture = g2_repository_module.capture_opportunity
+
+        async def fail_formal(*_args, **_kwargs):
+            raise RuntimeError("injected formal transaction failure")
+
+        g2_repository_module.capture_opportunity = fail_formal
+        try:
+            try:
+                await process_a.persist(
+                    facts["event"], facts["timeline"], facts["state"], facts["transition"],
+                    facts["candidates"], facts["features"], precondition_state=precondition,
+                )
+            except RuntimeError:
+                pass
+        finally:
+            g2_repository_module.capture_opportunity = original_capture
+
+        # A newly constructed repository has no process-A pending-memory object
+        # and no reference quote accessor. Recovery reads the anchor only.
+        process_b = PostgresG2Repository(sessions, capture=_context())
+        resumed = await process_b.resume_pending_capture_anchors()
+        async with sessions() as session:
+            return {
+                "resumed": resumed,
+                "anchors": await _count(session, EdgeOpportunityCaptureAnchorRecord),
+                "evidence": await _count(session, EdgeOpportunityEvidenceRecord),
+            }
+
+
+def test_forward_anchor_requires_explicit_live_session_proof_and_anchor_conflicts_fail_closed():
+    with _capture_database("stable_anchor_admission") as url:
+        observed = asyncio.run(_anchor_admission_scenario(url))
+
+    assert observed == {"rejected": True, "idempotent": True, "conflict": True}
+
+
+async def _anchor_admission_scenario(url: str) -> dict[str, bool]:
+    facts = _facts(created_at=START)
+    context = EdgeCaptureContext(
+        source_type=EvidenceSource.FORWARD_PAPER,
+        source_identity="okx-ws-bbo",
+        source_manifest_id="manifest-se02b",
+    )
+    async with _sessions(url) as sessions:
+        repository = PostgresG2Repository(sessions, capture=context)
+        try:
+            await repository.persist(
+                facts["event"], facts["timeline"], facts["state"], facts["transition"],
+                facts["candidates"], facts["features"], precondition_state=SymbolStateRecord(
+                    instrument_id=INSTRUMENT, symbol=INSTRUMENT
+                ),
+            )
+        except CaptureAdmissionRejected:
+            rejected = True
+        else:
+            rejected = False
+
+        admitted_context = _context()
+        anchor = build_capture_anchor(
+            precondition_state=None,
+            event=facts["event"], timeline=facts["timeline"], state=facts["state"],
+            transition=facts["transition"], candidates=facts["candidates"],
+            observation=facts["features"], context=admitted_context, reference_quote=None,
+        )
+        assert anchor is not None
+        async with sessions() as session, session.begin():
+            idempotent = await append_capture_anchor(session, anchor) == INSERTED
+        async with sessions() as session, session.begin():
+            idempotent = (await append_capture_anchor(session, anchor) == IDEMPOTENT) and idempotent
+        changed = build_capture_anchor(
+            precondition_state=None,
+            event=facts["event"], timeline=facts["timeline"], state=facts["state"],
+            transition=facts["transition"],
+            candidates=_candidates(facts["features"], facts["event"], facts["state"].state_version,
+                                   created_at=START + timedelta(seconds=1)),
+            observation=facts["features"], context=admitted_context, reference_quote=None,
+        )
+        assert changed is not None
+        async with sessions() as session, session.begin():
+            try:
+                await append_capture_anchor(session, changed)
+            except EdgeCaptureAnchorConflict:
+                conflict = True
+            else:
+                conflict = False
+        return {"rejected": rejected, "idempotent": idempotent, "conflict": conflict}
+
+
+def test_same_process_anchor_write_failure_retries_the_frozen_payload_only():
+    with _capture_database("stable_anchor_same_process") as url:
+        observed = asyncio.run(_same_process_anchor_failure_scenario(url))
+
+    assert observed == {"anchors": 1, "evidence_at": START, "bid": 99.5, "ask": 100.5}
+
+
+async def _same_process_anchor_failure_scenario(url: str) -> dict[str, object]:
+    precondition = SymbolStateRecord(instrument_id=INSTRUMENT, symbol=INSTRUMENT)
+    original_facts = _facts(created_at=START)
+    later_facts = _facts(created_at=START + timedelta(seconds=10))
+    original_quote = _quote(
+        source="okx-bbo-tbt", source_event_time=START, source_sequence=101
+    )
+    quotes = [original_quote]
+    async with _sessions(url) as sessions:
+        repository = PostgresG2Repository(
+            sessions,
+            capture=_context(),
+            reference_quote_for=lambda _instrument_id: quotes[0],
+        )
+        original_record = g2_repository_module.record_bbo_observation
+
+        async def fail_anchor_write(*_args, **_kwargs):
+            raise RuntimeError("injected anchor write failure")
+
+        g2_repository_module.record_bbo_observation = fail_anchor_write
+        try:
+            try:
+                await repository.persist(
+                    original_facts["event"], original_facts["timeline"], original_facts["state"],
+                    original_facts["transition"], original_facts["candidates"], original_facts["features"],
+                    precondition_state=precondition,
+                )
+            except RuntimeError as error:
+                assert str(error) == "injected anchor write failure"
+            else:
+                raise AssertionError("anchor write failure must propagate")
+        finally:
+            g2_repository_module.record_bbo_observation = original_record
+
+        quotes[0] = _quote(
+            bid=101.5,
+            ask=102.5,
+            at=START + timedelta(seconds=10),
+            source="okx-bbo-tbt",
+            source_event_time=START + timedelta(seconds=10),
+            source_sequence=102,
+        )
+        assert await repository.persist(
+            later_facts["event"], later_facts["timeline"], later_facts["state"],
+            later_facts["transition"], later_facts["candidates"], later_facts["features"],
+            precondition_state=precondition,
+        )
+        async with sessions() as session:
+            evidence = (await session.scalars(select(EdgeOpportunityEvidenceRecord))).one()
+            return {
+                "anchors": await _count(session, EdgeOpportunityCaptureAnchorRecord),
+                "evidence_at": evidence.evidence_at,
+                "bid": evidence.reference_bid,
+                "ask": evidence.reference_ask,
+            }
+
+
+def test_incompatible_durable_g2_precondition_leaves_an_auditable_orphan():
+    with _capture_database("stable_anchor_orphan") as url:
+        observed = asyncio.run(_orphan_anchor_scenario(url))
+
+    assert observed == {"orphaned": True, "anchors": 1, "evidence": 0}
+
+
+async def _orphan_anchor_scenario(url: str) -> dict[str, object]:
+    precondition = SymbolStateRecord(instrument_id=INSTRUMENT, symbol=INSTRUMENT)
+    facts = _facts(created_at=START)
+    async with _sessions(url) as sessions:
+        process_a = PostgresG2Repository(sessions, capture=_context())
+        original_capture = g2_repository_module.capture_opportunity
+
+        async def fail_formal(*_args, **_kwargs):
+            raise RuntimeError("injected formal transaction failure")
+
+        g2_repository_module.capture_opportunity = fail_formal
+        try:
+            try:
+                await process_a.persist(
+                    facts["event"], facts["timeline"], facts["state"], facts["transition"],
+                    facts["candidates"], facts["features"], precondition_state=precondition,
+                )
+            except RuntimeError:
+                pass
+        finally:
+            g2_repository_module.capture_opportunity = original_capture
+
+        # Another durable G2 writer makes the original anchor precondition stale.
+        async with sessions() as session, session.begin():
+            session.add(SymbolStateStore(**facts["state"].model_dump(mode="python")))
+        process_b = PostgresG2Repository(sessions, capture=_context())
+        try:
+            await process_b.resume_pending_capture_anchors()
+        except CaptureAnchorOrphan:
+            orphaned = True
+        else:
+            orphaned = False
+        async with sessions() as session:
+            return {
+                "orphaned": orphaned,
+                "anchors": await _count(session, EdgeOpportunityCaptureAnchorRecord),
+                "evidence": await _count(session, EdgeOpportunityEvidenceRecord),
+            }

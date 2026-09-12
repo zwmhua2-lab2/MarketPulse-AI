@@ -11,6 +11,7 @@ framework.
 from __future__ import annotations
 
 from enum import StrEnum
+from typing import TYPE_CHECKING
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,6 +20,7 @@ from marketpulse.db.models import (
     EdgeAttributionEventRecord,
     EdgeBboObservationRecord,
     EdgeForwardOutcomeRecord,
+    EdgeOpportunityCaptureAnchorRecord,
     EdgeOpportunityEvidenceRecord,
 )
 from marketpulse.edge.models import (
@@ -27,6 +29,9 @@ from marketpulse.edge.models import (
     EvidenceRevision,
     ForwardOutcomeContract,
 )
+
+if TYPE_CHECKING:
+    from marketpulse.edge.capture import CaptureAnchor
 
 INSERTED = "INSERTED"
 IDEMPOTENT = "IDEMPOTENT"
@@ -58,6 +63,10 @@ class EdgeEvidenceReferenceMissing(EdgePersistenceError):
 
 class EdgeBboObservationConflict(EdgePersistenceError):
     """Same observation id but conflicting immutable observation content."""
+
+
+class EdgeCaptureAnchorConflict(EdgePersistenceError):
+    """Same opportunity + revision but different durable admission facts."""
 
 
 # Every immutable fact of a BBO observation, in a fixed order. The first eight are
@@ -203,6 +212,80 @@ async def record_bbo_observation(session: AsyncSession, observation: BboObservat
     )
     await session.flush()
     return INSERTED
+
+
+async def append_capture_anchor(session: AsyncSession, anchor: CaptureAnchor) -> str:
+    """Append one Forward Paper admission anchor, or verify its idempotent twin."""
+
+    existing = await session.get(
+        EdgeOpportunityCaptureAnchorRecord,
+        (anchor.opportunity_id, anchor.evidence_revision),
+    )
+    if existing is not None:
+        if existing.anchor_hash == anchor.anchor_hash:
+            return IDEMPOTENT
+        raise EdgeCaptureAnchorConflict(
+            "same opportunity and revision with a different capture anchor hash "
+            f"(opportunity_id={anchor.opportunity_id}, revision={anchor.evidence_revision})"
+        )
+    session.add(
+        EdgeOpportunityCaptureAnchorRecord(
+            opportunity_id=anchor.opportunity_id,
+            evidence_revision=anchor.evidence_revision,
+            event_id=anchor.event_id,
+            candidate_id=anchor.candidate_id,
+            evidence_at=anchor.evidence_at,
+            reference_data_status=anchor.reference_data_status.value,
+            reference_bbo_observation_id=anchor.reference_bbo_observation_id,
+            source_type=anchor.source_type.value,
+            source_identity=anchor.source_identity,
+            source_manifest_id=anchor.source_manifest_id,
+            anchor_payload_version=anchor.anchor_payload_version,
+            anchor_payload=dict(anchor.anchor_payload),
+            anchor_hash=anchor.anchor_hash,
+            anchor_hash_version=anchor.anchor_hash_version,
+            recorded_at=anchor.recorded_at,
+        )
+    )
+    await session.flush()
+    return INSERTED
+
+
+def capture_anchor_from_record(record: EdgeOpportunityCaptureAnchorRecord) -> CaptureAnchor:
+    """Rehydrate one immutable anchor without consulting mutable runtime state."""
+
+    from marketpulse.edge.capture import CaptureAnchor
+
+    return CaptureAnchor(
+        opportunity_id=record.opportunity_id,
+        evidence_revision=record.evidence_revision,
+        event_id=record.event_id,
+        candidate_id=record.candidate_id,
+        evidence_at=record.evidence_at,
+        reference_data_status=record.reference_data_status,
+        reference_bbo_observation_id=record.reference_bbo_observation_id,
+        source_type=record.source_type,
+        source_identity=record.source_identity,
+        source_manifest_id=record.source_manifest_id,
+        anchor_payload_version=record.anchor_payload_version,
+        anchor_payload=dict(record.anchor_payload),
+        anchor_hash=record.anchor_hash,
+        anchor_hash_version=record.anchor_hash_version,
+        recorded_at=record.recorded_at,
+    )
+
+
+async def load_capture_anchor_for_event(
+    session: AsyncSession, event_id: str
+) -> CaptureAnchor | None:
+    """Load the single Forward Paper anchor admitted for a triggering G2 event."""
+
+    record = await session.scalar(
+        select(EdgeOpportunityCaptureAnchorRecord).where(
+            EdgeOpportunityCaptureAnchorRecord.event_id == event_id
+        )
+    )
+    return None if record is None else capture_anchor_from_record(record)
 
 
 async def append_forward_outcome(

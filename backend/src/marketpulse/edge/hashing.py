@@ -38,6 +38,7 @@ EVIDENCE_HASH_DOMAIN = "se02-evidence-hash-v1"
 CALCULATION_DIGEST_DOMAIN = "se02-outcome-calculation-digest-v1"
 OUTCOME_RECORD_HASH_DOMAIN = "se02-outcome-record-hash-v1"
 ATTRIBUTION_PAYLOAD_HASH_DOMAIN = "se02-attribution-payload-hash-v1"
+CAPTURE_ANCHOR_HASH_DOMAIN = "se02-capture-anchor-hash-v1"
 
 
 class CanonicalHashError(ValueError):
@@ -128,3 +129,9 @@ def attribution_payload_hash(payload: Mapping[str, Any]) -> str:
     """Deterministic hash of an append-only attribution event payload."""
 
     return canonical_digest(ATTRIBUTION_PAYLOAD_HASH_DOMAIN, dict(payload))
+
+
+def capture_anchor_hash(payload: Mapping[str, Any]) -> str:
+    """Deterministic digest of the immutable capture-admission payload."""
+
+    return canonical_digest(CAPTURE_ANCHOR_HASH_DOMAIN, dict(payload))

@@ -61,11 +61,12 @@ START = datetime(2026, 1, 2, 9, 30, tzinfo=UTC)
 PRIMARY_URL = Settings().database_url
 BACKEND = Path(__file__).resolve().parents[1]
 PREVIOUS_REVISION = "20260905_0004"
-HEAD_REVISION = "20260911_0005"
+HEAD_REVISION = "20260912_0006"
 EDGE_TABLES = frozenset(
     {
         "edge_opportunity_evidence",
         "edge_bbo_observations",
+        "edge_opportunity_capture_anchors",
         "edge_forward_outcomes",
         "edge_attribution_events",
     }
@@ -1047,8 +1048,8 @@ def test_migration_cycle_only_adds_and_removes_edge_tables():
         assert EDGE_TABLES <= reupgraded_tables
 
 
-def test_migration_reaches_revision_0005_through_a_full_cycle():
-    """`0004 -> upgrade head -> 0005 -> downgrade 0004 -> upgrade head -> 0005`."""
+def test_migration_reaches_current_head_through_a_full_cycle():
+    """`0004 -> upgrade head -> downgrade 0004 -> upgrade head`."""
 
     with _edge_database("migration_cycle", revision=PREVIOUS_REVISION) as (_, url):
         assert asyncio.run(_alembic_version(url)) == PREVIOUS_REVISION

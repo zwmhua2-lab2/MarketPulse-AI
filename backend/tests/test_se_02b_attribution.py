@@ -330,6 +330,7 @@ async def _captured_opportunity(factory, *, event_id: str = "evt-attr-1"):
         source_type=EvidenceSource.FORWARD_PAPER,
         source_identity="okx-ws-bbo",
         source_manifest_id="manifest-se02b",
+        forward_admission_session_id="fixture-live-forward-session",
     )
     # The quote is supplied per capture through the repository accessor, matching
     # how production supplies a bounded in-process read of current market state.

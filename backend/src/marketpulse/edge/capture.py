@@ -62,11 +62,14 @@ from marketpulse.g2.models import (
 )
 from marketpulse.market_data.models import DataQuality, MarketType
 
+from .hashing import CAPTURE_ANCHOR_HASH_DOMAIN, capture_anchor_hash
 from .models import (
+    BboObservation,
     EdgeFamily,
     EvidenceRevision,
     EvidenceSource,
     ReferenceDataStatus,
+    build_bbo_observation,
     build_evidence_revision,
     build_opportunity_identity,
 )
@@ -92,6 +95,9 @@ RUNTIME_CAPTURE_REVISION = 1
 #   metrics actually accepted as this opportunity's reference)
 #   (SE-02B-FIX-02 P0-1). ``v2`` is therefore not a valid tag for this shape.
 RUNTIME_CAPTURE_PAYLOAD_VERSION = "se02b-runtime-capture-v3"
+
+CAPTURE_ANCHOR_PAYLOAD_VERSION = "se-arch-fix-01-anchor-v1"
+CAPTURE_ANCHOR_HASH_VERSION = CAPTURE_ANCHOR_HASH_DOMAIN
 
 # Default reference-quote age above which a supplied quote is not usable. It
 # mirrors the accepted G3 execution freshness window so the Edge layer does not
@@ -129,6 +135,12 @@ class ReferenceQuote(BaseModel):
     received_at: datetime
     data_quality: DataQuality
     tradable: bool = True
+    # These are intentionally optional at the SE-02B boundary: old callers can
+    # still supply an auditable, refused quote. A usable quote becomes a durable
+    # BBO observation only when the caller can prove these observation facts.
+    source_event_time: datetime | None = None
+    source: str | None = None
+    source_sequence: int | None = None
 
     @field_validator("received_at")
     def _aware(cls, value: datetime) -> datetime:
@@ -163,6 +175,26 @@ class ReferenceQuote(BaseModel):
         """Does this quote belong to the opportunity's exact market identity?"""
 
         return self.instrument_id == instrument_id and self.market_type == market_type
+
+    def bbo_observation(self, *, recorded_at: datetime) -> BboObservation | None:
+        """Return the exact normalized BBO fact, never a synthesized one."""
+
+        if self.source_event_time is None or not self.source:
+            return None
+        return build_bbo_observation(
+            instrument_id=self.instrument_id,
+            market_type=self.market_type,
+            bid=self.bid,
+            ask=self.ask,
+            available_at=self.received_at,
+            source_event_time=self.source_event_time,
+            received_at=self.received_at,
+            data_quality=self.data_quality,
+            tradable=self.tradable,
+            source=self.source,
+            source_sequence=self.source_sequence,
+            created_at=recorded_at,
+        )
 
 
 def _json_safe_price(value: float) -> float | str:
@@ -207,6 +239,25 @@ def _supplied_quote_payload(quote: ReferenceQuote | None) -> dict[str, Any] | No
     }
 
 
+def _anchor_reference_quote_payload(quote: ReferenceQuote | None) -> dict[str, Any] | None:
+    """The complete supplied quote needed to rebuild an anchor after restart."""
+
+    if quote is None:
+        return None
+    payload = _supplied_quote_payload(quote)
+    assert payload is not None
+    payload.update(
+        {
+            "source_event_time": (
+                None if quote.source_event_time is None else quote.source_event_time.isoformat()
+            ),
+            "source": quote.source,
+            "source_sequence": quote.source_sequence,
+        }
+    )
+    return payload
+
+
 class EdgeCaptureContext(BaseModel):
     """Everything the G2 persistence path needs that G2 itself does not own.
 
@@ -227,12 +278,22 @@ class EdgeCaptureContext(BaseModel):
     source_type: EvidenceSource
     source_identity: str
     source_manifest_id: str
+    # Explicit live-session proof for a newly admitted FORWARD_PAPER anchor.
+    # A restart may consume an already durable anchor without this process owning
+    # the original session, but a historical/redelivered input may not create one.
+    forward_admission_session_id: str | None = None
     reference_max_age: timedelta = DEFAULT_REFERENCE_MAX_AGE
 
     @field_validator("source_identity", "source_manifest_id")
     def _non_empty(cls, value: str) -> str:
         if not value:
             raise ValueError("capture provenance identifiers must be non-empty")
+        return value
+
+    @field_validator("forward_admission_session_id")
+    def _non_empty_forward_session(cls, value: str | None) -> str | None:
+        if value == "":
+            raise ValueError("forward admission session id must be non-empty when supplied")
         return value
 
     @field_validator("reference_max_age")
@@ -281,6 +342,160 @@ class EdgeCaptureContext(BaseModel):
         if not quote._is_causally_available(at=at, max_age=self.reference_max_age):
             return ReferenceDataStatus.REFERENCE_STALE, None
         return ReferenceDataStatus.OK, quote
+
+
+class CaptureAnchorInputs(BaseModel):
+    """Frozen facts used for the later Formal G2 + Edge transaction."""
+
+    model_config = ConfigDict(frozen=True)
+
+    precondition_state: SymbolStateRecord | None
+    event: MarketEvent
+    timeline: SignalTimelineEvent
+    state: SymbolStateRecord
+    transition: StateTransition
+    candidate: StrategyCandidate
+    candidates: list[StrategyCandidate]
+    observation: FeatureSnapshot
+    context: EdgeCaptureContext
+    reference_quote: ReferenceQuote | None
+    reference_bbo_observation: BboObservation | None
+
+
+class CaptureAnchor(BaseModel):
+    """Append-only durable admission record for one Forward Paper opportunity."""
+
+    model_config = ConfigDict(frozen=True)
+
+    opportunity_id: str = Field(min_length=1)
+    evidence_revision: int = Field(ge=1)
+    event_id: str = Field(min_length=1)
+    candidate_id: str = Field(min_length=1)
+    evidence_at: datetime
+    reference_data_status: ReferenceDataStatus
+    reference_bbo_observation_id: str | None = None
+    source_type: EvidenceSource
+    source_identity: str = Field(min_length=1)
+    source_manifest_id: str = Field(min_length=1)
+    anchor_payload_version: str = Field(min_length=1)
+    anchor_payload: dict[str, Any]
+    anchor_hash: str = Field(min_length=1)
+    anchor_hash_version: str = Field(min_length=1)
+    recorded_at: datetime
+
+    @field_validator("evidence_at", "recorded_at")
+    def _aware_anchor_time(cls, value: datetime) -> datetime:
+        if value.tzinfo is None or value.utcoffset() is None:
+            raise ValueError("capture anchor timestamps must be timezone-aware")
+        return value
+
+    def formal_inputs(self) -> CaptureAnchorInputs:
+        """Reconstruct all formal inputs solely from immutable anchor facts."""
+
+        payload = self.anchor_payload
+        observation = (
+            None
+            if payload["reference_bbo_observation"] is None
+            else BboObservation.model_validate(payload["reference_bbo_observation"])
+        )
+        return CaptureAnchorInputs(
+            precondition_state=(
+                None
+                if payload["precondition_state"] is None
+                else SymbolStateRecord.model_validate(payload["precondition_state"])
+            ),
+            event=MarketEvent.model_validate(payload["event"]),
+            timeline=SignalTimelineEvent.model_validate(payload["timeline"]),
+            state=SymbolStateRecord.model_validate(payload["state"]),
+            transition=StateTransition.model_validate(payload["transition"]),
+            candidate=StrategyCandidate.model_validate(payload["candidate"]),
+            candidates=[StrategyCandidate.model_validate(item) for item in payload["candidates"]],
+            observation=FeatureSnapshot.model_validate(payload["observation"]),
+            context=EdgeCaptureContext.model_validate(payload["context"]),
+            reference_quote=(
+                None
+                if payload["reference_quote"] is None
+                else ReferenceQuote.model_validate(payload["reference_quote"])
+            ),
+            reference_bbo_observation=observation,
+        )
+
+
+def build_capture_anchor(
+    *,
+    precondition_state: SymbolStateRecord | None,
+    event: MarketEvent,
+    timeline: SignalTimelineEvent,
+    state: SymbolStateRecord,
+    transition: StateTransition,
+    candidates: list[StrategyCandidate],
+    observation: FeatureSnapshot,
+    context: EdgeCaptureContext,
+    reference_quote: ReferenceQuote | None,
+) -> CaptureAnchor | None:
+    """Freeze one qualifying Forward Paper admission before Formal persistence."""
+
+    candidate = qualifies(
+        event=event,
+        timeline=timeline,
+        state=state,
+        transition=transition,
+        candidates=candidates,
+        observation=observation,
+    )
+    if candidate is None:
+        return None
+    evidence = build_opportunity_evidence(
+        event=event,
+        timeline=timeline,
+        state=state,
+        transition=transition,
+        candidate=candidate,
+        observation=observation,
+        context=context,
+        reference_quote=reference_quote,
+    )
+    _, usable_quote = context.classify_reference(
+        quote=reference_quote,
+        instrument_id=candidate.instrument_id,
+        market_type=event.market_type,
+        at=candidate.created_at,
+    )
+    bbo = None if usable_quote is None else usable_quote.bbo_observation(recorded_at=event.received_time)
+    payload = {
+        "payload_version": CAPTURE_ANCHOR_PAYLOAD_VERSION,
+        "precondition_state": (
+            None if precondition_state is None else precondition_state.model_dump(mode="json")
+        ),
+        "event": event.model_dump(mode="json"),
+        "timeline": timeline.model_dump(mode="json"),
+        "state": state.model_dump(mode="json"),
+        "transition": transition.model_dump(mode="json"),
+        "candidate": candidate.model_dump(mode="json"),
+        "candidates": [item.model_dump(mode="json") for item in candidates],
+        "observation": observation.model_dump(mode="json"),
+        "context": context.model_dump(mode="json"),
+        "reference_quote": _anchor_reference_quote_payload(reference_quote),
+        "reference_bbo_observation": None if bbo is None else bbo.model_dump(mode="json"),
+        "formal_evidence_hash": evidence.evidence_hash,
+    }
+    return CaptureAnchor(
+        opportunity_id=evidence.opportunity_id,
+        evidence_revision=evidence.evidence_revision,
+        event_id=event.event_id,
+        candidate_id=candidate.candidate_id,
+        evidence_at=evidence.evidence_at,
+        reference_data_status=evidence.reference_data_status,
+        reference_bbo_observation_id=None if bbo is None else bbo.observation_id,
+        source_type=context.source_type,
+        source_identity=context.source_identity,
+        source_manifest_id=context.source_manifest_id,
+        anchor_payload_version=CAPTURE_ANCHOR_PAYLOAD_VERSION,
+        anchor_payload=payload,
+        anchor_hash=capture_anchor_hash(payload),
+        anchor_hash_version=CAPTURE_ANCHOR_HASH_VERSION,
+        recorded_at=event.received_time,
+    )
 
 
 def qualifies(

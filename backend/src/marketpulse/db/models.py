@@ -477,6 +477,47 @@ class EdgeBboObservationRecord(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
+class EdgeOpportunityCaptureAnchorRecord(Base):
+    """SE-ARCH-FIX-01 durable Forward Paper admission fact (append-only)."""
+
+    __tablename__ = "edge_opportunity_capture_anchors"
+    __table_args__ = (
+        UniqueConstraint(
+            "opportunity_id", "evidence_revision", name="uq_edge_capture_anchor_opportunity_revision"
+        ),
+        ForeignKeyConstraint(
+            ["reference_bbo_observation_id"],
+            ["edge_bbo_observations.observation_id"],
+            name="fk_edge_capture_anchor_reference_bbo",
+        ),
+        CheckConstraint("evidence_revision >= 1", name="ck_edge_capture_anchor_revision_positive"),
+        CheckConstraint(
+            "source_type = 'FORWARD_PAPER'", name="ck_edge_capture_anchor_forward_paper"
+        ),
+        CheckConstraint(
+            "reference_data_status IN ('OK', 'REFERENCE_MISSING', 'REFERENCE_STALE')",
+            name="ck_edge_capture_anchor_reference_status",
+        ),
+        Index("ix_edge_capture_anchor_event_id", "event_id"),
+    )
+
+    opportunity_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    evidence_revision: Mapped[int] = mapped_column(Integer, primary_key=True)
+    event_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    candidate_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    evidence_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    reference_data_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    reference_bbo_observation_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    source_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    source_identity: Mapped[str] = mapped_column(String(128), nullable=False)
+    source_manifest_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    anchor_payload_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    anchor_payload: Mapped[dict] = mapped_column(JSON, nullable=False)
+    anchor_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    anchor_hash_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
 class EdgeForwardOutcomeRecord(Base):
     """SE-02 Edge: immutable forward-outcome revision. No calculator runs in this batch.
 
