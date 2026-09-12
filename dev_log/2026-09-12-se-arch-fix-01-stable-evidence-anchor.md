@@ -280,4 +280,11 @@ reproduces byte-identical values; the simulated shared primary stayed at
 3. FIX-01 stays `NOT ACCEPTED`. Independent re-review must inspect the cumulative
    `main..HEAD` diff, not only the integration commit, and must re-check the six
    original P1 findings, F07, the migration integration and the N01-7 regression.
+4. Scope of the shared-database isolation evidence: it is a **revision and table
+   inventory fingerprint** (`20260905_0004`, 24 tables, identical before and
+   after), not a row-level data fingerprint. A second, unrelated window was
+   observed running its own isolated instance on `:5435` during this batch, so
+   the re-reviewer should treat "the shared acceptance database was not written
+   by this batch" as bounded by that measurement, exactly as the earlier
+   `FOREIGN WRITER CONFIRMED` adjudication taught for a shared primary.
 
