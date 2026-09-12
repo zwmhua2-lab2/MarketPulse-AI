@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from marketpulse.db.models import (
     DerivedObservationRecord,
+    EdgeOpportunityCaptureAnchorOrphanRecord,
     EdgeOpportunityCaptureAnchorRecord,
     EdgeOpportunityEvidenceRecord,
     MarketEventRecord,
@@ -21,15 +22,20 @@ from marketpulse.edge.capture import (
     CaptureAnchor,
     CaptureAnchorInputs,
     EdgeCaptureContext,
+    ForwardAdmissionAuthority,
+    ForwardAdmissionProof,
     ReferenceQuote,
     build_capture_anchor,
+    build_capture_anchor_orphan,
     capture_opportunity,
 )
 from marketpulse.edge.models import EvidenceSource
 from marketpulse.edge.repository import (
     append_capture_anchor,
+    append_capture_anchor_orphan,
     capture_anchor_from_record,
     load_capture_anchor_for_event,
+    load_capture_anchor_orphan,
     record_bbo_observation,
 )
 
@@ -48,6 +54,7 @@ from .models import (
 # capture that is happening now. It must be an in-process read of already-held
 # market state (no I/O), because it runs inside the G2 persistence transaction.
 ReferenceQuoteFor = Callable[[str], ReferenceQuote | None]
+ForwardAdmissionProofFor = Callable[[MarketEvent], ForwardAdmissionProof | None]
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +65,10 @@ class CaptureAnchorOrphan(RuntimeError):
 
 class CaptureAdmissionRejected(RuntimeError):
     """A new FORWARD_PAPER anchor lacks explicit live-session admission proof."""
+
+
+class CaptureAdmissionOverloaded(RuntimeError):
+    """The bounded same-process frozen-admission cache is full."""
 
 
 def _same_model(left: object, right: object) -> bool:
@@ -113,7 +124,12 @@ class PostgresG2Repository:
         *,
         capture: EdgeCaptureContext | None = None,
         reference_quote_for: ReferenceQuoteFor | None = None,
+        forward_admission_authority: ForwardAdmissionAuthority | None = None,
+        forward_admission_proof_for: ForwardAdmissionProofFor | None = None,
+        pending_capture_anchor_capacity: int = 2048,
     ) -> None:
+        if pending_capture_anchor_capacity <= 0:
+            raise ValueError("pending_capture_anchor_capacity must be positive")
         self._session_factory = session_factory
         # SE-02B opportunity capture is opt-in. ``None`` (the default) keeps the
         # accepted G2 behaviour byte-for-byte: no Edge write, no Edge failure mode.
@@ -122,10 +138,13 @@ class PostgresG2Repository:
         # constant: one repository instance serves many events, so a quote stored
         # here would silently become the reference of every later opportunity.
         self._reference_quote_for = reference_quote_for
+        self._forward_admission_authority = forward_admission_authority
+        self._forward_admission_proof_for = forward_admission_proof_for
         # Bounded by in-flight G2 event ids in the caller's runtime. It exists
         # only until the admission transaction succeeds or the process dies;
         # it is deliberately not a queue/WAL/recovery mechanism.
         self._pending_capture_anchors: dict[str, CaptureAnchor] = {}
+        self._pending_capture_anchor_capacity = pending_capture_anchor_capacity
 
     async def get_state(self, instrument_id: str) -> SymbolStateRecord | None:
         async with self._session_factory() as session:
@@ -166,7 +185,17 @@ class PostgresG2Repository:
                             & (EdgeOpportunityEvidenceRecord.evidence_revision
                                == EdgeOpportunityCaptureAnchorRecord.evidence_revision),
                         )
-                        .where(EdgeOpportunityEvidenceRecord.evidence_id.is_(None))
+                        .outerjoin(
+                            EdgeOpportunityCaptureAnchorOrphanRecord,
+                            (EdgeOpportunityCaptureAnchorOrphanRecord.opportunity_id
+                             == EdgeOpportunityCaptureAnchorRecord.opportunity_id)
+                            & (EdgeOpportunityCaptureAnchorOrphanRecord.evidence_revision
+                               == EdgeOpportunityCaptureAnchorRecord.evidence_revision),
+                        )
+                        .where(
+                            EdgeOpportunityEvidenceRecord.evidence_id.is_(None),
+                            EdgeOpportunityCaptureAnchorOrphanRecord.opportunity_id.is_(None),
+                        )
                     )
                 ).all()
             )
@@ -201,13 +230,15 @@ class PostgresG2Repository:
             raise CaptureAnchorOrphan("durable G2 precondition is incompatible with capture anchor")
 
     @staticmethod
-    async def _validate_durable_anchor_precondition(
+    async def _durable_anchor_precondition_mismatch(
         session: AsyncSession, inputs: CaptureAnchorInputs
-    ) -> None:
-        """Fence a resumed anchor against the PostgreSQL G2 source of truth."""
+    ) -> SymbolStateRecord | None:
+        """Return the actual state when a resumed anchor is no longer consumable."""
 
         if inputs.precondition_state is None:
-            return
+            return SymbolStateRecord(
+                instrument_id=inputs.event.instrument_id, symbol=inputs.event.symbol
+            )
         stored = await session.get(SymbolStateStore, inputs.event.instrument_id)
         actual = (
             SymbolStateRecord(instrument_id=inputs.event.instrument_id, symbol=inputs.event.symbol)
@@ -223,8 +254,7 @@ class PostgresG2Repository:
                 structure_fingerprint=stored.structure_fingerprint,
             )
         )
-        if not _same_model(inputs.precondition_state, actual):
-            raise CaptureAnchorOrphan("durable G2 precondition is incompatible with capture anchor")
+        return None if _same_model(inputs.precondition_state, actual) else actual
 
     async def _admit_or_load_capture_anchor(
         self,
@@ -242,17 +272,36 @@ class PostgresG2Repository:
         async with self._session_factory() as session:
             existing = await load_capture_anchor_for_event(session, event.event_id)
         if existing is not None:
+            self._pending_capture_anchors.pop(event.event_id, None)
             inputs = existing.formal_inputs()
-            self._validate_anchor_precondition(inputs, event, precondition_state)
+            # The state may already be the result of this same event on an
+            # ordinary duplicate delivery. Durable-state fencing occurs in the
+            # transaction below, after that duplicate case is excluded.
+            if not _same_model(inputs.event, event):
+                raise CaptureAnchorOrphan("durable capture anchor event facts are incompatible")
             return inputs
-
-        if not self._capture.forward_admission_session_id:
-            raise CaptureAdmissionRejected(
-                "FORWARD_PAPER capture anchor requires explicit live-session admission proof"
-            )
 
         anchor = self._pending_capture_anchors.get(event.event_id)
         if anchor is None:
+            if (
+                self._forward_admission_authority is None
+                or self._forward_admission_proof_for is None
+            ):
+                raise CaptureAdmissionRejected(
+                    "FORWARD_PAPER capture anchor requires a live-ingress admission capability"
+                )
+            admission_proof = self._forward_admission_proof_for(event)
+            if admission_proof is None or not self._forward_admission_authority.validates(
+                admission_proof, event
+            ):
+                raise CaptureAdmissionRejected(
+                    "FORWARD_PAPER capture anchor proof is not valid for this live session and event"
+                )
+            if len(self._pending_capture_anchors) >= self._pending_capture_anchor_capacity:
+                logger.error("capture_anchor_overload event_id=%s", event.event_id)
+                raise CaptureAdmissionOverloaded(
+                    "bounded frozen capture admission capacity is exhausted"
+                )
             quote = (
                 None if self._reference_quote_for is None else self._reference_quote_for(event.instrument_id)
             )
@@ -265,6 +314,7 @@ class PostgresG2Repository:
                 candidates=candidates,
                 observation=observation,
                 context=self._capture,
+                forward_admission_proof=admission_proof,
                 reference_quote=quote,
             )
         if anchor is None:
@@ -312,23 +362,63 @@ class PostgresG2Repository:
             transition = anchored.transition
             candidates = anchored.candidates
             observation = anchored.observation
+        formal_context = anchored.context if anchored is not None else self._capture
+        formal_quote = (
+            anchored.reference_quote
+            if anchored is not None
+            else (
+                None
+                if self._reference_quote_for is None
+                else self._reference_quote_for(event.instrument_id)
+            )
+        )
+        orphan_error: CaptureAnchorOrphan | None = None
         async with self._session_factory() as session, session.begin():
             if anchored is not None:
-                await self._validate_durable_anchor_precondition(session, anchored)
-            inserted_event_id = await session.scalar(
-                insert(MarketEventRecord)
-                .values(**event.model_dump(mode="python"))
-                .on_conflict_do_nothing(index_elements=[MarketEventRecord.event_id])
-                .returning(MarketEventRecord.event_id)
-            )
-            if inserted_event_id is None:
-                return False
-            session.add(SignalTimelineRecord(**timeline.model_dump(mode="python")))
-            await session.merge(SymbolStateStore(**state.model_dump(mode="python")))
-            session.add(StateTransitionRecord(**transition.model_dump(mode="python")))
-            session.add_all(StrategyCandidateRecord(**candidate.model_dump(mode="python")) for candidate in candidates)
-            session.add(DerivedObservationRecord(observation_id=deterministic_id("obs", observation.instrument_id, observation.event_time.isoformat(), event.event_id), instrument_id=observation.instrument_id, event_time=observation.event_time, config_version=event.config_version, payload=observation.model_dump(mode="json")))
-            if self._capture is not None:
+                # An already-committed event is an ordinary G2 replay, not a
+                # delayed anchor recovery. Its own resulting state naturally
+                # differs from the admission precondition, so classify neither
+                # a new orphan nor a second formalization attempt.
+                if await session.get(MarketEventRecord, event.event_id) is not None:
+                    return False
+                actual_precondition = await self._durable_anchor_precondition_mismatch(session, anchored)
+                if actual_precondition is not None:
+                    existing_orphan = await load_capture_anchor_orphan(
+                        session, anchored.opportunity_id, anchored.evidence_revision
+                    )
+                    if existing_orphan is None:
+                        expected_precondition = anchored.precondition_state or SymbolStateRecord(
+                            instrument_id=anchored.event.instrument_id,
+                            symbol=anchored.event.symbol,
+                        )
+                        await append_capture_anchor_orphan(
+                            session,
+                            build_capture_anchor_orphan(
+                                opportunity_id=anchored.opportunity_id,
+                                evidence_revision=anchored.evidence_revision,
+                                recorded_at=anchored.anchor_recorded_at,
+                                expected_precondition=expected_precondition,
+                                actual_precondition=actual_precondition,
+                            ),
+                        )
+                    orphan_error = CaptureAnchorOrphan(
+                        "durable G2 precondition is incompatible with capture anchor"
+                    )
+            if orphan_error is None:
+                inserted_event_id = await session.scalar(
+                    insert(MarketEventRecord)
+                    .values(**event.model_dump(mode="python"))
+                    .on_conflict_do_nothing(index_elements=[MarketEventRecord.event_id])
+                    .returning(MarketEventRecord.event_id)
+                )
+                if inserted_event_id is None:
+                    return False
+                session.add(SignalTimelineRecord(**timeline.model_dump(mode="python")))
+                await session.merge(SymbolStateStore(**state.model_dump(mode="python")))
+                session.add(StateTransitionRecord(**transition.model_dump(mode="python")))
+                session.add_all(StrategyCandidateRecord(**candidate.model_dump(mode="python")) for candidate in candidates)
+                session.add(DerivedObservationRecord(observation_id=deterministic_id("obs", observation.instrument_id, observation.event_time.isoformat(), event.event_id), instrument_id=observation.instrument_id, event_time=observation.event_time, config_version=event.config_version, payload=observation.model_dump(mode="json")))
+            if orphan_error is None and formal_context is not None:
                 # Same session, same transaction: the durable G2 facts and the Edge
                 # opportunity evidence commit together or not at all. An Edge
                 # integrity failure propagates so this transaction fails closed --
@@ -341,15 +431,12 @@ class PostgresG2Repository:
                     transition=transition,
                     candidates=candidates,
                     observation=observation,
-                    context=self._capture,
-                    reference_quote=(
-                        anchored.reference_quote
-                        if anchored is not None
-                        else (
-                            None
-                            if self._reference_quote_for is None
-                            else self._reference_quote_for(event.instrument_id)
-                        )
+                    context=formal_context,
+                    reference_quote=formal_quote,
+                    expected_evidence_hash=(
+                        None if anchored is None else anchored.formal_evidence_hash
                     ),
                 )
+        if orphan_error is not None:
+            raise orphan_error
         return True

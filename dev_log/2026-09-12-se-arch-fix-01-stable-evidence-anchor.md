@@ -105,3 +105,47 @@ Forward admission rejection without explicit live-session proof.
 - The runtime must provide real live-session provenance and complete BBO source
   facts before a usable quote can be bound to an observation; this task does not
   redesign the upstream market-data host.
+
+## Independent Review Fix R1｜2026-09-13
+
+> Status: `REVIEW FIX IMPLEMENTED / READY FOR RE-REVIEW`. This is an
+> implementation/review-fix record only; it does not accept the change or
+> authorize a merge to `main`.
+
+The independent review found F01--F07. The following additive correction is
+limited to the Stable Evidence Anchor boundary and its focused PostgreSQL
+regressions. `20260912_0006` remains immutable; additive revision
+`20260913_0007` is the sole Alembic head.
+
+| Finding | Root cause | R1 resolution and evidence |
+|---|---|---|
+| F01 | Fresh resume could allow current context/quote to rebuild Formal evidence. | `CaptureAnchor` reconstructs its frozen context, quote, candidates and Formal evidence, recomputes the exact `formal_evidence_hash`, and `capture_opportunity()` rechecks it before append. Real PostgreSQL regression uses a fresh source-B repository with later clock/BBO/provenance and proves source-A frozen hash/T0/BBO are written. |
+| F02 | A non-empty session string was caller-controlled, so redelivery could look Forward-live. | Process-local `ForwardAdmissionAuthority` mints HMAC-backed, session- and exact-event-bound proofs at the live-ingress boundary. New Forward anchors require valid proof; no-anchor old redelivery with a new BBO/session and no current proof is rejected (`redelivery_admitted == False`). Existing durable anchors recover from their immutable evidence only; `HISTORICAL_REPLAY` never creates a Forward anchor. |
+| F03 | `OK` could lack actual BBO feed provenance. | `OK` now requires source event time and source as well as the existing usable-quote predicates. The ORM/migration enforce `OK ⇔ reference_bbo_observation_id non-null`; incomplete provenance persists as `REFERENCE_STALE` with no BBO id. |
+| F04 | Check-then-insert had a concurrent unique-violation race. | BBO and anchor append use PostgreSQL `INSERT ... ON CONFLICT DO NOTHING RETURNING`, then re-read canonical content: equal is idempotent, different is conflict. A real two-writer PostgreSQL regression proves one `INSERTED`, one `IDEMPOTENT`, and a separately valid different hash conflicts. |
+| F05 | Top-level/payload facts and caller hash could be trusted after model-copy tampering. | Repository revalidates every append through the canonical model; anchor validation verifies hash version/hash, full frozen Formal evidence, all duplicated causal fields, BBO and ingress-proof facts. Candidate/T0/BBO/source/session tampering regressions all fail closed. |
+| F06 | Orphan state was transient and restart could retry it indefinitely. | New append-only `edge_opportunity_capture_anchor_orphans` records identity, `UNVERIFIABLE_ORPHAN`, reason, expected/actual durable precondition, versions/hash and deterministic detected/recorded time. Resume excludes classified anchors; real PostgreSQL test proves one durable orphan, no Formal evidence, and zero subsequent resumptions. |
+| F07 | The in-process frozen-anchor map was unbounded. | `pending_capture_anchor_capacity` is explicit (default 2048); capacity exhaustion logs and raises `CaptureAdmissionOverloaded` before silently evicting or replacing an anchor. PostgreSQL regression holds one failed in-flight anchor then proves a second admission fails closed. |
+
+### R1 verification executed so far
+
+All PostgreSQL tests below use newly-created disposable databases serially from
+`backend` with `PYTHONPATH=src`; the shared configured database was only read by
+`alembic current` and was not migrated.
+
+| Command | Result |
+|---|---|
+| `py -3.14 -m ruff check src tests` | `All checks passed!` |
+| `py -3.14 -m compileall -q src tests` | exit `0` |
+| `py -3.14 -m alembic heads` | single head `20260913_0007` |
+| `py -3.14 -m pytest tests/test_se_02b_opportunity_capture.py -q` | `25 passed in 70.58s` |
+| `py -3.14 -m pytest tests/test_se_02b_attribution.py -q` | `31 passed in 43.47s` |
+| `py -3.14 -m pytest tests -q` | `323 passed, 1 warning in 474.01s` |
+| R1 focused PostgreSQL regressions (fresh-resume, orphan/restart, no-anchor redelivery, incomplete provenance, tamper, concurrent append, bounded overload) | included in the above capture group and passed |
+
+The first full-suite attempt exposed one required migration-consumer sync:
+`ReplayRunner.schema_head` still named `20260912_0006`, so a clean newly-migrated
+replay database was rejected before the guard could report its intended dirty
+workspace condition. R1 updates that frozen consumer and the existing migration
+persistence test to `20260913_0007`; the guard's targeted regression passed and
+the final full suite above passed from a fresh run.

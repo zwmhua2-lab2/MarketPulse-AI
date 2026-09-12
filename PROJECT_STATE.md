@@ -218,14 +218,17 @@ N01 overall — NOT ACCEPTED（N01-7 / N01-8 与 Integrated Runtime Host 仍 `NO
 
 ## In Progress
 
-- **SE-ARCH-FIX-01｜Stable Evidence Anchor = `IMPLEMENTED / READY FOR INDEPENDENT REVIEW`**（基于
+- **SE-ARCH-FIX-01｜Stable Evidence Anchor = `REVIEW FIX IMPLEMENTED / READY FOR RE-REVIEW`**（基于
   `origin/main` / Task Base `1579707eff083007f1ac7ec65e10e6043f32b31e`；Human-approved
   Option 2 + Hybrid A+B：新增 append-only `edge_opportunity_capture_anchors`，复用
   `edge_bbo_observations`，anchor durable 后重试/重启复用 frozen T0/BBO/causal payload；
   Anchor 从未 durable 后 crash 属 Human-approved capture coverage loss，禁止事后以新 clock/BBO
   重建。Formal `G2 State + Edge Evidence` 原子边界保持不变；不构成 FIX-02、SE-02C、SE-02D、
   Real AI、Live、N01 或 Runtime Host 的进度。详见
-  `dev_log/2026-09-12-se-arch-fix-01-stable-evidence-anchor.md`。）
+  `dev_log/2026-09-12-se-arch-fix-01-stable-evidence-anchor.md`。Review Fix R1 在
+  additive `20260913_0007` 中补充 live-ingress event-bound proof、anchor 内容重建/哈希
+  复核、完整 BBO provenance、PostgreSQL 原子 append、durable orphan 分类以及 bounded
+  pending-anchor overload；仍未构成人工 Acceptance 或 `main` 合并。）
 - **SE-02C｜Forward Outcome Calculator = `NOT STARTED`**（forward outcome 仍未计算：无 MFE / MAE /
   无 forward returns；horizon `30s` / `5m` / `15m` / `1h` 的 calculation 尚未实现）。
 - **SE-02D｜Family Aggregation / Expectancy = `NOT STARTED`**（family aggregation、expectancy、

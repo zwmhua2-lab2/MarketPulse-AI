@@ -14,12 +14,14 @@ from enum import StrEnum
 from typing import TYPE_CHECKING
 
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from marketpulse.db.models import (
     EdgeAttributionEventRecord,
     EdgeBboObservationRecord,
     EdgeForwardOutcomeRecord,
+    EdgeOpportunityCaptureAnchorOrphanRecord,
     EdgeOpportunityCaptureAnchorRecord,
     EdgeOpportunityEvidenceRecord,
 )
@@ -31,7 +33,7 @@ from marketpulse.edge.models import (
 )
 
 if TYPE_CHECKING:
-    from marketpulse.edge.capture import CaptureAnchor
+    from marketpulse.edge.capture import CaptureAnchor, CaptureAnchorOrphanClassification
 
 INSERTED = "INSERTED"
 IDEMPOTENT = "IDEMPOTENT"
@@ -67,6 +69,10 @@ class EdgeBboObservationConflict(EdgePersistenceError):
 
 class EdgeCaptureAnchorConflict(EdgePersistenceError):
     """Same opportunity + revision but different durable admission facts."""
+
+
+class EdgeCaptureAnchorOrphanConflict(EdgePersistenceError):
+    """Same anchor has a different immutable orphan classification."""
 
 
 # Every immutable fact of a BBO observation, in a fixed order. The first eight are
@@ -180,75 +186,89 @@ async def record_bbo_observation(session: AsyncSession, observation: BboObservat
     never silently kept when a conflicting eligibility fact arrives.
     """
 
-    existing = await session.scalar(
-        select(EdgeBboObservationRecord).where(
-            EdgeBboObservationRecord.observation_id == observation.observation_id
-        )
+    values = {
+        "observation_id": observation.observation_id,
+        "instrument_id": observation.instrument_id,
+        "market_type": observation.market_type.value,
+        "bid": observation.bid,
+        "ask": observation.ask,
+        "available_at": observation.available_at,
+        "source_event_time": observation.source_event_time,
+        "received_at": observation.received_at,
+        "data_quality": observation.data_quality.value,
+        "tradable": observation.tradable,
+        "source": observation.source,
+        "source_sequence": observation.source_sequence,
+        "created_at": observation.created_at,
+    }
+    inserted = await session.scalar(
+        insert(EdgeBboObservationRecord)
+        .values(**values)
+        .on_conflict_do_nothing(index_elements=[EdgeBboObservationRecord.observation_id])
+        .returning(EdgeBboObservationRecord.observation_id)
     )
-    if existing is not None:
-        if _bbo_immutable_content(existing) == _bbo_immutable_content(observation):
-            return IDEMPOTENT
-        raise EdgeBboObservationConflict(
-            "same observation_id with conflicting immutable observation content "
-            f"(observation_id={observation.observation_id})"
-        )
-
-    session.add(
-        EdgeBboObservationRecord(
-            observation_id=observation.observation_id,
-            instrument_id=observation.instrument_id,
-            market_type=observation.market_type.value,
-            bid=observation.bid,
-            ask=observation.ask,
-            available_at=observation.available_at,
-            source_event_time=observation.source_event_time,
-            received_at=observation.received_at,
-            data_quality=observation.data_quality.value,
-            tradable=observation.tradable,
-            source=observation.source,
-            source_sequence=observation.source_sequence,
-            created_at=observation.created_at,
-        )
+    if inserted is not None:
+        return INSERTED
+    existing = await session.get(EdgeBboObservationRecord, observation.observation_id)
+    if existing is not None and _bbo_immutable_content(existing) == _bbo_immutable_content(observation):
+        return IDEMPOTENT
+    raise EdgeBboObservationConflict(
+        "same observation_id with conflicting immutable observation content "
+        f"(observation_id={observation.observation_id})"
     )
-    await session.flush()
-    return INSERTED
 
 
 async def append_capture_anchor(session: AsyncSession, anchor: CaptureAnchor) -> str:
     """Append one Forward Paper admission anchor, or verify its idempotent twin."""
 
+    from marketpulse.edge.capture import CaptureAnchor
+
+    # ``model_copy`` can bypass Pydantic validators, so canonicalize every caller
+    # object again at the persistence boundary before trusting any supplied hash.
+    anchor = CaptureAnchor.model_validate(anchor.model_dump(mode="python"))
+    values = {
+        "opportunity_id": anchor.opportunity_id,
+        "evidence_revision": anchor.evidence_revision,
+        "event_id": anchor.event_id,
+        "candidate_id": anchor.candidate_id,
+        "evidence_at": anchor.evidence_at,
+        "reference_data_status": anchor.reference_data_status.value,
+        "reference_bbo_observation_id": anchor.reference_bbo_observation_id,
+        "source_type": anchor.source_type.value,
+        "source_identity": anchor.source_identity,
+        "source_manifest_id": anchor.source_manifest_id,
+        "forward_admission_session_id": anchor.forward_admission_session_id,
+        "forward_admission_event_digest": anchor.forward_admission_event_digest,
+        "forward_admission_proof_hash": anchor.forward_admission_proof_hash,
+        "anchor_payload_version": anchor.anchor_payload_version,
+        "anchor_payload": dict(anchor.anchor_payload),
+        "anchor_hash": anchor.anchor_hash,
+        "anchor_hash_version": anchor.anchor_hash_version,
+        "recorded_at": anchor.recorded_at,
+    }
+    inserted = await session.scalar(
+        insert(EdgeOpportunityCaptureAnchorRecord)
+        .values(**values)
+        .on_conflict_do_nothing(
+            index_elements=[
+                EdgeOpportunityCaptureAnchorRecord.opportunity_id,
+                EdgeOpportunityCaptureAnchorRecord.evidence_revision,
+            ]
+        )
+        .returning(EdgeOpportunityCaptureAnchorRecord.opportunity_id)
+    )
+    if inserted is not None:
+        return INSERTED
     existing = await session.get(
         EdgeOpportunityCaptureAnchorRecord,
         (anchor.opportunity_id, anchor.evidence_revision),
     )
-    if existing is not None:
-        if existing.anchor_hash == anchor.anchor_hash:
-            return IDEMPOTENT
-        raise EdgeCaptureAnchorConflict(
-            "same opportunity and revision with a different capture anchor hash "
-            f"(opportunity_id={anchor.opportunity_id}, revision={anchor.evidence_revision})"
-        )
-    session.add(
-        EdgeOpportunityCaptureAnchorRecord(
-            opportunity_id=anchor.opportunity_id,
-            evidence_revision=anchor.evidence_revision,
-            event_id=anchor.event_id,
-            candidate_id=anchor.candidate_id,
-            evidence_at=anchor.evidence_at,
-            reference_data_status=anchor.reference_data_status.value,
-            reference_bbo_observation_id=anchor.reference_bbo_observation_id,
-            source_type=anchor.source_type.value,
-            source_identity=anchor.source_identity,
-            source_manifest_id=anchor.source_manifest_id,
-            anchor_payload_version=anchor.anchor_payload_version,
-            anchor_payload=dict(anchor.anchor_payload),
-            anchor_hash=anchor.anchor_hash,
-            anchor_hash_version=anchor.anchor_hash_version,
-            recorded_at=anchor.recorded_at,
-        )
+    if existing is not None and capture_anchor_from_record(existing) == anchor:
+        return IDEMPOTENT
+    raise EdgeCaptureAnchorConflict(
+        "same opportunity and revision with different capture anchor content "
+        f"(opportunity_id={anchor.opportunity_id}, revision={anchor.evidence_revision})"
     )
-    await session.flush()
-    return INSERTED
 
 
 def capture_anchor_from_record(record: EdgeOpportunityCaptureAnchorRecord) -> CaptureAnchor:
@@ -267,6 +287,9 @@ def capture_anchor_from_record(record: EdgeOpportunityCaptureAnchorRecord) -> Ca
         source_type=record.source_type,
         source_identity=record.source_identity,
         source_manifest_id=record.source_manifest_id,
+        forward_admission_session_id=record.forward_admission_session_id,
+        forward_admission_event_digest=record.forward_admission_event_digest,
+        forward_admission_proof_hash=record.forward_admission_proof_hash,
         anchor_payload_version=record.anchor_payload_version,
         anchor_payload=dict(record.anchor_payload),
         anchor_hash=record.anchor_hash,
@@ -286,6 +309,62 @@ async def load_capture_anchor_for_event(
         )
     )
     return None if record is None else capture_anchor_from_record(record)
+
+
+async def append_capture_anchor_orphan(
+    session: AsyncSession, orphan: CaptureAnchorOrphanClassification
+) -> str:
+    """Append or verify the one immutable orphan classification for an anchor."""
+
+    from marketpulse.edge.capture import CaptureAnchorOrphanClassification
+
+    orphan = CaptureAnchorOrphanClassification.model_validate(orphan.model_dump(mode="python"))
+    values = {
+        "opportunity_id": orphan.opportunity_id,
+        "evidence_revision": orphan.evidence_revision,
+        "classification": orphan.classification,
+        "reason": orphan.reason,
+        "expected_precondition": dict(orphan.expected_precondition),
+        "actual_precondition": dict(orphan.actual_precondition),
+        "orphan_version": orphan.orphan_version,
+        "classification_hash": orphan.classification_hash,
+        "classification_hash_version": orphan.classification_hash_version,
+        "detected_at": orphan.detected_at,
+        "recorded_at": orphan.recorded_at,
+    }
+    inserted = await session.scalar(
+        insert(EdgeOpportunityCaptureAnchorOrphanRecord)
+        .values(**values)
+        .on_conflict_do_nothing(
+            index_elements=[
+                EdgeOpportunityCaptureAnchorOrphanRecord.opportunity_id,
+                EdgeOpportunityCaptureAnchorOrphanRecord.evidence_revision,
+            ]
+        )
+        .returning(EdgeOpportunityCaptureAnchorOrphanRecord.opportunity_id)
+    )
+    if inserted is not None:
+        return INSERTED
+    existing = await session.get(
+        EdgeOpportunityCaptureAnchorOrphanRecord,
+        (orphan.opportunity_id, orphan.evidence_revision),
+    )
+    if existing is not None and existing.classification_hash == orphan.classification_hash:
+        return IDEMPOTENT
+    raise EdgeCaptureAnchorOrphanConflict(
+        "same capture anchor has a different orphan classification "
+        f"(opportunity_id={orphan.opportunity_id}, revision={orphan.evidence_revision})"
+    )
+
+
+async def load_capture_anchor_orphan(
+    session: AsyncSession, opportunity_id: str, evidence_revision: int
+) -> EdgeOpportunityCaptureAnchorOrphanRecord | None:
+    """Return a restart-visible orphan record, if this anchor was classified."""
+
+    return await session.get(
+        EdgeOpportunityCaptureAnchorOrphanRecord, (opportunity_id, evidence_revision)
+    )
 
 
 async def append_forward_outcome(

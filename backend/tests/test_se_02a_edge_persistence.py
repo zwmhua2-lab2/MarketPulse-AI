@@ -61,7 +61,7 @@ START = datetime(2026, 1, 2, 9, 30, tzinfo=UTC)
 PRIMARY_URL = Settings().database_url
 BACKEND = Path(__file__).resolve().parents[1]
 PREVIOUS_REVISION = "20260905_0004"
-HEAD_REVISION = "20260912_0006"
+HEAD_REVISION = "20260913_0007"
 EDGE_TABLES = frozenset(
     {
         "edge_opportunity_evidence",
