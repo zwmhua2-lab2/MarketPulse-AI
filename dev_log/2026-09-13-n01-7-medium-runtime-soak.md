@@ -10,7 +10,7 @@
 | 本批次 HEAD | `ece1f7cb0eff4efd8f4ad498234cd2bdb45f6b92` |
 | Harness（新增） | `scripts/verify_n01_7_medium_soak.py` blob `febcfd70c1bfe1b20a6cbd456eb734dca9162419` |
 | 复用（只读） | `scripts/verify_n01_6_runtime_smoke.py` blob `94853dd747d0e800397b5f6fd743b82e42944e01`；`scripts/verify_n01_7_runtime_soak.py` blob `ed0afd1cdb3b57719e587ce03400fb84a86a1e2c` |
-| Migration head | `20260912_0006`（single head） |
+| Migration head | `20260912_0006`（single head）— **这是 Task Base `71abb07` 的 head**；⚠️ 运行结束后实测远端 `main` 已推进至 `20260913_0008`，见 §26 |
 | 隔离实例 | 任务专属容器 `marketpulse-n01-7-ms-pg`（`postgres:16-alpine`，PG 16.15）@ `127.0.0.1:5434` |
 | 运行窗口（UTC） | `2026-09-13T06:12:05.733437Z` → `2026-09-13T08:14:21.037607Z`（`wall_clock 7335.304 s`，单次连续，无拼接） |
 
@@ -730,11 +730,13 @@ TradePlan TTL 实测 = **30 分钟**（`expires_at 06:43:15.106501` = `06:13:15.
 - `total_active_seconds = 7320.580 ≥ 7200`，**单次连续运行**（无拼接）。
 - 隔离干净：一次性库残留 `0`、共享主库前后完全未变、容器 `RestartCount 0`。
 - **Production Code Frozen 成立**：对 `backend/src` / `backend/alembic` / `backend/tests` / `frontend` 的 diff 为空（含未提交状态）。
+- ⚠️ **适用范围限定**：以上结论针对 **Task Base `71abb07707e9d28e5f2a3a5c5c58c8694f7a3b3f`**。运行结束后实测远端 `main` 已推进至 `fc619242c99a794a2eb2b87ee02b8b72aa782f05`（含 `g2/runtime.py`、`g2/repository.py`、`db/models.py` 与 migration `0007/0008` 变更）→ 见 **§26 Baseline Delta**。本批次**不主张**结论可平移至当前 `main`。
 
 ### 25.2 Remaining / Blockers
 
 | 项 | 状态 |
 |---|---|
+| 🔴 **BASELINE DELTA（§1，最高优先级）** | 远端 `main` 已由 `71abb07` 推进至 **`fc619242`**，命中 §1 触发区（**G2** + **DB schema** + migration head `20260912_0006 → 20260913_0008`）。本批次结论**仅覆盖 Task Base `71abb07`**；能否平移至当前 `main` 须由 Review 判定。详见 **§26** |
 | **§21 内存斜率支越线（5.255 MiB/h）** | **未闭合**，已如实记录（§11 / §24.2）。按已批准 AND 判据不构成 Finding，需 Independent Review 判断是否需要后续 INV/FIX 批次 |
 | `trade_dedupe` 长时饱和 | 有界，但饱和窗口 ~45 min，需 Review 确认语义 |
 | STALE 独立因果次数 = 1 | 可观测性局限，非产品异常 |
@@ -760,6 +762,67 @@ TradePlan TTL 实测 = **30 分钟**（`expires_at 06:43:15.106501` = `06:13:15.
 | `E:/Temp/n01-7-medium/pgcheck.py` / `freeze_facts.json` / `preflight.json` / `harness_sha.txt` | 隔离核验与冻结事实 |
 
 **仓库内交付物**：`scripts/verify_n01_7_medium_soak.py`（blob `febcfd70c1bfe1b20a6cbd456eb734dca9162419`）、`dev_log/2026-09-13-n01-7-medium-runtime-soak.md`（本文件）。
+
+## 26. Baseline Delta（§1）— **必须由 Review 处理**
+
+### 26.1 事实
+
+本批次 **Preflight 时**（§2 实测）：`main` / `origin/main` / `ls-remote` 三者一致 = `71abb07707e9d28e5f2a3a5c5c58c8694f7a3b3f` → 当时**无 baseline drift**，运行全程基于该 base。
+
+**运行结束后**（推送本分支前复验 `git ls-remote origin refs/heads/main`）：远端 `main` 已推进至 **`fc619242c99a794a2eb2b87ee02b8b72aa782f05`**。
+
+即：**main 的推进发生在本批次 2h 运行窗口（`06:12:05Z → 08:14:21Z`）期间/之后，不在运行之前，也不由本批次造成。**
+
+### 26.2 `71abb07..fc619242` 的实际内容
+
+6 个 commit（含 1 个 merge `513689a`）：
+
+```
+fc61924 docs(edge): accept stable evidence anchor
+1e2738b fix(edge): close re-review blockers for the stable evidence anchor
+5ba78af docs(edge): bound the integration isolation evidence
+513689a merge(edge): integrate stable anchor review fix onto latest main   ← merge commit
+bdb1af2 fix(edge): close stable anchor review findings
+5105375 fix(edge): add stable evidence capture anchor
+```
+
+`git diff --stat 71abb07 fc619242`：17 文件、`+4100 / -104`。
+
+| 区域 | 差异 | **是否属 §1 的 STOP 触发区** |
+|---|---|---|
+| `backend/src/marketpulse/g2/repository.py` | `+376` | 🔴 **是（G2）** |
+| `backend/src/marketpulse/g2/runtime.py` | `+90` | 🔴 **是（G2）** |
+| `backend/src/marketpulse/db/models.py` | `+83` | 🔴 **是（DB schema 相关）** |
+| `backend/alembic/versions/20260913_0007_capture_anchor.py` | 新增 `+59` | 🔴 **是（DB schema / migration）** |
+| `backend/alembic/versions/20260913_0008_capture_anchor_review_fix.py` | 新增 `+132` | 🔴 **是（DB schema / migration）** |
+| `backend/src/marketpulse/edge/{capture,hashing,repository}.py` | `+594/+40/+214` | 属 SE 区域；本项目结论不覆盖 |
+| `backend/src/marketpulse/g5/replay.py` | `+11` | 涉及 `schema_head` 常量 |
+| `backend/tests/test_se_02{a,b}_*.py` | `+252/+48/+993` | 测试侧 |
+| `frontend/**` | 无差异 | — |
+| `AI_CONTEXT.md` / `PROJECT_STATE.md` / `DECISIONS.md` | 文档 | — |
+
+**Migration head 变化**：`20260912_0006` → **`20260913_0008`**（`20260913_0007_capture_anchor` → `20260913_0008_capture_anchor_review_fix`）。
+
+### 26.3 对本批次结论的影响（如实界定）
+
+| 项 | 判定 |
+|---|---|
+| 本批次 2h 运行证据是否自洽 | ✅ **是**。运行期间 `HEAD = ece1f7cb`（parent `9ee13a7` → `71abb07`）、migration head 实测 `20260912_0006`、production tree = `71abb07`。所有 68 项 check 是对**那个 tree**的真实测量 |
+| 结论是否覆盖当前 `main`（`fc619242`） | ❌ **不覆盖**。`g2/runtime.py` 与 `g2/repository.py` 正位于本批次实测的 G2 事件运行时路径上；`db/models.py` 与 migration `0007/0008` 改变了 schema head |
+| 是否属 `CASE A PRODUCT DEFECT` | ❌ 否。无任何产品缺陷证据 |
+| 是否属 `CASE C ENVIRONMENT INVALIDATED` | ❌ 否。运行环境有效、证据有效 |
+| 性质 | **BASELINE DELTA（基线漂移）**，依 §1 属 `STOP / REPORT BASELINE DELTA` |
+| 是否由本 Worker 擅自处理 | ❌ **否**。未 rebase、未 reset、未把结论改写、未改 production |
+
+**因此**：本批次给出 `VALIDATED / READY FOR INDEPENDENT REVIEW`，其**适用范围明确限定为 Task Base `71abb07`**。是否可将结论平移至当前 `main fc619242`，须由 Independent Review 判断（重点：`g2/runtime.py`、`g2/repository.py`、`db/models.py`、migration `0007/0008` 是否影响本批次验证的 `ScannerPipeline → EventRuntime → G3/G4 → Recovery/Reconciliation` 链路）。
+
+### 26.4 连带影响（供 Review 参考，非本批次 Scope）
+
+1. `scripts/verify_n01_7_f01_r1_migration_gate.py` 仍钉死 head `20260912_0006`（`RRF-03` 已登记为 DEFER）→ 在当前 `main`（head `20260913_0008`）上运行该 accepted 门脚本会 `AssertionError`。**本次未修改该脚本**（它是 accepted 证据）。
+2. 本分支上的 `PROJECT_STATE.md` / `AI_CONTEXT.md` 是基于 `71abb07` 版本的最小编辑；`main` 上这两个文件已被 `71abb07..fc619242` 改动（`102` / `58` 行）→ **若未来合并本分支，这两个文件会冲突**，属预期，收敛方式由 Review / 人工决策。
+3. 本批次**未**对 `fc619242` 做任何验证，**未**运行任何 pytest，**未**对新 migration 做 upgrade/downgrade。
+
+---
 
 ### 25.4 STOP
 

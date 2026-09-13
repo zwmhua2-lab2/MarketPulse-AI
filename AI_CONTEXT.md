@@ -202,7 +202,10 @@
   `ece1f7cb`，**未 merge `main`**、**未 Human Acceptance**；⚠️ 开放问题：§21 `second_half_trend
   = 5.255 MiB/h` 越过 5.0 阈值，仅因 AND 判据另一支未成立而不构成 Finding；详见
   `dev_log/2026-09-13-n01-7-medium-runtime-soak.md`）；**`N01-8 = NOT STARTED`**；**`Integrated
-  Runtime Host = NOT STARTED`**。
+  Runtime Host = NOT STARTED`**。⚠️ **BASELINE DELTA（§1）**：该批次运行结束后远端 `main` 已由
+  `71abb07` 推进至 `fc619242`（SE-ARCH-FIX-01 stable evidence anchor 接受合并），触及
+  `g2/runtime.py`、`g2/repository.py`、`db/models.py` + migration `20260913_0007/0008` ⇒ head 变为
+  `20260913_0008`；该批次结论**仅限 Task Base `71abb07`**，**未**对当前 `main` 验证。
 - accepted lineage（仅 fast-forward，无 merge commit / rebase / squash / force）：
   `ddf39f2 → 7c0ea7d → Final Acceptance Closeout Commit`。
 - `Production Code Changed after ddf39f2 = NO` / `Tests Changed = NO` / `Migration Changed = NO`;

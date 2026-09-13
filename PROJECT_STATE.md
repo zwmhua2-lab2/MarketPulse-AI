@@ -282,6 +282,11 @@ Integrated Runtime Host 仍 `NOT STARTED`；N01-6 的验收不得推断 Continuo
   视角均显示持续正斜率，方向与 `N01-7-INV-01` 的 `C｜ALLOCATOR_OR_NATIVE_RETENTION_LIKELY` 一致。
   详见 `dev_log/2026-09-13-n01-7-medium-runtime-soak.md`。**不得**由本批次推断 N01-7 ACCEPTED /
   N01-8 / Integrated Runtime Host / Continuous Runtime / 7×24。
+  ⚠️ **BASELINE DELTA（§1）**：运行结束后实测远端 `main` 已由 `71abb07` 推进至 `fc619242`（内容 =
+  SE-ARCH-FIX-01 stable evidence anchor 接受合并），`71abb07..fc619242` 触及
+  `backend/src/marketpulse/g2/runtime.py`、`g2/repository.py`、`db/models.py` 并新增 migration
+  `20260913_0007` / `20260913_0008` ⇒ **migration head 已变为 `20260913_0008`**。本批次 2h 证据仅
+  适用于 Task Base `71abb07`，**未**对 `fc619242` 验证，**未**运行任何 pytest。详见该 devlog §26。
 - **`N01-8 = NOT STARTED`**；**`Integrated Runtime Host = NOT STARTED`**。
 - **N01-A / N01-B / N01-C / N01-6 / N01-7-F01 均已 `ACCEPTED / COMPLETE`**（见 Completed）；
   N01 overall 仍未验收，也不由任何单门 N01 验收推断。
