@@ -61,9 +61,14 @@ from marketpulse.edge.models import (
     EdgeFamily,
     EvidenceSource,
     ForwardHorizon,
+    ReferenceDataStatus,
+    build_evidence_revision,
     build_opportunity_identity,
 )
-from marketpulse.edge.repository import EdgeOutcomeConflict
+from marketpulse.edge.repository import (
+    EdgeOutcomeConflict,
+    append_evidence_revision,
+)
 from marketpulse.g2.models import (
     EventType,
     FeatureSnapshot,
@@ -710,6 +715,10 @@ def test_one_evaluation_pass_appends_one_terminal_outcome_per_scope_and_a_restar
         "cost_policy": COST_POLICY,
         "cost_model_version": COST_MODEL_VERSION,
         "revision": RUNTIME_OUTCOME_REVISION,
+        "source_type": "FORWARD_PAPER",
+        "source_identity": "okx-ws-bbo",
+        "evidence_source_type": "FORWARD_PAPER",
+        "evidence_source_identity": "okx-ws-bbo",
     }
 
 
@@ -795,6 +804,12 @@ async def _restart_scenario(url: str) -> dict[str, object]:
             "cost_policy": by_horizon[ForwardHorizon.M5.value].cost_policy,
             "cost_model_version": by_horizon[ForwardHorizon.M5.value].cost_model_version,
             "revision": by_horizon[ForwardHorizon.M5.value].outcome_revision,
+            # C-24: the outcome inherits its provenance from the evidence revision
+            # it was computed from, never from the evaluating process.
+            "source_type": by_horizon[ForwardHorizon.M5.value].source_type,
+            "source_identity": by_horizon[ForwardHorizon.M5.value].source_identity,
+            "evidence_source_type": after_first_pass["evidence"][0].source_type,
+            "evidence_source_identity": after_first_pass["evidence"][0].source_identity,
         },
         "opportunity_id": opportunity_id,
     }
@@ -1153,4 +1168,120 @@ async def _immutable_scenario(url: str) -> dict[str, object]:
         "changed_facts_conflict": conflicted,
         "outcome_count_after_conflict": after["outcome_count"],
         "hash_unchanged": _by_horizon(after["outcomes"])["5m"].outcome_record_hash == hash_before,
+    }
+
+
+# --- C-16 cross-evidence independence ----------------------------------------------------
+
+
+def test_two_evidence_revisions_of_one_opportunity_own_disjoint_outcome_scopes():
+    with _se02c_database("cross_evidence") as url:
+        observed = asyncio.run(_cross_evidence_scenario(url))
+    assert observed["appended"] == "INSERTED"
+    assert observed["evidence_revisions"] == [1, 2]
+    assert observed["revision_two_supersedes_revision_one"] is True
+    assert observed["outcome_count"] == 8
+    assert observed["distinct_outcome_ids"] == 8
+    assert observed["scopes_per_evidence"] == {1: 4, 2: 4}
+    assert observed["revision_one_statuses"] == ["COMPLETE"] * 4
+    assert set(observed["revision_two_statuses"]) == {"INVALID"}
+    assert observed["revision_one_unchanged"] is True
+    assert observed["revision_two_due_at"] == observed["expected_revision_two_due_at"]
+
+
+async def _cross_evidence_scenario(url: str) -> dict[str, object]:
+    """Two evidence revisions of one opportunity must never share an outcome scope.
+
+    The accepted SE-02B runtime capture path pins ``evidence_revision = 1``, so a
+    revision 2 can only exist through the accepted append-only evidence writer.
+    That is exactly what this scenario uses -- no new persistence path, no repo
+    change: ``append_evidence_revision`` is the accepted SE-02A writer.
+    """
+
+    async with _sessions(url) as sessions:
+        facts = await _capture_forward_opportunity(sessions)
+        await _record_frames(sessions)
+        candidate = next(
+            item for item in facts["candidates"] if item.strategy_id == "BREAKOUT_RETEST"
+        )
+        opportunity = build_opportunity_identity(
+            family_id=EdgeFamily.BREAKOUT_RETEST,
+            family_version=candidate.strategy_version,
+            instrument_id=INSTRUMENT,
+            market_type=MarketType.SPOT,
+            candidate_id=candidate.candidate_id,
+        )
+        async with sessions() as session:
+            first_revision = await session.scalar(
+                select(EdgeOpportunityEvidenceRecord).where(
+                    EdgeOpportunityEvidenceRecord.opportunity_id == opportunity.opportunity_id,
+                    EdgeOpportunityEvidenceRecord.evidence_revision == 1,
+                )
+            )
+        second = build_evidence_revision(
+            opportunity=opportunity,
+            evidence_revision=2,
+            detected_at=START,
+            evidence_at=START + timedelta(seconds=60),
+            expires_at=START + timedelta(minutes=20),
+            source_type=EvidenceSource.FORWARD_PAPER,
+            source_identity="okx-ws-bbo",
+            source_manifest_id="manifest-se02c",
+            reference_data_status=ReferenceDataStatus.OK,
+            reference_bid=REFERENCE_BID,
+            reference_ask=REFERENCE_ASK,
+            reference_received_at=START,
+            supersedes_evidence_id=first_revision.evidence_id,
+            evidence_payload={"capture": {"payload_version": "se02c-cross-evidence-fixture"}},
+            feature_snapshot_payload=facts["features"].model_dump(mode="json"),
+            created_at=START + timedelta(seconds=60),
+        )
+        async with sessions() as session, session.begin():
+            appended = await append_evidence_revision(session, second)
+
+    engine = create_async_engine(url, poolclass=NullPool)
+    try:
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        await evaluate_due_outcomes(factory, now=EVAL_NOW)
+        durable = await _durable(factory)
+    finally:
+        await engine.dispose()
+
+    mine = [
+        row
+        for row in durable["outcomes"]
+        if row.opportunity_id == opportunity.opportunity_id
+    ]
+    evidence_ids = {
+        row.evidence_revision: row.evidence_id
+        for row in durable["evidence"]
+        if row.opportunity_id == opportunity.opportunity_id
+    }
+    by_evidence = {
+        revision: {
+            row.horizon: row for row in mine if row.evidence_id == evidence_id
+        }
+        for revision, evidence_id in evidence_ids.items()
+    }
+    return {
+        "appended": appended,
+        "evidence_revisions": sorted(evidence_ids),
+        "revision_two_supersedes_revision_one": (
+            second.supersedes_evidence_id == evidence_ids[1]
+        ),
+        "outcome_count": len(durable["outcomes"]),
+        "distinct_outcome_ids": len({row.outcome_id for row in durable["outcomes"]}),
+        "scopes_per_evidence": {revision: len(rows) for revision, rows in by_evidence.items()},
+        "revision_one_statuses": [row.calculation_status for row in by_evidence[1].values()],
+        "revision_two_statuses": [row.calculation_status for row in by_evidence[2].values()],
+        "revision_one_unchanged": all(
+            row.outcome_revision == 1
+            and row.due_at == forward_due_at(START, ForwardHorizon(row.horizon))
+            for row in by_evidence[1].values()
+        ),
+        "revision_two_due_at": sorted(row.due_at for row in by_evidence[2].values()),
+        "expected_revision_two_due_at": sorted(
+            forward_due_at(START + timedelta(seconds=60), horizon)
+            for horizon in ALL_FORWARD_HORIZONS
+        ),
     }
