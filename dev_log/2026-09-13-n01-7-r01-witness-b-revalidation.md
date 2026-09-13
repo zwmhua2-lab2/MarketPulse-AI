@@ -6,9 +6,10 @@
 - Branch: `n01-7-r01-witness-b-latest-main`
 - Worktree: `E:\Documents\MarketPulse-AI-n01-7-r01`（本批唯一作业 worktree；根 worktree
   `E:\Documents\MarketPulse AI` 全程未触碰）
-- Status / Result: **`VALIDATED / READY FOR INDEPENDENT RE-REVIEW`**
-  （`N01-7 = VALIDATED / READY FOR INDEPENDENT RE-REVIEW`；`N01 overall = NOT ACCEPTED`；
-  `N01-8 = NOT STARTED`）
+- Status / Result: **`VALIDATED / READY FOR INDEPENDENT RE-REVIEW`**（状态（Validation 完成时）；
+  现已由 2026-09-14 Human Acceptance = `CONFIRMED` + Final Acceptance Closeout 取代为
+  **`ACCEPTED / COMPLETE`** —— 见本文件 §32）
+  （`N01-7 = ACCEPTED / COMPLETE`；`N01 overall = NOT ACCEPTED`；`N01-8 = NOT STARTED`）
 
 ## 1. Requirement 与 Review Findings
 
@@ -525,7 +526,9 @@ RESTORE_POSITION_PROTECTION → FINAL_STATE:RUNNING`；
 
 ## 28. Result
 
-**`VALIDATED / READY FOR INDEPENDENT RE-REVIEW`**
+**`VALIDATED / READY FOR INDEPENDENT RE-REVIEW`**（状态（Validation 完成时）；2026-09-14
+Human Acceptance = `CONFIRMED` + Final Acceptance Closeout 后，本批最终状态为
+**`N01-7-R01 = ACCEPTED / COMPLETE`**、**`N01-7 = ACCEPTED / COMPLETE`** —— 见 §32）
 
 - R01 = CLOSED（真实 Witness B，`Plan A != Plan B`，行为判别 + 反证齐备）；
 - R02 = targeted revalidation PASS（latest main `8a29306`，migration `20260913_0009`，371 passed）；
@@ -573,3 +576,28 @@ RESTORE_POSITION_PROTECTION → FINAL_STATE:RUNNING`；
   `Settings` 读 **cwd** 的 `.env`，`alembic/env.py` 优先读 `os.environ["DATABASE_URL"]`。
 - **未做**：Human Acceptance、merge main、N01-8、Integrated Runtime Host、production fix、SE 改动。
   按任务书 §29 **STOP**，等 Independent Re-Review。
+
+## 32. Human Acceptance + Final Main Integration Closeout（2026-09-14，追加章节）
+
+本批最终收尾（**只追加**，不改动上述历史条目）：
+
+- **Human Acceptance = `CONFIRMED`**；**Independent Re-Review =
+  `PASS WITH NON-BLOCKING FINDINGS — READY FOR HUMAN ACCEPTANCE`**。
+- **Human-Accepted reviewed candidate = `559f14be1fb89df58c11dfbea737eba4ac30421e`**
+  （branch `n01-7-r01-witness-b-latest-main`，远端同 SHA，**未被改写**）。
+- **Accepted Main before** = `8a29306d904223f03408fe55538ba6cb05222f15`；
+  **Accepted Main after** = docs/state-only Final Acceptance Closeout Commit。
+- **集成方法 = `FAST-FORWARD ONLY`**：`8a29306 → 559f14b → docs-only closeout`；无 merge commit
+  到 `main` / squash / rebase / cherry-pick / force push；reviewed candidate identity 不变。
+- Closeout 为 docs/state-only：`Production code changed = NO` / `Tests changed = NO` /
+  `Migration changed = NO` / `Runtime config changed = NO`；`alembic heads` 单 head
+  `20260913_0009`，`20260912_0006` / `20260913_0007` / `20260913_0008` / `20260913_0009`
+  的 revision identity 未被重写。
+- **最终状态**：`N01-7-R01 = ACCEPTED / COMPLETE`；`N01-7 = ACCEPTED / COMPLETE`；
+  `N01 overall` 仍 `NOT ACCEPTED`；`N01-8` 与 `Integrated Runtime Host` 仍 `NOT STARTED`。
+- 🚩 **P2 Watch Item 保留**：`N01-7-R01-RR-P2-01`（Memory Operational Watch / Bounded Retention
+  Growth；slope `≈16.02 MiB/h` > `5.0`，`total_growth ≈14.043 MiB ≤ 64` ⇒ `finding = false`，
+  Acceptance Gate = PASS）**必须**留给未来 `N01-8`；**不得**写 `memory resolved` /
+  `memory is fine` / `no memory concern`。
+- ⚠️ FIX/收尾语义：N01-7 Accepted **≠** `N01 overall` Accepted，也**≠** N01-8 MAY START。
+  详见 `dev_log/2026-09-14-n01-7-final-acceptance-closeout.md`。

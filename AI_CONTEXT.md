@@ -10,11 +10,11 @@
 | 字段 | 值 |
 |---|---|
 | Project | MarketPulse AI（BTC/ETH 量化纸面交易终端，Modular Monolith） |
-| Current Acceptance Group | SE-ARCH-FIX-02 — Outcome Revision Chain Scope — ACCEPTED / COMPLETE |
+| Current Acceptance Group | N01-7 / N01-7-R01 — 2-hour Medium Runtime Soak（含 Witness B Fix + Latest-Main Revalidation）— ACCEPTED / COMPLETE |
 | Accepted Main Source | Git `main` / `origin/main`；须在任务 preflight 按 CIP-02 实时读取，不以文档静态 SHA 为准 |
-| Current State | `SE-ARCH-FIX-02 = ACCEPTED / COMPLETE`（2026-09-13 Human Acceptance = `APPROVED` + Final Main Integration Closeout，已 fast-forward only 收编 `main`；Human-Accepted reviewed candidate = `15da7c1`；Implementation = `4c83582`）；`SE-ARCH-FIX-01 = ACCEPTED / COMPLETE`（2026-09-13 Human Acceptance = `APPROVED` + Final Main Integration Closeout；reviewed candidate = `1e2738b`）；`SE-02A = ACCEPTED / COMPLETE`；`SE-02B = ACCEPTED / COMPLETE`；**`SE-02C = BLOCKED / NOT STARTED`**（FIX-02 已 Acceptance **不**使其 MAY START；仍需 Pre-SE-02C Re-Gate 返回 `PASS — SE-02C MAY START`）；`SE-02D = NOT STARTED`；`N01-C = ACCEPTED / COMPLETE`；N01-A / N01-B 与 N01 验证修复 `N01-VAL-FIX-01/02/03` 均维持 `ACCEPTED / COMPLETE`；`N01-6 = ACCEPTED / COMPLETE`（Reviewed HEAD `3f591a7`）；**`N01-7-F01 = ACCEPTED / COMPLETE`**（2026-09-13 Human Acceptance = `CONFIRMED` + Final Main Integration；reviewed candidate `7c0ea7d` @ integration merge `ddf39f2`；已 fast-forward only 收编 `main`）；**`N01-7 = VALIDATED / READY FOR INDEPENDENT RE-REVIEW`**（N01-7-R01｜Witness B Fix + Latest-Main Revalidation + 2h Acceptance Re-run，2026-09-13；branch `n01-7-r01-witness-b-latest-main`，**未** merge `main`；branch-local，不改变 `main` 的 Accepted Main SHA）；`N01-8` / Integrated Runtime Host 仍 `NOT STARTED`；**N01 overall 仍 `NOT ACCEPTED`** |
-| Last Accepted Group | SE-ARCH-FIX-02 — Outcome Revision Chain Scope |
-| Current Group Branch | `se-arch-fix-02-outcome-revision-chain-scope`（accepted lineage；仅 fast-forward 收编至 `main`，历史分支保留）；更早 `se-arch-fix-01-latest-main-integration`、`se-02b-opportunity-capture-attribution`、`n01-6-15m-runtime-smoke`、`n01-c-restart-recovery-reconciliation` |
+| Current State | `SE-ARCH-FIX-02 = ACCEPTED / COMPLETE`（2026-09-13 Human Acceptance = `APPROVED` + Final Main Integration Closeout，已 fast-forward only 收编 `main`；Human-Accepted reviewed candidate = `15da7c1`；Implementation = `4c83582`）；`SE-ARCH-FIX-01 = ACCEPTED / COMPLETE`（2026-09-13 Human Acceptance = `APPROVED` + Final Main Integration Closeout；reviewed candidate = `1e2738b`）；`SE-02A = ACCEPTED / COMPLETE`；`SE-02B = ACCEPTED / COMPLETE`；**`SE-02C = BLOCKED / NOT STARTED`**（FIX-02 已 Acceptance **不**使其 MAY START；仍需 Pre-SE-02C Re-Gate 返回 `PASS — SE-02C MAY START`）；`SE-02D = NOT STARTED`；`N01-C = ACCEPTED / COMPLETE`；N01-A / N01-B 与 N01 验证修复 `N01-VAL-FIX-01/02/03` 均维持 `ACCEPTED / COMPLETE`；`N01-6 = ACCEPTED / COMPLETE`（Reviewed HEAD `3f591a7`）；**`N01-7-F01 = ACCEPTED / COMPLETE`**（2026-09-13 Human Acceptance = `CONFIRMED` + Final Main Integration；reviewed candidate `7c0ea7d` @ integration merge `ddf39f2`；已 fast-forward only 收编 `main`）；**`N01-7 / N01-7-R01 = ACCEPTED / COMPLETE`**（2026-09-14 Human Acceptance = `CONFIRMED` + Final Main Integration Closeout；Independent Re-Review = `PASS WITH NON-BLOCKING FINDINGS — READY FOR HUMAN ACCEPTANCE`；Human-Accepted reviewed candidate = `559f14be1fb89df58c11dfbea737eba4ac30421e`（branch `n01-7-r01-witness-b-latest-main`）；集成方法 = `FAST-FORWARD ONLY`）；🚩 遗留 P2 Watch Item `N01-7-R01-RR-P2-01`（Memory Operational Watch / Bounded Retention Growth，slope `≈16.02 MiB/h` > `5.0`、`total_growth ≈14.043 MiB ≤ 64` ⇒ `finding = false`，Acceptance Gate = PASS）**必须留待 `N01-8` 继续观察**（不得写 `memory resolved` / `memory is fine` / `no memory concern`）；`N01-8` / Integrated Runtime Host 仍 `NOT STARTED`；**N01 overall 仍 `NOT ACCEPTED`** |
+| Last Accepted Group | N01-7 / N01-7-R01 — 2-hour Medium Runtime Soak（含 Witness B Fix + Latest-Main Revalidation） |
+| Current Group Branch | `n01-7-r01-witness-b-latest-main`（N01-7 / N01-7-R01 accepted lineage；仅 fast-forward 收编至 `main`，历史分支保留）；更早 `se-arch-fix-02-outcome-revision-chain-scope`、`se-arch-fix-01-latest-main-integration`、`se-02b-opportunity-capture-attribution`、`n01-6-15m-runtime-smoke`、`n01-c-restart-recovery-reconciliation` |
 
 - G1–G4 acceptance 状态：`ACCEPTED` / `ACCEPTED` / `ACCEPTED` / `ACCEPTED`。
 - G5-0 / G5-1 / G5-2 / G5-3 / G5-4 acceptance 状态：`ACCEPTED`。
@@ -45,6 +45,27 @@
   `ReplayTradingRunner.schema_head = 20260913_0009`。⚠️ FIX-02 Accepted **≠** SE-02C MAY START：
   `SE-02C` 保持 `BLOCKED / NOT STARTED`（仍需 Pre-SE-02C Re-Gate）。详见
   `dev_log/2026-09-13-se-arch-fix-02-outcome-revision-chain-scope.md`。
+
+- N01-7 / N01-7-R01 2-hour Medium Runtime Soak（含 Witness B Fix + Latest-Main Revalidation）
+  = `ACCEPTED / COMPLETE`（2026-09-14 Human Acceptance = `CONFIRMED` + Final Main Integration
+  Closeout；Independent Re-Review = `PASS WITH NON-BLOCKING FINDINGS — READY FOR HUMAN
+  ACCEPTANCE`；Human-Accepted reviewed candidate =
+  `559f14be1fb89df58c11dfbea737eba4ac30421e`，branch `n01-7-r01-witness-b-latest-main`；
+  Accepted Main before = `8a29306`；accepted lineage 仅 fast-forward：
+  `8a29306 → 559f14b → docs/state-only Final Closeout Commit`）。验收依据：真实 OKX 公共行情 +
+  一次性 disposable PostgreSQL 单轮连续 `total_active 7320.252 s`、**84/84 checks true**、
+  5 次受控重连 + 2 次受控 STALE→FRESH + 7 checkpoint 全 ok + 跨进程 Recovery 15 步 +
+  Witness A/B/C 全成立 + 经济不变量全绿；`production_code_unchanged = true`；shared primary
+  before == after；`alembic heads` 单 head `20260913_0009`。Closeout 四项不变：
+  `Production code changed = NO` / `Tests changed = NO` / `Migration changed = NO` /
+  `Runtime config changed = NO`。
+  - 🚩 P2 保留项 `N01-7-R01-RR-P2-01`：Memory Operational Watch / Bounded Retention Growth
+    （slope `≈16.02 MiB/h` > `5.0`，`total_growth ≈14.043 MiB ≤ 64` ⇒ `finding = false`，
+    Acceptance Gate = PASS）——**保留给未来 `N01-8`**，不得写 `memory resolved` /
+    `memory is fine` / `no memory concern`。
+- ⚠️ `N01-7` / `N01-7-R01` Accepted **≠** `N01 overall` Accepted（仍 `NOT ACCEPTED`），也
+  **≠** `N01-8` MAY START；`N01-8` / `Integrated Runtime Host` 仍 `NOT STARTED`。详见
+  `dev_log/2026-09-14-n01-7-final-acceptance-closeout.md`。
 
 ## 2. Source of Truth（事实源优先级，从高到低）
 
@@ -81,10 +102,10 @@
 
 | 字段 | 值 |
 |---|---|
-| Current Group | SE-ARCH-FIX-02 — Outcome Revision Chain Scope — `ACCEPTED / COMPLETE`（2026-09-13 Human Acceptance = `APPROVED`） |
-| Last accepted subgroup | SE-ARCH-FIX-02 — Outcome Revision Chain Scope (`ACCEPTED / COMPLETE`)；SE-ARCH-FIX-01 / SE-02A / SE-02B / N01-6 / N01-7-F01 / N01-C / N01-A / N01-B 亦维持 `ACCEPTED / COMPLETE`；N01 overall 仍 `NOT ACCEPTED` |
-| Next Group Design | `NOT STARTED`（须另开窗口）；已明确**不**自动开始 `SE-02C`（`SE-ARCH-FIX-02` 已收尾，`SE-02C` 启动前须先独立获批 Pre-SE-02C Re-Gate 且返回 `PASS — SE-02C MAY START`，见 §1） |
-| Next Group name/number | `SE-ARCH-FIX-02 = ACCEPTED / COMPLETE`；`SE-02C = BLOCKED / NOT STARTED`（FIX-02 Accepted **不**使其 MAY START；仍需 Pre-SE-02C Re-Gate）；`SE-02D = NOT STARTED`；N01-7 — Witness B Fix + Latest-Main Revalidation + 2h Acceptance Re-run（N01-7-R01）— `VALIDATED / READY FOR INDEPENDENT RE-REVIEW`（其前置 `N01-7-F01 = ACCEPTED / COMPLETE`（2026-09-13）；`N01-8` / Integrated Runtime Host = `NOT STARTED`） |
+| Current Group | N01-7 / N01-7-R01 — 2-hour Medium Runtime Soak（含 Witness B Fix + Latest-Main Revalidation）— `ACCEPTED / COMPLETE`（2026-09-14 Human Acceptance = `CONFIRMED` + Final Main Integration Closeout） |
+| Last accepted subgroup | N01-7 / N01-7-R01（`ACCEPTED / COMPLETE`）；SE-ARCH-FIX-02 / SE-ARCH-FIX-01 / SE-02A / SE-02B / N01-6 / N01-7-F01 / N01-C / N01-A / N01-B 亦维持 `ACCEPTED / COMPLETE`；N01 overall 仍 `NOT ACCEPTED` |
+| Next Group Design | `NOT STARTED`（须另开窗口）；已明确**不**自动开始 `SE-02C`（`SE-ARCH-FIX-02` 已收尾，`SE-02C` 启动前须先独立获批 Pre-SE-02C Re-Gate 且返回 `PASS — SE-02C MAY START`，见 §1），也**不**自动开始 `N01-8`（须由总进度窗口另开独立获批的任务窗口） |
+| Next Group name/number | `N01-7 / N01-7-R01 = ACCEPTED / COMPLETE`（2026-09-14 Closeout；遗留 P2 `N01-7-R01-RR-P2-01` 见 §1）；`N01-8｜12-hour Extended Soak = NOT STARTED`；Integrated Runtime Host = `NOT STARTED`；`SE-ARCH-FIX-02 = ACCEPTED / COMPLETE`；`SE-02C = BLOCKED / NOT STARTED`（FIX-02 Accepted **不**使其 MAY START；仍需 Pre-SE-02C Re-Gate）；`SE-02D = NOT STARTED` |
 
 - G4 **没有**提前实现完整 Replay / ReplayClock Engine。
 - 仓库中仅存在：`Clock` Protocol 的 `ReplayClock` 实现（`backend/src/marketpulse/clock.py`）与 `RunMode.REPLAY` 枚举（`config.py`）——这是既有 Clock 边界，**不是**完整回放引擎。
@@ -109,24 +130,41 @@
 
 ## 6. Next Step Entry（下一步工作入口）
 
-### N01-7-R01 Witness B Fix + Latest-Main Revalidation + 2h Acceptance Re-run — VALIDATED / READY FOR INDEPENDENT RE-REVIEW
+### N01-7 / N01-7-R01 2-hour Medium Runtime Soak（含 Witness B Fix + Latest-Main Revalidation）— ACCEPTED / COMPLETE
 
-- 任务：`N01-7-R01`（Validation Harness Fix + Latest-Main Targeted Revalidation + Formal
-  Acceptance Re-run；**非**新实现、**非** production fix、**非**需求变更、**非** N01-8）。
+- 任务：`N01-7`｜2-hour Medium Runtime Soak → `N01-7-R01`｜Validation Harness Fix + Latest-Main
+  Targeted Revalidation + Formal Acceptance Re-run（**非**新实现、**非** production fix、
+  **非**需求变更、**非** N01-8）。收尾轮 = `N01-7 Final Human Acceptance + Main Integration +
+  Final Acceptance Closeout`（**非**新实现、**非**重新 Review）。
 - 关闭的 Review Finding：**R01**（F01 Witness B 原比较同一 plan，未真实建立 `Plan A != Plan B`
   ⇒ 属 HARNESS DEFECT）+ **R02**（latest-main baseline drift ⇒ targeted revalidation）。
-- Task Base / Accepted Main = `8a29306d904223f03408fe55538ba6cb05222f15`（起止两次 `ls-remote`
-  相同 ⇒ **main drift = NO**）；migration head = `20260913_0009`（单 head，`20260912_0006` 为 ancestor）。
-- branch = `n01-7-r01-witness-b-latest-main`；**未** merge `main`；**未** Human Accept；**未**启动 N01-8。
+- Task Base / Accepted Main before = `8a29306d904223f03408fe55538ba6cb05222f15`（起止两次
+  `ls-remote` 相同 ⇒ **main drift = NO**）；migration head = `20260913_0009`（单 head，
+  `20260912_0006` 为 ancestor）。
+- Human Acceptance = `CONFIRMED`；Independent Re-Review = `PASS WITH NON-BLOCKING FINDINGS —
+  READY FOR HUMAN ACCEPTANCE`；**Human-Accepted reviewed candidate =
+  `559f14be1fb89df58c11dfbea737eba4ac30421e`**（branch `n01-7-r01-witness-b-latest-main`，
+  远端同 SHA、未被改写）；集成方法 = `FAST-FORWARD ONLY`（`8a29306 → 559f14b → docs/state-only
+  Final Closeout Commit`，无 merge commit / squash / rebase / cherry-pick / force push）。
 - 关键证据：正式单轮 `total_active 7320.252 s`（pid `11720 → 768`，gap `6.375 s`）、**84/84 checks
   true**、reconnects 5 / stale 2 / checkpoints 7、Witness A/B/C 全成立（Plan A
   `plan_7d212f0ce53054e676a6e30c v1`、Plan B `plan_f9c9560e6a5d22319a490a28 v2`、判别 bid
-  `73884.46625` ∈ (StopA, StopB] → 决策 **HOLD**、counterfactual **STOP_LOSS**）、`production_code_unchanged = true`、
-  shared primary before == after。
-- 🚩 P2 Watch Item：`second_half_trend = 16.02 MiB/h > 5.0`（`finding = false` 仅因
-  `total_growth 14.043 MiB ≤ 64`）⇒ 延续为 **N01-8 Watch Item**；**不得**据此宣称内存无问题。
-- 详见 `dev_log/2026-09-13-n01-7-r01-witness-b-revalidation.md`；
-  原始证据在外部 `E:/Temp/n01-7-r01/`（**未**入库）。
+  `73884.46625` ∈ (StopA, StopB] → 决策 **HOLD**、counterfactual **STOP_LOSS**）、
+  `production_code_unchanged = true`、shared primary before == after、residue `0`。
+- Closeout 四项不变：`Production code changed = NO` / `Tests changed = NO` /
+  `Migration changed = NO` / `Runtime config changed = NO`；`alembic heads` 单 head
+  `20260913_0009`（`20260912_0006` / `20260913_0007` / `20260913_0008` 的 revision identity 未重写）。
+- 🚩 P2 Watch Item（**必须**留待 `N01-8`）：`N01-7-R01-RR-P2-01` — Memory Operational Watch /
+  Bounded Retention Growth；slope `≈16.02 MiB/h > 5.0`（`finding = false` 仅因
+  `total_growth ≈14.043 MiB ≤ 64`，按冻结 AND contract Acceptance Gate = PASS）⇒ **不得**据此
+  宣称内存无问题（禁写 `memory resolved` / `memory is fine` / `no memory concern`）。
+- ⚠️ `N01-7` / `N01-7-R01` Accepted **≠** `N01 overall` Accepted（仍 `NOT ACCEPTED`）；
+  `N01-8` / `Integrated Runtime Host` 仍 `NOT STARTED`。
+- 收尾后的下一步：**N01-7 CLOSED. Do not start N01-8 automatically.** 等待总进度窗口决定
+  `N01-8｜12-hour Extended Soak`。
+- 详见 `dev_log/2026-09-14-n01-7-final-acceptance-closeout.md` 与
+  `dev_log/2026-09-13-n01-7-r01-witness-b-revalidation.md`；原始证据在外部
+  `E:/Temp/n01-7-r01/`（**未**入库）。
 
 ### SE-ARCH-FIX-02 Outcome Revision Chain Scope — ACCEPTED / COMPLETE
 
@@ -276,7 +314,9 @@
   → Final Closeout Commit`；Accepted Main after = Final Closeout Commit；evidence branch
   `n01-6-15m-runtime-smoke` 保留、未删除。
 - Claim 边界：N01-6 验收**不等于** Continuous Runtime 全量验收 / 2h soak / 12h soak / 7×24 Runtime /
-  Integrated Runtime Host。`N01-7` / `N01-8` / Integrated Runtime Host 仍 `NOT STARTED`；
+  Integrated Runtime Host。`N01-7` / `N01-8` / Integrated Runtime Host 仍 `NOT STARTED`
+  （N01-6 收尾时；其后 `N01-7` 已于 2026-09-14 经 Human Acceptance 收编为 `ACCEPTED / COMPLETE`，
+  `N01-8` / Integrated Runtime Host 仍 `NOT STARTED`）；
   `N01 overall` 仍 `NOT ACCEPTED`。详见
   `dev_log/2026-09-12-n01-6-15m-runtime-smoke.md`。
 
@@ -304,7 +344,9 @@
   Integration Review = `PASS`。
 - 状态：**`N01-7-F01-I1 = INTEGRATED / VERIFIED`**（历史）；**`N01-7-F01 = ACCEPTED /
   COMPLETE`**（2026-09-13；已 fast-forward only 收编 `main`）；**`N01-7 = NOT STARTED / READY
-  TO RESUME`**；**`N01-8 = NOT STARTED`**；**`Integrated Runtime Host = NOT STARTED`**。
+  TO RESUME`**（N01-7-F01 收尾时；其后 `N01-7` / `N01-7-R01` 已于 2026-09-14 经 Human
+  Acceptance + Final Main Integration Closeout 转为 `ACCEPTED / COMPLETE`）；**`N01-8 = NOT
+  STARTED`**；**`Integrated Runtime Host = NOT STARTED`**。
 - accepted lineage（仅 fast-forward，无 merge commit / rebase / squash / force）：
   `ddf39f2 → 7c0ea7d → Final Acceptance Closeout Commit`。
 - `Production Code Changed after ddf39f2 = NO` / `Tests Changed = NO` / `Migration Changed = NO`;
