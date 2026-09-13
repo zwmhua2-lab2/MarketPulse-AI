@@ -37,6 +37,19 @@ One reference-data rule is frozen here (SE-02B-FIX-02):
 Deliberately absent (SE-02C / SE-02D): continuous quote-path capture, forward
 outcome calculation, MFE, MAE, forward returns, expectancy, family aggregation,
 KEEP / DOWNWEIGHT / KILL.
+
+One live-ingress admission rule is frozen here (SE-ARCH-FIX-01 R2):
+
+* a Forward admission proof is minted **only** by the live-ingress boundary
+  (:class:`ForwardAdmissionAuthority`, held by ``ScannerPipeline``) for the exact
+  ``MarketEvent`` that the current ``ingest(NormalizedMarketEvent)`` produced, and
+  only when that input's causal source time
+  (``NormalizedMarketEvent.event_time``) is at or after the live session start;
+* the durable repository holds :class:`ForwardAdmissionVerifier` instead, so it
+  can *verify* a proof but has no API to mint one for an arbitrary historical
+  event. A fresh process that redelivers an older input therefore fails closed:
+  coverage is lost instead of a stale input being republished as a new Forward
+  sample under a new clock or a newer BBO.
 """
 
 from __future__ import annotations
@@ -50,6 +63,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from marketpulse.clock import Clock
 from marketpulse.g2.models import (
     DirectionBias,
     EventType,
@@ -62,7 +76,7 @@ from marketpulse.g2.models import (
     SymbolState,
     SymbolStateRecord,
 )
-from marketpulse.market_data.models import DataQuality, MarketType
+from marketpulse.market_data.models import DataQuality, MarketType, NormalizedMarketEvent
 
 from .hashing import (
     CAPTURE_ANCHOR_HASH_DOMAIN,
@@ -71,6 +85,7 @@ from .hashing import (
     capture_anchor_orphan_hash,
     forward_admission_event_hash,
     forward_admission_proof_hash,
+    forward_admission_source_hash,
 )
 from .models import (
     BboObservation,
@@ -107,7 +122,7 @@ RUNTIME_CAPTURE_PAYLOAD_VERSION = "se02b-runtime-capture-v3"
 
 CAPTURE_ANCHOR_PAYLOAD_VERSION = "se-arch-fix-01-anchor-v1"
 CAPTURE_ANCHOR_HASH_VERSION = CAPTURE_ANCHOR_HASH_DOMAIN
-FORWARD_ADMISSION_PROOF_VERSION = "se-arch-fix-01-forward-admission-v1"
+FORWARD_ADMISSION_PROOF_VERSION = "se-arch-fix-01-forward-admission-v2"
 CAPTURE_ANCHOR_ORPHAN_VERSION = "se-arch-fix-01-orphan-v1"
 CAPTURE_ANCHOR_ORPHAN_HASH_VERSION = "se02-capture-anchor-orphan-hash-v1"
 
@@ -348,19 +363,76 @@ class EdgeCaptureContext(BaseModel):
         return ReferenceDataStatus.OK, quote
 
 
+def _admission_signature(
+    secret: bytes,
+    *,
+    session_id: str,
+    session_started_at: datetime,
+    event_id: str,
+    event_digest: str,
+    source_event_digest: str,
+    source_event_time: datetime,
+) -> str:
+    """HMAC over every causal fact a proof binds, in canonical form."""
+
+    return hmac.new(
+        secret,
+        canonical_bytes(
+            {
+                "proof_version": FORWARD_ADMISSION_PROOF_VERSION,
+                "session_id": session_id,
+                "session_started_at": session_started_at.isoformat(),
+                "event_id": event_id,
+                "event_digest": event_digest,
+                "source_event_digest": source_event_digest,
+                "source_event_time": source_event_time.isoformat(),
+            }
+        ),
+        "sha256",
+    ).hexdigest()
+
+
 class ForwardAdmissionProof(BaseModel):
-    """Opaque, event-bound proof minted only by the active live-ingress authority."""
+    """Opaque, causal-fact-bound proof minted only by the live-ingress session.
+
+    It binds the live session (``session_id`` plus the ``session_started_at`` the
+    session was created with), the exact event this ingest produced, and the
+    exact normalized input it came from -- including that input's own causal time,
+    which is the fact the session-start fence is decided on.
+    """
 
     model_config = ConfigDict(frozen=True)
 
     proof_version: str = Field(min_length=1)
     session_id: str = Field(min_length=1)
+    session_started_at: datetime
     event_id: str = Field(min_length=1)
     event_digest: str = Field(min_length=1)
+    source_event_digest: str = Field(min_length=1)
+    source_event_time: datetime
     signature: str = Field(min_length=1)
 
+    @field_validator("session_started_at", "source_event_time")
+    def _aware_admission_time(cls, value: datetime) -> datetime:
+        if value.tzinfo is None or value.utcoffset() is None:
+            raise ValueError("forward admission proof timestamps must be timezone-aware")
+        return value
+
+    def signed_payload(self) -> dict[str, str]:
+        """Every signed fact, without the signature itself."""
+
+        return {
+            "proof_version": self.proof_version,
+            "session_id": self.session_id,
+            "session_started_at": self.session_started_at.isoformat(),
+            "event_id": self.event_id,
+            "event_digest": self.event_digest,
+            "source_event_digest": self.source_event_digest,
+            "source_event_time": self.source_event_time.isoformat(),
+        }
+
     def payload(self) -> dict[str, str]:
-        return self.model_dump(mode="json")
+        return {**self.signed_payload(), "signature": self.signature}
 
     @property
     def proof_hash(self) -> str:
@@ -368,60 +440,117 @@ class ForwardAdmissionProof(BaseModel):
 
 
 class ForwardAdmissionAuthority:
-    """Process-local capability held by the live ingest boundary, not a caller string.
+    """Live-ingress-only capability that mints Forward admission proofs.
 
-    The random secret is intentionally never persisted. A proof from a previous
-    process cannot be minted or verified by a new authority, while a durable anchor
-    already records its prior proof as an immutable causal fact for recovery.
+    It is created by the actual live ingress (``ScannerPipeline``) from the same
+    trusted runtime clock that stamps the session, so:
+
+    * ``session_started_at`` can never be supplied -- and therefore rewound -- by
+      a repository caller;
+    * the random secret is never persisted, so a previous process cannot mint a
+      proof that a new process would accept.
+
+    ``issue`` is deliberately the only mint API and it *requires* the triggering
+    ``NormalizedMarketEvent``: there is no way to sign an arbitrary historical
+    ``MarketEvent`` from this boundary alone.
     """
 
-    def __init__(self, *, session_id: str | None = None, secret: bytes | None = None) -> None:
+    def __init__(
+        self, *, clock: Clock, session_id: str | None = None, secret: bytes | None = None
+    ) -> None:
         self.session_id = session_id or secrets.token_urlsafe(24)
+        self.session_started_at = clock.now()
+        if self.session_started_at.tzinfo is None or self.session_started_at.utcoffset() is None:
+            raise ValueError("live-ingress session start must be timezone-aware")
         self._secret = secret or secrets.token_bytes(32)
 
-    @staticmethod
-    def _event_digest(event: MarketEvent) -> str:
-        return forward_admission_event_hash(event.model_dump(mode="json"))
+    def issue(
+        self, *, source_event: NormalizedMarketEvent, event: MarketEvent
+    ) -> ForwardAdmissionProof | None:
+        """Mint a proof, or ``None`` when the input predates this live session.
 
-    def _signature(self, *, event_id: str, event_digest: str) -> str:
-        return hmac.new(
-            self._secret,
-            canonical_bytes(
-                {
-                    "proof_version": FORWARD_ADMISSION_PROOF_VERSION,
-                    "session_id": self.session_id,
-                    "event_id": event_id,
-                    "event_digest": event_digest,
-                }
-            ),
-            "sha256",
-        ).hexdigest()
+        The decision uses the input's own causal source time, never a receipt,
+        retry or restart time: an input that the exchange stamped before this
+        session began is a redelivery, and admitting it would forge a new Forward
+        sample out of an old market fact. Refusing it is the approved V1
+        trade-off (capture-coverage loss after restart/reconnect).
+        """
 
-    def admit_live_input(self, event: MarketEvent) -> ForwardAdmissionProof:
-        """Mint a proof when the active live-ingress boundary admits this exact input."""
-
-        event_digest = self._event_digest(event)
+        if source_event.event_time < self.session_started_at:
+            return None
+        event_digest = forward_admission_event_hash(event.model_dump(mode="json"))
+        source_event_digest = forward_admission_source_hash(source_event.model_dump(mode="json"))
         return ForwardAdmissionProof(
             proof_version=FORWARD_ADMISSION_PROOF_VERSION,
             session_id=self.session_id,
+            session_started_at=self.session_started_at,
             event_id=event.event_id,
             event_digest=event_digest,
-            signature=self._signature(event_id=event.event_id, event_digest=event_digest),
+            source_event_digest=source_event_digest,
+            source_event_time=source_event.event_time,
+            signature=_admission_signature(
+                self._secret,
+                session_id=self.session_id,
+                session_started_at=self.session_started_at,
+                event_id=event.event_id,
+                event_digest=event_digest,
+                source_event_digest=source_event_digest,
+                source_event_time=source_event.event_time,
+            ),
         )
 
+    def verifier(self) -> ForwardAdmissionVerifier:
+        """The verification-only capability the durable repository may hold."""
+
+        return ForwardAdmissionVerifier(
+            session_id=self.session_id,
+            session_started_at=self.session_started_at,
+            secret=self._secret,
+        )
+
+
+class ForwardAdmissionVerifier:
+    """Verification-only view of one live-ingress session.
+
+    It intentionally exposes no signing API, so a repository composed with it has
+    no public mint path: it can only accept or reject a proof the live ingress
+    already issued for this session and this exact event.
+    """
+
+    def __init__(
+        self, *, session_id: str, session_started_at: datetime, secret: bytes
+    ) -> None:
+        self.session_id = session_id
+        self.session_started_at = session_started_at
+        self._secret = secret
+
     def validates(self, proof: ForwardAdmissionProof, event: MarketEvent) -> bool:
-        """Verify ownership, session and exact event binding without consulting clocks."""
+        """Verify session ownership, the session-start fence and the exact event binding."""
 
         if proof.proof_version != FORWARD_ADMISSION_PROOF_VERSION:
             return False
         if proof.session_id != self.session_id or proof.event_id != event.event_id:
             return False
-        event_digest = self._event_digest(event)
+        if proof.session_started_at != self.session_started_at:
+            return False
+        # Defence in depth: even a correctly signed proof is refused when its own
+        # causal source time sits before the live session it claims to belong to.
+        if proof.source_event_time < self.session_started_at:
+            return False
+        event_digest = forward_admission_event_hash(event.model_dump(mode="json"))
         if not hmac.compare_digest(proof.event_digest, event_digest):
             return False
         return hmac.compare_digest(
             proof.signature,
-            self._signature(event_id=event.event_id, event_digest=event_digest),
+            _admission_signature(
+                self._secret,
+                session_id=proof.session_id,
+                session_started_at=proof.session_started_at,
+                event_id=proof.event_id,
+                event_digest=proof.event_digest,
+                source_event_digest=proof.source_event_digest,
+                source_event_time=proof.source_event_time,
+            ),
         )
 
 

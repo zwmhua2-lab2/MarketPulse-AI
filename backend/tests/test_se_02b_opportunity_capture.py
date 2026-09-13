@@ -14,6 +14,7 @@ aggregation is exercised here: those belong to SE-02C / SE-02D.
 """
 
 import asyncio
+import inspect
 from contextlib import asynccontextmanager, contextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -38,8 +39,11 @@ from marketpulse.db.models import (
 )
 from marketpulse.edge.capture import (
     DEFAULT_REFERENCE_MAX_AGE,
+    FORWARD_ADMISSION_PROOF_VERSION,
     EdgeCaptureContext,
     ForwardAdmissionAuthority,
+    ForwardAdmissionProof,
+    ForwardAdmissionVerifier,
     ReferenceQuote,
     build_capture_anchor,
     build_opportunity_evidence,
@@ -80,11 +84,13 @@ from marketpulse.g2.repository import (
     CaptureAdmissionOverloaded,
     CaptureAdmissionRejected,
     CaptureAnchorOrphan,
+    InMemoryG2Repository,
     PostgresG2Repository,
 )
-from marketpulse.g2.runtime import EventRuntime
+from marketpulse.g2.runtime import EventRuntime, ScannerPipeline
+from marketpulse.g2.scanner import OpportunityScanner
 from marketpulse.g2.strategy import StrategyEngine
-from marketpulse.market_data.models import DataQuality, MarketType
+from marketpulse.market_data.models import DataQuality, MarketType, NormalizedMarketEvent
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
@@ -350,13 +356,45 @@ def _context(
     )
 
 
-def _live_authority(*, session_id: str = "fixture-live-forward-session") -> ForwardAdmissionAuthority:
-    """A deterministic fixture-only live ingress capability for one process."""
+def _live_authority(
+    *,
+    session_id: str = "fixture-live-forward-session",
+    session_started_at: datetime = START,
+) -> ForwardAdmissionAuthority:
+    """A deterministic fixture-only live ingress capability for one process.
+
+    ``session_started_at`` is taken from the authority's own runtime clock, exactly
+    as the production live ingress does; a caller cannot pass a timestamp.
+    """
 
     return ForwardAdmissionAuthority(
+        clock=ReplayClock(session_started_at),
         session_id=session_id,
         secret=b"se-arch-fix-01-fixture-live-ingress-secret",
     )
+
+
+def _live_input(event: MarketEvent, *, at: datetime | None = None) -> NormalizedMarketEvent:
+    """The normalized live-ingress input this G2 event was generated from."""
+
+    return NormalizedMarketEvent(
+        exchange="OKX",
+        base_asset="BTC",
+        quote_asset="USDT",
+        market_type=event.market_type,
+        instrument_id=event.instrument_id,
+        event_time=event.event_time if at is None else at,
+        received_time=event.received_time,
+        source="fixture-live-ingress",
+    )
+
+
+def _admitted(
+    authority: ForwardAdmissionAuthority, event: MarketEvent
+) -> ForwardAdmissionProof | None:
+    """Mint a proof exactly as ``ScannerPipeline.issue_admission_proof`` does."""
+
+    return authority.issue(source_event=_live_input(event), event=event)
 
 
 def _facts(
@@ -435,8 +473,7 @@ async def _persist(
             if quotes_by_instrument is None
             else lambda instrument_id: quotes_by_instrument.get(instrument_id)
         ),
-        forward_admission_authority=authority,
-        forward_admission_proof_for=authority.admit_live_input,
+        forward_admission_verifier=authority.verifier(),
     )
     precondition = await repository.get_state(facts["event"].instrument_id)
     return await repository.persist(
@@ -451,6 +488,7 @@ async def _persist(
             instrument_id=facts["event"].instrument_id,
             symbol=facts["event"].symbol,
         ),
+        forward_admission_proof=_admitted(authority, facts["event"]),
     )
 
 
@@ -1200,15 +1238,20 @@ async def _runtime_scenario(url: str) -> dict[str, object]:
             sessions,
             capture=_context(),
             reference_quote_for=lambda _instrument_id: _quote(),
-            forward_admission_authority=authority,
-            forward_admission_proof_for=authority.admit_live_input,
+            forward_admission_verifier=authority.verifier(),
         )
         runtime = EventRuntime(repository, worker_count=1)
         await runtime.start()
         try:
             features = _features()
-            first = await runtime.publish(_event(event_id="evt-runtime-1", version=0), features)
-            second = await runtime.publish(_event(event_id="evt-runtime-2", version=1), features)
+            first_event = _event(event_id="evt-runtime-1", version=0)
+            second_event = _event(event_id="evt-runtime-2", version=1)
+            first = await runtime.publish(
+                first_event, features, forward_admission_proof=_admitted(authority, first_event)
+            )
+            second = await runtime.publish(
+                second_event, features, forward_admission_proof=_admitted(authority, second_event)
+            )
         finally:
             await runtime.stop()
         async with sessions() as session:
@@ -1586,8 +1629,7 @@ async def _stable_anchor_retry_scenario(url: str) -> dict[str, object]:
             sessions,
             capture=_context(),
             reference_quote_for=lambda _instrument_id: quotes[0],
-            forward_admission_authority=authority,
-            forward_admission_proof_for=authority.admit_live_input,
+            forward_admission_verifier=authority.verifier(),
         )
         original_capture = g2_repository_module.capture_opportunity
 
@@ -1605,6 +1647,7 @@ async def _stable_anchor_retry_scenario(url: str) -> dict[str, object]:
                     original_facts["candidates"],
                     original_facts["features"],
                     precondition_state=precondition,
+                    forward_admission_proof=_admitted(authority, original_facts["event"]),
                 )
             except RuntimeError as error:
                 assert str(error) == "injected formal transaction failure"
@@ -1670,8 +1713,7 @@ async def _fresh_repository_resume_scenario(url: str) -> dict[str, int]:
             reference_quote_for=lambda _instrument_id: _quote(
                 source="okx-bbo-tbt", source_event_time=START, source_sequence=101
             ),
-            forward_admission_authority=authority,
-            forward_admission_proof_for=authority.admit_live_input,
+            forward_admission_verifier=authority.verifier(),
         )
         original_capture = g2_repository_module.capture_opportunity
 
@@ -1684,6 +1726,7 @@ async def _fresh_repository_resume_scenario(url: str) -> dict[str, int]:
                 await process_a.persist(
                     facts["event"], facts["timeline"], facts["state"], facts["transition"],
                     facts["candidates"], facts["features"], precondition_state=precondition,
+                    forward_admission_proof=_admitted(authority, facts["event"]),
                 )
             except RuntimeError:
                 pass
@@ -1737,7 +1780,7 @@ async def _anchor_admission_scenario(url: str) -> dict[str, bool]:
             event=facts["event"], timeline=facts["timeline"], state=facts["state"],
             transition=facts["transition"], candidates=facts["candidates"],
             observation=facts["features"], context=admitted_context,
-            forward_admission_proof=authority.admit_live_input(facts["event"]), reference_quote=None,
+            forward_admission_proof=_admitted(authority, facts["event"]), reference_quote=None,
         )
         assert anchor is not None
         async with sessions() as session, session.begin():
@@ -1751,7 +1794,7 @@ async def _anchor_admission_scenario(url: str) -> dict[str, bool]:
             candidates=_candidates(facts["features"], facts["event"], facts["state"].state_version,
                                    created_at=START + timedelta(seconds=1)),
             observation=facts["features"], context=admitted_context,
-            forward_admission_proof=authority.admit_live_input(facts["event"]), reference_quote=None,
+            forward_admission_proof=_admitted(authority, facts["event"]), reference_quote=None,
         )
         assert changed is not None
         async with sessions() as session, session.begin():
@@ -1785,8 +1828,7 @@ async def _same_process_anchor_failure_scenario(url: str) -> dict[str, object]:
             sessions,
             capture=_context(),
             reference_quote_for=lambda _instrument_id: quotes[0],
-            forward_admission_authority=authority,
-            forward_admission_proof_for=authority.admit_live_input,
+            forward_admission_verifier=authority.verifier(),
         )
         original_record = g2_repository_module.record_bbo_observation
 
@@ -1800,6 +1842,7 @@ async def _same_process_anchor_failure_scenario(url: str) -> dict[str, object]:
                     original_facts["event"], original_facts["timeline"], original_facts["state"],
                     original_facts["transition"], original_facts["candidates"], original_facts["features"],
                     precondition_state=precondition,
+                    forward_admission_proof=_admitted(authority, original_facts["event"]),
                 )
             except RuntimeError as error:
                 assert str(error) == "injected anchor write failure"
@@ -1820,6 +1863,7 @@ async def _same_process_anchor_failure_scenario(url: str) -> dict[str, object]:
             later_facts["event"], later_facts["timeline"], later_facts["state"],
             later_facts["transition"], later_facts["candidates"], later_facts["features"],
             precondition_state=precondition,
+            forward_admission_proof=_admitted(authority, later_facts["event"]),
         )
         async with sessions() as session:
             evidence = (await session.scalars(select(EdgeOpportunityEvidenceRecord))).one()
@@ -1852,8 +1896,7 @@ async def _orphan_anchor_scenario(url: str) -> dict[str, object]:
         process_a = PostgresG2Repository(
             sessions,
             capture=_context(),
-            forward_admission_authority=authority,
-            forward_admission_proof_for=authority.admit_live_input,
+            forward_admission_verifier=authority.verifier(),
         )
         original_capture = g2_repository_module.capture_opportunity
 
@@ -1866,6 +1909,7 @@ async def _orphan_anchor_scenario(url: str) -> dict[str, object]:
                 await process_a.persist(
                     facts["event"], facts["timeline"], facts["state"], facts["transition"],
                     facts["candidates"], facts["features"], precondition_state=precondition,
+                    forward_admission_proof=_admitted(authority, facts["event"]),
                 )
             except RuntimeError:
                 pass
@@ -1894,22 +1938,83 @@ async def _orphan_anchor_scenario(url: str) -> dict[str, object]:
 
 
 def test_old_redelivery_after_pre_anchor_crash_is_not_admitted_by_a_new_session():
-    """A new process must not turn an arbitrary old event into live Forward input."""
+    """RRF-01 §12 adversarial: a *later, working* session still refuses an old input.
+
+    Process A opens a live session, freezes no durable anchor (its anchor write
+    fails) and exits with nothing committed. Process B then opens a later live
+    session with its own session id and its own secret and is handed that same old
+    event -- with a real issuing capability, so the refusal has to come from the
+    causal session-start fence rather than from a test that withholds a proof.
+    Process A's old proof is replayed too, to prove cross-session reuse fails.
+    """
 
     with _capture_database("redelivery_without_anchor") as url:
         observed = asyncio.run(_old_redelivery_scenario(url))
 
-    assert observed == {"redelivery_admitted": False, "anchors": 0, "evidence": 0}
+    assert observed == {
+        "process_a_proof_issued": True,
+        "process_a_anchor_write_failed": True,
+        "process_a_anchors": 0,
+        "process_a_evidence": 0,
+        "process_b_session_started_at": START + timedelta(minutes=5),
+        "process_b_issued_for_old_input": False,
+        "process_b_issued_for_new_input": True,
+        "redelivery_without_proof": "CaptureAdmissionRejected",
+        "redelivery_with_replayed_proof": "CaptureAdmissionRejected",
+        "anchors": 0,
+        "evidence": 0,
+    }
 
 
 async def _old_redelivery_scenario(url: str) -> dict[str, object]:
-    facts = _facts(event_id="evt-before-anchor-crash")
-    authority = _live_authority(session_id="new-process-live-session")
+    old_facts = _facts(event_id="evt-before-anchor-crash")
+    fresh_facts = _facts(event_id="evt-after-session-start", at=START + timedelta(minutes=6))
+    session_b_start = START + timedelta(minutes=5)
+    precondition = SymbolStateRecord(instrument_id=INSTRUMENT, symbol=INSTRUMENT)
     async with _sessions(url) as sessions:
-        # The event is a redelivery after a process died *before* it durable-wrote
-        # an anchor. The new BBO/session may observe it, but only the live-ingress
-        # boundary can issue proof and it refuses this old delivery.
-        repository = PostgresG2Repository(
+        # --- Process A: live session A issues a proof; its anchor write fails. ---
+        process_a = _live_authority(session_id="session-a", session_started_at=START)
+        process_a_proof = _admitted(process_a, old_facts["event"])
+        repository_a = PostgresG2Repository(
+            sessions,
+            capture=_context(),
+            reference_quote_for=lambda _instrument_id: _quote(),
+            forward_admission_verifier=process_a.verifier(),
+        )
+        original_record = g2_repository_module.record_bbo_observation
+
+        async def fail_anchor_write(*_args, **_kwargs):
+            raise RuntimeError("injected anchor write failure")
+
+        g2_repository_module.record_bbo_observation = fail_anchor_write
+        try:
+            try:
+                await repository_a.persist(
+                    old_facts["event"],
+                    old_facts["timeline"],
+                    old_facts["state"],
+                    old_facts["transition"],
+                    old_facts["candidates"],
+                    old_facts["features"],
+                    precondition_state=precondition,
+                    forward_admission_proof=process_a_proof,
+                )
+            except RuntimeError:
+                process_a_anchor_write_failed = True
+            else:
+                process_a_anchor_write_failed = False
+        finally:
+            g2_repository_module.record_bbo_observation = original_record
+
+        async with sessions() as session:
+            process_a_anchors = await _count(session, EdgeOpportunityCaptureAnchorRecord)
+            process_a_evidence = await _count(session, EdgeOpportunityEvidenceRecord)
+
+        # --- Process B: a *later* session with a brand-new id and secret. ---
+        process_b = _live_authority(
+            session_id="session-b", session_started_at=session_b_start
+        )
+        repository_b = PostgresG2Repository(
             sessions,
             capture=_context(),
             reference_quote_for=lambda _instrument_id: _quote(
@@ -1919,8 +2024,232 @@ async def _old_redelivery_scenario(url: str) -> dict[str, object]:
                 source_event_time=START + timedelta(seconds=10),
                 source_sequence=999,
             ),
-            forward_admission_authority=authority,
-            forward_admission_proof_for=lambda _event: None,
+            forward_admission_verifier=process_b.verifier(),
+        )
+        rejection = None
+        replayed = None
+        for proof, label in ((None, "fresh"), (process_a_proof, "replayed")):
+            try:
+                await repository_b.persist(
+                    old_facts["event"],
+                    old_facts["timeline"],
+                    old_facts["state"],
+                    old_facts["transition"],
+                    old_facts["candidates"],
+                    old_facts["features"],
+                    precondition_state=precondition,
+                    forward_admission_proof=proof,
+                )
+            except CaptureAdmissionRejected:
+                if label == "fresh":
+                    rejection = "CaptureAdmissionRejected"
+                else:
+                    replayed = "CaptureAdmissionRejected"
+            else:
+                raise AssertionError(f"old redelivery must be refused ({label} proof)")
+
+        async with sessions() as session:
+            return {
+                "process_a_proof_issued": process_a_proof is not None,
+                "process_a_anchor_write_failed": process_a_anchor_write_failed,
+                "process_a_anchors": process_a_anchors,
+                "process_a_evidence": process_a_evidence,
+                "process_b_session_started_at": session_b_start,
+                "process_b_issued_for_old_input": _admitted(process_b, old_facts["event"])
+                is not None,
+                "process_b_issued_for_new_input": _admitted(process_b, fresh_facts["event"])
+                is not None,
+                "redelivery_without_proof": rejection,
+                "redelivery_with_replayed_proof": replayed,
+                "anchors": await _count(session, EdgeOpportunityCaptureAnchorRecord),
+                "evidence": await _count(session, EdgeOpportunityEvidenceRecord),
+            }
+
+
+def test_live_session_admits_a_genuinely_new_input_and_binds_its_causal_facts():
+    """RRF-01 positive: an input inside the session is admitted with exact bindings."""
+
+    authority = _live_authority(session_id="session-positive")
+    event = _facts(event_id="evt-live-positive")["event"]
+    proof = _admitted(authority, event)
+
+    assert proof is not None
+    assert proof.proof_version == FORWARD_ADMISSION_PROOF_VERSION
+    assert proof.session_id == "session-positive"
+    assert proof.session_started_at == START
+    assert proof.event_id == event.event_id
+    assert proof.source_event_time == event.event_time
+    assert proof.source_event_digest
+    assert proof.source_event_digest != proof.event_digest
+    assert authority.verifier().validates(proof, event) is True
+    # A proof is bound to the exact event object, not to its identity alone.
+    assert (
+        authority.verifier().validates(proof, event.model_copy(update={"strength": 0.1}))
+        is False
+    )
+
+
+def test_boundary_input_before_session_start_fails_closed():
+    """RRF-01 §8: received-now is not enough -- the causal source time decides."""
+
+    authority = _live_authority(
+        session_id="session-boundary", session_started_at=START + timedelta(seconds=1)
+    )
+    event = _facts(event_id="evt-boundary")["event"]  # source time == START
+
+    assert event.event_time < authority.session_started_at
+    # Even handed the exact live ingress object, nothing can be minted.
+    assert authority.issue(source_event=_live_input(event), event=event) is None
+    # A source whose own event time is inside the session is admitted instead.
+    later = _facts(event_id="evt-boundary-later", at=START + timedelta(seconds=2))["event"]
+    assert authority.issue(source_event=_live_input(later), event=later) is not None
+
+
+def test_forward_admission_proof_rejects_tampering_of_any_bound_causal_fact():
+    """RRF-01 §13 tamper: changing any signed fact invalidates the proof."""
+
+    authority = _live_authority(session_id="session-tamper")
+    event = _facts(event_id="evt-proof-tamper")["event"]
+    proof = _admitted(authority, event)
+    assert proof is not None
+    verifier = authority.verifier()
+    assert verifier.validates(proof, event) is True
+
+    for field, value in (
+        ("proof_version", "se-arch-fix-01-forward-admission-v1"),
+        ("session_id", "another-session"),
+        ("session_started_at", START - timedelta(minutes=1)),
+        ("event_id", "another-event"),
+        ("event_digest", "0" * 64),
+        ("source_event_digest", "1" * 64),
+        ("source_event_time", START - timedelta(minutes=1)),
+        ("signature", "f" * 64),
+    ):
+        tampered = proof.model_copy(update={field: value})
+        assert verifier.validates(tampered, event) is False, field
+
+    # A proof belongs to exactly one live session: another session id, another
+    # secret, or another session start all fail closed.
+    assert (
+        _live_authority(session_id="another-session").verifier().validates(proof, event) is False
+    )
+    assert (
+        ForwardAdmissionAuthority(
+            clock=ReplayClock(START),
+            session_id="session-tamper",
+            secret=b"a-different-live-ingress-secret",
+        )
+        .verifier()
+        .validates(proof, event)
+        is False
+    )
+
+
+def test_repository_exposes_no_forward_admission_mint_path():
+    """RRF-01 §13: the durable repository can verify a proof, never mint one."""
+
+    parameters = inspect.signature(PostgresG2Repository.__init__).parameters
+    assert "forward_admission_verifier" in parameters
+    assert "forward_admission_proof_for" not in parameters
+    assert "forward_admission_authority" not in parameters
+
+    # The verifier the repository holds has no signing API at all.
+    assert not hasattr(ForwardAdmissionVerifier, "issue")
+    assert not hasattr(ForwardAdmissionVerifier, "admit_live_input")
+
+    source = Path(g2_repository_module.__file__).read_text(encoding="utf-8")
+    assert "admit_live_input" not in source
+    assert ".issue(" not in source
+
+    # And a proof is required per persist rather than produced by the repository.
+    assert "forward_admission_proof" in inspect.signature(
+        PostgresG2Repository.persist
+    ).parameters
+
+
+def test_historical_replay_neither_mints_nor_accepts_a_forward_admission_proof():
+    """RRF-01 §11: replay is not live Forward ingress."""
+
+    facts = _facts(event_id="evt-replay-separation")
+    event = facts["event"]
+
+    # 1. A replay pipeline holds no issuer, so it can mint nothing at all.
+    replay_pipeline = ScannerPipeline(
+        OpportunityScanner(), EventRuntime(InMemoryG2Repository()), clock=ReplayClock(START)
+    )
+    assert replay_pipeline.forward_admission_authority is None
+    assert replay_pipeline.issue_admission_proof(_live_input(event), event) is None
+
+    # 2. Even a genuine live proof cannot make a replay repository write a Forward
+    #    anchor: HISTORICAL_REPLAY never enters the Forward admission path.
+    with _capture_database("replay_separation") as url:
+        observed = asyncio.run(_replay_separation_scenario(url, facts))
+
+    assert observed == {"persisted": 1, "anchors": 0, "historical_evidence": 1}
+
+
+async def _replay_separation_scenario(url: str, facts: dict[str, object]) -> dict[str, int]:
+    authority = _live_authority(session_id="session-replay-check")
+    proof = _admitted(authority, facts["event"])
+    assert proof is not None
+    async with _sessions(url) as sessions:
+        repository = PostgresG2Repository(
+            sessions,
+            capture=EdgeCaptureContext(
+                source_type=EvidenceSource.HISTORICAL_REPLAY,
+                source_identity="replay-source",
+                source_manifest_id="manifest-replay",
+            ),
+            reference_quote_for=lambda _instrument_id: _quote(),
+            forward_admission_verifier=authority.verifier(),
+        )
+        persisted = await repository.persist(
+            facts["event"],
+            facts["timeline"],
+            facts["state"],
+            facts["transition"],
+            facts["candidates"],
+            facts["features"],
+            precondition_state=SymbolStateRecord(
+                instrument_id=INSTRUMENT, symbol=INSTRUMENT
+            ),
+            forward_admission_proof=proof,
+        )
+        async with sessions() as session:
+            return {
+                "persisted": int(persisted),
+                "anchors": await _count(session, EdgeOpportunityCaptureAnchorRecord),
+                "historical_evidence": int(
+                    await session.scalar(
+                        select(func.count())
+                        .select_from(EdgeOpportunityEvidenceRecord)
+                        .where(
+                            EdgeOpportunityEvidenceRecord.source_type
+                            == "HISTORICAL_REPLAY"
+                        )
+                    )
+                ),
+            }
+
+
+def test_forward_paper_admission_is_rejected_when_no_proof_is_supplied():
+    """RRF-01: with a verifier configured, a missing proof still fails closed."""
+
+    with _capture_database("missing_proof") as url:
+        observed = asyncio.run(_missing_proof_scenario(url))
+
+    assert observed == {"rejected": "CaptureAdmissionRejected", "anchors": 0, "evidence": 0}
+
+
+async def _missing_proof_scenario(url: str) -> dict[str, object]:
+    facts = _facts(event_id="evt-missing-proof")
+    authority = _live_authority()
+    async with _sessions(url) as sessions:
+        repository = PostgresG2Repository(
+            sessions,
+            capture=_context(),
+            reference_quote_for=lambda _instrument_id: _quote(),
+            forward_admission_verifier=authority.verifier(),
         )
         try:
             await repository.persist(
@@ -1935,12 +2264,12 @@ async def _old_redelivery_scenario(url: str) -> dict[str, object]:
                 ),
             )
         except CaptureAdmissionRejected:
-            redelivery_admitted = False
+            rejected = "CaptureAdmissionRejected"
         else:
-            redelivery_admitted = True
+            rejected = None
         async with sessions() as session:
             return {
-                "redelivery_admitted": redelivery_admitted,
+                "rejected": rejected,
                 "anchors": await _count(session, EdgeOpportunityCaptureAnchorRecord),
                 "evidence": await _count(session, EdgeOpportunityEvidenceRecord),
             }
@@ -1997,7 +2326,7 @@ async def _anchor_tamper_scenario(url: str) -> dict[str, bool]:
         candidates=facts["candidates"],
         observation=facts["features"],
         context=_context(),
-        forward_admission_proof=authority.admit_live_input(facts["event"]),
+        forward_admission_proof=_admitted(authority, facts["event"]),
         reference_quote=None,
     )
     assert anchor is not None
@@ -2042,7 +2371,7 @@ async def _anchor_concurrency_scenario(url: str) -> dict[str, object]:
         candidates=facts["candidates"],
         observation=facts["features"],
         context=_context(),
-        forward_admission_proof=authority.admit_live_input(facts["event"]),
+        forward_admission_proof=_admitted(authority, facts["event"]),
         reference_quote=None,
     )
     assert anchor is not None
@@ -2059,7 +2388,7 @@ async def _anchor_concurrency_scenario(url: str) -> dict[str, object]:
             source_identity="another-valid-source",
             source_manifest_id="manifest-se02b",
         ),
-        forward_admission_proof=authority.admit_live_input(facts["event"]),
+        forward_admission_proof=_admitted(authority, facts["event"]),
         reference_quote=None,
     )
     assert conflicting is not None
@@ -2099,8 +2428,7 @@ async def _anchor_capacity_scenario(url: str) -> dict[str, object]:
             sessions,
             capture=_context(),
             reference_quote_for=lambda _instrument_id: _quote(),
-            forward_admission_authority=authority,
-            forward_admission_proof_for=authority.admit_live_input,
+            forward_admission_verifier=authority.verifier(),
             pending_capture_anchor_capacity=1,
         )
         original_record = g2_repository_module.record_bbo_observation
@@ -2114,6 +2442,7 @@ async def _anchor_capacity_scenario(url: str) -> dict[str, object]:
                 await repository.persist(
                     first["event"], first["timeline"], first["state"], first["transition"],
                     first["candidates"], first["features"], precondition_state=precondition,
+                    forward_admission_proof=_admitted(authority, first["event"]),
                 )
             except RuntimeError:
                 first_failed = True
@@ -2125,6 +2454,7 @@ async def _anchor_capacity_scenario(url: str) -> dict[str, object]:
             await repository.persist(
                 second["event"], second["timeline"], second["state"], second["transition"],
                 second["candidates"], second["features"], precondition_state=precondition,
+                forward_admission_proof=_admitted(authority, second["event"]),
             )
         except CaptureAdmissionOverloaded:
             overloaded = True

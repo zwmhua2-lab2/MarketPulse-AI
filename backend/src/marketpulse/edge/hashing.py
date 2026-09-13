@@ -41,6 +41,7 @@ ATTRIBUTION_PAYLOAD_HASH_DOMAIN = "se02-attribution-payload-hash-v1"
 CAPTURE_ANCHOR_HASH_DOMAIN = "se02-capture-anchor-hash-v1"
 CAPTURE_ANCHOR_ORPHAN_HASH_DOMAIN = "se02-capture-anchor-orphan-hash-v1"
 FORWARD_ADMISSION_EVENT_HASH_DOMAIN = "se02-forward-admission-event-hash-v1"
+FORWARD_ADMISSION_SOURCE_HASH_DOMAIN = "se02-forward-admission-source-hash-v1"
 FORWARD_ADMISSION_PROOF_HASH_DOMAIN = "se02-forward-admission-proof-hash-v1"
 
 
@@ -150,6 +151,17 @@ def forward_admission_event_hash(payload: Mapping[str, Any]) -> str:
     """Digest of the exact G2 event a live ingress capability admits."""
 
     return canonical_digest(FORWARD_ADMISSION_EVENT_HASH_DOMAIN, dict(payload))
+
+
+def forward_admission_source_hash(payload: Mapping[str, Any]) -> str:
+    """Digest of the exact normalized live-ingress input that produced that event.
+
+    It is a separate domain from ``forward_admission_event_hash`` so a generated
+    ``MarketEvent`` and the ``NormalizedMarketEvent`` it came from can never be
+    substituted for one another inside a proof.
+    """
+
+    return canonical_digest(FORWARD_ADMISSION_SOURCE_HASH_DOMAIN, dict(payload))
 
 
 def forward_admission_proof_hash(payload: Mapping[str, Any]) -> str:

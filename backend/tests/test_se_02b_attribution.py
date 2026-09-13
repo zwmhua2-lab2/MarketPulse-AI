@@ -101,7 +101,7 @@ from marketpulse.g3.service import (
     persist_trade_plan,
     stable_id,
 )
-from marketpulse.market_data.models import DataQuality, MarketType
+from marketpulse.market_data.models import DataQuality, MarketType, NormalizedMarketEvent
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
@@ -348,7 +348,10 @@ async def _captured_opportunity(factory, *, event_id: str = "evt-attr-1"):
         source="fixture-bbo",
         source_sequence=1,
     )
+    # The issuer belongs to the live-ingress boundary and is stamped by its own
+    # runtime clock; the durable repository below only receives the verifier.
     authority = ForwardAdmissionAuthority(
+        clock=ReplayClock(NOW),
         session_id="fixture-live-forward-session",
         secret=b"se-arch-fix-01-attribution-live-ingress-secret",
     )
@@ -356,8 +359,7 @@ async def _captured_opportunity(factory, *, event_id: str = "evt-attr-1"):
         factory,
         capture=context,
         reference_quote_for=lambda _instrument_id: quote,
-        forward_admission_authority=authority,
-        forward_admission_proof_for=authority.admit_live_input,
+        forward_admission_verifier=authority.verifier(),
     )
     precondition = await repository.get_state(INSTRUMENT)
     await repository.persist(
@@ -369,6 +371,19 @@ async def _captured_opportunity(factory, *, event_id: str = "evt-attr-1"):
         features,
         precondition_state=precondition
         or SymbolStateRecord(instrument_id=INSTRUMENT, symbol=INSTRUMENT),
+        forward_admission_proof=authority.issue(
+            source_event=NormalizedMarketEvent(
+                exchange="OKX",
+                base_asset="BTC",
+                quote_asset="USDT",
+                market_type=event.market_type,
+                instrument_id=event.instrument_id,
+                event_time=event.event_time,
+                received_time=event.received_time,
+                source="fixture-live-ingress",
+            ),
+            event=event,
+        ),
     )
     candidate = _breakout(candidates)
     async with factory() as session:

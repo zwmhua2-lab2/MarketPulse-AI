@@ -4,7 +4,7 @@ import asyncio
 import itertools
 from collections import deque
 from dataclasses import dataclass
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 from marketpulse.clock import Clock
 from marketpulse.market_data.models import (
@@ -30,6 +30,9 @@ from .state_machine import SymbolStateManager
 from .strategy import StrategyEngine
 from .timeline import SignalLifecycle
 
+if TYPE_CHECKING:
+    from marketpulse.edge.capture import ForwardAdmissionAuthority, ForwardAdmissionProof
+
 
 class G2Repository(Protocol):
     async def get_state(self, instrument_id: str) -> SymbolStateRecord | None: ...
@@ -44,6 +47,7 @@ class G2Repository(Protocol):
         observation: FeatureSnapshot,
         *,
         precondition_state: SymbolStateRecord | None = None,
+        forward_admission_proof: ForwardAdmissionProof | None = None,
     ) -> bool: ...
 
     async def resume_capture_anchor(
@@ -67,6 +71,7 @@ class _QueuedEvent:
     features: FeatureSnapshot
     lifecycle_action: LifecycleAction
     future: asyncio.Future[ApplyOutcome]
+    forward_admission_proof: ForwardAdmissionProof | None = None
 
 
 class EventRuntime:
@@ -122,6 +127,8 @@ class EventRuntime:
         event: MarketEvent,
         features: FeatureSnapshot,
         lifecycle_action: LifecycleAction = LifecycleAction.START,
+        *,
+        forward_admission_proof: ForwardAdmissionProof | None = None,
     ) -> ApplyOutcome:
         if event.event_id in self._dedupe:
             return ApplyOutcome(
@@ -142,7 +149,9 @@ class EventRuntime:
                 (
                     -event.priority,
                     next(self._counter),
-                    _QueuedEvent(event, features, lifecycle_action, future),
+                    _QueuedEvent(
+                        event, features, lifecycle_action, future, forward_admission_proof
+                    ),
                 )
             )
             queued = True
@@ -168,7 +177,10 @@ class EventRuntime:
                 lock = self._locks.setdefault(queued.event.instrument_id, asyncio.Lock())
                 async with lock:
                     outcome = await self._apply(
-                        queued.event, queued.features, queued.lifecycle_action
+                        queued.event,
+                        queued.features,
+                        queued.lifecycle_action,
+                        queued.forward_admission_proof,
                     )
                 if outcome.persisted:
                     self._remember_deduped(queued.event.event_id)
@@ -192,7 +204,11 @@ class EventRuntime:
         self._dedupe_fifo.append(event_id)
 
     async def _apply(
-        self, event: MarketEvent, features: FeatureSnapshot, action: LifecycleAction
+        self,
+        event: MarketEvent,
+        features: FeatureSnapshot,
+        action: LifecycleAction,
+        forward_admission_proof: ForwardAdmissionProof | None = None,
     ) -> ApplyOutcome:
         await self.current_state(event.instrument_id, event.symbol)
         precondition_state = self.state_manager.snapshot_for(event.instrument_id, event.symbol)
@@ -238,6 +254,7 @@ class EventRuntime:
             candidates,
             features,
             precondition_state=precondition_state,
+            forward_admission_proof=forward_admission_proof,
         )
         if persisted:
             self.state_manager.commit(state)
@@ -307,6 +324,7 @@ class ScannerPipeline:
         rolling: RollingFeatureEngine | None = None,
         clock: Clock | None = None,
         trade_dedupe_capacity: int = 8192,
+        forward_admission_authority: ForwardAdmissionAuthority | None = None,
     ) -> None:
         if trade_dedupe_capacity <= 0:
             raise ValueError("trade_dedupe_capacity must be positive")
@@ -315,6 +333,10 @@ class ScannerPipeline:
         self.rolling = rolling or RollingFeatureEngine()
         self.clock = clock or scanner.clock
         self.lifecycle = SignalLifecycle()
+        # The forward admission issuer belongs to this live-ingress boundary. It is
+        # deliberately optional: a historical replay pipeline never receives one,
+        # so it can never mint a Forward admission proof.
+        self.forward_admission_authority = forward_admission_authority
         self._btc_returns: dict[str, float] = {}
         self._trade_dedupe: set[tuple[str, str, str, str]] = set()
         self._trade_dedupe_fifo: deque[tuple[str, str, str, str]] = deque()
@@ -380,7 +402,12 @@ class ScannerPipeline:
                 await self.runtime.current_state(features.instrument_id, features.symbol)
             ).state_version
             versioned_event = event.model_copy(update={"state_version": current_version})
-            outcome = await self.runtime.publish(versioned_event, features, action)
+            outcome = await self.runtime.publish(
+                versioned_event,
+                features,
+                action,
+                forward_admission_proof=self.issue_admission_proof(market_event, versioned_event),
+            )
             outcomes.append(outcome)
             if outcome.persisted:
                 if action is LifecycleAction.NORMALIZED:
@@ -395,6 +422,22 @@ class ScannerPipeline:
         if trade_key is not None:
             self._remember_trade(trade_key)
         return outcomes
+
+    def issue_admission_proof(
+        self, source_event: NormalizedMarketEvent, event: MarketEvent
+    ) -> ForwardAdmissionProof | None:
+        """Mint the live-ingress proof for the exact event this ``ingest`` produced.
+
+        The proof binds the ``NormalizedMarketEvent`` this ``ingest`` call received
+        -- so a lifecycle-derived event carries the same causal input identity --
+        and ``None`` means the input predates this live session. That ``None``
+        fails closed downstream: a redelivered old input simply produces no Forward
+        anchor instead of being re-stamped as new live Forward input.
+        """
+
+        if self.forward_admission_authority is None:
+            return None
+        return self.forward_admission_authority.issue(source_event=source_event, event=event)
 
     def _remember_trade(self, trade_key: tuple[str, str, str, str]) -> None:
         """Remember successful inputs in FIFO arrival order without refreshing duplicate hits."""

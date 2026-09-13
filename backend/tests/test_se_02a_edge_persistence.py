@@ -1155,3 +1155,182 @@ def test_no_disposable_edge_database_is_left_behind():
             await engine.dispose()
 
     assert asyncio.run(scenario()) == []
+
+
+# --- RRF-02 reference invariant migration boundary ---------------------------------------
+
+_ANCHOR_TABLE = "edge_opportunity_capture_anchors"
+_ORPHAN_TABLE = "edge_opportunity_capture_anchor_orphans"
+_REFERENCE_CONSTRAINT = "ck_edge_capture_anchor_reference_bbo_consistency"
+_FIX_HEAD = "20260913_0008"
+_FIX_PARENT = "20260913_0007"
+_ADMISSION_COLUMNS = frozenset(
+    {
+        "forward_admission_session_id",
+        "forward_admission_event_digest",
+        "forward_admission_proof_hash",
+    }
+)
+
+
+def _anchor_insert_sql(
+    *,
+    opportunity_id: str,
+    status: str,
+    bbo_observation_id: str | None,
+    revision: int = 1,
+) -> str:
+    """A raw INSERT that deliberately bypasses every service-layer rule."""
+
+    bbo = "NULL" if bbo_observation_id is None else f"'{bbo_observation_id}'"
+    return (
+        f"INSERT INTO {_ANCHOR_TABLE} ("
+        "opportunity_id, evidence_revision, event_id, candidate_id, evidence_at, "
+        "reference_data_status, reference_bbo_observation_id, source_type, "
+        "source_identity, source_manifest_id, anchor_payload_version, anchor_payload, "
+        "anchor_hash, anchor_hash_version, recorded_at"
+        ") VALUES ("
+        f"'{opportunity_id}', {revision}, 'evt-rrf02', 'cand-rrf02', now(), "
+        f"'{status}', {bbo}, 'FORWARD_PAPER', 'legacy-source', 'legacy-manifest', "
+        "'legacy-anchor-v0', '{}'::json, 'legacyhash', 'legacy-hash-v0', now()"
+        ")"
+    )
+
+
+async def _anchor_row(url: str, opportunity_id: str) -> tuple[str, str | None]:
+    async with _session(url) as session:
+        row = await session.execute(
+            text(
+                f"SELECT reference_data_status, reference_bbo_observation_id "
+                f"FROM {_ANCHOR_TABLE} WHERE opportunity_id = :opportunity_id"
+            ),
+            {"opportunity_id": opportunity_id},
+        )
+        return row.one()
+
+
+async def _constraint_is_validated(url: str) -> bool | None:
+    async with _session(url) as session:
+        return await session.scalar(
+            text(
+                "SELECT convalidated FROM pg_constraint WHERE conname = :name"
+            ),
+            {"name": _REFERENCE_CONSTRAINT},
+        )
+
+
+async def _anchor_columns(url: str) -> set[str]:
+    return set((await _column_nullability(url, _ANCHOR_TABLE)).keys())
+
+
+async def _stage_legacy_anchor(url: str, statement: str) -> None:
+    async with _session(url) as session:
+        await session.execute(text(statement))
+        await session.commit()
+
+
+def test_rrf02_invalid_legacy_anchor_aborts_the_upgrade_before_the_head_moves():
+    """`OK + NULL BBO id` must stop the migration, not be reclassified by it."""
+
+    opportunity_id = "a" * 64
+    with _edge_database("rrf02_invalid", revision=_FIX_PARENT) as (_, url):
+        assert asyncio.run(_alembic_version(url)) == _FIX_PARENT
+        asyncio.run(
+            _stage_legacy_anchor(
+                url,
+                _anchor_insert_sql(
+                    opportunity_id=opportunity_id, status="OK", bbo_observation_id=None
+                ),
+            )
+        )
+
+        with pytest.raises(RuntimeError) as failure:
+            _upgrade(url, _FIX_HEAD)
+
+        message = str(failure.value)
+        assert _FIX_HEAD in message
+        assert _FIX_PARENT in message
+        assert "reference_data_status = 'OK'" in message
+        assert "reference_bbo_observation_id IS NULL" in message
+
+        # The transaction rolled back: head, schema and the offending row are all
+        # exactly as they were, so a human can still audit the real recorded data.
+        assert asyncio.run(_alembic_version(url)) == _FIX_PARENT
+        assert asyncio.run(_anchor_row(url, opportunity_id)) == ("OK", None)
+        assert not (_ADMISSION_COLUMNS & asyncio.run(_anchor_columns(url)))
+        assert _ORPHAN_TABLE not in asyncio.run(_table_names(url))
+
+
+@pytest.mark.parametrize("status", ["REFERENCE_MISSING", "REFERENCE_STALE"])
+def test_rrf02_missing_or_stale_legacy_anchor_without_a_bbo_still_upgrades(status):
+    """The frozen enum semantics are unchanged: only `OK` requires an observation."""
+
+    opportunity_id = "b" * 64
+    with _edge_database(f"rrf02_{status.lower()}", revision=_FIX_PARENT) as (_, url):
+        asyncio.run(
+            _stage_legacy_anchor(
+                url,
+                _anchor_insert_sql(
+                    opportunity_id=opportunity_id, status=status, bbo_observation_id=None
+                ),
+            )
+        )
+
+        _upgrade(url, _FIX_HEAD)
+
+        assert asyncio.run(_alembic_version(url)) == _FIX_HEAD
+        assert asyncio.run(_anchor_row(url, opportunity_id)) == (status, None)
+        assert _ADMISSION_COLUMNS <= asyncio.run(_anchor_columns(url))
+        assert _ORPHAN_TABLE in asyncio.run(_table_names(url))
+
+
+def test_rrf02_valid_legacy_ok_anchor_survives_the_upgrade_unchanged():
+    opportunity_id = "c" * 64
+    observation_id = "d" * 64
+    with _edge_database("rrf02_valid_ok", revision=_FIX_PARENT) as (_, url):
+        asyncio.run(
+            _stage_legacy_anchor(
+                url,
+                "INSERT INTO edge_bbo_observations ("
+                "observation_id, instrument_id, market_type, bid, ask, available_at, "
+                "source_event_time, received_at, data_quality, tradable, source, "
+                "source_sequence, created_at"
+                f") VALUES ('{observation_id}', 'BTC-USDT', 'SPOT', 99.0, 100.0, now(), "
+                "now(), now(), 'FRESH', true, 'legacy-bbo', NULL, now())",
+            )
+        )
+        asyncio.run(
+            _stage_legacy_anchor(
+                url,
+                _anchor_insert_sql(
+                    opportunity_id=opportunity_id,
+                    status="OK",
+                    bbo_observation_id=observation_id,
+                ),
+            )
+        )
+
+        _upgrade(url, _FIX_HEAD)
+
+        assert asyncio.run(_alembic_version(url)) == _FIX_HEAD
+        assert asyncio.run(_anchor_row(url, opportunity_id)) == ("OK", observation_id)
+        assert _ADMISSION_COLUMNS <= asyncio.run(_anchor_columns(url))
+
+
+def test_rrf02_reference_constraint_is_validated_and_backstops_new_rows():
+    """Not `NOT VALID`: the invariant is enforced for past *and* future rows."""
+
+    with _edge_database("rrf02_validated") as (_, url):
+        assert asyncio.run(_constraint_is_validated(url)) is True
+
+        # A row that bypasses the service layer is still refused by PostgreSQL.
+        with pytest.raises(IntegrityError):
+            asyncio.run(
+                _stage_legacy_anchor(
+                    url,
+                    _anchor_insert_sql(
+                        opportunity_id="e" * 64, status="OK", bbo_observation_id=None
+                    ),
+                )
+            )
+        assert asyncio.run(_count(url, EdgeOpportunityEvidenceRecord)) == 0

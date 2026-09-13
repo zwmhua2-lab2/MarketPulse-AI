@@ -22,12 +22,13 @@ from marketpulse.edge.capture import (
     CaptureAnchor,
     CaptureAnchorInputs,
     EdgeCaptureContext,
-    ForwardAdmissionAuthority,
     ForwardAdmissionProof,
+    ForwardAdmissionVerifier,
     ReferenceQuote,
     build_capture_anchor,
     build_capture_anchor_orphan,
     capture_opportunity,
+    qualifies,
 )
 from marketpulse.edge.models import EvidenceSource
 from marketpulse.edge.repository import (
@@ -54,7 +55,6 @@ from .models import (
 # capture that is happening now. It must be an in-process read of already-held
 # market state (no I/O), because it runs inside the G2 persistence transaction.
 ReferenceQuoteFor = Callable[[str], ReferenceQuote | None]
-ForwardAdmissionProofFor = Callable[[MarketEvent], ForwardAdmissionProof | None]
 
 logger = logging.getLogger(__name__)
 
@@ -105,6 +105,7 @@ class InMemoryG2Repository:
         observation: FeatureSnapshot,
         *,
         precondition_state: SymbolStateRecord | None = None,
+        forward_admission_proof: ForwardAdmissionProof | None = None,
     ) -> bool:
         if event.event_id in self.events:
             return False
@@ -124,8 +125,7 @@ class PostgresG2Repository:
         *,
         capture: EdgeCaptureContext | None = None,
         reference_quote_for: ReferenceQuoteFor | None = None,
-        forward_admission_authority: ForwardAdmissionAuthority | None = None,
-        forward_admission_proof_for: ForwardAdmissionProofFor | None = None,
+        forward_admission_verifier: ForwardAdmissionVerifier | None = None,
         pending_capture_anchor_capacity: int = 2048,
     ) -> None:
         if pending_capture_anchor_capacity <= 0:
@@ -138,8 +138,10 @@ class PostgresG2Repository:
         # constant: one repository instance serves many events, so a quote stored
         # here would silently become the reference of every later opportunity.
         self._reference_quote_for = reference_quote_for
-        self._forward_admission_authority = forward_admission_authority
-        self._forward_admission_proof_for = forward_admission_proof_for
+        # Verification only. The mint capability lives on the live-ingress
+        # authority held by ``ScannerPipeline``; this repository is deliberately
+        # given no API that could sign an arbitrary historical event.
+        self._forward_admission_verifier = forward_admission_verifier
         # Bounded by in-flight G2 event ids in the caller's runtime. It exists
         # only until the admission transaction succeeds or the process dies;
         # it is deliberately not a queue/WAL/recovery mechanism.
@@ -266,6 +268,7 @@ class PostgresG2Repository:
         transition: StateTransition,
         candidates: list[StrategyCandidate],
         observation: FeatureSnapshot,
+        forward_admission_proof: ForwardAdmissionProof | None,
     ) -> CaptureAnchorInputs | None:
         if self._capture is None or self._capture.source_type is not EvidenceSource.FORWARD_PAPER:
             return None
@@ -283,16 +286,28 @@ class PostgresG2Repository:
 
         anchor = self._pending_capture_anchors.get(event.event_id)
         if anchor is None:
+            # Only a genuinely qualifying Forward opportunity is a Forward sample,
+            # so only it needs live-ingress admission proof. A persist that does
+            # not qualify (e.g. a TTL expiry) is ordinary G2 truth and must not be
+            # blocked by the Edge admission capability.
             if (
-                self._forward_admission_authority is None
-                or self._forward_admission_proof_for is None
+                qualifies(
+                    event=event,
+                    timeline=timeline,
+                    state=state,
+                    transition=transition,
+                    candidates=candidates,
+                    observation=observation,
+                )
+                is None
             ):
+                return None
+            if self._forward_admission_verifier is None:
                 raise CaptureAdmissionRejected(
                     "FORWARD_PAPER capture anchor requires a live-ingress admission capability"
                 )
-            admission_proof = self._forward_admission_proof_for(event)
-            if admission_proof is None or not self._forward_admission_authority.validates(
-                admission_proof, event
+            if forward_admission_proof is None or not self._forward_admission_verifier.validates(
+                forward_admission_proof, event
             ):
                 raise CaptureAdmissionRejected(
                     "FORWARD_PAPER capture anchor proof is not valid for this live session and event"
@@ -314,7 +329,7 @@ class PostgresG2Repository:
                 candidates=candidates,
                 observation=observation,
                 context=self._capture,
-                forward_admission_proof=admission_proof,
+                forward_admission_proof=forward_admission_proof,
                 reference_quote=quote,
             )
         if anchor is None:
@@ -345,6 +360,7 @@ class PostgresG2Repository:
         observation: FeatureSnapshot,
         *,
         precondition_state: SymbolStateRecord | None = None,
+        forward_admission_proof: ForwardAdmissionProof | None = None,
     ) -> bool:
         anchored = await self._admit_or_load_capture_anchor(
             precondition_state=precondition_state,
@@ -354,6 +370,7 @@ class PostgresG2Repository:
             transition=transition,
             candidates=candidates,
             observation=observation,
+            forward_admission_proof=forward_admission_proof,
         )
         if anchored is not None:
             event = anchored.event
