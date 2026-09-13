@@ -142,6 +142,7 @@ PROBE_SCOPE_KEYS = frozenset(
         "worker_count_stable",
         "sockets_not_accumulating",
         "handles_not_accumulating",
+        "checkpoints_cover_required_points",
     }
 )
 
@@ -224,6 +225,35 @@ def _delta(after: Any, before: Any) -> int | None:
     if isinstance(after, int) and isinstance(before, int):
         return after - before
     return None
+
+
+def _net_growth(series: list[int]) -> int | None:
+    """Net change between the first and last usable value of a telemetry series."""
+    if len(series) < 2:
+        return None
+    return series[-1] - series[0]
+
+
+def _as_datetime(value: Any) -> datetime | None:
+    """`feed[...]` receipt markers are stored as ISO strings; compare them as datetimes."""
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, str):
+        with contextlib.suppress(ValueError):
+            return datetime.fromisoformat(value)
+    return None
+
+
+def _append_jsonl(path: Path, payload: dict[str, Any]) -> None:
+    """Append-only per-sample progress log.
+
+    A two-hour phase that dies half way must still leave the real time series behind; the final
+    report alone would lose two hours of evidence. Failures here never affect the run.
+    """
+    with contextlib.suppress(Exception):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(payload, default=str) + "\n")
 
 
 async def _checkpoint(label: str, ctx: dict[str, Any], harness, sessions) -> dict[str, Any]:
@@ -344,6 +374,7 @@ async def _controlled_reconnect(
         "resources": before_resources,
     }
 
+    disconnect_requested_at = _now()
     controlled.request_reconnect()
     deadline = time.monotonic() + RECONNECT_REOPEN_MAX_WAIT_SECONDS
     while time.monotonic() < deadline:
@@ -355,18 +386,30 @@ async def _controlled_reconnect(
     evidence["provider_connection_attempts_after"] = ctx["provider"].connection_attempts
     evidence["provider_reconnects_counter"] = ctx["provider"].reconnects
 
-    # A reconnect alone is not enough: the re-established feed must deliver a new event.
+    # A reconnect alone is not enough: the re-established connection must deliver a NEW event.
+    # The witness is the receipt time of the newest delivered BBO, which has to be strictly later
+    # than the moment the disconnect was requested -- i.e. delivery on the new socket, not a
+    # re-read of state that was already known before the break.
     fresh_deadline = time.monotonic() + RECONNECT_FRESH_MAX_WAIT_SECONDS
     got_fresh = False
+    newest_receipt: datetime | None = None
     while time.monotonic() < fresh_deadline:
-        if feed["total_normalized_events"] > before_events and all(
-            item in feed["latest_bbo"] for item in INSTRUMENTS
+        newest_receipt = _as_datetime(feed["last_bbo_received"].get(BTC))
+        if (
+            feed["total_normalized_events"] > before_events
+            and all(item in feed["latest_bbo"] for item in INSTRUMENTS)
+            and newest_receipt is not None
+            and newest_receipt > disconnect_requested_at
         ):
             got_fresh = True
             break
         await asyncio.sleep(0.5)
     evidence["fresh_event_after_reconnect"] = got_fresh
     evidence["events_delta"] = feed["total_normalized_events"] - before_events
+    evidence["disconnect_requested_at"] = disconnect_requested_at.isoformat()
+    evidence["newest_bbo_received_after_reconnect"] = (
+        newest_receipt.isoformat() if newest_receipt is not None else None
+    )
 
     await asyncio.sleep(RECONNECT_SETTLE_SECONDS)
     settle_state = await soak._db_state(sessions)
@@ -449,24 +492,40 @@ async def _stale_fresh_cycle(
             "reason": reason_before,
         }
 
+    # The accepted production staleness detector is event-driven: `SafetyRuntime._mark_freshness`
+    # (backend/src/marketpulse/g4/orchestrator.py:108-119) compares `now - bbo.received_at` against
+    # the 5.0 s TTL, and the accepted scope contains no proactive timer watchdog. Withholding
+    # delivery alone therefore leaves the last known state HEALTHY. To exercise the real path the
+    # harness has to deliver a genuinely *late* quote: the last quote the consumer actually received
+    # before the stall, fed after STALE_HOLD_SECONDS, so its age is far outside the TTL and far
+    # outside the freshness band the paper execution service accepts.
+    async with feed["lock"]:
+        last_delivered = feed["latest_bbo"].get(BTC)
+    if last_delivered is None:
+        evidence["harness_error"] = "no_delivered_btc_bbo_before_stall"
+        return evidence
+
+    withheld_before = controlled.withheld_events
     controlled.set_stale(True)
     stall_started = time.monotonic()
     await asyncio.sleep(STALE_HOLD_SECONDS)
     evidence["stall_seconds"] = round(time.monotonic() - stall_started, 3)
     evidence["withheld_events"] = controlled.withheld_events
+    evidence["withheld_events_this_cycle"] = controlled.withheld_events - withheld_before
 
-    last_event = controlled.last_withheld.get(BTC)
-    if last_event is None:
-        evidence["harness_error"] = "no_withheld_btc_bbos_to_drive_staleness"
-        controlled.set_stale(False)
-        return evidence
-    stale_bbo = n6._to_bbo(last_event)
+    stale_bbo = last_delivered
     evidence["stale_quote"] = {
         "bid": stale_bbo.bid,
         "ask": stale_bbo.ask,
+        "tradable": stale_bbo.tradable,
+        "data_quality": str(stale_bbo.data_quality),
         "received_at": stale_bbo.received_at.isoformat(),
         "age_seconds": round((_now() - stale_bbo.received_at).total_seconds(), 3),
+        "source": "last_quote_delivered_before_the_stall",
     }
+    evidence["stale_quote_age_exceeds_ttl"] = (
+        evidence["stale_quote"]["age_seconds"] > n6.ACCEPTED_FRESHNESS_TTL_SECONDS
+    )
 
     # Production market-data entry point (SafetyRuntime.on_market_data) with a genuinely late quote.
     outcome = await harness.feed_market_data(stale_bbo)
@@ -587,6 +646,7 @@ async def _phase_scenario(
     sample_interval: float,
     prior_active_seconds: float,
     probe: bool,
+    progress_path: Path | None = None,
 ) -> dict[str, Any]:
     checks: dict[str, bool] = {}
     failure: dict[str, Any] | None = None
@@ -836,6 +896,8 @@ async def _phase_scenario(
                 **_proc_resources(),
             }
             samples.append(snapshot)
+            if progress_path is not None:
+                _append_jsonl(progress_path, snapshot)
             return snapshot
 
         async def sample_loop() -> None:
@@ -886,7 +948,7 @@ async def _phase_scenario(
                 await n6._wait_until(entry_ready, timeout=n6.ENTRY_GATE_MAX_WAIT_SECONDS)
                 ctx["entry"] = await n6._controlled_entry(harness, sessions, feed, checks)
                 ctx["entry_plan_id"] = ctx["entry"]["plan"]["plan_id"]
-                ctx["entry_plan_version"] = ctx["entry"]["plan"]["plan_version"]
+                ctx["entry_plan_version"] = ctx["entry"]["plan"].get("plan_version")
                 entry_done = True
 
             while pending and elapsed >= pending[0]["at"]:
@@ -1411,6 +1473,12 @@ def _child_command(
 
 
 def _run_child(command: list[str], timeout: float, log_path: Path) -> dict[str, Any]:
+    """Run one child phase to completion.
+
+    A hung child must never destroy the supervisor's evidence: on timeout the child is terminated,
+    reaped and reported as a timed-out phase instead of raising out of the supervisor.
+    """
+    started = time.monotonic()
     with log_path.open("w", encoding="utf-8") as handle:
         process = subprocess.Popen(
             command,
@@ -1420,8 +1488,28 @@ def _run_child(command: list[str], timeout: float, log_path: Path) -> dict[str, 
             env=os.environ.copy(),
             cwd=str(REPOSITORY_ROOT),
         )
-        returncode = process.wait(timeout=timeout)
-    return {"returncode": returncode, "pid": process.pid, "log": str(log_path)}
+        timed_out = False
+        try:
+            returncode = process.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            timed_out = True
+            with contextlib.suppress(Exception):
+                process.terminate()
+            with contextlib.suppress(subprocess.TimeoutExpired):
+                process.wait(timeout=60.0)
+            if process.poll() is None:
+                with contextlib.suppress(Exception):
+                    process.kill()
+                with contextlib.suppress(Exception):
+                    process.wait(timeout=30.0)
+            returncode = process.poll()
+    return {
+        "returncode": returncode,
+        "pid": process.pid,
+        "log": str(log_path),
+        "timed_out": timed_out,
+        "elapsed_seconds": round(time.monotonic() - started, 3),
+    }
 
 
 def _supervisor(args) -> int:
@@ -1566,12 +1654,44 @@ def _aggregate(
     checks["fresh_process_restart_performed"] = bool(
         first.get("pid") and second.get("pid") and first.get("pid") != second.get("pid")
     )
-    checks["no_python_memory_carried_over"] = checks["fresh_process_restart_performed"]
+    # A differing pid alone would be a tautology. The second phase must additionally have booted
+    # itself: its own warm-up pulled real events in that process, PostgreSQL recovery ran there,
+    # and it began only after the first process had finished.
+    first_finished_at = _as_datetime(first.get("active_finished_at"))
+    second_started_at = _as_datetime(second.get("active_started_at"))
+    checks["no_python_memory_carried_over"] = bool(
+        checks["fresh_process_restart_performed"]
+        and (second.get("warmup") or {}).get("events_discarded", 0) > 0
+        and second.get("recovery") is not None
+        and first_finished_at is not None
+        and second_started_at is not None
+        and first_finished_at < second_started_at
+    )
     labels = {item["label"] for item in checkpoints}
     required_labels = {"start", "abs_30m", "before_restart", "after_restart", "abs_90m", "final"}
     checks["checkpoint_coverage_complete"] = required_labels.issubset(labels)
     checks["all_checkpoints_ok"] = bool(checkpoints) and all(
         item.get("ok") is True for item in checkpoints
+    )
+    # Section 16 names seven points; the label set alone would not prove they were placed at the
+    # right moments, so each named moment is matched against a real absolute elapsed time.
+    absolute_times = sorted(
+        item["absolute_elapsed_seconds"]
+        for item in checkpoints
+        if isinstance(item.get("absolute_elapsed_seconds"), (int, float))
+    )
+    coverage_bands = (
+        ("start", 0.0, 300.0),
+        ("~30min", 1500.0, 2100.0),
+        ("~60min", 3300.0, 3900.0),
+        ("~90min", 5100.0, 5700.0),
+    )
+    checks["checkpoints_cover_required_points"] = bool(
+        len(checkpoints) >= 7
+        and {"before_restart", "after_restart"} <= labels
+        and all(
+            any(low <= value <= high for value in absolute_times) for _, low, high in coverage_bands
+        )
     )
 
     checks["controlled_reconnects_recovered_fresh"] = bool(reconnects) and all(
@@ -1617,6 +1737,11 @@ def _aggregate(
     )
     checks["stale_cycles_reconciliation_ok"] = bool(stale_cycles) and all(
         item.get("reconciliation_ok") is True for item in stale_cycles
+    )
+    # Supporting gate: the stall must have been driven by a genuinely late quote, otherwise the
+    # degradation above would be an artefact of some other condition rather than of staleness.
+    checks["stale_cycles_quote_genuinely_stale"] = bool(stale_cycles) and all(
+        item.get("stale_quote_age_exceeds_ttl") is True for item in stale_cycles
     )
 
     # ---- N01-7-F01 protection authority (sections 5 / 19)
@@ -1682,22 +1807,74 @@ def _aggregate(
     checks["memory_series_present"] = memory.get("points", 0) >= 4
 
     # ---- sockets / handles (section 23)
-    socket_deltas = [
-        item.get("socket_delta_vs_before")
-        for item in reconnects
-        if item.get("socket_delta_vs_before") is not None
-    ]
-    handle_deltas = [
-        item.get("handle_delta_vs_before")
-        for item in reconnects
-        if item.get("handle_delta_vs_before") is not None
-    ]
-    checks["sockets_not_accumulating"] = bool(socket_deltas) and (
-        socket_deltas[-1] <= MAX_PERMANENT_SOCKET_DELTA
+    # Two independent views, because neither alone is sufficient: (1) the band between the first
+    # reconnect's start and the last reconnect's settle ("back to a stable band after the
+    # reconnects"), and (2) the net growth over each phase's own sampled series. A steady leak of
+    # one socket per reconnect is invisible to a per-reconnect delta but not to (1); a slow drift
+    # is invisible to (1) but not to (2).
+    def _int_series(items: list[dict[str, Any]], key: str) -> list[int]:
+        return [item[key] for item in items if isinstance(item.get(key), int)]
+
+    socket_series = _int_series(samples, "sockets")
+    handle_series = _int_series(samples, "handles")
+    socket_growth_first = _net_growth(_int_series(first.get("samples") or [], "sockets"))
+    socket_growth_second = _net_growth(_int_series(second.get("samples") or [], "sockets"))
+    handle_growth_first = _net_growth(_int_series(first.get("samples") or [], "handles"))
+    handle_growth_second = _net_growth(_int_series(second.get("samples") or [], "handles"))
+    first_band_sockets = (
+        ((reconnects[0].get("before") or {}).get("resources") or {}).get("sockets")
+        if reconnects
+        else None
     )
-    checks["handles_not_accumulating"] = bool(handle_deltas) and (
-        handle_deltas[-1] <= MAX_PERMANENT_HANDLE_DELTA
+    last_band_sockets = (
+        ((reconnects[-1].get("settle") or {}).get("resources") or {}).get("sockets")
+        if reconnects
+        else None
     )
+    first_band_handles = (
+        ((reconnects[0].get("before") or {}).get("resources") or {}).get("handles")
+        if reconnects
+        else None
+    )
+    last_band_handles = (
+        ((reconnects[-1].get("settle") or {}).get("resources") or {}).get("handles")
+        if reconnects
+        else None
+    )
+    socket_band_delta = _delta(last_band_sockets, first_band_sockets)
+    handle_band_delta = _delta(last_band_handles, first_band_handles)
+
+    def _bounded(value: int | None, limit: int) -> bool:
+        return value is not None and value <= limit
+
+    checks["sockets_not_accumulating"] = bool(
+        _bounded(socket_band_delta, MAX_PERMANENT_SOCKET_DELTA)
+        and _bounded(socket_growth_first, MAX_PERMANENT_SOCKET_DELTA)
+        and _bounded(socket_growth_second, MAX_PERMANENT_SOCKET_DELTA)
+    )
+    checks["handles_not_accumulating"] = bool(
+        _bounded(handle_band_delta, MAX_PERMANENT_HANDLE_DELTA)
+        and _bounded(handle_growth_first, MAX_PERMANENT_HANDLE_DELTA)
+        and _bounded(handle_growth_second, MAX_PERMANENT_HANDLE_DELTA)
+    )
+    resource_summary = {
+        "socket_band_delta_across_reconnects": socket_band_delta,
+        "socket_net_growth_first_phase": socket_growth_first,
+        "socket_net_growth_second_phase": socket_growth_second,
+        "socket_series_first": socket_series[0] if socket_series else None,
+        "socket_series_last": socket_series[-1] if socket_series else None,
+        "socket_series_max": max(socket_series) if socket_series else None,
+        "socket_samples": len(socket_series),
+        "handle_band_delta_across_reconnects": handle_band_delta,
+        "handle_net_growth_first_phase": handle_growth_first,
+        "handle_net_growth_second_phase": handle_growth_second,
+        "handle_series_first": handle_series[0] if handle_series else None,
+        "handle_series_last": handle_series[-1] if handle_series else None,
+        "handle_series_max": max(handle_series) if handle_series else None,
+        "handle_samples": len(handle_series),
+        "max_permanent_socket_delta": MAX_PERMANENT_SOCKET_DELTA,
+        "max_permanent_handle_delta": MAX_PERMANENT_HANDLE_DELTA,
+    }
 
     # ---- postgresql (section 24)
     checks["pg_no_foreign_client_sessions"] = bool(
@@ -1733,6 +1910,7 @@ def _aggregate(
         checks[key] = second_checks.get(key) is True
 
     # ---- environment / isolation
+    checks["phase_processes_clean"] = not phase_process_errors
     checks["runtime_dsn_points_at_task_owned_instance"] = bool(
         first_checks.get("runtime_dsn_points_at_task_owned_instance")
         and second_checks.get("runtime_dsn_points_at_task_owned_instance")
@@ -1760,18 +1938,14 @@ def _aggregate(
     ]
     phase_failures = [item for item in (first.get("failure"), second.get("failure")) if item]
 
+    # A child process that died after writing its report must never yield PASS.
+    blocking = bool(
+        failures or harness_errors or shutdown_errors or phase_failures or phase_process_errors
+    )
     if probe:
-        result = (
-            "PROBE_OK"
-            if not (failures or harness_errors or shutdown_errors or phase_failures)
-            else "FAIL"
-        )
+        result = "PROBE_OK" if not blocking else "FAIL"
     else:
-        result = (
-            "PASS"
-            if not (failures or harness_errors or shutdown_errors or phase_failures)
-            else "FAIL"
-        )
+        result = "PASS" if not blocking else "FAIL"
 
     return {
         "task": "N01-7",
@@ -1798,6 +1972,7 @@ def _aggregate(
         "stale_cycles": stale_cycles,
         "checkpoints": checkpoints,
         "memory": memory,
+        "resource_series": resource_summary,
         "environment": {
             "shared_primary_before": shared_before,
             "shared_primary_after": shared_after,
@@ -1885,18 +2060,40 @@ def _emit(report: dict[str, Any], raw_out: Path) -> int:
 # Entry points
 # ---------------------------------------------------------------------------------------------
 def _main_phase(args) -> int:
-    report = asyncio.run(
-        _phase_scenario(
-            args.phase,
-            args.database_name,
-            args.database_url,
-            args.seconds,
-            args.sample_interval,
-            args.prior_active_seconds,
-            args.probe,
+    progress_path = Path(args.raw_out).with_suffix(".progress.jsonl") if args.raw_out else None
+    if progress_path is not None:
+        # One phase, one file: never let earlier runs' samples look like part of this phase.
+        with contextlib.suppress(OSError):
+            progress_path.unlink(missing_ok=True)
+    try:
+        report = asyncio.run(
+            _phase_scenario(
+                args.phase,
+                args.database_name,
+                args.database_url,
+                args.seconds,
+                args.sample_interval,
+                args.prior_active_seconds,
+                args.probe,
+                progress_path,
+            )
         )
-    )
+    except BaseException as exc:  # noqa: BLE001 - the phase report must survive any crash
+        report = {
+            "phase": args.phase,
+            "pid": os.getpid(),
+            "result": "FAIL",
+            "active_duration_seconds": None,
+            "checks": {},
+            "failure": {
+                "type": type(exc).__name__,
+                "message": str(exc),
+                "traceback": traceback.format_exc()[-8000:],
+            },
+            "crash": True,
+        }
     if args.raw_out:
+        Path(args.raw_out).parent.mkdir(parents=True, exist_ok=True)
         Path(args.raw_out).write_text(json.dumps(report, indent=2, default=str), encoding="utf-8")
     summary = {
         "phase": report["phase"],
