@@ -967,8 +967,16 @@ N01-6 的验收不得推断 Continuous Runtime / soak / 7x24 / Integrated Runtim
 - Lineage：`dd78a979`（第一父系 = 最新 Accepted Main）× `be3aa6c`（第二父系 = 原已复审
   SE-02C 候选）经**真实 merge**（`git merge --no-ff`）集成，两条历史均保留；**无** rebase /
   squash / cherry-pick / force push。
+- Integration Merge SHA = `51891c7d3f74429b2d6ef29d166a3f57617a57fe`（parents = `dd78a979` +
+  `be3aa6c`）；Fix Implementation SHA = `7ab1d42ca248310f3857a4087d7ecfdfc14fa6ca`
+  （parent = `51891c7`）。
 - `Schema Changed = NO` / `Migration Added = NO`：`alembic heads` 单 head `20260913_0009`；
   `G5 schema_head = 20260913_0009`。
+- 验证（真实 disposable PostgreSQL `127.0.0.1:5441`，`postgres:16-alpine` /
+  `PostgreSQL 16.15`）：SE-02C focused `49 passed`、market_data `7`、SE-02A `102`、
+  SE-02B `62`、G2 `30`、G5 `32`（指定回归合计 `282 passed` / `0 failed`）+
+  full backend `421 passed` / `0 failed`；`ruff` `All checks passed!`、`compileall` rc 0、
+  `git diff --check` rc 0。
 - 状态：`SE-02C-FIX-01 = IMPLEMENTED / READY FOR INDEPENDENT RE-REVIEW`；
   `SE-02C = IMPLEMENTED / FIXED / NOT ACCEPTED`；`SE-02D = NOT STARTED`。
 - 详见 `dev_log/2026-09-14-se-02c-fix-01-review-blockers.md`。

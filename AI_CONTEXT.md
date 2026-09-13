@@ -88,6 +88,14 @@ disposable 库保持空表（症状 `relation "edge_opportunity_evidence" does n
 正确姿势：`PYTHONPATH=backend/src py -3.14 -m pytest backend/tests`，仅靠 worktree 根
 `.env` 提供隔离库地址。
 
+⚠️ 新建 disposable PostgreSQL 后，**primary 库自身也必须 `alembic upgrade head`**
+（2026-09-14 SE-02C-FIX-01 实测）：G5 的 `ReplayWorkspaceGuard.counts(primary)`
+（`g5/replay.py:485`）会对 **primary** 库执行 `SELECT count(*) FROM <table>`，primary 空 schema
+会让 G5-2 / G5-3 / G5-4 整批报 `relation "market_events" does not exist`（15 个假失败，
+极易误判为代码回归）。另：`alembic` CLI 的 `script_location` 相对 **cwd** 解析 —— 须
+`cd backend && py -3.14 -m alembic -c alembic.ini upgrade head`（在仓库根用
+`-c backend/alembic.ini` 会报 `Path doesn't exist: alembic.`）。
+
 - N01-7 / N01-7-R01 2-hour Medium Runtime Soak（含 Witness B Fix + Latest-Main Revalidation）
   = `ACCEPTED / COMPLETE`（2026-09-14 Human Acceptance = `CONFIRMED` + Final Main Integration
   Closeout；Independent Re-Review = `PASS WITH NON-BLOCKING FINDINGS — READY FOR HUMAN
