@@ -53,6 +53,14 @@ class NormalizedBookTicker(NormalizedMarketEvent):
     bid_quantity: float
     ask_price: float
     ask_quantity: float
+    #: Authoritative tradability of the instrument for this frame, when the
+    #: upstream boundary actually knows it. ``True`` / ``False`` are facts the
+    #: normalizer resolved from the instrument; ``None`` means this normalized
+    #: frame carries no tradability fact at all. Optional-with-``None`` keeps
+    #: replay fixtures and non-Forward consumers constructible unchanged, and a
+    #: consumer that needs the fact (the SE-02C Forward path recorder) must fail
+    #: closed on ``None`` rather than assume ``True``.
+    tradable: bool | None = None
 
 
 class NormalizedKline(NormalizedMarketEvent):

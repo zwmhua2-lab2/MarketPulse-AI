@@ -14,7 +14,10 @@ Three responsibilities, all bounded:
 * **C. bounded evaluation** -- :func:`evaluate_due_outcomes` builds the
   deterministic calculation input, calls the pure calculator and appends the
   terminal outcome through the accepted
-  :func:`marketpulse.edge.repository.append_forward_outcome`.
+  :func:`marketpulse.edge.repository.append_forward_outcome`. "Bounded" refers to
+  the number of *scopes* one call processes, never to the per-scope path: the
+  durable forward path of a scope is read in full (keyset pages, no ceiling), so
+  an incomplete path can never be classified as COMPLETE.
 
 Deliberately absent: any resident loop, ``sleep``, scheduler, daemon, runtime host,
 second market-data pipeline, second OKX websocket or new persistence path. The
@@ -33,7 +36,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
-from sqlalchemy import and_, select
+from sqlalchemy import and_, select, tuple_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -77,16 +80,24 @@ logger = logging.getLogger(__name__)
 # a capability, not a loop: an owner that wants to drain more simply calls again.
 DEFAULT_MAX_SCOPES_PER_EVALUATION = 500
 
-# Upper bound on the durable observations one scope may load. Book-ticker updates
-# are sparse (they are pushed on change), so a one-hour window stays far below this.
-MAX_FORWARD_PATH_OBSERVATIONS = 50_000
+# Forward path reads are **paged**, never capped. This constant is a per-statement
+# page size that bounds each query's working set -- it is deliberately *not* a
+# correctness ceiling: the loader keeps reading keyset pages until the durable
+# window is exhausted, so the complete Forward Path always reaches the calculator
+# (task §8-§11). Because no ceiling exists, no partially loaded path can ever be
+# classified as COMPLETE.
+FORWARD_PATH_READ_PAGE_SIZE = 10_000
 
-# The live normalized BBO ingress only carries instruments the live runtime is
-# subscribed to. Per-observation tradability is not part of the accepted
-# normalized ticker contract, so the ingress records the observation as tradable;
-# the calculator still enforces `tradable` on the durable row, so a caller that
-# does know better can store `tradable = False` and it will never be eligible.
-DEFAULT_INGRESS_TRADABLE = True
+
+class ForwardPathTradabilityUnknown(ValueError):
+    """The normalized ingress frame carries no authoritative tradability fact.
+
+    A ``NormalizedBookTicker`` whose ``tradable`` is ``None`` states only that
+    this frame does not know whether the instrument is currently tradable. That
+    is *not* a tradable fact, so the ingress fails closed and archives nothing
+    (task §17). It is a subclass of :class:`ValueError` so a caller that already
+    guards the "unrepresentable frame" case keeps working unchanged.
+    """
 
 
 # --- A. Forward BBO path capture ---------------------------------------------------------
@@ -99,8 +110,21 @@ def build_forward_path_observation(event: NormalizedBookTicker) -> BboObservatio
     and ``created_at`` is that same ingress instant rather than a wall clock, so
     re-ingesting the identical frame reproduces the identical observation and the
     identical identity instead of duplicating a horizon path point.
+
+    Tradability is **carried through from the instrument**, never assumed. The
+    normalized frame's ``tradable`` is the authority: ``True`` / ``False`` are
+    persisted verbatim so the calculator can exclude a non-tradable observation,
+    while ``None`` -- the frame carries no authoritative tradability fact --
+    raises :class:`ForwardPathTradabilityUnknown` so the ingress fails closed
+    instead of archiving a guess (task §12-§17). Quote presence, subscription
+    presence and "the market event arrived" are never evidence of tradability.
     """
 
+    if event.tradable is None:
+        raise ForwardPathTradabilityUnknown(
+            "normalized frame carries no authoritative tradability fact "
+            f"(instrument_id={event.instrument_id})"
+        )
     return build_bbo_observation(
         instrument_id=event.instrument_id,
         market_type=event.market_type,
@@ -110,7 +134,7 @@ def build_forward_path_observation(event: NormalizedBookTicker) -> BboObservatio
         source_event_time=event.event_time,
         received_at=event.received_time,
         data_quality=event.data_quality,
-        tradable=DEFAULT_INGRESS_TRADABLE,
+        tradable=event.tradable,
         source=event.source,
         source_sequence=None,
         created_at=event.received_time,
@@ -180,15 +204,28 @@ class ForwardPathRecorder:
     async def record_event(self, event: NormalizedBookTicker) -> str | None:
         """Live-ingress entry point: build the observation and store it if relevant.
 
-        Only the *ingress boundary* guards against a frame that cannot be
-        represented as an accepted observation (a crossed, non-positive or
-        non-finite quote from the exchange). Such a frame is not a Forward path
-        fact -- it is unrepresentable in the accepted contract -- so it is
-        skipped and logged rather than aborting the ingest loop.
+        Two frames are deliberately *not* Forward path facts, and neither one
+        aborts the ingest loop:
+
+        * a frame that cannot be represented as an accepted observation (a
+          crossed, non-positive or non-finite quote) is unrepresentable in the
+          accepted contract;
+        * a frame whose ``tradable`` is ``None`` carries no authoritative
+          tradability fact, so archiving it would silently invent one (task §17).
+
+        Both are skipped and logged, bounded to one line per frame.
         """
 
         try:
             observation = build_forward_path_observation(event)
+        except ForwardPathTradabilityUnknown:
+            logger.warning(
+                "forward_path_observation_skipped_unknown_tradability "
+                "instrument_id=%s event_time=%s",
+                event.instrument_id,
+                event.event_time.isoformat(),
+            )
+            return None
         except ValueError:
             logger.warning(
                 "forward_path_observation_rejected instrument_id=%s event_time=%s",
@@ -441,12 +478,11 @@ class ForwardOutcomeService:
 
         async with self._session_factory() as session:
             reference, structural_problem = await self._resolve_reference(session, scope)
-            observations, truncated = await self._load_observations(session, scope)
+            observations = await self._load_observations(session, scope)
         return calculate_forward_outcome(
             scope=scope.scope_facts(),
             reference=reference,
             observations=observations,
-            truncated=truncated,
             structural_problem=structural_problem,
         )
 
@@ -500,8 +536,8 @@ class ForwardOutcomeService:
 
     async def _load_observations(
         self, session: AsyncSession, scope: DueForwardScope
-    ) -> tuple[tuple[BboObservation, ...], bool]:
-        """Load the bounded forward path of one scope.
+    ) -> tuple[BboObservation, ...]:
+        """Load the **complete** forward path of one scope, page by page.
 
         The durable window is ``evidence_at <= available_at <= due_at``. Both
         bounds are immutable facts, so the loaded set -- and therefore every
@@ -509,10 +545,19 @@ class ForwardOutcomeService:
         the evaluator runs. The causal cutoff is *also* enforced inside the pure
         calculator, so a caller that hands it a later observation still gets it
         rejected as future data.
+
+        Reading is keyset-paged on the same ``(available_at, observation_id)``
+        total order the endpoint tie-break uses, and the loop ends only when the
+        durable window is exhausted. ``FORWARD_PATH_READ_PAGE_SIZE`` therefore
+        bounds one statement, **not** the path: every durable observation in the
+        window reaches the calculator, so endpoint selection, MFE and MAE always
+        cover the whole path (task §8-§11).
         """
 
-        rows = (
-            await session.scalars(
+        observations: list[BboObservation] = []
+        last_key: tuple[datetime, str] | None = None
+        while True:
+            statement = (
                 select(EdgeBboObservationRecord)
                 .where(
                     EdgeBboObservationRecord.instrument_id == scope.instrument_id,
@@ -524,14 +569,24 @@ class ForwardOutcomeService:
                     EdgeBboObservationRecord.available_at.asc(),
                     EdgeBboObservationRecord.observation_id.asc(),
                 )
-                .limit(MAX_FORWARD_PATH_OBSERVATIONS + 1)
+                .limit(FORWARD_PATH_READ_PAGE_SIZE)
             )
-        ).all()
-        truncated = len(rows) > MAX_FORWARD_PATH_OBSERVATIONS
-        return (
-            tuple(_observation_from_record(row) for row in rows[:MAX_FORWARD_PATH_OBSERVATIONS]),
-            truncated,
-        )
+            if last_key is not None:
+                statement = statement.where(
+                    tuple_(
+                        EdgeBboObservationRecord.available_at,
+                        EdgeBboObservationRecord.observation_id,
+                    )
+                    > last_key
+                )
+            page = (await session.scalars(statement)).all()
+            if not page:
+                break
+            observations.extend(_observation_from_record(row) for row in page)
+            if len(page) < FORWARD_PATH_READ_PAGE_SIZE:
+                break
+            last_key = (page[-1].available_at, page[-1].observation_id)
+        return tuple(observations)
 
     async def append_outcome(self, outcome: ForwardOutcomeContract) -> ForwardOutcomeContract:
         """Append the first revision, or return the compatible durable twin.

@@ -55,6 +55,11 @@ def normalize_book_ticker(raw: dict[str, object], inst: Instrument) -> Normalize
         **_base(inst, int(raw["ts"]), "okx.websocket.bbo-tbt"),
         bid_price=float(bid), bid_quantity=float(bid_size),
         ask_price=float(ask), ask_quantity=float(ask_size),
+        # Carry the instrument's real tradability through instead of letting a
+        # consumer infer it from "a quote arrived": ``Instrument.tradable`` is
+        # already the approved authority, resolved from OKX ``state`` by
+        # :func:`instrument_from_okx`.
+        tradable=inst.tradable,
     )
 
 

@@ -37,8 +37,12 @@ Determinism / causality rules frozen here:
 * the reference price authority is the durable FIX-01 capture-anchor BBO
   (``reference_bbo_observation_id``) -- never "the latest quote at evaluation
   time";
-* the endpoint is the greatest eligible observation under the total order
-  ``(available_at, has_source_sequence, source_sequence, observation_id)``.
+* the endpoint is the greatest **forward path** observation (strictly after the
+  evidence anchor) under the total order
+  ``(available_at, has_source_sequence, source_sequence, observation_id)``. The
+  capture anchor itself is the reference authority only and is never an endpoint;
+* the durable loader has no observation ceiling: the whole Forward Path always
+  takes part in endpoint selection, MFE and MAE (task §8-§11).
 
 Reuse / provenance separation (task §52): the calculation content excludes
 provenance, so a ``HISTORICAL_REPLAY`` outcome and a ``FORWARD_PAPER`` outcome
@@ -197,6 +201,7 @@ class ForwardReference:
 class ForwardObservationSelection:
     """Deterministic partition of the durable observations of one scope."""
 
+    evidence_at: datetime
     total: int
     eligible: tuple[BboObservation, ...]
     excluded_identity: int
@@ -206,16 +211,27 @@ class ForwardObservationSelection:
 
     @property
     def endpoint(self) -> BboObservation | None:
-        """Greatest eligible observation under the frozen V1 total order."""
+        """Greatest *forward path* observation under the frozen V1 total order.
 
-        if not self.eligible:
+        The horizon endpoint may only be a **forward path** observation, i.e. one
+        with ``evidence_at < available_at <= due_at`` (task §20). The FIX-01
+        capture anchor sits exactly at ``available_at == evidence_at`` and is the
+        *reference authority only*: it is never a horizon endpoint. Restricting
+        the selection to the strictly later path is what makes a scope whose only
+        durable observation is its own anchor report ``ENDPOINT_MISSING`` instead
+        of mistaking the anchor for a horizon endpoint.
+        """
+
+        path = self.path_points
+        if not path:
             return None
-        return max(self.eligible, key=_endpoint_sort_key)
+        return max(path, key=_endpoint_sort_key)
 
-    def path_points(self, *, evidence_at: datetime) -> tuple[BboObservation, ...]:
+    @property
+    def path_points(self) -> tuple[BboObservation, ...]:
         """Eligible observations strictly after the evidence anchor (task §28)."""
 
-        return tuple(item for item in self.eligible if item.available_at > evidence_at)
+        return tuple(item for item in self.eligible if item.available_at > self.evidence_at)
 
 
 def _endpoint_sort_key(observation: BboObservation) -> tuple[datetime, int, int, str]:
@@ -249,6 +265,13 @@ def classify_forward_observations(
     Each observation is counted in at most one exclusion bucket, decided in the
     order identity -> stale -> untradable -> causal, so the four counters plus
     the eligible set always add up to ``total``.
+
+    The frozen Forward Path range is ``evidence_at < available_at <= due_at``
+    (task §20). This partition keeps the eligibility rule itself unchanged and
+    additionally carries ``evidence_at``, so :attr:`endpoint` and
+    :attr:`path_points` can restrict themselves to the strictly later Forward
+    Path: the FIX-01 capture anchor (``available_at == evidence_at``) is a
+    reference authority only and can never become a horizon endpoint.
     """
 
     due_at = scope.due_at
@@ -272,6 +295,7 @@ def classify_forward_observations(
             continue
         eligible.append(observation)
     return ForwardObservationSelection(
+        evidence_at=scope.evidence_at,
         total=len(observations),
         eligible=tuple(eligible),
         excluded_identity=excluded_identity,
@@ -379,13 +403,16 @@ def _diagnostics(
     reference: ForwardReference,
     endpoint: BboObservation | None,
     path_points: tuple[BboObservation, ...],
-    truncated: bool,
 ) -> dict[str, object]:
     """Bounded completeness diagnostics (task §42).
 
     A wide gap between two path observations is a diagnostic, never an
     invalidity: the calculator reports what it saw and still classifies only on
     the frozen rules.
+
+    There is deliberately no "truncated" flag: the durable layer loads the whole
+    Forward Path, so an incomplete path is not a representable input at all
+    (task §10 / §11).
     """
 
     available = [item.available_at for item in selection.eligible]
@@ -415,7 +442,6 @@ def _diagnostics(
         "excluded_untradable_count": selection.excluded_untradable,
         "excluded_causal_count": selection.excluded_causal,
         "excluded_identity_count": selection.excluded_identity,
-        "path_truncated": truncated,
     }
 
 
@@ -424,7 +450,6 @@ def calculate_forward_outcome(
     scope: ForwardScopeFacts,
     reference: ForwardReference,
     observations: Sequence[BboObservation],
-    truncated: bool = False,
     structural_problem: ForwardOutcomeReason | None = None,
 ) -> ForwardOutcomeContract:
     """Compute one terminal, deterministic forward-outcome revision.
@@ -434,12 +459,19 @@ def calculate_forward_outcome(
     1. ``INVALID`` -- the durable facts contradict each other or are structurally
        impossible. An ``INVALID`` outcome binds no observation at all.
     2. ``INSUFFICIENT_DATA`` -- the reference is ``REFERENCE_MISSING`` /
-       ``REFERENCE_STALE``, no eligible endpoint exists, or the endpoint is more
-       than the frozen 5-second TTL away from ``due_at``.
+       ``REFERENCE_STALE``, no eligible forward path endpoint exists, or the
+       endpoint is more than the frozen 5-second TTL away from ``due_at``.
     3. ``COMPLETE`` -- every frozen condition holds and every metric is produced.
 
     Every uncomputable metric stays ``NULL``; no ``0`` / ``NaN`` / ``Infinity``
     placeholder is ever substituted.
+
+    ``observations`` must be the **complete** eligible durable path of the scope
+    (``evidence_at < available_at <= due_at``). There is no truncation parameter
+    and no internal observation ceiling: the durable layer loads the whole path,
+    so "an incomplete path still classified COMPLETE" is not a representable
+    state (task §8-§11). A missing observation is simply not supplied, which
+    only ever *weakens* the result towards ``INSUFFICIENT_DATA``.
 
     ``structural_problem`` lets a durable orchestrator report a contradiction it
     detected on facts the pure core cannot see (for example: a ``FORWARD_PAPER``
@@ -461,7 +493,7 @@ def calculate_forward_outcome(
     )
     selection = classify_forward_observations(scope=scope, observations=observations)
     endpoint = selection.endpoint
-    path_points = selection.path_points(evidence_at=scope.evidence_at)
+    path_points = selection.path_points
 
     structural_reason = (
         structural_problem
@@ -550,7 +582,6 @@ def calculate_forward_outcome(
             reference=reference,
             endpoint=endpoint,
             path_points=path_points,
-            truncated=truncated,
         ),
         created_at=due_at,
     )

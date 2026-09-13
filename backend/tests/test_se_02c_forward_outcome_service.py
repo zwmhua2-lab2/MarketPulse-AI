@@ -52,22 +52,28 @@ from marketpulse.edge.forward import (
     forward_due_at,
 )
 from marketpulse.edge.forward_service import (
+    FORWARD_PATH_READ_PAGE_SIZE,
     ForwardOutcomeService,
     ForwardPathRecorder,
+    ForwardPathTradabilityUnknown,
+    build_forward_path_observation,
     discover_due_scopes,
     evaluate_due_outcomes,
 )
 from marketpulse.edge.models import (
+    BboObservation,
     EdgeFamily,
     EvidenceSource,
     ForwardHorizon,
     ReferenceDataStatus,
+    build_bbo_observation,
     build_evidence_revision,
     build_opportunity_identity,
 )
 from marketpulse.edge.repository import (
     EdgeOutcomeConflict,
     append_evidence_revision,
+    record_bbo_observation,
 )
 from marketpulse.g2.models import (
     EventType,
@@ -87,10 +93,12 @@ from marketpulse.g2.repository import PostgresG2Repository
 from marketpulse.g2.strategy import StrategyEngine
 from marketpulse.market_data.models import (
     DataQuality,
+    Instrument,
     MarketType,
     NormalizedBookTicker,
     NormalizedMarketEvent,
 )
+from marketpulse.market_data.normalizer import normalize_book_ticker
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
@@ -413,6 +421,7 @@ def _ticker(
     instrument_id: str = INSTRUMENT,
     source_sequence: int | None = None,
     quality: DataQuality = DataQuality.FRESH,
+    tradable: bool | None = True,
 ) -> NormalizedBookTicker:
     base, quote = instrument_id.split("-", 1)
     return NormalizedBookTicker(
@@ -430,6 +439,24 @@ def _ticker(
         bid_quantity=1.0,
         ask_price=ask,
         ask_quantity=1.0,
+        # SE-02C-FIX-01: tradability is an authoritative fact carried through the
+        # normalized frame, never inferred from "a quote arrived". Existing
+        # scenarios pass it explicitly; ``None`` exercises the fail-closed path.
+        tradable=tradable,
+    )
+
+
+def _instrument(*, instrument_id: str = INSTRUMENT, tradable: bool = True) -> Instrument:
+    """The real G1 instrument boundary: ``tradable`` comes from OKX ``state``."""
+
+    base, quote = instrument_id.split("-", 1)
+    return Instrument(
+        base_asset=base,
+        quote_asset=quote,
+        market_type=MarketType.SPOT,
+        instrument_id=instrument_id,
+        trading_symbol=instrument_id,
+        tradable=tradable,
     )
 
 
@@ -901,9 +928,13 @@ def test_terminal_status_matrix_is_persisted_without_any_pending_row():
     assert observed["complete_reason"] == "COMPLETE"
     assert observed["complete_binds_both_observations"] is True
     assert observed["insufficient_status"] == "INSUFFICIENT_DATA"
-    # The observed reason follows directly from the durable facts: see the
-    # comment on the ETH scope in the scenario below.
+    # R4: the anchor-only scope reports ENDPOINT_MISSING -- the capture anchor is
+    # the reference authority only and can never be a horizon endpoint.
     assert observed["insufficient_reason"] == observed["expected_insufficient_reason"]
+    assert observed["insufficient_reason"] == "ENDPOINT_MISSING"
+    assert observed["eth_durable_observations"] == 1
+    assert observed["eth_window_available_at_equals_evidence_at"] is True
+    assert observed["eth_window_path_point_count"] == 0
     assert observed["insufficient_metrics_are_null"] is True
     assert observed["insufficient_end_is_not_bound"] is True
     assert observed["insufficient_reference_is_bound"] is True
@@ -912,7 +943,6 @@ def test_terminal_status_matrix_is_persisted_without_any_pending_row():
     assert observed["invalid_binds_nothing"] is True
     assert observed["statuses"] == ["COMPLETE", "INSUFFICIENT_DATA", "INVALID"]
     assert observed["pending_rows"] == 0
-    assert observed["eth_durable_observations"] == 1
     assert observed["outcome_count"] == 12
 
 
@@ -942,15 +972,23 @@ async def _status_scenario(url: str) -> dict[str, object]:
     insufficient = _by_horizon(durable["outcomes"], empty_id)["5m"]
     invalid = _by_horizon(durable["outcomes"], invalid_id)["5m"]
     # The ETH scope has an anchor but no forward path observation of its own, so
-    # the only in-window candidate is the anchor BBO itself. The frozen rule
-    # therefore reports ENDPOINT_MISSING when that window is empty and
-    # ENDPOINT_STALE when the anchor is the candidate -- both are
-    # INSUFFICIENT_DATA with every metric NULL, which is what this test pins.
+    # the only in-window durable row is the anchor BBO itself (available_at ==
+    # evidence_at). SE-02C-FIX-01 (R4): the FIX-01 capture anchor is the
+    # *reference authority only* and is never a horizon endpoint, so this now
+    # reports ENDPOINT_MISSING rather than mistaking the anchor for a stale
+    # endpoint -- still INSUFFICIENT_DATA with every metric NULL, which is what
+    # this test pins.
     eth_window = [
         row for row in durable["observations"] if row.instrument_id == SECOND_INSTRUMENT
     ]
     return {
         "eth_durable_observations": len(eth_window),
+        "eth_window_available_at_equals_evidence_at": (
+            bool(eth_window) and all(row.available_at == START for row in eth_window)
+        ),
+        "eth_window_path_point_count": insufficient.completeness_diagnostics[
+            "path_point_count"
+        ],
         "complete_status": complete.calculation_status,
         "complete_reason": complete.completeness_diagnostics["reason"],
         "complete_binds_both_observations": (
@@ -959,7 +997,7 @@ async def _status_scenario(url: str) -> dict[str, object]:
         ),
         "insufficient_status": insufficient.calculation_status,
         "insufficient_reason": insufficient.completeness_diagnostics["reason"],
-        "expected_insufficient_reason": "ENDPOINT_MISSING" if not eth_window else "ENDPOINT_STALE",
+        "expected_insufficient_reason": "ENDPOINT_MISSING",
         "insufficient_metrics_are_null": all(
             getattr(insufficient, field) is None
             for field in (
@@ -1285,3 +1323,336 @@ async def _cross_evidence_scenario(url: str) -> dict[str, object]:
             for horizon in ALL_FORWARD_HORIZONS
         ),
     }
+
+
+# --- SE-02C-FIX-01 · R1: the complete forward path, never a capped prefix -----------------
+
+
+LONG_PATH_COUNT = 50_001
+LONG_PATH_BASE = START + timedelta(seconds=295)
+
+
+def _long_path_observation(index: int) -> BboObservation:
+    """One legal Forward path observation; the extremes live in the last two rows.
+
+    The deepest and the highest excursion are deliberately placed in forward path
+    observations ``50_000`` and ``50_001`` -- exactly the rows a 50,000-row read
+    ceiling would have dropped -- so a capped loader cannot reproduce this
+    outcome: its endpoint would be an earlier row and both excursions would
+    collapse to ``0``.
+    """
+
+    if index == LONG_PATH_COUNT:
+        bid, ask = 109.99, 110.01
+    elif index == LONG_PATH_COUNT - 1:
+        bid, ask = 89.99, 90.01
+    else:
+        bid, ask = 99.99, 100.01
+    at = LONG_PATH_BASE + timedelta(microseconds=index)
+    return build_bbo_observation(
+        instrument_id=INSTRUMENT,
+        market_type=MarketType.SPOT,
+        bid=bid,
+        ask=ask,
+        available_at=at,
+        source_event_time=at,
+        received_at=at,
+        data_quality=DataQuality.FRESH,
+        tradable=True,
+        source=PATH_SOURCE,
+        created_at=at,
+    )
+
+
+def test_more_than_fifty_thousand_forward_observations_are_used_in_full():
+    """R1: a >50,000 observation Forward Path must reach the endpoint and both excursions."""
+
+    with _se02c_database("long_path") as url:
+        observed = asyncio.run(_long_path_scenario(url))
+
+    assert observed["forward_path_observation_count"] == LONG_PATH_COUNT
+    # 1 durable FIX-01 capture anchor + LONG_PATH_COUNT forward path observations.
+    assert observed["durable_bbo_rows"] == LONG_PATH_COUNT + 1
+    assert observed["page_size_is_smaller_than_the_path"] is True
+    assert observed["status"] == "COMPLETE"
+    assert observed["service_status"] == "COMPLETE"
+    assert observed["observation_count"] == LONG_PATH_COUNT + 1
+    assert observed["eligible_observation_count"] == LONG_PATH_COUNT + 1
+    assert observed["path_point_count"] == LONG_PATH_COUNT
+    assert observed["no_truncation_flag"] is True
+    assert observed["endpoint_is_the_true_latest"] is True
+    assert observed["endpoint_available_at"] == observed["expected_endpoint_available_at"]
+    assert observed["end_age_seconds"] <= 5.0
+    assert observed["mfe"] == pytest.approx(0.10, rel=1e-12)
+    assert observed["mae"] == pytest.approx(-0.10, rel=1e-12)
+    assert observed["reference_return"] == pytest.approx(0.10, rel=1e-12)
+    assert observed["executable_long_return"] == pytest.approx(
+        109.99 / REFERENCE_ASK - 1, rel=1e-12
+    )
+    assert observed["end_bid"] == 109.99
+    assert observed["end_ask"] == 110.01
+    assert observed["first_extreme_was_outside_the_old_ceiling"] is True
+
+
+async def _long_path_scenario(url: str) -> dict[str, object]:
+    async with _sessions(url) as sessions:
+        await _capture_forward_opportunity(sessions)
+        # The accepted SE-02A/SE-02B writer, used verbatim: these are legal durable
+        # forward path observations of the open FORWARD_PAPER window.
+        async with sessions() as session, session.begin():
+            for index in range(1, LONG_PATH_COUNT + 1):
+                await record_bbo_observation(session, _long_path_observation(index))
+
+    engine = create_async_engine(url, poolclass=NullPool)
+    try:
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        service = ForwardOutcomeService(factory, horizons=(ForwardHorizon.M5,))
+        outcomes = await service.evaluate_due_outcomes(now=EVAL_NOW)
+        durable = await _durable(factory)
+    finally:
+        await engine.dispose()
+
+    stored = next(row for row in durable["outcomes"] if row.horizon == "5m")
+    endpoint_row = next(
+        row
+        for row in durable["observations"]
+        if row.observation_id == stored.end_bbo_observation_id
+    )
+    diagnostics = dict(stored.completeness_diagnostics)
+    latest_available_at = LONG_PATH_BASE + timedelta(microseconds=LONG_PATH_COUNT)
+    return {
+        "forward_path_observation_count": sum(
+            1 for row in durable["observations"] if row.available_at > START
+        ),
+        "durable_bbo_rows": durable["observation_count"],
+        "page_size_is_smaller_than_the_path": (
+            FORWARD_PATH_READ_PAGE_SIZE < durable["observation_count"]
+        ),
+        "status": stored.calculation_status,
+        "service_status": next(
+            item.calculation_status.value
+            for item in outcomes
+            if item.horizon is ForwardHorizon.M5
+        ),
+        "observation_count": diagnostics["observation_count"],
+        "eligible_observation_count": diagnostics["eligible_observation_count"],
+        "path_point_count": diagnostics["path_point_count"],
+        "end_age_seconds": diagnostics["end_age_seconds"],
+        "no_truncation_flag": (
+            "path_truncated" not in diagnostics and "truncated" not in diagnostics
+        ),
+        "endpoint_is_the_true_latest": endpoint_row.available_at == latest_available_at,
+        "endpoint_available_at": endpoint_row.available_at,
+        "expected_endpoint_available_at": latest_available_at,
+        "mfe": stored.mfe,
+        "mae": stored.mae,
+        "reference_return": stored.reference_return,
+        "executable_long_return": stored.executable_long_return,
+        "end_bid": stored.end_bid,
+        "end_ask": stored.end_ask,
+        # The MAE-driving row sits at index 50_000 of the path: inside the path,
+        # outside the 50_000-row prefix the old loader kept.
+        "first_extreme_was_outside_the_old_ceiling": (
+            LONG_PATH_BASE + timedelta(microseconds=LONG_PATH_COUNT - 1) > START
+            and stored.mae is not None
+        ),
+    }
+
+
+# --- SE-02C-FIX-01 · R2: authoritative tradability ----------------------------------------
+
+
+#: Case A / Case B live inside the frozen 5-second endpoint TTL of the 5m horizon.
+CASE_A_AT = START + timedelta(seconds=295)
+CASE_B_AT = START + timedelta(seconds=296)
+CASE_C_AT = START + timedelta(seconds=12)
+SUSPENDED_AT = START + timedelta(seconds=295)
+CASE_C_BID = 777.0
+
+
+def test_tradability_is_carried_from_the_instrument_and_unknown_tradability_fails_closed():
+    with _se02c_database("tradability") as url:
+        observed = asyncio.run(_tradability_scenario(url))
+
+    # Case A -- instrument tradable -> frame tradable -> durable tradable -> eligible.
+    assert observed["case_a_normalized_tradable"] is True
+    assert observed["case_a_recorded"] == "INSERTED"
+    assert observed["case_a_durable_tradable"] is True
+    assert observed["case_a_is_the_endpoint"] is True
+
+    # Case B -- instrument non-tradable -> frame False -> durable False -> excluded,
+    # even though it is the *later* quote and would otherwise win the endpoint.
+    assert observed["case_b_normalized_tradable"] is False
+    assert observed["case_b_recorded"] == "INSERTED"
+    assert observed["case_b_durable_tradable"] is False
+    assert observed["case_b_is_the_endpoint"] is False
+    assert observed["excluded_untradable_count"] == 1
+    assert observed["complete_end_bid"] == 101.0
+    assert observed["complete_mfe"] == pytest.approx(0.012, rel=1e-12)
+    assert observed["complete_status"] == "COMPLETE"
+
+    # Case C -- no authoritative tradability fact: nothing is archived, nothing raises.
+    assert observed["case_c_recorded"] is None
+    assert observed["case_c_builder_raises"] is True
+    assert observed["case_c_rows"] == 0
+
+    # A suspended instrument's only forward path quote can never produce COMPLETE,
+    # executable return or cost-adjusted return.
+    assert observed["suspended_recorded"] == "INSERTED"
+    assert observed["suspended_durable_tradable"] is False
+    assert observed["suspended_status"] == "INSUFFICIENT_DATA"
+    assert observed["suspended_reason"] == "ENDPOINT_MISSING"
+    assert observed["suspended_metrics_are_null"] is True
+    assert observed["suspended_end_is_not_bound"] is True
+    assert observed["suspended_complete_rows"] == 0
+    assert observed["suspended_excluded_untradable_count"] == 1
+
+
+async def _tradability_scenario(url: str) -> dict[str, object]:
+    async with _sessions(url) as sessions:
+        live_facts = await _capture_forward_opportunity(sessions)
+        suspended_facts = await _capture_forward_opportunity(
+            sessions, event_id="evt-se02c-eth", instrument_id=SECOND_INSTRUMENT
+        )
+        recorder = ForwardPathRecorder(sessions)
+
+        # The real G1 authority: ``Instrument.tradable`` is the value the
+        # normalizer resolved from OKX ``state``, and it is what the frame carries.
+        live_instrument = _instrument(tradable=True)
+        suspended_instrument = _instrument(instrument_id=SECOND_INSTRUMENT, tradable=False)
+
+        case_a_normalized = _normalize(tradable=live_instrument.tradable)
+        case_b_normalized = _normalize(tradable=suspended_instrument.tradable)
+
+        case_a_recorded = await recorder.record_event(
+            _ticker(
+                bid=101.0,
+                ask=101.4,
+                at=CASE_A_AT,
+                tradable=case_a_normalized.tradable,
+            )
+        )
+        case_b_recorded = await recorder.record_event(
+            _ticker(
+                bid=500.0,
+                ask=500.4,
+                at=CASE_B_AT,
+                tradable=case_b_normalized.tradable,
+            )
+        )
+        case_c_frame = _ticker(
+            bid=CASE_C_BID, ask=CASE_C_BID + 0.4, at=CASE_C_AT, tradable=None
+        )
+        case_c_recorded = await recorder.record_event(case_c_frame)
+        try:
+            build_forward_path_observation(case_c_frame)
+            case_c_builder_raises = False
+        except ForwardPathTradabilityUnknown:
+            case_c_builder_raises = True
+
+        suspended_recorded = await recorder.record_event(
+            _ticker(
+                bid=200.0,
+                ask=200.4,
+                at=SUSPENDED_AT,
+                instrument_id=SECOND_INSTRUMENT,
+                tradable=suspended_instrument.tradable,
+            )
+        )
+
+    engine = create_async_engine(url, poolclass=NullPool)
+    try:
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+        service = ForwardOutcomeService(factory, horizons=(ForwardHorizon.M5,))
+        await service.evaluate_due_outcomes(now=EVAL_NOW)
+        durable = await _durable(factory)
+    finally:
+        await engine.dispose()
+
+    complete = _by_horizon(durable["outcomes"], _opportunity_id(live_facts))["5m"]
+    suspended = _by_horizon(durable["outcomes"], _opportunity_id(suspended_facts))["5m"]
+    rows = durable["observations"]
+
+    def _row(at: datetime, instrument_id: str = INSTRUMENT):
+        """The one durable row of an exact (instrument, available_at) pair.
+
+        ``CASE_A_AT`` and ``SUSPENDED_AT`` intentionally share an instant, so the
+        instrument must be part of the lookup rather than assumed.
+        """
+
+        return next(
+            row
+            for row in rows
+            if row.available_at == at and row.instrument_id == instrument_id
+        )
+
+    case_b_rows = [row for row in rows if row.available_at == CASE_B_AT]
+    suspended_rows = [
+        row for row in rows if row.instrument_id == SECOND_INSTRUMENT and row.bid == 200.0
+    ]
+    return {
+        "case_a_normalized_tradable": case_a_normalized.tradable,
+        "case_a_recorded": case_a_recorded,
+        "case_a_durable_tradable": _row(CASE_A_AT).tradable,
+        "case_a_is_the_endpoint": (
+            complete.end_bbo_observation_id == _row(CASE_A_AT).observation_id
+        ),
+        "case_b_normalized_tradable": case_b_normalized.tradable,
+        "case_b_recorded": case_b_recorded,
+        "case_b_durable_tradable": next(
+            row.tradable for row in case_b_rows
+        ) if case_b_rows else None,
+        "case_b_is_the_endpoint": (
+            complete.end_bbo_observation_id == _row(CASE_B_AT).observation_id
+        ),
+        "excluded_untradable_count": complete.completeness_diagnostics[
+            "excluded_untradable_count"
+        ],
+        "complete_status": complete.calculation_status,
+        "complete_end_bid": complete.end_bid,
+        "complete_mfe": complete.mfe,
+        "case_c_recorded": case_c_recorded,
+        "case_c_builder_raises": case_c_builder_raises,
+        "case_c_rows": sum(1 for row in rows if row.bid == CASE_C_BID),
+        "suspended_recorded": suspended_recorded,
+        "suspended_durable_tradable": next(
+            (row.tradable for row in suspended_rows), None
+        ),
+        "suspended_status": suspended.calculation_status,
+        "suspended_reason": suspended.completeness_diagnostics["reason"],
+        "suspended_metrics_are_null": all(
+            getattr(suspended, field) is None
+            for field in (
+                "reference_return",
+                "executable_long_return",
+                "cost_adjusted_forward_return",
+                "mfe",
+                "mae",
+                "end_bid",
+                "end_ask",
+            )
+        ),
+        "suspended_end_is_not_bound": suspended.end_bbo_observation_id is None,
+        "suspended_complete_rows": sum(
+            1
+            for row in durable["outcomes"]
+            if row.opportunity_id == suspended.opportunity_id
+            and row.calculation_status == "COMPLETE"
+        ),
+        "suspended_excluded_untradable_count": suspended.completeness_diagnostics[
+            "excluded_untradable_count"
+        ],
+    }
+
+
+def _normalize(*, tradable: bool) -> NormalizedBookTicker:
+    """One normalized OKX frame through the real market-data normalizer."""
+
+    return normalize_book_ticker(
+        {
+            "ts": str(int(START.timestamp() * 1000)),
+            "bids": [["100.0", "1"]],
+            "asks": [["101.0", "1"]],
+        },
+        _instrument(tradable=tradable),
+    )
