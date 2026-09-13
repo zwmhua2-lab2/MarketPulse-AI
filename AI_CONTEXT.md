@@ -12,9 +12,9 @@
 | Project | MarketPulse AI（BTC/ETH 量化纸面交易终端，Modular Monolith） |
 | Current Acceptance Group | SE-ARCH-FIX-02 — Outcome Revision Chain Scope — ACCEPTED / COMPLETE |
 | Accepted Main Source | Git `main` / `origin/main`；须在任务 preflight 按 CIP-02 实时读取，不以文档静态 SHA 为准 |
-| Current State | `SE-ARCH-FIX-02 = ACCEPTED / COMPLETE`（2026-09-13 Human Acceptance = `APPROVED` + Final Main Integration Closeout，已 fast-forward only 收编 `main`；Human-Accepted reviewed candidate = `15da7c1`；Implementation = `4c83582`）；`SE-ARCH-FIX-01 = ACCEPTED / COMPLETE`（2026-09-13 Human Acceptance = `APPROVED` + Final Main Integration Closeout；reviewed candidate = `1e2738b`）；`SE-02A = ACCEPTED / COMPLETE`；`SE-02B = ACCEPTED / COMPLETE`；**`SE-02C = IMPLEMENTED / READY FOR INDEPENDENT REVIEW`**（2026-09-13 实现 + 验证窗口；branch `se-02c-forward-outcome-calculator` @ `721c488`，base `8a29306`；**未** merge `main`、**未**自行 Acceptance；无新增 migration，单 head 仍 `20260913_0009`）；`SE-02D = NOT STARTED`；`N01-C = ACCEPTED / COMPLETE`；N01-A / N01-B 与 N01 验证修复 `N01-VAL-FIX-01/02/03` 均维持 `ACCEPTED / COMPLETE`；`N01-6 = ACCEPTED / COMPLETE`（Reviewed HEAD `3f591a7`）；**`N01-7-F01 = ACCEPTED / COMPLETE`**（2026-09-13 Human Acceptance = `CONFIRMED` + Final Main Integration；reviewed candidate `7c0ea7d` @ integration merge `ddf39f2`；已 fast-forward only 收编 `main`）；**`N01-7 = NOT STARTED / READY TO RESUME`**；`N01-8` / Integrated Runtime Host 仍 `NOT STARTED`；**N01 overall 仍 `NOT ACCEPTED`** |
+| Current State | `SE-ARCH-FIX-02 = ACCEPTED / COMPLETE`（2026-09-13 Human Acceptance = `APPROVED` + Final Main Integration Closeout，已 fast-forward only 收编 `main`；Human-Accepted reviewed candidate = `15da7c1`；Implementation = `4c83582`）；`SE-ARCH-FIX-01 = ACCEPTED / COMPLETE`（2026-09-13 Human Acceptance = `APPROVED` + Final Main Integration Closeout；reviewed candidate = `1e2738b`）；`SE-02A = ACCEPTED / COMPLETE`；`SE-02B = ACCEPTED / COMPLETE`；**`SE-02C = IMPLEMENTED / READY FOR INDEPENDENT REVIEW`**（2026-09-13 实现 + 验证窗口；branch `se-02c-forward-outcome-calculator` @ `7a68bf0`，base `8a29306`；**未** merge `main`、**未**自行 Acceptance；无新增 migration，单 head 仍 `20260913_0009`）；`SE-02D = NOT STARTED`；`N01-C = ACCEPTED / COMPLETE`；N01-A / N01-B 与 N01 验证修复 `N01-VAL-FIX-01/02/03` 均维持 `ACCEPTED / COMPLETE`；`N01-6 = ACCEPTED / COMPLETE`（Reviewed HEAD `3f591a7`）；**`N01-7-F01 = ACCEPTED / COMPLETE`**（2026-09-13 Human Acceptance = `CONFIRMED` + Final Main Integration；reviewed candidate `7c0ea7d` @ integration merge `ddf39f2`；已 fast-forward only 收编 `main`）；**`N01-7 = NOT STARTED / READY TO RESUME`**；`N01-8` / Integrated Runtime Host 仍 `NOT STARTED`；**N01 overall 仍 `NOT ACCEPTED`** |
 | Last Accepted Group | SE-ARCH-FIX-02 — Outcome Revision Chain Scope |
-| Current Group Branch | `se-02c-forward-outcome-calculator`（SE-02C implementation + verification @ `721c488`，base `8a29306`；**等待 Independent Review**，**未** merge `main`）；历史：`se-arch-fix-02-outcome-revision-chain-scope`（accepted lineage；仅 fast-forward 收编至 `main`，历史分支保留）、`se-arch-fix-01-latest-main-integration`、`se-02b-opportunity-capture-attribution`、`n01-6-15m-runtime-smoke`、`n01-c-restart-recovery-reconciliation` |
+| Current Group Branch | `se-02c-forward-outcome-calculator`（SE-02C implementation + verification @ `7a68bf0`，base `8a29306`；**等待 Independent Review**，**未** merge `main`）；历史：`se-arch-fix-02-outcome-revision-chain-scope`（accepted lineage；仅 fast-forward 收编至 `main`，历史分支保留）、`se-arch-fix-01-latest-main-integration`、`se-02b-opportunity-capture-attribution`、`n01-6-15m-runtime-smoke`、`n01-c-restart-recovery-reconciliation` |
 
 - G1–G4 acceptance 状态：`ACCEPTED` / `ACCEPTED` / `ACCEPTED` / `ACCEPTED`。
 - G5-0 / G5-1 / G5-2 / G5-3 / G5-4 acceptance 状态：`ACCEPTED`。
@@ -49,7 +49,7 @@
   `IMPLEMENTED / READY FOR INDEPENDENT REVIEW`，见下条。）
 
 - SE-02C Forward Outcome Calculator = `IMPLEMENTED / READY FOR INDEPENDENT REVIEW`
-  （2026-09-13 实现 + 验证窗口；branch `se-02c-forward-outcome-calculator` @ `721c488`，
+  （2026-09-13 实现 + 验证窗口；branch `se-02c-forward-outcome-calculator` @ `7a68bf0`，
   base `8a29306`，worktree `E:\Documents\MarketPulse-AI-se-02c`；**未** merge `main`、
   **未** push `main`、**未**自行 Acceptance；前置授权 = 外部任务书声明的 Pre-SE-02C
   Re-Gate `PASS — SE-02C MAY START`）。落地：纯计算核心 `edge/forward.py`
@@ -60,7 +60,8 @@
   `record_bbo_observation`、`discover_due_scopes`、`ForwardOutcomeService` /
   `evaluate_due_outcomes`，永不写 revision > 1）、`g2/runtime.py` 最小 opt-in
   live-ingress hook。`Migration changed = NO`（单 head 仍 `20260913_0009`）。
-  验证：focused `46 passed`、命名回归 `196 passed`、full backend `417 passed`。
+  验证：focused `47 passed`、命名回归 `196 passed`、full backend `418 passed`；
+  C-01 ～ C-29 全部 PASS（无 FAIL / NOT VERIFIED）。
   两个未决语义点交 Independent Review：窗口内只有 anchor BBO 自身时 reason 为
   `ENDPOINT_STALE`；已结算 scope 事实变化后强制重评估抛 `EdgeOutcomeConflict`（fail closed）。
   详见 `dev_log/2026-09-13-se-02c-forward-outcome-calculator.md`。
@@ -107,10 +108,10 @@ disposable 库保持空表（症状 `relation "edge_opportunity_evidence" does n
 
 | 字段 | 值 |
 |---|---|
-| Current Group | SE-02C — Forward Outcome Calculator — `IMPLEMENTED / READY FOR INDEPENDENT REVIEW`（2026-09-13 实现 + 验证窗口；branch `se-02c-forward-outcome-calculator` @ `721c488`；**未** merge `main`）；Last accepted = SE-ARCH-FIX-02 — Outcome Revision Chain Scope (`ACCEPTED / COMPLETE`) |
+| Current Group | SE-02C — Forward Outcome Calculator — `IMPLEMENTED / READY FOR INDEPENDENT REVIEW`（2026-09-13 实现 + 验证窗口；branch `se-02c-forward-outcome-calculator` @ `7a68bf0`；**未** merge `main`）；Last accepted = SE-ARCH-FIX-02 — Outcome Revision Chain Scope (`ACCEPTED / COMPLETE`) |
 | Last accepted subgroup | SE-ARCH-FIX-02 — Outcome Revision Chain Scope (`ACCEPTED / COMPLETE`)；SE-ARCH-FIX-01 / SE-02A / SE-02B / N01-6 / N01-7-F01 / N01-C / N01-A / N01-B 亦维持 `ACCEPTED / COMPLETE`；N01 overall 仍 `NOT ACCEPTED` |
 | Next Group Design | `NOT STARTED`（须另开窗口）；SE-02C 的实现**不**自动开始 `SE-02D`（`SE-02C` 本批仅到 `IMPLEMENTED / READY FOR INDEPENDENT REVIEW`，尚需 Independent Review → Human Acceptance，见 §1 与本文 SE-02C 条目） |
-| Next Group name/number | `SE-ARCH-FIX-02 = ACCEPTED / COMPLETE`；`SE-02C = IMPLEMENTED / READY FOR INDEPENDENT REVIEW`（branch `se-02c-forward-outcome-calculator` @ `721c488`）；`SE-02D = NOT STARTED`；N01-7 — 2-hour Medium Runtime Soak — `NOT STARTED / READY TO RESUME`（其前置 `N01-7-F01 = ACCEPTED / COMPLETE`（2026-09-13）；`N01-8` / Integrated Runtime Host = `NOT STARTED`） |
+| Next Group name/number | `SE-ARCH-FIX-02 = ACCEPTED / COMPLETE`；`SE-02C = IMPLEMENTED / READY FOR INDEPENDENT REVIEW`（branch `se-02c-forward-outcome-calculator` @ `7a68bf0`）；`SE-02D = NOT STARTED`；N01-7 — 2-hour Medium Runtime Soak — `NOT STARTED / READY TO RESUME`（其前置 `N01-7-F01 = ACCEPTED / COMPLETE`（2026-09-13）；`N01-8` / Integrated Runtime Host = `NOT STARTED`） |
 
 - G4 **没有**提前实现完整 Replay / ReplayClock Engine。
 - 仓库中仅存在：`Clock` Protocol 的 `ReplayClock` 实现（`backend/src/marketpulse/clock.py`）与 `RunMode.REPLAY` 枚举（`config.py`）——这是既有 Clock 边界，**不是**完整回放引擎。

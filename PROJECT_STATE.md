@@ -6,7 +6,7 @@ SE-02A — Contracts + Additive Persistence — ACCEPTED / COMPLETE
 
 SE-02B — Opportunity Capture + Attribution — ACCEPTED / COMPLETE
 
-SE-02C — Forward Outcome Calculator — IMPLEMENTED / READY FOR INDEPENDENT REVIEW（branch `se-02c-forward-outcome-calculator` @ `721c488`；未 merge `main`、未自行 Acceptance）
+SE-02C — Forward Outcome Calculator — IMPLEMENTED / READY FOR INDEPENDENT REVIEW（branch `se-02c-forward-outcome-calculator` @ `7a68bf0`；未 merge `main`、未自行 Acceptance）
 
 SE-02D — Family Aggregation / Expectancy — NOT STARTED
 
@@ -45,14 +45,14 @@ Integrated Runtime Host 仍 `NOT STARTED`；N01-6 的验收不得推断 Continuo
   `SE-ARCH-FIX-02 ACCEPTED / COMPLETE`（2026-09-13 Human Acceptance = `APPROVED` + Final Main
   Integration Closeout，已 fast-forward only 收编 `main`）；`SE-02C = IMPLEMENTED / READY FOR
   INDEPENDENT REVIEW`（2026-09-13 实现 + 验证窗口；branch `se-02c-forward-outcome-calculator`
-  @ `721c488`，**未** merge `main`、**未**自行 Acceptance；无新增 migration，单 head 仍
+  @ `7a68bf0`，**未** merge `main`、**未**自行 Acceptance；无新增 migration，单 head 仍
   `20260913_0009`）；`SE-02D = NOT STARTED`
 
 ## Branch / Source
 
 - Current Accepted Branch: `main`
 - Current Group Branch: `se-02c-forward-outcome-calculator`（SE-02C implementation +
-  verification，@ `721c488`，base `8a29306`；**等待 Independent Review**，**未** merge `main`）；
+  verification，@ `7a68bf0`，base `8a29306`；**等待 Independent Review**，**未** merge `main`）；
   历史：`n01-c-restart-recovery-reconciliation`（N01-C accepted validation
   lineage；仅 fast-forward 收编至 `main`，历史分支保留）；最近新增 SE-02A accepted lineage
   `se-02a-final-integration-refresh`、N01-6 accepted lineage `n01-6-15m-runtime-smoke` 与
@@ -314,7 +314,7 @@ Integrated Runtime Host 仍 `NOT STARTED`；N01-6 的验收不得推断 Continuo
   service 负责 scope integrity + adjacency。**不**因此启动 SE-02C，见 Completed / Acceptance
   Record / 「SE-ARCH-FIX-02 Result」）。
 - **SE-02C｜Forward Outcome Calculator = `IMPLEMENTED / READY FOR INDEPENDENT REVIEW`**
-  （2026-09-13 实现 + 验证窗口；branch `se-02c-forward-outcome-calculator` @ `721c488`，
+  （2026-09-13 实现 + 验证窗口；branch `se-02c-forward-outcome-calculator` @ `7a68bf0`，
   worktree `E:\Documents\MarketPulse-AI-se-02c`，base `8a29306`；**未** merge `main`，**未**
   push `main`，**未**自行 Acceptance）。落地内容：纯确定性计算核心
   `edge/forward.py`（冻结 V1 mid/return/MFE-MAE 公式 + 精确乘性
@@ -825,8 +825,9 @@ Integrated Runtime Host 仍 `NOT STARTED`；N01-6 的验收不得推断 Continuo
 - 前置授权：Pre-SE-02C Re-Gate = `PASS — SE-02C MAY START`（**外部任务书内容**，本仓库无副本；
   本窗口未自行签发该 gate）。
 - Base / Branch / Worktree：base `8a29306`（Accepted Main，`origin/main` read-back 一致，无 drift）
-  → branch `se-02c-forward-outcome-calculator` @ `721c488`；worktree
-  `E:\Documents\MarketPulse-AI-se-02c`。**未** merge `main`、**未** push `main`。
+  → branch `se-02c-forward-outcome-calculator` @ `7a68bf0`（implementation `721c488`、
+  test coverage `7a68bf0`）；worktree `E:\Documents\MarketPulse-AI-se-02c`。
+  **未** merge `main`、**未** push `main`。
 - Scope（新增 2 + 最小修改 2 + 测试 2）：`edge/forward.py`（纯计算核心）、
   `edge/forward_service.py`（path recorder / durable due discovery / bounded evaluation API）、
   `edge/__init__.py`（包内清单）、`g2/runtime.py`（opt-in live-ingress hook）、
@@ -838,9 +839,9 @@ Integrated Runtime Host 仍 `NOT STARTED`；N01-6 的验收不得推断 Continuo
   `created_at` 冻结为 `due_at`；成本为精确乘性模型；`calculation_digest` 排除 provenance、
   `outcome_record_hash` 包含 provenance；评估者永不写 revision > 1。
 - `Migration changed = NO`：`alembic heads` 单 head `20260913_0009`（**未**新增迁移、未改 ORM）。
-- 验证：SE-02C focused `46 passed`；SE-02A/SE-02B/G5 命名回归 `196 passed`；full backend
-  `417 passed, 1 warning`（相对 FIX-02 的 371 基线 = +46 / 回归 0）；`ruff check` /
-  `compileall` / `git diff --check` PASS。隔离 disposable PostgreSQL
+- 验证：SE-02C focused `47 passed`；SE-02A/SE-02B/G5 命名回归 `196 passed`；full backend
+  `418 passed, 1 warning`（相对 FIX-02 的 371 基线 = +47 / 回归 0）；`ruff check` /
+  `compileall` / `git diff --check` PASS；C-01 ～ C-29 全部 PASS。隔离 disposable PostgreSQL
   `postgres:16-alpine` @ `127.0.0.1:5438`；共享 5432 **未**被触碰。
 - 状态（本批完成时）：`SE-02C = IMPLEMENTED / READY FOR INDEPENDENT REVIEW`。
 - 未决语义点（交 Independent Review 判定，本窗口**未**自行决定）：
