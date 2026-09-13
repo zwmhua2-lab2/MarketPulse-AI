@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Protocol
 from marketpulse.clock import Clock
 from marketpulse.market_data.models import (
     AuxiliaryContext,
+    NormalizedBookTicker,
     NormalizedMarketEvent,
     NormalizedTrade,
 )
@@ -32,6 +33,7 @@ from .timeline import SignalLifecycle
 
 if TYPE_CHECKING:
     from marketpulse.edge.capture import ForwardAdmissionAuthority, ForwardAdmissionProof
+    from marketpulse.edge.forward_service import ForwardPathRecorder
 
 
 class G2Repository(Protocol):
@@ -325,6 +327,7 @@ class ScannerPipeline:
         clock: Clock | None = None,
         trade_dedupe_capacity: int = 8192,
         forward_admission_authority: ForwardAdmissionAuthority | None = None,
+        forward_path_recorder: ForwardPathRecorder | None = None,
     ) -> None:
         if trade_dedupe_capacity <= 0:
             raise ValueError("trade_dedupe_capacity must be positive")
@@ -337,6 +340,10 @@ class ScannerPipeline:
         # deliberately optional: a historical replay pipeline never receives one,
         # so it can never mint a Forward admission proof.
         self.forward_admission_authority = forward_admission_authority
+        # SE-02C Forward path capture hangs off the same live ingress and is likewise
+        # opt-in: with no recorder configured the accepted ingest path is unchanged,
+        # and a historical replay pipeline cannot archive a Forward BBO path.
+        self.forward_path_recorder = forward_path_recorder
         self._btc_returns: dict[str, float] = {}
         self._trade_dedupe: set[tuple[str, str, str, str]] = set()
         self._trade_dedupe_fifo: deque[tuple[str, str, str, str]] = deque()
@@ -352,6 +359,10 @@ class ScannerPipeline:
         if trade_key is not None and trade_key in self._trade_dedupe:
             self.last_detected_events = ()
             return []
+        # SE-02C: archive the normalized BBO of this frame while a Forward evidence
+        # window covers the instrument. With no recorder wired this is a no-op and
+        # the accepted ingest path is byte-for-byte unchanged.
+        await self.record_forward_path(market_event)
         btc_return = self._btc_returns.get("BTC-USDT")
         working_rolling = self.rolling.copy()
         features = working_rolling.ingest(
@@ -438,6 +449,20 @@ class ScannerPipeline:
         if self.forward_admission_authority is None:
             return None
         return self.forward_admission_authority.issue(source_event=source_event, event=event)
+
+    async def record_forward_path(self, market_event: NormalizedMarketEvent) -> str | None:
+        """Offer one normalized ingress frame to the SE-02C Forward path recorder.
+
+        Only a normalized L1 BBO frame can become a Forward path observation, and
+        only when this pipeline was actually given a recorder -- a historical
+        replay pipeline never is, so it cannot archive a Forward BBO path.
+        """
+
+        if self.forward_path_recorder is None or not isinstance(
+            market_event, NormalizedBookTicker
+        ):
+            return None
+        return await self.forward_path_recorder.record_event(market_event)
 
     def _remember_trade(self, trade_key: tuple[str, str, str, str]) -> None:
         """Remember successful inputs in FIFO arrival order without refreshing duplicate hits."""
