@@ -12,7 +12,7 @@ SE-02D — Family Aggregation / Expectancy — NOT STARTED
 
 SE-ARCH-FIX-01 — Stable Evidence Anchor — ACCEPTED / COMPLETE
 
-SE-ARCH-FIX-02 — NOT STARTED
+SE-ARCH-FIX-02 — Outcome Revision Chain Scope — IMPLEMENTED / READY FOR INDEPENDENT REVIEW
 
 N01-C — Restart / Recovery / Reconciliation — ACCEPTED / COMPLETE
 
@@ -42,7 +42,8 @@ Integrated Runtime Host 仍 `NOT STARTED`；N01-6 的验收不得推断 Continuo
   Integration，已 fast-forward only 收编 `main`）；`N01-C ACCEPTED / COMPLETE`；
   `N01-6 ACCEPTED / COMPLETE`；N01-A / N01-B 与
   `N01-VAL-FIX-01/02/03` 均维持已验收结论，N01 overall 仍未验收；
-  `SE-ARCH-FIX-02 = NOT STARTED`；`SE-02C = BLOCKED / NOT STARTED`（SE-ARCH-FIX-02 尚未完成）；
+  `SE-ARCH-FIX-02 = IMPLEMENTED / READY FOR INDEPENDENT REVIEW`（尚未 Acceptance）；
+  `SE-02C = BLOCKED / NOT STARTED`（SE-ARCH-FIX-02 尚未 Acceptance）；
   `SE-02D = NOT STARTED`
 
 ## Branch / Source
@@ -56,9 +57,10 @@ Integrated Runtime Host 仍 `NOT STARTED`；N01-6 的验收不得推断 Continuo
 - Last Accepted Group Branch: `n01-c-restart-recovery-reconciliation`（历史证据，保留未删）；更早 `n01-a-runtime-resource-lifecycle`、`n01-b-okx-paper-safety-continuity`
 - Accepted Main Source: Git `main` / `origin/main` — read actual SHA at task preflight（CIP-02）
 - G5-1 Implementation Acceptance Basis: `34da62a0cc9dbe95b95faadb770fbd06179a6975`
-- Migration Head: `20260913_0008`（SE-02A `20260911_0005` Edge evidence + N01-7-F01
+- Migration Head: `20260913_0009`（SE-02A `20260911_0005` Edge evidence + N01-7-F01
   `20260912_0006` Position Protection Snapshot + SE-ARCH-FIX-01 `20260913_0007` Capture
-  Anchor + `20260913_0008` Review Fix / Orphan；集成验证须保持单 head）
+  Anchor + `20260913_0008` Review Fix / Orphan + SE-ARCH-FIX-02 `20260913_0009` Outcome
+  Revision Chain Scope；集成验证须保持单 head）
 - Real AI Provider Status: `DEFERRED`（`OPENAI_API_KEY=MISSING`；测试用 deterministic Fake Provider）
 
 ## Completed
@@ -280,10 +282,14 @@ Integrated Runtime Host 仍 `NOT STARTED`；N01-6 的验收不得推断 Continuo
   Historical Replay 未获得 Forward issuer）。Human-Accepted reviewed candidate =
   `1e2738b`（branch `se-arch-fix-01-latest-main-integration`）；已 fast-forward only 收编 `main`。
   参见 Completed、Acceptance Record 与「SE-ARCH-FIX-01 Result」。
-- **SE-ARCH-FIX-02 = `NOT STARTED`**；本 Closeout **不**启动 FIX-02。
+- **SE-ARCH-FIX-02 = `IMPLEMENTED / READY FOR INDEPENDENT REVIEW`**（2026-09-13 落地：
+  forward-outcome revision chain scope 收敛为 `(opportunity_id, evidence_id, horizon)`，service
+  校验 + migration `20260913_0009` scoped FK 双层 fail closed；branch
+  `se-arch-fix-02-outcome-revision-chain-scope`，implementation `4c83582`；尚未 Acceptance，
+  **不**启动 SE-02C）。
 - **SE-02C｜Forward Outcome Calculator = `BLOCKED / NOT STARTED`**（forward outcome 仍未计算：
   无 MFE / MAE / 无 forward returns；horizon `30s` / `5m` / `15m` / `1h` 的 calculation 尚未实现。
-  其前置 `SE-ARCH-FIX-02` 尚未完成，故 FIX-01 验收**不**使其变为 MAY START）。
+  其前置 `SE-ARCH-FIX-02` 尚未 Acceptance，故 FIX-02 实现**不**使其变为 MAY START）。
 - **SE-02D｜Family Aggregation / Expectancy = `NOT STARTED`**（family aggregation、expectancy、
   KEEP / DOWNWEIGHT / KILL 均未实现）。
 - 两项均须另开窗口并经批准的门执行；本窗口 **不** 自动开始 SE-02C。
@@ -704,8 +710,42 @@ Integrated Runtime Host 仍 `NOT STARTED`；N01-6 的验收不得推断 Continuo
   - `RRF-04` — Shared DB historical isolation evidence 仅为 revision + table inventory
     fingerprint，**不是** row-level proof（证据措辞边界保持）。
 - **验收后状态**：`SE-02A = ACCEPTED`、`SE-02B = ACCEPTED`、
-  `SE-ARCH-FIX-01 = ACCEPTED / COMPLETE`；`SE-ARCH-FIX-02 = NOT STARTED`；
-  `SE-02C = BLOCKED / NOT STARTED`（FIX-02 尚未完成）；`SE-02D = NOT STARTED`；
+  `SE-ARCH-FIX-01 = ACCEPTED / COMPLETE`；`SE-ARCH-FIX-02 = IMPLEMENTED /
+  READY FOR INDEPENDENT REVIEW`（在本 Closeout 之后落地，见「SE-ARCH-FIX-02 Result」）；
+  `SE-02C = BLOCKED / NOT STARTED`（FIX-02 尚未 Acceptance）；`SE-02D = NOT STARTED`；
   `N01 overall` 仍 `NOT ACCEPTED`。
 - 详见 `dev_log/2026-09-12-se-arch-fix-01-stable-evidence-anchor.md`
   「Human Acceptance + Final Main Integration Closeout｜2026-09-13」。
+
+## SE-ARCH-FIX-02 Result
+
+- 任务：SE-ARCH-FIX-02｜Outcome Revision Chain Scope（SE-02C 启动前第二个 Architecture
+  Blocker；**非** SE-02C 实现）。
+- Task Base / Accepted Main = `fc619242c99a794a2eb2b87ee02b8b72aa782f05`；branch
+  `se-arch-fix-02-outcome-revision-chain-scope`；Implementation Commit =
+  `4c835828f482875d1d7ce934f8808d3953a9105b`。
+- 修复内容：outcome revision chain identity scope 冻结为
+  `(opportunity_id, evidence_id, horizon)`。
+  - Service：`append_forward_outcome()` predecessor 校验补齐 `evidence_id` 与 `horizon`，
+    跨 scope 一律 `EdgeInvalidOutcomeSupersedes`。
+  - DB：`fk_edge_outcome_supersedes` 扩为
+    `(supersedes_outcome_id, opportunity_id, evidence_id, horizon)`，配合新
+    `uq_edge_outcome_id_scope`；`uq_edge_outcome_id_opportunity` 被替换。
+  - Migration：`20260913_0009_outcome_revision_scope`（fail-closed preflight；存量
+    cross-scope 行 ⇒ `RuntimeError` + rollback，`alembic_version` 保持 `20260913_0008`；
+    不自动改写 / 重编号 / 删除任何行）。
+- 既有语义保持：`revision = 1` 无 supersedes；idempotency（同 scope + 同 revision + 同 hash
+  ⇒ `IDEMPOTENT`）；conflict（同 logical revision + 不同 hash ⇒ `EdgeOutcomeConflict`）；
+  adjacency（只能 supersede `revision - 1`，仍在 service 层，**未**引入 trigger）。
+- 验证：FIX-02 focused `8 passed`；定向回归 `196 passed`；full backend `371 passed, 1 warning`；
+  Ruff / compileall / `git diff --check` PASS；`alembic heads` 单 head `20260913_0009`；
+  `ReplayTradingRunner.schema_head` = `20260913_0009`。
+- 隔离：独立 disposable PostgreSQL（`postgres:16-alpine` @ `127.0.0.1:5437`）+ gitignored
+  `.env`；共享 5432 只读指纹 `20260905_0004` / 24 表，**未**被本批升级；无 disposable 残留。
+- 状态：`SE-ARCH-FIX-02 = IMPLEMENTED / READY FOR INDEPENDENT REVIEW`（未 Human Accept、
+  未 merge `main`、未启动 SE-02C）。
+- 边界：**SE-02C / SE-02D = `NOT STARTED`**；Forward Outcome Calculator / MFE-MAE / forward
+  returns / family aggregation / expectancy / Real AI Edge / Live / N01-7 / N01-8 /
+  Integrated Runtime Host 均不在本批 claim 边界内。`TEST-ISO-01` / `RRF-03` / `RRF-04`
+  保持独立 P2，**未**顺手修改。
+- 详见 `dev_log/2026-09-13-se-arch-fix-02-outcome-revision-chain-scope.md`。

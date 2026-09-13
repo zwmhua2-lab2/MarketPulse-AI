@@ -12,7 +12,7 @@
 | Project | MarketPulse AI（BTC/ETH 量化纸面交易终端，Modular Monolith） |
 | Current Acceptance Group | SE-ARCH-FIX-01 — Stable Evidence Anchor — ACCEPTED / COMPLETE |
 | Accepted Main Source | Git `main` / `origin/main`；须在任务 preflight 按 CIP-02 实时读取，不以文档静态 SHA 为准 |
-| Current State | `SE-ARCH-FIX-01 = ACCEPTED / COMPLETE`（2026-09-13 Human Acceptance = `APPROVED` + Final Main Integration Closeout，已 fast-forward only 收编 `main`；Human-Accepted reviewed candidate = `1e2738b`）；`SE-ARCH-FIX-02 = NOT STARTED`；`SE-02A = ACCEPTED / COMPLETE`；`SE-02B = ACCEPTED / COMPLETE`；**`SE-02C = BLOCKED / NOT STARTED`**（前置 `SE-ARCH-FIX-02` 未完成）；`SE-02D = NOT STARTED`；`N01-C = ACCEPTED / COMPLETE`；N01-A / N01-B 与 N01 验证修复 `N01-VAL-FIX-01/02/03` 均维持 `ACCEPTED / COMPLETE`；`N01-6 = ACCEPTED / COMPLETE`（Reviewed HEAD `3f591a7`）；**`N01-7-F01 = ACCEPTED / COMPLETE`**（2026-09-13 Human Acceptance = `CONFIRMED` + Final Main Integration；reviewed candidate `7c0ea7d` @ integration merge `ddf39f2`；已 fast-forward only 收编 `main`）；**`N01-7 = NOT STARTED / READY TO RESUME`**；`N01-8` / Integrated Runtime Host 仍 `NOT STARTED`；**N01 overall 仍 `NOT ACCEPTED`** |
+| Current State | `SE-ARCH-FIX-01 = ACCEPTED / COMPLETE`（2026-09-13 Human Acceptance = `APPROVED` + Final Main Integration Closeout，已 fast-forward only 收编 `main`；Human-Accepted reviewed candidate = `1e2738b`）；`SE-ARCH-FIX-02 = IMPLEMENTED / READY FOR INDEPENDENT REVIEW`（2026-09-13；尚未 Acceptance）；`SE-02A = ACCEPTED / COMPLETE`；`SE-02B = ACCEPTED / COMPLETE`；**`SE-02C = BLOCKED / NOT STARTED`**（前置 `SE-ARCH-FIX-02` 尚未 Acceptance）；`SE-02D = NOT STARTED`；`N01-C = ACCEPTED / COMPLETE`；N01-A / N01-B 与 N01 验证修复 `N01-VAL-FIX-01/02/03` 均维持 `ACCEPTED / COMPLETE`；`N01-6 = ACCEPTED / COMPLETE`（Reviewed HEAD `3f591a7`）；**`N01-7-F01 = ACCEPTED / COMPLETE`**（2026-09-13 Human Acceptance = `CONFIRMED` + Final Main Integration；reviewed candidate `7c0ea7d` @ integration merge `ddf39f2`；已 fast-forward only 收编 `main`）；**`N01-7 = NOT STARTED / READY TO RESUME`**；`N01-8` / Integrated Runtime Host 仍 `NOT STARTED`；**N01 overall 仍 `NOT ACCEPTED`** |
 | Last Accepted Group | SE-ARCH-FIX-01 — Stable Evidence Anchor |
 | Current Group Branch | `se-arch-fix-01-latest-main-integration`（accepted lineage；仅 fast-forward 收编至 `main`，历史分支保留）；更早 `se-02b-opportunity-capture-attribution`、`n01-6-15m-runtime-smoke`、`n01-c-restart-recovery-reconciliation` |
 
@@ -31,6 +31,16 @@
   Real AI Edge / Live / N01 的任何进度。详见
   `dev_log/2026-09-12-se-arch-fix-01-stable-evidence-anchor.md`
   「Human Acceptance + Final Main Integration Closeout」。
+
+- SE-ARCH-FIX-02 Outcome Revision Chain Scope = `IMPLEMENTED / READY FOR INDEPENDENT REVIEW`
+  （2026-09-13；branch `se-arch-fix-02-outcome-revision-chain-scope` @ `4c83582`，parent
+  `fc61924`；**尚未** Human Acceptance，**未** merge `main`）。outcome revision chain identity
+  scope 收敛为 `(opportunity_id, evidence_id, horizon)`：service 校验 + migration
+  `20260913_0009` scoped FK 双层 fail closed，存量 cross-scope 行 fail-closed abort。
+  **当前 migration head = `20260913_0009`（单 head）**，
+  `ReplayTradingRunner.schema_head = 20260913_0009`。`SE-02C` 保持
+  `BLOCKED / NOT STARTED`。详见
+  `dev_log/2026-09-13-se-arch-fix-02-outcome-revision-chain-scope.md`。
 
 ## 2. Source of Truth（事实源优先级，从高到低）
 
@@ -69,8 +79,8 @@
 |---|---|
 | Current Group | SE-ARCH-FIX-01 — Stable Evidence Anchor — `ACCEPTED / COMPLETE`（2026-09-13 Human Acceptance = `APPROVED`） |
 | Last accepted subgroup | SE-ARCH-FIX-01 — Stable Evidence Anchor (`ACCEPTED / COMPLETE`)；SE-02A / SE-02B / N01-6 / N01-7-F01 / N01-C / N01-A / N01-B 亦维持 `ACCEPTED / COMPLETE`；N01 overall 仍 `NOT ACCEPTED` |
-| Next Group Design | `NOT STARTED`（须另开窗口）；已明确**不**自动开始 `SE-ARCH-FIX-02` / `SE-02C` |
-| Next Group name/number | `SE-ARCH-FIX-02 = NOT STARTED`；`SE-02C = BLOCKED / NOT STARTED`（前置 `SE-ARCH-FIX-02` 未完成）；`SE-02D = NOT STARTED`；N01-7 — 2-hour Medium Runtime Soak — `NOT STARTED / READY TO RESUME`（其前置 `N01-7-F01 = ACCEPTED / COMPLETE`（2026-09-13）；`N01-8` / Integrated Runtime Host = `NOT STARTED`） |
+| Next Group Design | `NOT STARTED`（须另开窗口）；已明确**不**自动开始 `SE-02C`（本窗口只独立获批实现 `SE-ARCH-FIX-02`，见 §1） |
+| Next Group name/number | `SE-ARCH-FIX-02 = IMPLEMENTED / READY FOR INDEPENDENT REVIEW`（尚未 Acceptance）；`SE-02C = BLOCKED / NOT STARTED`（前置 `SE-ARCH-FIX-02` 尚未 Acceptance）；`SE-02D = NOT STARTED`；N01-7 — 2-hour Medium Runtime Soak — `NOT STARTED / READY TO RESUME`（其前置 `N01-7-F01 = ACCEPTED / COMPLETE`（2026-09-13）；`N01-8` / Integrated Runtime Host = `NOT STARTED`） |
 
 - G4 **没有**提前实现完整 Replay / ReplayClock Engine。
 - 仓库中仅存在：`Clock` Protocol 的 `ReplayClock` 实现（`backend/src/marketpulse/clock.py`）与 `RunMode.REPLAY` 枚举（`config.py`）——这是既有 Clock 边界，**不是**完整回放引擎。
