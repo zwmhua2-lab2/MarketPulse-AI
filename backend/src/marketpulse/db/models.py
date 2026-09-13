@@ -611,6 +611,12 @@ class EdgeForwardOutcomeRecord(Base):
     Only terminal statuses are persisted (`COMPLETE` / `INSUFFICIENT_DATA` /
     `INVALID`). There is no `PENDING` row: while `clock < due_at` no row exists and
     pending is derived from opportunity + horizon + current clock.
+
+    A revision chain is scoped to `(opportunity_id, evidence_id, horizon)`:
+    `fk_edge_outcome_supersedes` carries all three keys, so PostgreSQL itself refuses
+    a supersedes link that crosses evidence revisions, horizons or opportunities.
+    Revision adjacency is not enforceable by a foreign key and stays a service-layer
+    rule.
     """
 
     __tablename__ = "edge_forward_outcomes"
@@ -622,15 +628,26 @@ class EdgeForwardOutcomeRecord(Base):
             "outcome_revision",
             name="uq_edge_outcome_evidence_horizon_revision",
         ),
-        UniqueConstraint("outcome_id", "opportunity_id", name="uq_edge_outcome_id_opportunity"),
+        UniqueConstraint(
+            "outcome_id",
+            "opportunity_id",
+            "evidence_id",
+            "horizon",
+            name="uq_edge_outcome_id_scope",
+        ),
         ForeignKeyConstraint(
             ["evidence_id", "opportunity_id"],
             ["edge_opportunity_evidence.evidence_id", "edge_opportunity_evidence.opportunity_id"],
             name="fk_edge_outcome_evidence",
         ),
         ForeignKeyConstraint(
-            ["supersedes_outcome_id", "opportunity_id"],
-            ["edge_forward_outcomes.outcome_id", "edge_forward_outcomes.opportunity_id"],
+            ["supersedes_outcome_id", "opportunity_id", "evidence_id", "horizon"],
+            [
+                "edge_forward_outcomes.outcome_id",
+                "edge_forward_outcomes.opportunity_id",
+                "edge_forward_outcomes.evidence_id",
+                "edge_forward_outcomes.horizon",
+            ],
             name="fk_edge_outcome_supersedes",
         ),
         CheckConstraint("outcome_revision >= 1", name="ck_edge_outcome_revision_positive"),

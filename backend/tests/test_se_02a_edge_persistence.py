@@ -46,6 +46,7 @@ from marketpulse.edge.repository import (
     EdgeEvidenceConflict,
     EdgeInvalidOutcomeSupersedes,
     EdgeInvalidSupersedes,
+    EdgeOutcomeConflict,
     append_attribution_event,
     append_evidence_revision,
     append_forward_outcome,
@@ -62,12 +63,12 @@ PRIMARY_URL = Settings().database_url
 BACKEND = Path(__file__).resolve().parents[1]
 PREVIOUS_REVISION = "20260905_0004"
 # The head moves with the schema, exactly like `ReplayTradingRunner.schema_head`.
-# The final integrated chain contains N01-7 position protection at `20260912_0006`
-# followed by the two pre-acceptance FIX-01 revisions at `20260913_0007` and
-# `20260913_0008`. SE-02A's four evidence tables are unchanged: this cycle still
-# walks head -> 0004 -> head and requires those tables at head and their absence
-# at 0004.
-HEAD_REVISION = "20260913_0008"
+# The final integrated chain contains N01-7 position protection at `20260912_0006`,
+# the two pre-acceptance FIX-01 revisions at `20260913_0007` and `20260913_0008`,
+# then FIX-02 outcome revision scope at `20260913_0009`. SE-02A's four evidence
+# tables are unchanged: this cycle still walks head -> 0004 -> head and requires
+# those tables at head and their absence at 0004.
+HEAD_REVISION = "20260913_0009"
 EDGE_TABLES = frozenset(
     {
         "edge_opportunity_evidence",
@@ -1334,3 +1335,429 @@ def test_rrf02_reference_constraint_is_validated_and_backstops_new_rows():
                 )
             )
         assert asyncio.run(_count(url, EdgeOpportunityEvidenceRecord)) == 0
+
+
+# --- SE-ARCH-FIX-02 forward-outcome revision chain scope ---------------------------------
+
+_FIX02_HEAD = "20260913_0009"
+_FIX02_PARENT = "20260913_0008"
+_OUTCOME_TABLE = "edge_forward_outcomes"
+_SUPERSEDES_FK = "fk_edge_outcome_supersedes"
+_ID_ONLY_UNIQUE = "uq_edge_outcome_id_opportunity"
+_SCOPED_UNIQUE = "uq_edge_outcome_id_scope"
+
+
+async def _constraint_names(url: str, table: str) -> set[str]:
+    async with _session(url) as session:
+        rows = await session.scalars(
+            text(f"SELECT conname FROM pg_constraint WHERE conrelid = '{table}'::regclass")
+        )
+        return set(rows.all())
+
+
+async def _constraint_definition(url: str, name: str) -> str:
+    async with _session(url) as session:
+        return str(
+            await session.scalar(
+                text("SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname = :name"),
+                {"name": name},
+            )
+        )
+
+
+async def _stage_evidence(url: str, rows: list[EdgeOpportunityEvidenceRecord]) -> None:
+    async with _session(url) as session:
+        for row in rows:
+            session.add(row)
+            await session.flush()
+        await session.commit()
+
+
+async def _stage_outcomes(url: str, rows: list[EdgeForwardOutcomeRecord]) -> None:
+    async with _session(url) as session:
+        for row in rows:
+            session.add(row)
+            await session.flush()
+        await session.commit()
+
+
+def test_fix02_each_outcome_scope_owns_its_own_revision_chain():
+    """S1: a same-scope chain still appends, and each scope numbers independently."""
+
+    with _edge_database("fix02_scope_chain") as (_, url):
+        opportunity = _opportunity()
+        first_evidence = _evidence(opportunity)
+        second_evidence = _evidence(
+            opportunity, revision=2, supersedes=first_evidence.evidence_id
+        )
+        r1 = _outcome(opportunity, first_evidence)
+        r2 = _outcome(opportunity, first_evidence, revision=2, supersedes=r1.outcome_id)
+        r3 = _outcome(opportunity, first_evidence, revision=3, supersedes=r2.outcome_id)
+        other_evidence_r1 = _outcome(opportunity, second_evidence)
+        other_horizon_r1 = _outcome(opportunity, first_evidence, horizon=ForwardHorizon.M15)
+
+        async def scenario():
+            async with _session(url) as session:
+                await append_evidence_revision(session, first_evidence)
+                await append_evidence_revision(session, second_evidence)
+                for outcome in (r1, r2, r3, other_evidence_r1, other_horizon_r1):
+                    assert await append_forward_outcome(session, outcome) == INSERTED
+                await session.commit()
+                return (
+                    await session.scalars(
+                        select(EdgeForwardOutcomeRecord).order_by(
+                            EdgeForwardOutcomeRecord.evidence_id,
+                            EdgeForwardOutcomeRecord.horizon,
+                            EdgeForwardOutcomeRecord.outcome_revision,
+                        )
+                    )
+                ).all()
+
+        rows = asyncio.run(scenario())
+
+        assert len(rows) == 5
+        heads = {
+            (row.evidence_id, row.horizon) for row in rows if row.outcome_revision == 1
+        }
+        assert heads == {
+            (first_evidence.evidence_id, "5m"),
+            (second_evidence.evidence_id, "5m"),
+            (first_evidence.evidence_id, "15m"),
+        }
+        chained = [
+            row.outcome_revision
+            for row in rows
+            if row.evidence_id == first_evidence.evidence_id and row.horizon == "5m"
+        ]
+        assert chained == [1, 2, 3]
+
+
+def test_fix02_cross_evidence_and_cross_horizon_outcome_revisions_are_rejected():
+    """S2/S3: a revision may not supersede another evidence revision or another horizon."""
+
+    with _edge_database("fix02_cross_scope") as (_, url):
+        opportunity = _opportunity()
+        first_evidence = _evidence(opportunity)
+        second_evidence = _evidence(
+            opportunity, revision=2, supersedes=first_evidence.evidence_id
+        )
+        base = _outcome(opportunity, first_evidence)
+
+        async def scenario():
+            async with _session(url) as session:
+                await append_evidence_revision(session, first_evidence)
+                await append_evidence_revision(session, second_evidence)
+                assert await append_forward_outcome(session, base) == INSERTED
+                await session.commit()
+
+            async with _session(url) as session:
+                with pytest.raises(EdgeInvalidOutcomeSupersedes):
+                    await append_forward_outcome(
+                        session,
+                        _outcome(
+                            opportunity,
+                            second_evidence,
+                            revision=2,
+                            supersedes=base.outcome_id,
+                        ),
+                    )
+            async with _session(url) as session:
+                with pytest.raises(EdgeInvalidOutcomeSupersedes):
+                    await append_forward_outcome(
+                        session,
+                        _outcome(
+                            opportunity,
+                            first_evidence,
+                            revision=2,
+                            supersedes=base.outcome_id,
+                            horizon=ForwardHorizon.M15,
+                        ),
+                    )
+
+        asyncio.run(scenario())
+        assert asyncio.run(_count(url, EdgeForwardOutcomeRecord)) == 1
+
+
+def test_fix02_cross_opportunity_skipped_and_dangling_outcome_revisions_are_rejected():
+    """S4/S5/S6: cross-opportunity, non-adjacent and missing predecessors fail closed."""
+
+    with _edge_database("fix02_bad_predecessor") as (_, url):
+        alpha = _opportunity(candidate_id="sc_alpha")
+        beta = _opportunity(candidate_id="sc_beta")
+        alpha_evidence = _evidence(alpha)
+        beta_evidence = _evidence(beta)
+        alpha_r1 = _outcome(alpha, alpha_evidence)
+
+        async def scenario():
+            async with _session(url) as session:
+                await append_evidence_revision(session, alpha_evidence)
+                await append_evidence_revision(session, beta_evidence)
+                assert await append_forward_outcome(session, alpha_r1) == INSERTED
+                await session.commit()
+
+            async with _session(url) as session:
+                with pytest.raises(EdgeInvalidOutcomeSupersedes):
+                    await append_forward_outcome(
+                        session,
+                        _outcome(
+                            beta,
+                            beta_evidence,
+                            revision=2,
+                            supersedes=alpha_r1.outcome_id,
+                        ),
+                    )
+            async with _session(url) as session:
+                with pytest.raises(EdgeInvalidOutcomeSupersedes):
+                    await append_forward_outcome(
+                        session,
+                        _outcome(
+                            alpha,
+                            alpha_evidence,
+                            revision=3,
+                            supersedes=alpha_r1.outcome_id,
+                        ),
+                    )
+            async with _session(url) as session:
+                with pytest.raises(EdgeInvalidOutcomeSupersedes):
+                    await append_forward_outcome(
+                        session,
+                        _outcome(
+                            alpha,
+                            alpha_evidence,
+                            revision=2,
+                            supersedes="f" * 64,
+                        ),
+                    )
+
+        asyncio.run(scenario())
+        assert asyncio.run(_count(url, EdgeForwardOutcomeRecord)) == 1
+
+
+def test_fix02_outcome_idempotency_and_conflict_are_preserved():
+    """§16: the scoped fix must not weaken the immutable append semantics."""
+
+    with _edge_database("fix02_outcome_immutable") as (_, url):
+        opportunity = _opportunity()
+        evidence = _evidence(opportunity)
+        original = _outcome(opportunity, evidence)
+        conflicting = _outcome(opportunity, evidence, calculator_version="calc-v2")
+
+        assert conflicting.outcome_id == original.outcome_id
+        assert conflicting.outcome_record_hash != original.outcome_record_hash
+
+        async def scenario():
+            async with _session(url) as session:
+                await append_evidence_revision(session, evidence)
+                assert await append_forward_outcome(session, original) == INSERTED
+                assert await append_forward_outcome(session, original) == IDEMPOTENT
+                await session.commit()
+            async with _session(url) as session:
+                with pytest.raises(EdgeOutcomeConflict):
+                    await append_forward_outcome(session, conflicting)
+
+        asyncio.run(scenario())
+        assert asyncio.run(_count(url, EdgeForwardOutcomeRecord)) == 1
+
+
+def test_fix02_database_rejects_cross_scope_supersedes():
+    """DB1/DB2/DB3: raw SQL cannot build a cross-evidence or cross-horizon chain."""
+
+    with _edge_database("fix02_db_backstop") as (_, url):
+        opportunity_id = "o" * 64
+        evidence_one = "1" * 64
+        evidence_two = "2" * 64
+        asyncio.run(
+            _stage_evidence(
+                url,
+                [
+                    _evidence_row(evidence_id=evidence_one, opportunity_id=opportunity_id),
+                    _evidence_row(
+                        evidence_id=evidence_two,
+                        opportunity_id=opportunity_id,
+                        evidence_revision=2,
+                        supersedes_evidence_id=evidence_one,
+                    ),
+                ],
+            )
+        )
+        asyncio.run(
+            _stage_outcomes(
+                url,
+                [
+                    _outcome_row(
+                        outcome_id="a" * 64,
+                        opportunity_id=opportunity_id,
+                        evidence_id=evidence_one,
+                    )
+                ],
+            )
+        )
+
+        # DB1 -- the predecessor belongs to a different evidence revision.
+        _expect_integrity_error(
+            url,
+            _outcome_row(
+                outcome_id="b" * 64,
+                opportunity_id=opportunity_id,
+                evidence_id=evidence_two,
+                outcome_revision=2,
+                supersedes_outcome_id="a" * 64,
+            ),
+        )
+        # DB2 -- the predecessor belongs to a different horizon.
+        _expect_integrity_error(
+            url,
+            _outcome_row(
+                outcome_id="c" * 64,
+                opportunity_id=opportunity_id,
+                evidence_id=evidence_one,
+                horizon="15m",
+                outcome_revision=2,
+                supersedes_outcome_id="a" * 64,
+            ),
+        )
+        # DB3 -- the same-scope relationship is still allowed.
+        asyncio.run(
+            _stage_outcomes(
+                url,
+                [
+                    _outcome_row(
+                        outcome_id="d" * 64,
+                        opportunity_id=opportunity_id,
+                        evidence_id=evidence_one,
+                        outcome_revision=2,
+                        supersedes_outcome_id="a" * 64,
+                    )
+                ],
+            )
+        )
+        assert asyncio.run(_count(url, EdgeForwardOutcomeRecord)) == 2
+
+
+def test_fix02_invalid_legacy_outcome_scope_aborts_the_upgrade():
+    """§18: a cross-scope chain recorded under 0008 stops the 0008 -> 0009 upgrade."""
+
+    opportunity_id = "o" * 64
+    with _edge_database("fix02_invalid_legacy", revision=_FIX02_PARENT) as (_, url):
+        assert asyncio.run(_alembic_version(url)) == _FIX02_PARENT
+        asyncio.run(
+            _stage_evidence(
+                url,
+                [_evidence_row(evidence_id="1" * 64, opportunity_id=opportunity_id)],
+            )
+        )
+        asyncio.run(
+            _stage_outcomes(
+                url,
+                [
+                    _outcome_row(
+                        outcome_id="a" * 64,
+                        opportunity_id=opportunity_id,
+                        evidence_id="1" * 64,
+                        horizon="5m",
+                        outcome_revision=1,
+                    ),
+                    _outcome_row(
+                        outcome_id="b" * 64,
+                        opportunity_id=opportunity_id,
+                        evidence_id="1" * 64,
+                        horizon="15m",
+                        outcome_revision=2,
+                        supersedes_outcome_id="a" * 64,
+                    ),
+                ],
+            )
+        )
+
+        with pytest.raises(RuntimeError) as failure:
+            _upgrade(url, _FIX02_HEAD)
+
+        message = str(failure.value)
+        assert _FIX02_HEAD in message
+        assert _FIX02_PARENT in message
+
+        # The transaction rolled back: head, constraints and rows are unchanged.
+        assert asyncio.run(_alembic_version(url)) == _FIX02_PARENT
+        assert asyncio.run(_count(url, EdgeForwardOutcomeRecord)) == 2
+        names = asyncio.run(_constraint_names(url, _OUTCOME_TABLE))
+        assert _ID_ONLY_UNIQUE in names
+        assert _SCOPED_UNIQUE not in names
+        assert "evidence_id" not in asyncio.run(_constraint_definition(url, _SUPERSEDES_FK))
+
+
+def test_fix02_valid_legacy_outcome_chain_survives_and_the_scoped_fk_is_enforced():
+    """§12: legal recorded chains are preserved and the new foreign key then bites."""
+
+    opportunity_id = "o" * 64
+    with _edge_database("fix02_valid_legacy", revision=_FIX02_PARENT) as (_, url):
+        asyncio.run(
+            _stage_evidence(
+                url,
+                [_evidence_row(evidence_id="1" * 64, opportunity_id=opportunity_id)],
+            )
+        )
+        asyncio.run(
+            _stage_outcomes(
+                url,
+                [
+                    _outcome_row(
+                        outcome_id="a" * 64,
+                        opportunity_id=opportunity_id,
+                        evidence_id="1" * 64,
+                        outcome_revision=1,
+                    ),
+                    _outcome_row(
+                        outcome_id="b" * 64,
+                        opportunity_id=opportunity_id,
+                        evidence_id="1" * 64,
+                        outcome_revision=2,
+                        supersedes_outcome_id="a" * 64,
+                    ),
+                ],
+            )
+        )
+
+        _upgrade(url, _FIX02_HEAD)
+
+        assert asyncio.run(_alembic_version(url)) == _FIX02_HEAD
+        assert asyncio.run(_count(url, EdgeForwardOutcomeRecord)) == 2
+        names = asyncio.run(_constraint_names(url, _OUTCOME_TABLE))
+        assert _SCOPED_UNIQUE in names
+        assert _ID_ONLY_UNIQUE not in names
+        definition = asyncio.run(_constraint_definition(url, _SUPERSEDES_FK))
+        assert "evidence_id" in definition and "horizon" in definition
+
+        # PostgreSQL now refuses the cross-horizon link that 0008 used to accept.
+        _expect_integrity_error(
+            url,
+            _outcome_row(
+                outcome_id="c" * 64,
+                opportunity_id=opportunity_id,
+                evidence_id="1" * 64,
+                horizon="15m",
+                outcome_revision=2,
+                supersedes_outcome_id="a" * 64,
+            ),
+        )
+
+
+def test_fix02_clean_migration_chain_reaches_0009_and_round_trips():
+    """§19: 0005 -> 0006 -> 0007 -> 0008 -> 0009, plus downgrade and re-upgrade."""
+
+    with _edge_database("fix02_clean_chain", revision="20260911_0005") as (_, url):
+        assert asyncio.run(_alembic_version(url)) == "20260911_0005"
+        for revision in ("20260912_0006", "20260913_0007", _FIX02_PARENT, _FIX02_HEAD):
+            _upgrade(url, revision)
+            assert asyncio.run(_alembic_version(url)) == revision
+
+        definition = asyncio.run(_constraint_definition(url, _SUPERSEDES_FK))
+        assert "evidence_id" in definition and "horizon" in definition
+
+        _downgrade(url, _FIX02_PARENT)
+        assert asyncio.run(_alembic_version(url)) == _FIX02_PARENT
+        assert "horizon" not in asyncio.run(_constraint_definition(url, _SUPERSEDES_FK))
+        assert _ID_ONLY_UNIQUE in asyncio.run(_constraint_names(url, _OUTCOME_TABLE))
+
+        _upgrade(url, "head")
+        assert asyncio.run(_alembic_version(url)) == _FIX02_HEAD
+        assert EDGE_TABLES <= asyncio.run(_table_names(url))

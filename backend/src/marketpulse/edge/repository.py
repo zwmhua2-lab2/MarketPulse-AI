@@ -370,7 +370,14 @@ async def load_capture_anchor_orphan(
 async def append_forward_outcome(
     session: AsyncSession, record: ForwardOutcomeContract
 ) -> str:
-    """Append one immutable forward-outcome revision. Returns ``INSERTED``/``IDEMPOTENT``."""
+    """Append one immutable forward-outcome revision. Returns ``INSERTED``/``IDEMPOTENT``.
+
+    A revision chain is scoped to ``(opportunity_id, evidence_id, horizon)``: each such
+    triple owns its own revision numbering. A revision above 1 may therefore only
+    supersede the immediately preceding revision *of the same scope*; naming a
+    predecessor from another evidence revision, another horizon or another opportunity
+    is an invalid correction lineage and fails closed.
+    """
 
     evidence = await session.scalar(
         select(EdgeOpportunityEvidenceRecord).where(
@@ -409,6 +416,12 @@ async def append_forward_outcome(
             raise EdgeInvalidOutcomeSupersedes("superseded outcome revision does not exist")
         if predecessor.opportunity_id != record.opportunity_id:
             raise EdgeInvalidOutcomeSupersedes("supersedes must stay inside one opportunity")
+        if predecessor.evidence_id != record.evidence_id:
+            raise EdgeInvalidOutcomeSupersedes(
+                "supersedes must stay inside one evidence revision"
+            )
+        if predecessor.horizon != record.horizon.value:
+            raise EdgeInvalidOutcomeSupersedes("supersedes must stay inside one horizon")
         if predecessor.outcome_revision != record.outcome_revision - 1:
             raise EdgeInvalidOutcomeSupersedes(
                 "supersedes must name the immediately preceding outcome revision"

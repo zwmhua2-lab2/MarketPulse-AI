@@ -445,11 +445,12 @@ class ReplayTradingRunner:
 
     # The replay guard verifies the replay workspace is migrated to the *current*
     # Alembic head and is empty. The linear chain is SE-02A Edge evidence
-    # (20260911_0005), N01-7 position protection (20260912_0006), then the
+    # (20260911_0005), N01-7 position protection (20260912_0006), the
     # pre-acceptance FIX-01 capture-anchor and review-fix revisions
-    # (20260913_0007 -> 20260913_0008). Its separate + migrated + clean
-    # workspace behaviour is unchanged.
-    schema_head = "20260913_0008"
+    # (20260913_0007 -> 20260913_0008), then FIX-02 outcome revision scope
+    # (20260913_0009). Its separate + migrated + clean workspace behaviour is
+    # unchanged.
+    schema_head = "20260913_0009"
 
     def __init__(
         self,
