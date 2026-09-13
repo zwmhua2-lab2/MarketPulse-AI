@@ -317,3 +317,82 @@ Branch：`se-arch-fix-02-outcome-revision-chain-scope`（base `fc61924`）
 | 隔离实例 | Docker `marketpulse-se-fix-02-pg` @ `127.0.0.1:5437`（本次会话创建） |
 | 逐条测试输出 | `E:/Temp/se-fix-02/`：`baseline_se02a.txt`、`fix02.txt`、`regression.txt`、`full.txt` |
 | 5432 / 5437 快照与约束定义 | 本次会话 `asyncpg` 只读查询输出（见 §11.1/§11.2） |
+
+---
+
+## 19. Human Acceptance + Final Main Integration Closeout（2026-09-13）
+
+- Task: `SE-ARCH-FIX-02A`｜Human Acceptance Closeout（Human Acceptance Integration / Final
+  Closeout；**非**新实现、**非**重新 Review、**非** SE-02C 启动）。
+- **Human Acceptance = `APPROVED`**（2026-09-13）：SE-ARCH-FIX-02｜Outcome Revision Chain Scope。
+- 前置 Independent Review Verdict = `PASS — READY FOR HUMAN ACCEPTANCE`；F2-01～F2-15 全 PASS；
+  无 P0/P1/P2/P3 Finding。本节**不**重新争论该 Review 结论。
+
+### 19.1 最终 Accepted Semantic（必须按此表述）
+
+Forward Outcome revision chain scope = `(opportunity_id, evidence_id, horizon)`；
+`revision N > 1` 只能 supersede 同 `opportunity_id` + 同 `evidence_id` + 同 `horizon` 的
+`revision N - 1`。
+
+责任划分（**不得**描述成数据库负责 adjacency）：
+
+- **数据库负责 scope integrity** — `uq_edge_outcome_id_scope`
+  `(outcome_id, opportunity_id, evidence_id, horizon)` 与 4 列 `fk_edge_outcome_supersedes`。
+- **Service 同时负责** scope integrity **与** revision adjacency
+  （FK 无法表达 `revision = N - 1`；未引入 trigger / stored procedure）。
+
+### 19.2 Preflight（实测，未依赖导航信息）
+
+| 项 | 实测值 |
+|---|---|
+| `git ls-remote origin refs/heads/main` | `fc619242c99a794a2eb2b87ee02b8b72aa782f05` |
+| `git ls-remote origin refs/heads/se-arch-fix-02-outcome-revision-chain-scope` | `15da7c1bac719d17271c7df9fcccbf80535b6d1b` |
+| `merge-base(main, candidate)` | `fc619242c99a794a2eb2b87ee02b8b72aa782f05`（== Accepted Main） |
+| `git rev-list --left-right --count main...candidate` | `2 / 0`（main ahead 0，candidate ahead 2、behind 0） |
+| candidate 链 | `fc61924 → 4c83582（implementation）→ 15da7c1（evidence）` |
+| 本地 `main` ref | `fc619242c99a794a2eb2b87ee02b8b72aa782f05` |
+
+**未触发 STOP**：remote `main`、candidate SHA、merge-base 均与任务书导航一致。
+
+### 19.3 Closeout 提交与集成
+
+- Docs-only closeout commit：`docs(edge): accept outcome revision chain scope`，parent = `15da7c1`；
+  仅 `PROJECT_STATE.md` / `AI_CONTEXT.md` / `DECISIONS.md` / 本 dev_log 变化。
+- 集成方法 = **`FAST-FORWARD ONLY`**：
+  `fc619242 → 4c835828 → 15da7c1 → docs-only closeout`。
+  未创建 merge commit 到 `main`；未 squash / rebase / cherry-pick / 重建历史 / force push。
+- Pre-push drift check：`git ls-remote origin refs/heads/main` 仍为 `fc619242…`（未漂移）⇒ 允许 push。
+- Post-push read-back 与 ancestry check 证据见本窗口 Final Report（`15da7c1` / `4c835828` /
+  `fc619242` 均为 final `main` 的 ancestor）。
+- Closeout 期间四项不变：`Production code changed = NO` / `Tests changed = NO` /
+  `Migration changed = NO` / `Runtime config changed = NO`。
+
+### 19.4 验收后状态
+
+| 项 | 状态 |
+|---|---|
+| SE-02A | `ACCEPTED / COMPLETE` |
+| SE-02B | `ACCEPTED / COMPLETE` |
+| SE-ARCH-FIX-01 | `ACCEPTED / COMPLETE` |
+| SE-ARCH-FIX-02 | `ACCEPTED / COMPLETE` |
+| SE-02C | `BLOCKED / NOT STARTED` |
+| Migration head | `20260913_0009`（单 head） |
+
+**Migration 链（全部保留，未重写 revision identity）**：`20260912_0006`（N01-7-F01）→
+`20260913_0007`（FIX-01 Capture Anchor）→ `20260913_0008`（FIX-01 Review Fix）→
+`20260913_0009`（FIX-02 Outcome Revision Scope）。
+
+⚠️ **FIX-02 Accepted ≠ SE-02C MAY START**：SE-02C 仍需独立获批的 **Pre-SE-02C Re-Gate**；
+只有该 Gate 返回 `PASS — SE-02C MAY START` 才允许启动。本窗口**未**启动该 Gate，也**未**启动 SE-02C。
+
+### 19.5 Historical P2（保持原状，本任务未顺手修）
+
+`TEST-ISO-01` / `RRF-03`（`DEFERRED`）/ `RRF-04` 维持既有状态与证据边界，**未**修改。
+
+### 19.6 Result
+
+```text
+SE-ARCH-FIX-02 = ACCEPTED / COMPLETE
+```
+
+Closeout commit SHA 由本窗口 Final Report 记录（commit 自身 SHA 无法写入自身）。
