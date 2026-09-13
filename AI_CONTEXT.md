@@ -58,7 +58,7 @@
 | Current Group | N01-6 — 15-minute Short Runtime Smoke — `ACCEPTED / COMPLETE` |
 | Last accepted subgroup | N01-6 — 15-minute Short Runtime Smoke (`ACCEPTED / COMPLETE`)；SE-02A / N01-C / N01-A / N01-B 亦维持 `ACCEPTED / COMPLETE`；N01 overall 仍 `NOT ACCEPTED` |
 | Next Group Design | `NOT STARTED`（须另开窗口） |
-| Next Group name/number | N01-7 — 2-hour Medium Runtime Soak — `NOT STARTED / READY TO RESUME`（其前置 `N01-7-F01 = ACCEPTED / COMPLETE`（2026-09-13）；`N01-8` / Integrated Runtime Host = `NOT STARTED`） |
+| Next Group name/number | N01-7 — 2-hour Medium Runtime Soak — `VALIDATED / READY FOR INDEPENDENT REVIEW`（2026-09-13 已实际执行：`total_active 7320.580 s`、68/68 checks PASS；branch `n01-7-medium-runtime-soak` tip `ece1f7cb`，**未 Human Acceptance、未 merge `main`**；其前置 `N01-7-F01 = ACCEPTED / COMPLETE`（2026-09-13）；`N01-8` / Integrated Runtime Host = `NOT STARTED`） |
 
 - G4 **没有**提前实现完整 Replay / ReplayClock Engine。
 - 仓库中仅存在：`Clock` Protocol 的 `ReplayClock` 实现（`backend/src/marketpulse/clock.py`）与 `RunMode.REPLAY` 枚举（`config.py`）——这是既有 Clock 边界，**不是**完整回放引擎。
@@ -195,8 +195,14 @@
   Main Integration」）；Final Independent Review = `PASS`；R2 Independent Re-Review = `PASS`；
   Integration Review = `PASS`。
 - 状态：**`N01-7-F01-I1 = INTEGRATED / VERIFIED`**（历史）；**`N01-7-F01 = ACCEPTED /
-  COMPLETE`**（2026-09-13；已 fast-forward only 收编 `main`）；**`N01-7 = NOT STARTED / READY
-  TO RESUME`**；**`N01-8 = NOT STARTED`**；**`Integrated Runtime Host = NOT STARTED`**。
+  COMPLETE`**（2026-09-13；已 fast-forward only 收编 `main`）；**`N01-7 = VALIDATED / READY FOR
+  INDEPENDENT REVIEW`**（2026-09-13 2h Medium Runtime Soak 已实际执行：`total_active 7320.580 s`、
+  68/68 checks PASS、`failures []`、5 次受控重连、2 次 STALE→FRESH、7 个 checkpoint 全 `ok`、
+  跨进程 restart `29320 → 30332`、F01 A/B/C 成立；branch `n01-7-medium-runtime-soak` tip
+  `ece1f7cb`，**未 merge `main`**、**未 Human Acceptance**；⚠️ 开放问题：§21 `second_half_trend
+  = 5.255 MiB/h` 越过 5.0 阈值，仅因 AND 判据另一支未成立而不构成 Finding；详见
+  `dev_log/2026-09-13-n01-7-medium-runtime-soak.md`）；**`N01-8 = NOT STARTED`**；**`Integrated
+  Runtime Host = NOT STARTED`**。
 - accepted lineage（仅 fast-forward，无 merge commit / rebase / squash / force）：
   `ddf39f2 → 7c0ea7d → Final Acceptance Closeout Commit`。
 - `Production Code Changed after ddf39f2 = NO` / `Tests Changed = NO` / `Migration Changed = NO`;

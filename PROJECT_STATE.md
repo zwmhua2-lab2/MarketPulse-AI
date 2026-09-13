@@ -19,7 +19,10 @@ N01-6 — 15-minute Short Runtime Smoke — ACCEPTED / COMPLETE
 N01-7-F01 — Durable Protection Snapshot（N01-7 前置 Fix）— ACCEPTED / COMPLETE
 
 N01 overall — NOT ACCEPTED（`N01-7-F01 = ACCEPTED / COMPLETE`（2026-09-13 Human Acceptance
-Confirmed + Final Main Integration）；`N01-7 = NOT STARTED / READY TO RESUME`；N01-8 与
+Confirmed + Final Main Integration）；`N01-7 = VALIDATED / READY FOR INDEPENDENT REVIEW`
+（2026-09-13 2h Medium Runtime Soak 已实际执行：`total_active 7320.580 s`、68/68 checks PASS、
+`failures []`；branch `n01-7-medium-runtime-soak` tip `ece1f7cb`，**未 Human Acceptance、未 merge
+`main`**；详见 `dev_log/2026-09-13-n01-7-medium-runtime-soak.md`）；N01-8 与
 Integrated Runtime Host 仍 `NOT STARTED`；N01-6 的验收不得推断 Continuous Runtime / soak /
 7x24 / Integrated Runtime Host）
 
@@ -266,8 +269,19 @@ Integrated Runtime Host 仍 `NOT STARTED`；N01-6 的验收不得推断 Continuo
   已复审 F01 源 `c0ce0af`，true merge、`Reviewed Source Preserved = YES`；已 fast-forward only
   收编 `main`；见 Completed、Acceptance Record 与
   `dev_log/2026-09-13-n01-7-f01-final-acceptance-closeout.md`）。
-- **`N01-7 = NOT STARTED / READY TO RESUME`**（2-hour Medium Runtime Soak 尚未启动；
-  重启前须做一次全新 Repository Truth rebuild，并以实时 `origin/main` 为 Accepted Main）。
+- **`N01-7 = VALIDATED / READY FOR INDEPENDENT REVIEW`**（2-hour Medium Runtime Soak 已于 2026-09-13
+  实际执行：`total_active 7320.580 s ≥ 7200`、`wall_clock 7335.304 s`、68/68 checks PASS、
+  `failures / harness_errors / shutdown_errors / phase_failures / phase_process_errors` 全为 `[]`、
+  5 次受控重连、2 次受控 STALE→FRESH、7 个 reconciliation checkpoint 全 `ok`、1 次跨进程 fresh-process
+  restart（pid `29320 → 30332`）、F01 witness A/B/C 全部成立；一次性库残留 0、共享主库前后未变；
+  branch `n01-7-medium-runtime-soak` tip `ece1f7cb`，**未 Human Acceptance、未 merge `main`**）。
+  同主题历史分支 `n01-7-2h-runtime-soak-after-f01`（`6b882c9`，`BLOCKED / FIX REQUIRED`）与
+  `n01-7-inv-01-memory-attribution`（`0a34c72`）亦**未 merge**；三者如何收敛属 Review / 人工决策。
+  ⚠️ **开放问题（未闭合）**：§21 内存判据的 `second_half_trend = 5.255 MiB/h` **已越过** 5.0 MiB/h
+  阈值，仅因 AND 判据另一支（`total_growth 8.055 MiB ≪ 64 MiB`）未成立而不构成 Finding；四个独立
+  视角均显示持续正斜率，方向与 `N01-7-INV-01` 的 `C｜ALLOCATOR_OR_NATIVE_RETENTION_LIKELY` 一致。
+  详见 `dev_log/2026-09-13-n01-7-medium-runtime-soak.md`。**不得**由本批次推断 N01-7 ACCEPTED /
+  N01-8 / Integrated Runtime Host / Continuous Runtime / 7×24。
 - **`N01-8 = NOT STARTED`**；**`Integrated Runtime Host = NOT STARTED`**。
 - **N01-A / N01-B / N01-C / N01-6 / N01-7-F01 均已 `ACCEPTED / COMPLETE`**（见 Completed）；
   N01 overall 仍未验收，也不由任何单门 N01 验收推断。
