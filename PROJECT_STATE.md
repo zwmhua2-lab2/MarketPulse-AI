@@ -22,8 +22,15 @@ N01-6 — 15-minute Short Runtime Smoke — ACCEPTED / COMPLETE
 
 N01-7-F01 — Durable Protection Snapshot（N01-7 前置 Fix）— ACCEPTED / COMPLETE
 
+N01-7-R01 — Witness B Fix + Latest-Main Revalidation + 2h Acceptance Re-run —
+VALIDATED / READY FOR INDEPENDENT RE-REVIEW（2026-09-13；branch
+`n01-7-r01-witness-b-latest-main`，**未** merge `main`；`N01-7-R01 = VALIDATED` 不构成
+`N01 overall ACCEPTED`）
+
 N01 overall — NOT ACCEPTED（`N01-7-F01 = ACCEPTED / COMPLETE`（2026-09-13 Human Acceptance
-Confirmed + Final Main Integration）；`N01-7 = NOT STARTED / READY TO RESUME`；N01-8 与
+Confirmed + Final Main Integration）；`N01-7 = VALIDATED / READY FOR INDEPENDENT RE-REVIEW`
+（N01-7-R01 harness fix + latest-main targeted revalidation + 全新单轮 2h Acceptance Run：
+`total_active 7320.252 s`、84/84 checks true，**未** Human Accepted）；N01-8 与
 Integrated Runtime Host 仍 `NOT STARTED`；N01-6 的验收不得推断 Continuous Runtime / soak /
 7x24 / Integrated Runtime Host）
 
@@ -334,8 +341,11 @@ Integrated Runtime Host 仍 `NOT STARTED`；N01-6 的验收不得推断 Continuo
   已复审 F01 源 `c0ce0af`，true merge、`Reviewed Source Preserved = YES`；已 fast-forward only
   收编 `main`；见 Completed、Acceptance Record 与
   `dev_log/2026-09-13-n01-7-f01-final-acceptance-closeout.md`）。
-- **`N01-7 = NOT STARTED / READY TO RESUME`**（2-hour Medium Runtime Soak 尚未启动；
-  重启前须做一次全新 Repository Truth rebuild，并以实时 `origin/main` 为 Accepted Main）。
+- **`N01-7 = VALIDATED / READY FOR INDEPENDENT RE-REVIEW`**（N01-7-R01 harness fix + latest-main
+  targeted revalidation + 全新单轮 ≥7200 s Acceptance Run；Task Base / Accepted Main =
+  `8a29306`；migration head `20260913_0009`；branch `n01-7-r01-witness-b-latest-main`，
+  **未** merge `main`；见 `dev_log/2026-09-13-n01-7-r01-witness-b-revalidation.md`）。
+  本状态**不**构成 N01-7 / N01 overall Human Acceptance；Re-Review 前不得推进 `main`。
 - **`N01-8 = NOT STARTED`**；**`Integrated Runtime Host = NOT STARTED`**。
 - **N01-A / N01-B / N01-C / N01-6 / N01-7-F01 均已 `ACCEPTED / COMPLETE`**（见 Completed）；
   N01 overall 仍未验收，也不由任何单门 N01 验收推断。
