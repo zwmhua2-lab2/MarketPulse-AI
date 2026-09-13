@@ -12,9 +12,9 @@
 | Project | MarketPulse AI（BTC/ETH 量化纸面交易终端，Modular Monolith） |
 | Current Acceptance Group | N01-7 / N01-7-R01 — 2-hour Medium Runtime Soak（含 Witness B Fix + Latest-Main Revalidation）— ACCEPTED / COMPLETE |
 | Accepted Main Source | Git `main` / `origin/main`；须在任务 preflight 按 CIP-02 实时读取，不以文档静态 SHA 为准 |
-| Current State | `SE-ARCH-FIX-02 = ACCEPTED / COMPLETE`（2026-09-13 Human Acceptance = `APPROVED` + Final Main Integration Closeout，已 fast-forward only 收编 `main`；Human-Accepted reviewed candidate = `15da7c1`；Implementation = `4c83582`）；`SE-ARCH-FIX-01 = ACCEPTED / COMPLETE`（2026-09-13 Human Acceptance = `APPROVED` + Final Main Integration Closeout；reviewed candidate = `1e2738b`）；`SE-02A = ACCEPTED / COMPLETE`；`SE-02B = ACCEPTED / COMPLETE`；**`SE-02C = BLOCKED / NOT STARTED`**（FIX-02 已 Acceptance **不**使其 MAY START；仍需 Pre-SE-02C Re-Gate 返回 `PASS — SE-02C MAY START`）；`SE-02D = NOT STARTED`；`N01-C = ACCEPTED / COMPLETE`；N01-A / N01-B 与 N01 验证修复 `N01-VAL-FIX-01/02/03` 均维持 `ACCEPTED / COMPLETE`；`N01-6 = ACCEPTED / COMPLETE`（Reviewed HEAD `3f591a7`）；**`N01-7-F01 = ACCEPTED / COMPLETE`**（2026-09-13 Human Acceptance = `CONFIRMED` + Final Main Integration；reviewed candidate `7c0ea7d` @ integration merge `ddf39f2`；已 fast-forward only 收编 `main`）；**`N01-7 / N01-7-R01 = ACCEPTED / COMPLETE`**（2026-09-14 Human Acceptance = `CONFIRMED` + Final Main Integration Closeout；Independent Re-Review = `PASS WITH NON-BLOCKING FINDINGS — READY FOR HUMAN ACCEPTANCE`；Human-Accepted reviewed candidate = `559f14be1fb89df58c11dfbea737eba4ac30421e`（branch `n01-7-r01-witness-b-latest-main`）；集成方法 = `FAST-FORWARD ONLY`）；🚩 遗留 P2 Watch Item `N01-7-R01-RR-P2-01`（Memory Operational Watch / Bounded Retention Growth，slope `≈16.02 MiB/h` > `5.0`、`total_growth ≈14.043 MiB ≤ 64` ⇒ `finding = false`，Acceptance Gate = PASS）**必须留待 `N01-8` 继续观察**（不得写 `memory resolved` / `memory is fine` / `no memory concern`）；`N01-8` / Integrated Runtime Host 仍 `NOT STARTED`；**N01 overall 仍 `NOT ACCEPTED`** |
+| Current State | `SE-ARCH-FIX-02 = ACCEPTED / COMPLETE`（2026-09-13 Human Acceptance = `APPROVED` + Final Main Integration Closeout，已 fast-forward only 收编 `main`；Human-Accepted reviewed candidate = `15da7c1`；Implementation = `4c83582`）；`SE-ARCH-FIX-01 = ACCEPTED / COMPLETE`（2026-09-13 Human Acceptance = `APPROVED` + Final Main Integration Closeout；reviewed candidate = `1e2738b`）；`SE-02A = ACCEPTED / COMPLETE`；`SE-02B = ACCEPTED / COMPLETE`；**`SE-02C = IMPLEMENTED / FIXED / NOT ACCEPTED`**（2026-09-13 实现窗口后第一次 Independent Review = `FAIL — FIX REQUIRED`：`SE02C-R1` / `R2` / `R3` = P1 BLOCKING、`R4` = P2 NON-BLOCKING；2026-09-14 修复窗口 `SE-02C-FIX-01 = IMPLEMENTED / READY FOR INDEPENDENT RE-REVIEW`，branch `se-02c-fix-01-review-blockers`，base = 最新 Accepted Main `dd78a979` + 真实 merge 原已复审候选 `be3aa6c`；**未** merge `main`、**未** Human Accept）；`SE-02D = NOT STARTED`；`N01-C = ACCEPTED / COMPLETE`；N01-A / N01-B 与 N01 验证修复 `N01-VAL-FIX-01/02/03` 均维持 `ACCEPTED / COMPLETE`；`N01-6 = ACCEPTED / COMPLETE`（Reviewed HEAD `3f591a7`）；**`N01-7-F01 = ACCEPTED / COMPLETE`**（2026-09-13 Human Acceptance = `CONFIRMED` + Final Main Integration；reviewed candidate `7c0ea7d` @ integration merge `ddf39f2`；已 fast-forward only 收编 `main`）；**`N01-7 / N01-7-R01 = ACCEPTED / COMPLETE`**（2026-09-14 Human Acceptance = `CONFIRMED` + Final Main Integration Closeout；Independent Re-Review = `PASS WITH NON-BLOCKING FINDINGS — READY FOR HUMAN ACCEPTANCE`；Human-Accepted reviewed candidate = `559f14be1fb89df58c11dfbea737eba4ac30421e`（branch `n01-7-r01-witness-b-latest-main`）；集成方法 = `FAST-FORWARD ONLY`）；🚩 遗留 P2 Watch Item `N01-7-R01-RR-P2-01`（Memory Operational Watch / Bounded Retention Growth，slope `≈16.02 MiB/h` > `5.0`、`total_growth ≈14.043 MiB ≤ 64` ⇒ `finding = false`，Acceptance Gate = PASS）**必须留待 `N01-8` 继续观察**（不得写 `memory resolved` / `memory is fine` / `no memory concern`）；`N01-8` / Integrated Runtime Host 仍 `NOT STARTED`；**N01 overall 仍 `NOT ACCEPTED`** |
 | Last Accepted Group | N01-7 / N01-7-R01 — 2-hour Medium Runtime Soak（含 Witness B Fix + Latest-Main Revalidation） |
-| Current Group Branch | `n01-7-r01-witness-b-latest-main`（N01-7 / N01-7-R01 accepted lineage；仅 fast-forward 收编至 `main`，历史分支保留）；更早 `se-arch-fix-02-outcome-revision-chain-scope`、`se-arch-fix-01-latest-main-integration`、`se-02b-opportunity-capture-attribution`、`n01-6-15m-runtime-smoke`、`n01-c-restart-recovery-reconciliation` |
+| Current Group Branch | `se-02c-fix-01-review-blockers`（SE-02C-FIX-01｜Review Blockers 修复；base = 最新 Accepted Main `dd78a979`，以真实 merge `--no-ff` 集成原已复审候选 `be3aa6c`；**等待 Independent Re-Review**，**未** merge `main`）；原已复审候选 branch `se-02c-forward-outcome-calculator` @ `be3aa6c`（**immutable，未改写**）；已验收 lineage `n01-7-r01-witness-b-latest-main`（N01-7 / N01-7-R01；仅 fast-forward 收编至 `main`，历史分支保留）；更早 `se-arch-fix-02-outcome-revision-chain-scope`、`se-arch-fix-01-latest-main-integration`、`se-02b-opportunity-capture-attribution`、`n01-6-15m-runtime-smoke`、`n01-c-restart-recovery-reconciliation` |
 
 - G1–G4 acceptance 状态：`ACCEPTED` / `ACCEPTED` / `ACCEPTED` / `ACCEPTED`。
 - G5-0 / G5-1 / G5-2 / G5-3 / G5-4 acceptance 状态：`ACCEPTED`。
@@ -45,6 +45,48 @@
   `ReplayTradingRunner.schema_head = 20260913_0009`。⚠️ FIX-02 Accepted **≠** SE-02C MAY START：
   `SE-02C` 保持 `BLOCKED / NOT STARTED`（仍需 Pre-SE-02C Re-Gate）。详见
   `dev_log/2026-09-13-se-arch-fix-02-outcome-revision-chain-scope.md`。
+  （历史记录：以上为 FIX-02 收尾时的边界表述；`SE-02C` 其后已由 2026-09-13 实现窗口推进为
+  `IMPLEMENTED / READY FOR INDEPENDENT REVIEW`，见下条。）
+
+- SE-02C Forward Outcome Calculator = `IMPLEMENTED / FIXED / NOT ACCEPTED`
+  （2026-09-13 实现 + 验证窗口；原 branch `se-02c-forward-outcome-calculator` @ `be3aa6c`，
+  base `8a29306`，worktree `E:\Documents\MarketPulse-AI-se-02c`；**未** merge `main`、
+  **未** push `main`、**未**自行 Acceptance；前置授权 = 外部任务书声明的 Pre-SE-02C
+  Re-Gate `PASS — SE-02C MAY START`）。落地：纯计算核心 `edge/forward.py`
+  （冻结 V1 mid/return/MFE-MAE 公式 + 精确乘性 `SPOT_LONG_TAKER_ROUND_TRIP` 成本 +
+  `due_at = evidence_at + duration` + FIX-01 anchor 参考权威 + 5 s endpoint TTL +
+  仅 `COMPLETE` / `INSUFFICIENT_DATA` / `INVALID` 终态 + `created_at` 冻结为 `due_at`）、
+  durable orchestration `edge/forward_service.py`（`ForwardPathRecorder` 复用
+  `record_bbo_observation`、`discover_due_scopes`、`ForwardOutcomeService` /
+  `evaluate_due_outcomes`，永不写 revision > 1）、`g2/runtime.py` 最小 opt-in
+  live-ingress hook。`Migration changed = NO`（单 head 仍 `20260913_0009`）。
+  原窗口验证：focused `47 passed`、命名回归 `196 passed`、full backend `418 passed`；
+  C-01 ～ C-29 全部 PASS。
+  第一次 Independent Review = `FAIL — FIX REQUIRED`：`SE02C-R1`（>50,000 observations 被
+  `MAX_FORWARD_PATH_OBSERVATIONS` 读取上限静默截断 ⇒ endpoint 可能不是真实 latest、
+  MFE / MAE / `reference_return` / `executable_long_return` /
+  `cost_adjusted_forward_return` 可能错误、不完整 path 仍可能落 `COMPLETE`；P1 BLOCKING）、
+  `SE02C-R2`（live ingress 以 `DEFAULT_INGRESS_TRADABLE = True` 无条件把 Forward BBO 记为
+  `tradable=True`，丢失真实 instrument tradable 状态；P1 BLOCKING）、`SE02C-R3`（remote
+  `main` 已从 `8a29306` 推进到 `dd78a979`，旧候选不再建立于最新 Accepted Main lineage；
+  P1 BLOCKING）、`SE02C-R4`（anchor-only 情况应报 `ENDPOINT_MISSING` 而非
+  `ENDPOINT_STALE`：Capture Anchor 只作 reference authority，不是 Forward endpoint；
+  P2 NON-BLOCKING）。
+- SE-02C-FIX-01｜Review Blockers = `IMPLEMENTED / READY FOR INDEPENDENT RE-REVIEW`
+  （2026-09-14 Implementation + Verification 窗口；branch `se-02c-fix-01-review-blockers`，
+  worktree `E:\Documents\MarketPulse-AI-se-02c-fix-01`）。Lineage：以最新 Accepted Main
+  `dd78a979d128dee385c7a8ddc2254a53366af714` 为第一父系，经**真实 merge**（`git merge
+  --no-ff be3aa6c…`）集成原已复审候选 `be3aa6c817582f6161ea9903f7824200b7f5c843`，两条历史
+  均保留；**无** rebase / squash / cherry-pick / force push；原候选 **immutable** 未被改写。
+  `Schema Changed = NO` / `Migration Added = NO`（单 head `20260913_0009`）。
+  详见 `dev_log/2026-09-14-se-02c-fix-01-review-blockers.md`。
+
+⚠️ 跑 SE-02C / 任何集成测试的窗口注意：**不要导出 `DATABASE_URL`**。
+`backend/alembic/env.py` 为 `os.getenv("DATABASE_URL", config.get_main_option("sqlalchemy.url"))`
+—— 环境变量优先于测试传入的 `sqlalchemy.url`，导出后会把迁移打到环境变量指向的库，
+disposable 库保持空表（症状 `relation "edge_opportunity_evidence" does not exist`）。
+正确姿势：`PYTHONPATH=backend/src py -3.14 -m pytest backend/tests`，仅靠 worktree 根
+`.env` 提供隔离库地址。
 
 - N01-7 / N01-7-R01 2-hour Medium Runtime Soak（含 Witness B Fix + Latest-Main Revalidation）
   = `ACCEPTED / COMPLETE`（2026-09-14 Human Acceptance = `CONFIRMED` + Final Main Integration
@@ -104,8 +146,8 @@
 |---|---|
 | Current Group | N01-7 / N01-7-R01 — 2-hour Medium Runtime Soak（含 Witness B Fix + Latest-Main Revalidation）— `ACCEPTED / COMPLETE`（2026-09-14 Human Acceptance = `CONFIRMED` + Final Main Integration Closeout） |
 | Last accepted subgroup | N01-7 / N01-7-R01（`ACCEPTED / COMPLETE`）；SE-ARCH-FIX-02 / SE-ARCH-FIX-01 / SE-02A / SE-02B / N01-6 / N01-7-F01 / N01-C / N01-A / N01-B 亦维持 `ACCEPTED / COMPLETE`；N01 overall 仍 `NOT ACCEPTED` |
-| Next Group Design | `NOT STARTED`（须另开窗口）；已明确**不**自动开始 `SE-02C`（`SE-ARCH-FIX-02` 已收尾，`SE-02C` 启动前须先独立获批 Pre-SE-02C Re-Gate 且返回 `PASS — SE-02C MAY START`，见 §1），也**不**自动开始 `N01-8`（须由总进度窗口另开独立获批的任务窗口） |
-| Next Group name/number | `N01-7 / N01-7-R01 = ACCEPTED / COMPLETE`（2026-09-14 Closeout；遗留 P2 `N01-7-R01-RR-P2-01` 见 §1）；`N01-8｜12-hour Extended Soak = NOT STARTED`；Integrated Runtime Host = `NOT STARTED`；`SE-ARCH-FIX-02 = ACCEPTED / COMPLETE`；`SE-02C = BLOCKED / NOT STARTED`（FIX-02 Accepted **不**使其 MAY START；仍需 Pre-SE-02C Re-Gate）；`SE-02D = NOT STARTED` |
+| Next Group Design | `NOT STARTED`（须另开窗口）；已明确**不**自动开始 `SE-02C`（`SE-ARCH-FIX-02` 已收尾，`SE-02C` 启动前须先独立获批 Pre-SE-02C Re-Gate 且返回 `PASS — SE-02C MAY START`，见 §1；该 Gate 后 `SE-02C` 已由 2026-09-13 实现窗口推进，现处 review-fix 周期），也**不**自动开始 `N01-8`（须由总进度窗口另开独立获批的任务窗口） |
+| Next Group name/number | `N01-7 / N01-7-R01 = ACCEPTED / COMPLETE`（2026-09-14 Closeout；遗留 P2 `N01-7-R01-RR-P2-01` 见 §1）；`N01-8｜12-hour Extended Soak = NOT STARTED`；Integrated Runtime Host = `NOT STARTED`；`SE-ARCH-FIX-02 = ACCEPTED / COMPLETE`；`SE-02C = IMPLEMENTED / FIXED / NOT ACCEPTED`（第一次 Independent Review = `FAIL — FIX REQUIRED`；修复窗口 `SE-02C-FIX-01 = IMPLEMENTED / READY FOR INDEPENDENT RE-REVIEW`）；`SE-02D = NOT STARTED` |
 
 - G4 **没有**提前实现完整 Replay / ReplayClock Engine。
 - 仓库中仅存在：`Clock` Protocol 的 `ReplayClock` 实现（`backend/src/marketpulse/clock.py`）与 `RunMode.REPLAY` 枚举（`config.py`）——这是既有 Clock 边界，**不是**完整回放引擎。

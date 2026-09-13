@@ -6,7 +6,9 @@ SE-02A — Contracts + Additive Persistence — ACCEPTED / COMPLETE
 
 SE-02B — Opportunity Capture + Attribution — ACCEPTED / COMPLETE
 
-SE-02C — Forward Outcome Calculator — BLOCKED / NOT STARTED（FIX-02 已 `ACCEPTED` **不**使其 MAY START；仍需 Pre-SE-02C Re-Gate 返回 `PASS — SE-02C MAY START`）
+SE-02C — Forward Outcome Calculator — IMPLEMENTED / FIXED / NOT ACCEPTED（第一次 Independent
+Review = `FAIL — FIX REQUIRED`；修复窗口 `SE-02C-FIX-01` = `IMPLEMENTED / READY FOR
+INDEPENDENT RE-REVIEW`，branch `se-02c-fix-01-review-blockers`；未 merge `main`、未自行 Acceptance）
 
 SE-02D — Family Aggregation / Expectancy — NOT STARTED
 
@@ -60,17 +62,25 @@ N01-6 的验收不得推断 Continuous Runtime / soak / 7x24 / Integrated Runtim
   Final Acceptance Closeout，已 fast-forward only 收编 `main`；`N01-8` /
   `Integrated Runtime Host` 仍 `NOT STARTED`）；
   `SE-ARCH-FIX-02 ACCEPTED / COMPLETE`（2026-09-13 Human Acceptance = `APPROVED` + Final Main
-  Integration Closeout，已 fast-forward only 收编 `main`）；`SE-02C = BLOCKED / NOT STARTED`
-  （FIX-02 已 Acceptance **不**使其 MAY START；仍需 Pre-SE-02C Re-Gate 返回
-  `PASS — SE-02C MAY START`）；`SE-02D = NOT STARTED`
+  Integration Closeout，已 fast-forward only 收编 `main`）；`SE-02C = IMPLEMENTED / FIXED /
+  NOT ACCEPTED`（2026-09-13 实现 + 验证窗口 branch `se-02c-forward-outcome-calculator` @
+  `be3aa6c`；第一次 Independent Review = `FAIL — FIX REQUIRED`；2026-09-14 修复窗口
+  `SE-02C-FIX-01` = `IMPLEMENTED / READY FOR INDEPENDENT RE-REVIEW`，branch
+  `se-02c-fix-01-review-blockers`，base = 最新 Accepted Main `dd78a979` + 真实 merge 原候选；
+  **未** merge `main`、**未**自行 Acceptance；`Schema Changed = NO`、`Migration Added = NO`，
+  单 head 仍 `20260913_0009`）；`SE-02D = NOT STARTED`
 
 ## Branch / Source
 
 - Current Accepted Branch: `main`
-- Current Group Branch: `n01-7-r01-witness-b-latest-main`（N01-7 / N01-7-R01 accepted
-  validation lineage；closeout 直接在已复审候选 tip `559f14b` 上线性 +1 docs/state-only commit，
-  仅 fast-forward 收编至 `main`，历史分支保留）；更早
-  `n01-c-restart-recovery-reconciliation`（N01-C）、`se-02a-final-integration-refresh`、
+- Current Group Branch: `se-02c-fix-01-review-blockers`（SE-02C-FIX-01｜Review Blockers 修复；
+  base = 最新 Accepted Main `dd78a979d128dee385c7a8ddc2254a53366af714`，以 **真实 merge**
+  （`--no-ff`）集成原已复审候选 `be3aa6c817582f6161ea9903f7824200b7f5c843`；**等待
+  Independent Re-Review**，**未** merge `main`、**未** push `main`）；原已复审候选 branch
+  `se-02c-forward-outcome-calculator` @ `be3aa6c`（**immutable，保留未改写**）；已验收 lineage
+  `n01-7-r01-witness-b-latest-main`（N01-7 / N01-7-R01；closeout 直接在已复审候选 tip
+  `559f14b` 上线性 +1 docs/state-only commit，仅 fast-forward 收编至 `main`，历史分支保留）；
+  更早 `n01-c-restart-recovery-reconciliation`（N01-C）、`se-02a-final-integration-refresh`、
   `n01-6-15m-runtime-smoke`、`se-02b-opportunity-capture-attribution`、
   `n01-7-f01-latest-main-integration`、`se-arch-fix-01-latest-main-integration` 与
   `se-arch-fix-02-outcome-revision-chain-scope` 均仅 fast-forward 收编至 `main`，历史分支保留
@@ -353,13 +363,24 @@ N01-6 的验收不得推断 Continuous Runtime / soak / 7x24 / Integrated Runtim
   service 校验 + migration `20260913_0009` scoped FK 双层 fail closed；DB 负责 scope integrity，
   service 负责 scope integrity + adjacency。**不**因此启动 SE-02C，见 Completed / Acceptance
   Record / 「SE-ARCH-FIX-02 Result」）。
-- **SE-02C｜Forward Outcome Calculator = `BLOCKED / NOT STARTED`**（forward outcome 仍未计算：
-  无 MFE / MAE / 无 forward returns；horizon `30s` / `5m` / `15m` / `1h` 的 calculation 尚未实现。
-  FIX-02 已 `ACCEPTED / COMPLETE` **不**使其变为 MAY START；启动前必须另开独立获批的
-  Pre-SE-02C Re-Gate，且仅当该 Gate 返回 `PASS — SE-02C MAY START` 才允许启动）。
+- **SE-02C｜Forward Outcome Calculator = `IMPLEMENTED / READY FOR INDEPENDENT REVIEW`**
+  （2026-09-13 实现 + 验证窗口；branch `se-02c-forward-outcome-calculator` @ `7a68bf0`，
+  worktree `E:\Documents\MarketPulse-AI-se-02c`，base `8a29306`；**未** merge `main`，**未**
+  push `main`，**未**自行 Acceptance）。落地内容：纯确定性计算核心
+  `edge/forward.py`（冻结 V1 mid/return/MFE-MAE 公式 + 精确乘性
+  `SPOT_LONG_TAKER_ROUND_TRIP` 成本模型 + `due_at = evidence_at + duration` +
+  FIX-01 anchor 参考权威 + 5 s endpoint TTL + 仅 COMPLETE/INSUFFICIENT_DATA/INVALID 终态 +
+  `created_at` 冻结为 `due_at`）、durable orchestration `edge/forward_service.py`
+  （Forward BBO path recorder 复用 `record_bbo_observation`、durable due discovery、
+  bounded evaluation API，永不写 revision > 1）、`g2/runtime.py` 最小 opt-in live-ingress hook。
+  **无新增 migration、无 schema 变更**：`alembic heads` 仍单 head `20260913_0009`。
+  验证：SE-02C focused 46 passed、SE-02A/SE-02B/G5 命名回归 196 passed、全量
+  `pytest backend/tests` **417 passed**（相对 SE-ARCH-FIX-02 的 371 基线为 +46、既有 0 回归）、
+  `ruff check` 全绿。见 `dev_log/2026-09-13-se-02c-forward-outcome-calculator.md`。
 - **SE-02D｜Family Aggregation / Expectancy = `NOT STARTED`**（family aggregation、expectancy、
   KEEP / DOWNWEIGHT / KILL 均未实现）。
-- 两项均须另开窗口并经批准的门执行；本窗口 **不** 自动开始 SE-02C。
+- SE-02C 的实现**不**构成 SE-02D 的启动授权；SE-02D / N01-8 / Integrated Runtime Host 仍须
+  另开窗口并经批准的门执行。
 - **SE-02B 已关闭**：`ACCEPTED / COMPLETE` 并已 fast-forward only 收编 `main`（见 Completed、
   Acceptance Record 与「SE-02B Result」）；其 3 个历史状态项
   （`IMPLEMENTED / WAITING HUMAN ACCEPTANCE`、SE-02B-FIX-01 / FIX-02
@@ -897,3 +918,57 @@ N01-6 的验收不得推断 Continuous Runtime / soak / 7x24 / Integrated Runtim
   也**≠** `N01-8` MAY START（仍 `NOT STARTED`）；`Integrated Runtime Host` 仍 `NOT STARTED`。
 - 详见 `dev_log/2026-09-14-n01-7-final-acceptance-closeout.md` 与
   `dev_log/2026-09-13-n01-7-r01-witness-b-revalidation.md`。
+## SE-02C Result
+
+- 任务：SE-02C｜Forward Outcome Calculator（Deterministic Forward Outcome Calculator；
+  Implementation + Verification 窗口）。
+- 前置授权：Pre-SE-02C Re-Gate = `PASS — SE-02C MAY START`（**外部任务书内容**，本仓库无副本；
+  本窗口未自行签发该 gate）。
+- Base / Branch / Worktree：base `8a29306`（Accepted Main，`origin/main` read-back 一致，无 drift）
+  → branch `se-02c-forward-outcome-calculator` @ `7a68bf0`（implementation `721c488`、
+  test coverage `7a68bf0`）；worktree `E:\Documents\MarketPulse-AI-se-02c`。
+  **未** merge `main`、**未** push `main`。
+- Scope（新增 2 + 最小修改 2 + 测试 2）：`edge/forward.py`（纯计算核心）、
+  `edge/forward_service.py`（path recorder / durable due discovery / bounded evaluation API）、
+  `edge/__init__.py`（包内清单）、`g2/runtime.py`（opt-in live-ingress hook）、
+  `tests/test_se_02c_forward_outcome_calculator.py`（37 项）、
+  `tests/test_se_02c_forward_outcome_service.py`（9 项）。
+- 关键不变量：`due_at = evidence_at + horizon.duration`；reference 权威 = FIX-01 durable
+  capture anchor BBO；endpoint = 合格观测总序最大值；5 s endpoint TTL；仅
+  `COMPLETE` / `INSUFFICIENT_DATA` / `INVALID` 落库，PENDING 仅派生；不可计算指标一律 NULL；
+  `created_at` 冻结为 `due_at`；成本为精确乘性模型；`calculation_digest` 排除 provenance、
+  `outcome_record_hash` 包含 provenance；评估者永不写 revision > 1。
+- `Migration changed = NO`：`alembic heads` 单 head `20260913_0009`（**未**新增迁移、未改 ORM）。
+- 验证：SE-02C focused `47 passed`；SE-02A/SE-02B/G5 命名回归 `196 passed`；full backend
+  `418 passed, 1 warning`（相对 FIX-02 的 371 基线 = +47 / 回归 0）；`ruff check` /
+  `compileall` / `git diff --check` PASS；C-01 ～ C-29 全部 PASS。隔离 disposable PostgreSQL
+  `postgres:16-alpine` @ `127.0.0.1:5438`；共享 5432 **未**被触碰。
+- 状态（收尾于 SE-02C-FIX-01 窗口时）：`SE-02C = IMPLEMENTED / FIXED / NOT ACCEPTED`；
+  第一次 Independent Review = `FAIL — FIX REQUIRED`（`SE02C-R1` / `R2` / `R3` = P1
+  BLOCKING，`SE02C-R4` = P2 NON-BLOCKING）。
+- 未决语义点 (a)「窗口内只有 anchor BBO 自身时 reason 为 `ENDPOINT_STALE`」已由
+  SE-02C-FIX-01 按 Approved semantics 关闭为 `ENDPOINT_MISSING`（anchor 只作 reference
+  authority，不得作 endpoint）；未决语义点 (b)「已结算 scope 事实变化后强制重评估抛
+  `EdgeOutcomeConflict`」行为保持不变（fail closed，不写 revision 2）。
+- 详见 `dev_log/2026-09-13-se-02c-forward-outcome-calculator.md`。
+
+## SE-02C-FIX-01 Result
+
+- 任务：SE-02C-FIX-01｜Review Blockers（修复 SE-02C 第一次 Independent Review 发现的
+  Acceptance Blockers，并把已复审 SE-02C candidate 安全集成到最新 Accepted Main）——
+  Implementation + Verification 窗口（**非** Review、**非** Human Acceptance）。
+- 关闭的 Findings：`SE02C-R1`（>50,000 observations 被读取上限静默截断 ⇒ endpoint / MFE /
+  MAE 不完整且可能误判 COMPLETE）、`SE02C-R2`（live ingress 无条件硬编码
+  `tradable=True`）、`SE02C-R3`（旧候选未建立在最新 Accepted Main lineage 上）、
+  `SE02C-R4`（anchor 被误当 endpoint ⇒ 应报 `ENDPOINT_MISSING`）。
+- Latest Accepted Main = `dd78a979d128dee385c7a8ddc2254a53366af714`；Original Candidate =
+  `be3aa6c817582f6161ea9903f7824200b7f5c843`（**immutable，未被改写**）；Fix Branch =
+  `se-02c-fix-01-review-blockers`；Worktree = `E:\Documents\MarketPulse-AI-se-02c-fix-01`。
+- Lineage：`dd78a979`（第一父系 = 最新 Accepted Main）× `be3aa6c`（第二父系 = 原已复审
+  SE-02C 候选）经**真实 merge**（`git merge --no-ff`）集成，两条历史均保留；**无** rebase /
+  squash / cherry-pick / force push。
+- `Schema Changed = NO` / `Migration Added = NO`：`alembic heads` 单 head `20260913_0009`；
+  `G5 schema_head = 20260913_0009`。
+- 状态：`SE-02C-FIX-01 = IMPLEMENTED / READY FOR INDEPENDENT RE-REVIEW`；
+  `SE-02C = IMPLEMENTED / FIXED / NOT ACCEPTED`；`SE-02D = NOT STARTED`。
+- 详见 `dev_log/2026-09-14-se-02c-fix-01-review-blockers.md`。
