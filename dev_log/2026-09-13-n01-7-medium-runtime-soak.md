@@ -314,14 +314,28 @@ harness 采用任务书 §21 的 **AND** 判据：`total_growth > 64 MiB` **AND*
 | phase second 后段 | `+10.785 MiB/h` |
 | 外部监视器 private bytes | `+11.4 MiB`（PID 29320）/ `+23.7 MiB`（PID 30332） |
 
-**进程外独立监视器**（`external_monitor.py`，**不加载 `tracemalloc`**，无侵入探针，符合 `N01-7-INV-01` 方法学）：
+**进程外独立监视器**（`external_monitor.py`，**不加载 `tracemalloc`**，无侵入探针，符合 `N01-7-INV-01` 方法学）。以下为监视器**跑满 3h20m 后的最终结果**（`rc=0`，`monitor_started 06:23:42.119888Z`，末样本 `09:43:25.756Z`）：
 
-| PID | rss 起→终（峰值） | private 起→终 | uss 起→终 |
-|---|---|---|---|
-| `29320`（phase first） | `117.777 → 121.516`（peak `125.902`） | `99.941 → 111.387` | 见 `external_monitor.jsonl` |
-| `30332`（phase second） | `102.695 → 121.383`（peak `125.137`） | `85.309 → 108.992` | 见 `external_monitor.jsonl` |
+| PID | 带指标样本数（`alive=true`） | rss 首→末（峰值） | private 首→末（峰值） | uss 首→末（峰值） | handles（min–max） | sockets（min–max） |
+|---|---|---|---|---|---|---|
+| `29320`（phase first） | `97` | `117.777 → 121.516`（peak `125.902`） | `99.941 → 111.387`（peak `111.387`） | `94.980 → 96.965`（peak `101.344`） | `184`（`183–184`） | 恒 `6` |
+| `30332`（phase second） | `125` | `102.695 → 121.383`（peak `125.137`） | `85.309 → 108.992`（peak `108.992`） | `81.988 → 97.090`（peak `100.844`） | `179 → 183`（`179–195`） | `2 → 5`（`2–6`） |
 
-外部视角印证：**CPU/RSS 数值均处于百 MiB 量级、无失控**，但两个进程的 private bytes 均呈持续正增长 —— 与 harness 内测量方向一致。
+外部视角印证：**RSS/private/USS 均处于百 MiB 量级、无失控**，但两个进程的 private bytes 均呈**持续正增长**（`+11.4` / `+23.7 MiB`）—— 与 harness 内测量方向一致。
+
+**证据卫生（正向）**：进程退出后的样本**只写 `{"alive": false}`、不带任何内存数值** —— 实测 `not_alive-with-metrics = 0`（`29320` 的 303 条、`30332` 的 178 条 not-alive 样本均无指标），**不存在"进程已死却沿用旧值"的伪数据**。
+
+**⚠️ 必须如实记录的覆盖缺口（不影响本批次判定）**：
+
+| 项 | 实测 |
+|---|---|
+| 监视器起始 | `06:23:42.120Z` |
+| phase first 活跃起点 | `06:12:14.039Z` |
+| **起点缺口** | **`688.1 s`（≈11.5 min）** —— **phase first 的前 11.5 分钟没有进程外监视样本** |
+| phase second 缺口 | 无（`07:12:15.852Z` 起，早于其 `07:12:19.728Z` 活跃起点） |
+| 监视器尾段 | 运行窗口结束后仍采样 `9071.6 s` / `5345.6 s`，**全是 `alive:false` 空样本，不用于任何结论** |
+
+**该缺口为何不影响本批次判定**：§21 的判定**完全基于 harness 内 730 个样本的 `rss_mb` 序列**（`warmup_baseline` 已扣除启动期，覆盖两 phase 全程）；进程外监视器**只作方向性交叉佐证**，不参与任何阈值判定。但它解释了上表"首值"的口径 = **监视器首个 `alive` 样本（`06:23:42`）**，**不是**进程启动时的值 —— 因此 `29320` 的真实增长起点应≤`117.777 MiB`，本表给出的 `+11.4 MiB` 是**保守下界**。
 
 **结论**：`memory_within_approved_condition = true`（AC 满足）；但 §21 的 5.0 MiB/h 支已越线，这是一个**必须交给 Independent Review 判断的开放问题**，不是本批次可以自行宣称"内存无问题"的结论。
 
@@ -706,7 +720,8 @@ TradePlan TTL 实测 = **30 分钟**（`expires_at 06:43:15.106501` = `06:13:15.
 1. **§21 内存斜率支越线**（最高优先级）：`second_half_trend = 5.255 MiB/h > 5.0`，仅因 AND 判据另一支（`8.055 ≪ 64 MiB`）未成立而判 `finding = false`。四个独立视角（§11）均显示持续正斜率，方向与 `N01-7-INV-01` 的 `C｜ALLOCATOR_OR_NATIVE_RETENTION_LIKELY` 一致。**本批次按已批准判据不构成 Finding，但"2h 长跑是否存在缓慢保留"这一问题仍未闭合。**
 2. **`trade_dedupe` 在窗口 6 起饱和至 `8192`**：表现为有界而非越界，符合 FIFO 容量语义；但饱和状态持续约 45 分钟，Review 需确认这与 `N01-7-INV-01` 的周转语义修正一致、且不影响去重正确性（本次 `duplicate_intent` 幂等、`reconciliation_ok` 全程成立可作为辅证）。
 3. **STALE 因果的单点承载**：cycle 2 因 `PLAN_EXPIRED` 前置，其 fail-closed 证据不能独立成立，因果由 cycle 1 单独承载（§15 已详述）。若 Review 要求"两次独立因果"，则当前设计只提供 1 次 —— **属可观测性局限，非产品异常**。
-4. **文档滞后**：`PROJECT_STATE.md:22` / `AI_CONTEXT.md:111` 对 `N01-7` 的描述与仓库中既有两条分支（`6b882c9` / `0a34c72`）冲突。本次仅作最小同步，**未改写历史描述**。
+4. **进程外监视器存在 `688.1 s`（≈11.5 min）起点缺口**（§11 详述）：监视器 `06:23:42.120Z` 才起，晚于 phase first 活跃起点 `06:12:14.039Z`。**不影响 §21 判定**（该判定只用 harness 内覆盖全程的 730 个 `rss_mb` 样本），但意味着 `29320` 的 `+11.4 MiB` 是**保守下界**；Review 若需要 phase first 前 11.5 min 的进程外视图，本次**未提供**。
+5. **文档同步的边界**：本次对 `PROJECT_STATE.md` / `AI_CONTEXT.md` 的同步是**基于 Task Base `71abb07` 版本的最小编辑**；而 `main` 上这两个文件已被 `71abb07..fc619242` 改动（`102` / `58` 行）⇒ 若未来合并本分支，这两个文件会冲突（见 §26.4）。另：本次仅在同一处**追加**本次状态与两条红线，**未改写**仓库中关于 N01-7 的历史描述（旧文称 `NOT STARTED`，与既有分支 `6b882c9` / `0a34c72` 冲突，属文档滞后）。
 
 ### 24.3 三条候选分支的关系（供 Review 决策）
 
@@ -756,7 +771,9 @@ TradePlan TTL 实测 = **30 分钟**（`expires_at 06:43:15.106501` = `06:13:15.
 | `E:/Temp/n01-7-medium/n01-7-medium-logs/phase_first_raw.json` | phase first 完整报告 |
 | `E:/Temp/n01-7-medium/n01-7-medium-logs/phase_second_raw.json` | phase second 完整报告 |
 | `E:/Temp/n01-7-medium/n01-7-medium-logs/{phase_first,phase_second}.progress.jsonl` | 增量时间序列（每 phase 启动前清空，无跨 run 混样） |
-| `E:/Temp/n01-7-medium/external_monitor.jsonl` | 进程外独立 RSS/private/USS 监视（348 行，**无 tracemalloc**） |
+| `E:/Temp/n01-7-medium/external_monitor.jsonl` | 进程外独立 RSS/private/USS 监视（**最终 704 行**；带指标样本 `222`，`29320`=97 / `30332`=125；**无 tracemalloc**；口径与覆盖缺口见 §11） |
+| `E:/Temp/n01-7-medium/monitor_analysis.txt` | 监视器**最终**重算（per-PID 首末/峰值、`alive` 计数、覆盖窗口与 `688.1 s` 起点缺口） |
+| `E:/Temp/n01-7-medium/monitor_final.txt` / `external_monitor_stdout.txt` | 监视器行数/首末记录核验 + 进程 stdout（`monitor_rc=0`） |
 | `E:/Temp/n01-7-medium/probe{3,4,5,6}_raw.json` | PROBE 记录（§5） |
 | `E:/Temp/n01-7-medium/patch{5,6,7}.py` | 确定性补丁脚本（H-1/H-10/H-11 相关） |
 | `E:/Temp/n01-7-medium/pgcheck.py` / `freeze_facts.json` / `preflight.json` / `harness_sha.txt` | 隔离核验与冻结事实 |
