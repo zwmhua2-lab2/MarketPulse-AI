@@ -6,9 +6,13 @@ SE-02A — Contracts + Additive Persistence — ACCEPTED / COMPLETE
 
 SE-02B — Opportunity Capture + Attribution — ACCEPTED / COMPLETE
 
-SE-02C — Forward Outcome Calculator — NOT STARTED
+SE-02C — Forward Outcome Calculator — BLOCKED / NOT STARTED（前置 `SE-ARCH-FIX-02` 尚未完成）
 
 SE-02D — Family Aggregation / Expectancy — NOT STARTED
+
+SE-ARCH-FIX-01 — Stable Evidence Anchor — ACCEPTED / COMPLETE
+
+SE-ARCH-FIX-02 — NOT STARTED
 
 N01-C — Restart / Recovery / Reconciliation — ACCEPTED / COMPLETE
 
@@ -30,13 +34,16 @@ Integrated Runtime Host 仍 `NOT STARTED`；N01-6 的验收不得推断 Continuo
 - Visibility: `PRIVATE`
 - Default Branch: `main`
 - Accepted Main Source: Git `main` / `origin/main` — read actual SHA at task preflight（CIP-02）
-- Current Development Status: `SE-02B ACCEPTED / COMPLETE`（2026-09-12 Human Acceptance &
+- Current Development Status: `SE-ARCH-FIX-01 ACCEPTED / COMPLETE`（2026-09-13 Human Acceptance
+  = `APPROVED` + Final Main Integration Closeout，已 fast-forward only 收编 `main`）；
+  `SE-02B ACCEPTED / COMPLETE`（2026-09-12 Human Acceptance &
   Final Acceptance Closeout，已 fast-forward only 收编 `main`）；`SE-02A ACCEPTED / COMPLETE`；
   `N01-7-F01 ACCEPTED / COMPLETE`（2026-09-13 Human Acceptance Confirmed + Final Main
   Integration，已 fast-forward only 收编 `main`）；`N01-C ACCEPTED / COMPLETE`；
   `N01-6 ACCEPTED / COMPLETE`；N01-A / N01-B 与
   `N01-VAL-FIX-01/02/03` 均维持已验收结论，N01 overall 仍未验收；
-  `SE-02C / SE-02D = NOT STARTED`
+  `SE-ARCH-FIX-02 = NOT STARTED`；`SE-02C = BLOCKED / NOT STARTED`（SE-ARCH-FIX-02 尚未完成）；
+  `SE-02D = NOT STARTED`
 
 ## Branch / Source
 
@@ -243,24 +250,40 @@ Integrated Runtime Host 仍 `NOT STARTED`；N01-6 的验收不得推断 Continuo
   `dev_log/2026-09-13-n01-7-f01-final-acceptance-closeout.md` 与
   `dev_log/2026-09-12-n01-7-f01-latest-main-integration.md`。
 
+- SE-ARCH-FIX-01｜Stable Evidence Anchor：`ACCEPTED / COMPLETE`（2026-09-13 Human Acceptance =
+  `APPROVED` + Final Main Integration Closeout；Second Independent Re-Review =
+  `PASS — READY FOR HUMAN ACCEPTANCE`；Human-Accepted reviewed candidate =
+  `1e2738b09a4e4a62d91cfa8a6ffd6fcec3c71a21`；branch
+  `se-arch-fix-01-latest-main-integration`；Accepted Main before =
+  `71abb07707e9d28e5f2a3a5c5c58c8694f7a3b3f`）。落地 append-only
+  `edge_opportunity_capture_anchors` + orphan 分类表，以 frozen causal payload / 稳定 T0 与
+  reference BBO 作为 FORWARD_PAPER admission boundary；RRF-01（live-ingress ownership +
+  session-start causal fence，proof `v1 → v2`）与 RRF-02（migration `20260913_0008`
+  fail-closed abort + validated constraint）闭合后 Independent Re-Review = `PASS`。
+  Closeout 为 docs-only：`Production code changed = NO` / `Tests changed = NO` /
+  `Migration changed = NO` / `Runtime config changed = NO`；accepted lineage 仅 fast-forward
+  （`1e2738b → Human Acceptance（2026-09-13）→ Final Closeout Commit`）。P2 保留项
+  `TEST-ISO-01` / `RRF-03` / `RRF-04` 仍 `NON-BLOCKING / DEFERRED`。
+  ⚠️ 本验收**不**构成 `SE-ARCH-FIX-02` / `SE-02C` / `SE-02D` / Real AI Edge / Live / N01
+  任何进度；`SE-ARCH-FIX-02 = NOT STARTED`、`SE-02C = BLOCKED / NOT STARTED`。
+  详见 `dev_log/2026-09-12-se-arch-fix-01-stable-evidence-anchor.md`
+  「Human Acceptance + Final Main Integration Closeout」。
+
 ## In Progress
 
-- **SE-ARCH-FIX-01｜Stable Evidence Anchor = `INTEGRATED / READY FOR INDEPENDENT RE-REVIEW`**（Latest
-  Main Integration 基于 accepted `main` `71abb07707e9d28e5f2a3a5c5c58c8694f7a3b3f`；Original Task Base
-  `1579707eff083007f1ac7ec65e10e6043f32b31e`；review lineage `51053757 → bdb1af2` 保留；Human-approved
-  Option 2 + Hybrid A+B：新增 append-only `edge_opportunity_capture_anchors`，复用
-  `edge_bbo_observations`，anchor durable 后重试/重启复用 frozen T0/BBO/causal payload；
-  Anchor 从未 durable 后 crash 属 Human-approved capture coverage loss，禁止事后以新 clock/BBO
-  重建。Formal `G2 State + Edge Evidence` 原子边界保持不变；不构成 FIX-02、SE-02C、SE-02D、
-  Real AI、Live、N01 或 Runtime Host 的进度。详见
-  `dev_log/2026-09-12-se-arch-fix-01-stable-evidence-anchor.md`。并行 batch 均从
-  `20260911_0005` 创建的 `20260912_0006` collision 已在 pre-acceptance integration 中透明处理：
-  accepted N01 identity 保持 `20260912_0006`，unpublished FIX migrations 重编号为
-  `20260913_0007` / `20260913_0008`。Review Fix R1 补充 live-ingress event-bound proof、anchor 内容重建/哈希
-  复核、完整 BBO provenance、PostgreSQL 原子 append、durable orphan 分类以及 bounded
-  pending-anchor overload；仍未构成人工 Acceptance 或 `main` 合并。）
-- **SE-02C｜Forward Outcome Calculator = `NOT STARTED`**（forward outcome 仍未计算：无 MFE / MAE /
-  无 forward returns；horizon `30s` / `5m` / `15m` / `1h` 的 calculation 尚未实现）。
+- **SE-ARCH-FIX-01｜Stable Evidence Anchor = `ACCEPTED / COMPLETE`**（2026-09-13 Human Acceptance
+  = `APPROVED` + Final Main Integration Closeout）。该 `INTEGRATED / READY FOR INDEPENDENT
+  RE-REVIEW` 状态已由本次 Human Acceptance 取代：Second Independent Re-Review =
+  `PASS — READY FOR HUMAN ACCEPTANCE`（无 P0/P1；AC 全 PASS；Integration AC 全 PASS；
+  RRF-01 PASS；RRF-02 PASS；full backend `363 passed`；Ruff / compileall / `git diff --check`
+  PASS；`alembic heads` 单 head `20260913_0008`；accepted N01-7 `20260912_0006` preserved；
+  Historical Replay 未获得 Forward issuer）。Human-Accepted reviewed candidate =
+  `1e2738b`（branch `se-arch-fix-01-latest-main-integration`）；已 fast-forward only 收编 `main`。
+  参见 Completed、Acceptance Record 与「SE-ARCH-FIX-01 Result」。
+- **SE-ARCH-FIX-02 = `NOT STARTED`**；本 Closeout **不**启动 FIX-02。
+- **SE-02C｜Forward Outcome Calculator = `BLOCKED / NOT STARTED`**（forward outcome 仍未计算：
+  无 MFE / MAE / 无 forward returns；horizon `30s` / `5m` / `15m` / `1h` 的 calculation 尚未实现。
+  其前置 `SE-ARCH-FIX-02` 尚未完成，故 FIX-01 验收**不**使其变为 MAY START）。
 - **SE-02D｜Family Aggregation / Expectancy = `NOT STARTED`**（family aggregation、expectancy、
   KEEP / DOWNWEIGHT / KILL 均未实现）。
 - 两项均须另开窗口并经批准的门执行；本窗口 **不** 自动开始 SE-02C。
@@ -429,6 +452,19 @@ Integrated Runtime Host 仍 `NOT STARTED`；N01-6 的验收不得推断 Continuo
   E1 = `FOREIGN WRITER CONFIRMED`（原始 shared-primary 指纹门 `INVALIDATED BY ENVIRONMENT /
   NON-BLOCKING`）。**不得**由本验收推断 N01-7 2h soak / N01-8 / Integrated Runtime Host /
   Continuous Runtime / 7×24 / Real AI Edge / Live；`N01 overall` 仍 `NOT ACCEPTED`。
+- SE-ARCH-FIX-01｜Stable Evidence Anchor = `ACCEPTED / COMPLETE`（2026-09-13；Human Acceptance =
+  `APPROVED`（日期 2026-09-13）；Second Independent Re-Review = `PASS — READY FOR HUMAN
+  ACCEPTANCE`；Human-Accepted reviewed candidate = `1e2738b09a4e4a62d91cfa8a6ffd6fcec3c71a21`；
+  Accepted Main before = `71abb07707e9d28e5f2a3a5c5c58c8694f7a3b3f`；accepted lineage 仅
+  fast-forward：`51053757 → bdb1af2 → 513689a → 5ba78af → 1e2738b → Human Acceptance
+  → Final Closeout Commit`，`513689a` 的 integration merge lineage 未被重写）。
+  Closeout 期间 `Production code changed = NO` / `Tests changed = NO` /
+  `Migration changed = NO` / `Runtime config changed = NO`；`alembic heads` 单 head
+  `20260913_0008`；accepted N01-7 `20260912_0006` 未改写。P2 保留项 `TEST-ISO-01` /
+  `RRF-03` / `RRF-04` = `NON-BLOCKING`（RRF-03 `DEFERRED`）。**不得**由本验收推断
+  `SE-ARCH-FIX-02` / `SE-02C` / `SE-02D` / Forward Outcome Calculator / MFE-MAE /
+  expectancy / Real AI Edge / Live / N01-7 / N01-8 / Integrated Runtime Host 的任何进度；
+  `SE-ARCH-FIX-02 = NOT STARTED`、`SE-02C = BLOCKED / NOT STARTED`。
 
 ## Group 5-1 Result
 
@@ -636,3 +672,40 @@ Integrated Runtime Host 仍 `NOT STARTED`；N01-6 的验收不得推断 Continuo
   returns / family aggregation / expectancy / KEEP-DOWNWEIGHT-KILL / Real AI Edge / Live /
   N01-7 / N01-8 / Integrated Runtime Host 均不在本批 claim 边界内。
 - 备注：本批次**未**对共享 primary PostgreSQL 库执行任何 migration / downgrade（保留其它窗口状态）。
+
+## SE-ARCH-FIX-01 Result
+
+- 任务：SE-ARCH-FIX-01A｜Human Acceptance + Main Integration Closeout（Human Acceptance
+  Integration / Final Closeout；**非**新实现、**非**重新 Review）。
+- **Human Acceptance** = `APPROVED`（2026-09-13）。
+- **Second Independent Re-Review Verdict** = `PASS — READY FOR HUMAN ACCEPTANCE`：无 P0/P1；
+  AC 全 PASS；Integration AC 全 PASS；RRF-01 PASS；RRF-02 PASS；full backend `363 passed`；
+  Ruff PASS；compileall PASS；`git diff --check` PASS；`alembic heads` 单 head；
+  accepted N01-7 migration `20260912_0006` preserved；Historical Replay 未获得 Forward issuer。
+- **Human-Accepted reviewed candidate** = `1e2738b09a4e4a62d91cfa8a6ffd6fcec3c71a21`
+  （branch `se-arch-fix-01-latest-main-integration`；远端同名 branch 未改写）。
+- **Accepted Main before** = `71abb07707e9d28e5f2a3a5c5c58c8694f7a3b3f`；
+  **Accepted Main after** = Final Closeout Commit（`main` 已 fast-forward，仅 fast-forward）。
+- **完整 lineage（保留）**：
+
+  `51053757 → bdb1af2 → 513689a → 5ba78af → 1e2738b → Human Acceptance（2026-09-13）
+  → Final Closeout Commit`
+
+  其中 `513689a` 为 true merge（`71abb07` × `bdb1af2`），其集成 lineage **未**被 rebase /
+  squash / cherry-pick / 重写；`main` 的 `20260912_0006`（N01-7）未被改写。
+- **集成方法** = `FAST-FORWARD ONLY`（未创建 merge commit 到 `main`、未 squash、未 rebase、
+  未 cherry-pick reconstructed history、未 force push）。
+- Closeout 为 docs-only：`Production code changed = NO` / `Tests changed = NO` /
+  `Migration changed = NO` / `Runtime config changed = NO`。
+- **P2 保留项（NON-BLOCKING）**：
+  - `TEST-ISO-01` — Alembic test helper 的 `DATABASE_URL` routing 可复现性问题（记录，未修）。
+  - `RRF-03` — Historical N01 migration gate head-pin drift（`DEFERRED`；accepted N01
+    historical gate **未被修改**）。
+  - `RRF-04` — Shared DB historical isolation evidence 仅为 revision + table inventory
+    fingerprint，**不是** row-level proof（证据措辞边界保持）。
+- **验收后状态**：`SE-02A = ACCEPTED`、`SE-02B = ACCEPTED`、
+  `SE-ARCH-FIX-01 = ACCEPTED / COMPLETE`；`SE-ARCH-FIX-02 = NOT STARTED`；
+  `SE-02C = BLOCKED / NOT STARTED`（FIX-02 尚未完成）；`SE-02D = NOT STARTED`；
+  `N01 overall` 仍 `NOT ACCEPTED`。
+- 详见 `dev_log/2026-09-12-se-arch-fix-01-stable-evidence-anchor.md`
+  「Human Acceptance + Final Main Integration Closeout｜2026-09-13」。

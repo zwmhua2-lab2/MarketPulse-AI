@@ -530,3 +530,92 @@ destroyed after the run and the `.env` removed.
    pytest default collection, so it must be run explicitly by a reviewer.
 6. `FIX-01` overall stays `NOT ACCEPTED`. Independent re-review must inspect the
    cumulative `main..HEAD` diff, not only these fix commits.
+
+## Human Acceptance + Final Main Integration Closeout｜2026-09-13
+
+> Status: **`ACCEPTED / COMPLETE`**. Human Acceptance = `APPROVED` (2026-09-13), on the basis of
+> the Second Independent Re-Review verdict `PASS — READY FOR HUMAN ACCEPTANCE`. This closeout
+> re-implements nothing, re-reviews nothing, and widens no scope: it records the human decision,
+> performs a docs-only state closeout and fast-forwards the reviewed candidate onto `main`.
+
+### Human decision and accepted candidate
+
+- **Human Acceptance**: `APPROVED` — 2026-09-13.
+- **Second Independent Re-Review Verdict**: `PASS — READY FOR HUMAN ACCEPTANCE`.
+  - No P0 / P1; AC all PASS; Integration AC all PASS; `RRF-01` PASS; `RRF-02` PASS.
+  - Full backend `363 passed`; Ruff PASS; compileall PASS; `git diff --check` PASS.
+  - `alembic heads` = single head; accepted N01-7 migration `20260912_0006` preserved;
+    Historical Replay obtained no Forward issuer.
+- **Human-Accepted reviewed candidate**: `1e2738b09a4e4a62d91cfa8a6ffd6fcec3c71a21`
+  (branch `se-arch-fix-01-latest-main-integration`).
+- **Accepted Main before**: `71abb07707e9d28e5f2a3a5c5c58c8694f7a3b3f`.
+
+### Repository Truth preflight (CIP-02, live reads)
+
+| Item | Observed |
+|---|---|
+| `git ls-remote origin main` | `71abb07707e9d28e5f2a3a5c5c58c8694f7a3b3f` |
+| Remote candidate tip (`se-arch-fix-01-latest-main-integration`) | `1e2738b09a4e4a62d91cfa8a6ffd6fcec3c71a21` |
+| `merge-base(main, candidate)` | `71abb07707e9d28e5f2a3a5c5c58c8694f7a3b3f` — **equals `main`** |
+| Candidate contains `1e2738b` | yes (candidate tip) |
+| Candidate relationship to `main` | ahead of `main`, **not** behind `main` |
+| Verdict | `FAST-FORWARD POSSIBLE` |
+
+`main` had not drifted, so no STOP condition applied. No rebase, no cherry-pick, no force push,
+no new merge commit onto `main`.
+
+### Preserved lineage
+
+```text
+51053757 → bdb1af2 → 513689a → 5ba78af → 1e2738b
+→ Human Acceptance (2026-09-13)
+→ Final Closeout Commit
+```
+
+`513689a` is the true integration merge (`71abb07` × `bdb1af2`); its lineage was not rewritten.
+`main`'s accepted N01-7 identity `20260912_0006` and the single schema head `20260913_0008` are
+unchanged.
+
+### Closeout delta
+
+- Files touched: this dev_log, `PROJECT_STATE.md`, `AI_CONTEXT.md` and a minimal
+  `DECISIONS.md` reference for the approved V1 anchor-admission semantics.
+- `Production code changed = NO`
+- `Tests changed = NO`
+- `Migration changed = NO`
+- `Runtime config changed = NO`
+
+### Verification (lightweight, per the closeout rule)
+
+The 363-test suite was **not** re-run: Human Acceptance rests on the independent reviewer's
+complete verification, and this closeout is docs-only.
+
+| Gate | Result |
+|---|---|
+| `git diff --check` | exit `0` |
+| Docs consistency | state/dev_log agree on `ACCEPTED / COMPLETE`, candidate `1e2738b`, and the P2 list |
+| `git diff --name-only 1e2738b..HEAD` | docs-only (no `backend/src`, no `backend/tests`, no `backend/alembic`) |
+| Git ancestry | `1e2738b` is an ancestor of the final `main` |
+| Remote read-back | `git ls-remote origin main` == final closeout SHA |
+
+Any accidental production / test / migration change was defined as `FAIL / STOP` and would have
+blocked the push.
+
+### P2 findings — preserved, non-blocking
+
+| Finding | Status as recorded here | Action taken |
+|---|---|---|
+| `TEST-ISO-01` | `P2 / NON-BLOCKING` — Alembic test helper `DATABASE_URL` routing reproducibility | recorded only, **not** fixed |
+| `RRF-03` | `P2 / NON-BLOCKING / DEFERRED` — historical N01 migration-gate head-pin drift | accepted N01 historical gate **not modified** |
+| `RRF-04` | `P2 / NON-BLOCKING` — shared-DB historical isolation evidence is a revision + table inventory fingerprint, not a row-level proof | evidence wording boundary kept unchanged |
+
+### Status after acceptance
+
+- `SE-02A = ACCEPTED`; `SE-02B = ACCEPTED`; **`SE-ARCH-FIX-01 = ACCEPTED / COMPLETE`**.
+- `SE-ARCH-FIX-02 = NOT STARTED`.
+- `SE-02C = BLOCKED / NOT STARTED` — FIX-02 is not finished, so the FIX-01 acceptance does
+  **not** make SE-02C eligible to start.
+- `SE-02D = NOT STARTED`; `N01-7` / `N01-8` / Integrated Runtime Host = `NOT STARTED`;
+  `N01 overall` remains `NOT ACCEPTED`.
+- This closeout starts neither `SE-ARCH-FIX-02` nor `SE-02C`. Return to the SE control window
+  for the next task.

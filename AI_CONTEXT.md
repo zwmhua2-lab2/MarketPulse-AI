@@ -10,20 +10,27 @@
 | 字段 | 值 |
 |---|---|
 | Project | MarketPulse AI（BTC/ETH 量化纸面交易终端，Modular Monolith） |
-| Current Acceptance Group | SE-02B — Opportunity Capture + Attribution — ACCEPTED / COMPLETE |
+| Current Acceptance Group | SE-ARCH-FIX-01 — Stable Evidence Anchor — ACCEPTED / COMPLETE |
 | Accepted Main Source | Git `main` / `origin/main`；须在任务 preflight 按 CIP-02 实时读取，不以文档静态 SHA 为准 |
-| Current State | `SE-02B = ACCEPTED / COMPLETE`（2026-09-12 Human Acceptance & Final Acceptance Closeout，已 fast-forward only 收编 `main`）；`SE-02A = ACCEPTED / COMPLETE`；`SE-02C / SE-02D = NOT STARTED`；`N01-C = ACCEPTED / COMPLETE`；N01-A / N01-B 与 N01 验证修复 `N01-VAL-FIX-01/02/03` 均维持 `ACCEPTED / COMPLETE`；`N01-6 = ACCEPTED / COMPLETE`（Reviewed HEAD `3f591a7`）；**`N01-7-F01 = ACCEPTED / COMPLETE`**（2026-09-13 Human Acceptance = `CONFIRMED` + Final Main Integration；reviewed candidate `7c0ea7d` @ integration merge `ddf39f2`；已 fast-forward only 收编 `main`）；**`N01-7 = NOT STARTED / READY TO RESUME`**；`N01-8` / Integrated Runtime Host 仍 `NOT STARTED`；**N01 overall 仍 `NOT ACCEPTED`** |
-| Last Accepted Group | SE-02B — Opportunity Capture + Attribution |
-| Current Group Branch | `se-02b-opportunity-capture-attribution`（accepted lineage；仅 fast-forward 收编至 `main`，历史分支保留）；更早 `n01-6-15m-runtime-smoke`、`n01-c-restart-recovery-reconciliation` |
+| Current State | `SE-ARCH-FIX-01 = ACCEPTED / COMPLETE`（2026-09-13 Human Acceptance = `APPROVED` + Final Main Integration Closeout，已 fast-forward only 收编 `main`；Human-Accepted reviewed candidate = `1e2738b`）；`SE-ARCH-FIX-02 = NOT STARTED`；`SE-02A = ACCEPTED / COMPLETE`；`SE-02B = ACCEPTED / COMPLETE`；**`SE-02C = BLOCKED / NOT STARTED`**（前置 `SE-ARCH-FIX-02` 未完成）；`SE-02D = NOT STARTED`；`N01-C = ACCEPTED / COMPLETE`；N01-A / N01-B 与 N01 验证修复 `N01-VAL-FIX-01/02/03` 均维持 `ACCEPTED / COMPLETE`；`N01-6 = ACCEPTED / COMPLETE`（Reviewed HEAD `3f591a7`）；**`N01-7-F01 = ACCEPTED / COMPLETE`**（2026-09-13 Human Acceptance = `CONFIRMED` + Final Main Integration；reviewed candidate `7c0ea7d` @ integration merge `ddf39f2`；已 fast-forward only 收编 `main`）；**`N01-7 = NOT STARTED / READY TO RESUME`**；`N01-8` / Integrated Runtime Host 仍 `NOT STARTED`；**N01 overall 仍 `NOT ACCEPTED`** |
+| Last Accepted Group | SE-ARCH-FIX-01 — Stable Evidence Anchor |
+| Current Group Branch | `se-arch-fix-01-latest-main-integration`（accepted lineage；仅 fast-forward 收编至 `main`，历史分支保留）；更早 `se-02b-opportunity-capture-attribution`、`n01-6-15m-runtime-smoke`、`n01-c-restart-recovery-reconciliation` |
 
 - G1–G4 acceptance 状态：`ACCEPTED` / `ACCEPTED` / `ACCEPTED` / `ACCEPTED`。
 - G5-0 / G5-1 / G5-2 / G5-3 / G5-4 acceptance 状态：`ACCEPTED`。
 - G5 overall = `ACCEPTED / COMPLETE`。
-- SE-ARCH-FIX-01 Stable Evidence Anchor = `INTEGRATED / READY FOR INDEPENDENT RE-REVIEW`：
-  reviewed lineage `51053757 → bdb1af2` 已以独立 integration commit（true merge，未 rebase / squash / force）
-  集成到 latest accepted main `71abb077` 之上；`main` 本身未移动，本批不构成人工 Acceptance；
+- SE-ARCH-FIX-01 Stable Evidence Anchor = `ACCEPTED / COMPLETE`（2026-09-13 Human Acceptance =
+  `APPROVED`）：Second Independent Re-Review = `PASS — READY FOR HUMAN ACCEPTANCE`；
+  Human-Accepted reviewed candidate = `1e2738b09a4e4a62d91cfa8a6ffd6fcec3c71a21`；
+  reviewed lineage `51053757 → bdb1af2 → 513689a（true merge，未 rebase / squash / force）
+  → 5ba78af → 1e2738b → Human Acceptance → Final Closeout` 完整保留；
   其 branch-local migration collision 已透明重编号为 `20260913_0007 → 20260913_0008`，而 accepted
-  N01-7 `20260912_0006` 保持不变。详见 `dev_log/2026-09-12-se-arch-fix-01-stable-evidence-anchor.md`。
+  N01-7 `20260912_0006` 保持不变（单 head `20260913_0008`）。P2 保留项 `TEST-ISO-01` /
+  `RRF-03`（`DEFERRED`）/ `RRF-04` 均 `NON-BLOCKING`。本验收**不**构成
+  `SE-ARCH-FIX-02`（`NOT STARTED`）/ `SE-02C`（`BLOCKED / NOT STARTED`）/ `SE-02D` /
+  Real AI Edge / Live / N01 的任何进度。详见
+  `dev_log/2026-09-12-se-arch-fix-01-stable-evidence-anchor.md`
+  「Human Acceptance + Final Main Integration Closeout」。
 
 ## 2. Source of Truth（事实源优先级，从高到低）
 
@@ -60,10 +67,10 @@
 
 | 字段 | 值 |
 |---|---|
-| Current Group | N01-6 — 15-minute Short Runtime Smoke — `ACCEPTED / COMPLETE` |
-| Last accepted subgroup | N01-6 — 15-minute Short Runtime Smoke (`ACCEPTED / COMPLETE`)；SE-02A / N01-C / N01-A / N01-B 亦维持 `ACCEPTED / COMPLETE`；N01 overall 仍 `NOT ACCEPTED` |
-| Next Group Design | `NOT STARTED`（须另开窗口） |
-| Next Group name/number | N01-7 — 2-hour Medium Runtime Soak — `NOT STARTED / READY TO RESUME`（其前置 `N01-7-F01 = ACCEPTED / COMPLETE`（2026-09-13）；`N01-8` / Integrated Runtime Host = `NOT STARTED`） |
+| Current Group | SE-ARCH-FIX-01 — Stable Evidence Anchor — `ACCEPTED / COMPLETE`（2026-09-13 Human Acceptance = `APPROVED`） |
+| Last accepted subgroup | SE-ARCH-FIX-01 — Stable Evidence Anchor (`ACCEPTED / COMPLETE`)；SE-02A / SE-02B / N01-6 / N01-7-F01 / N01-C / N01-A / N01-B 亦维持 `ACCEPTED / COMPLETE`；N01 overall 仍 `NOT ACCEPTED` |
+| Next Group Design | `NOT STARTED`（须另开窗口）；已明确**不**自动开始 `SE-ARCH-FIX-02` / `SE-02C` |
+| Next Group name/number | `SE-ARCH-FIX-02 = NOT STARTED`；`SE-02C = BLOCKED / NOT STARTED`（前置 `SE-ARCH-FIX-02` 未完成）；`SE-02D = NOT STARTED`；N01-7 — 2-hour Medium Runtime Soak — `NOT STARTED / READY TO RESUME`（其前置 `N01-7-F01 = ACCEPTED / COMPLETE`（2026-09-13）；`N01-8` / Integrated Runtime Host = `NOT STARTED`） |
 
 - G4 **没有**提前实现完整 Replay / ReplayClock Engine。
 - 仓库中仅存在：`Clock` Protocol 的 `ReplayClock` 实现（`backend/src/marketpulse/clock.py`）与 `RunMode.REPLAY` 枚举（`config.py`）——这是既有 Clock 边界，**不是**完整回放引擎。
@@ -87,6 +94,36 @@
 **禁止依赖**：「上一个聊天应该知道」「前一个 AI 说已经做了」「我记得这个功能是……」。
 
 ## 6. Next Step Entry（下一步工作入口）
+
+### SE-ARCH-FIX-01 Stable Evidence Anchor — ACCEPTED / COMPLETE
+
+- Human Acceptance = `APPROVED`（2026-09-13）；Second Independent Re-Review =
+  `PASS — READY FOR HUMAN ACCEPTANCE`（无 P0/P1；AC 全 PASS；Integration AC 全 PASS；
+  RRF-01 PASS；RRF-02 PASS；full backend `363 passed`；Ruff / compileall /
+  `git diff --check` PASS；`alembic heads` 单 head `20260913_0008`；accepted N01-7
+  `20260912_0006` preserved；Historical Replay 未获得 Forward issuer）。
+- Human-Accepted reviewed candidate = `1e2738b09a4e4a62d91cfa8a6ffd6fcec3c71a21`（branch
+  `se-arch-fix-01-latest-main-integration`）；Accepted Main before =
+  `71abb07707e9d28e5f2a3a5c5c58c8694f7a3b3f`；Accepted Main after = Final Closeout Commit。
+- accepted lineage（仅 fast-forward，无 merge commit 到 `main` / rebase / squash /
+  cherry-pick / force）：`51053757 → bdb1af2 → 513689a（true merge：
+  `71abb07` × `bdb1af2`，lineage 未重写）→ 5ba78af → 1e2738b → Human Acceptance（2026-09-13）
+  → Final Closeout Commit`；evidence branch `se-arch-fix-01-stable-evidence-anchor` /
+  `n01-7-f01-latest-main-integration` 均保留。
+- Closeout 为 docs-only：`Production code changed = NO` / `Tests changed = NO` /
+  `Migration changed = NO` / `Runtime config changed = NO`。
+- P2 保留项（`NON-BLOCKING`）：`TEST-ISO-01`（Alembic test helper `DATABASE_URL` routing
+  可复现性，仅记录未修）；`RRF-03`（Historical N01 migration gate head-pin drift，`DEFERRED`，
+  accepted N01 historical gate **未被修改**）；`RRF-04`（shared-DB isolation evidence 仅为
+  revision + table inventory fingerprint，不是 row-level proof，措辞边界保持）。
+- Claim 边界：本验收**不得**推断 `SE-ARCH-FIX-02`（`NOT STARTED`）/ `SE-02C`
+  （`BLOCKED / NOT STARTED`，FIX-02 尚未完成）/ `SE-02D` / Forward Outcome Calculator /
+  MFE-MAE / expectancy / Real AI Edge / Live / N01-7 / N01-8 / Integrated Runtime Host 的任何进度。
+- 详见 `dev_log/2026-09-12-se-arch-fix-01-stable-evidence-anchor.md`
+  「Human Acceptance + Final Main Integration Closeout｜2026-09-13」与 `PROJECT_STATE.md`
+  「SE-ARCH-FIX-01 Result」。
+- 收尾后的下一步：**SE-ARCH-FIX-01 CLOSED. Do not start SE-ARCH-FIX-02 / SE-02C
+  automatically. Return to the SE control window for the next task.**
 
 ### SE-02B Opportunity Capture + Attribution — ACCEPTED / COMPLETE
 
