@@ -894,6 +894,38 @@ N01-6 的验收不得推断 Continuous Runtime / soak / 7x24 / Integrated Runtim
   `127.0.0.1:5434` 与 worktree 内 gitignored `.env`（指向 5434）；释放命令
   `docker rm -f -v marketpulse-n01-7-r01-pg`。副作用：在该 worktree 内跑 pytest 会走 5434。
 - ⚠️ `N01-7` / `N01-7-R01` Accepted **≠** `N01 overall` Accepted（仍 `NOT ACCEPTED`），
-  也**≠** `N01-8` MAY START（仍 `NOT STARTED`）；`Integrated Runtime Host` 仍 `NOT STARTED`。
+  也**≠** `N01-8` MAY START〔本行写于 N01-7 收编时；N01-8 之后已另行获批并执行，见下方
+  `## N01-8 Result`〕；`Integrated Runtime Host` 仍 `NOT STARTED`。
 - 详见 `dev_log/2026-09-14-n01-7-final-acceptance-closeout.md` 与
   `dev_log/2026-09-13-n01-7-r01-witness-b-revalidation.md`。
+
+## N01-8 Result
+
+- 任务：N01-8｜12-hour Extended Runtime Soak（**Validation / Soak / Evidence Task**；**非** 新实现、
+  **非** production fix、**非** Independent Review、**非** Human Acceptance）。
+- 状态：**`IMPLEMENTED / VALIDATED / READY FOR INDEPENDENT REVIEW`**（**非** ACCEPTED）;
+  `N01 overall` 仍 `NOT ACCEPTED`；`Integrated Runtime Host` 仍 `NOT STARTED`。
+- 作业 worktree `E:\Documents\MarketPulse-AI-n01-8`（branch `n01-8-12h-extended-soak`）；
+  Task Base = `dd78a979d128dee385c7a8ddc2254a53366af714`（= 当时 `origin/main`）。
+- 正式 Run（单轮、detached supervisor、一次性 disposable PostgreSQL + 真实 OKX 公共行情）：
+  **`result = PASS`，99/99 checks true，`failures = []`**；4 相位 × 11100 s（open → continue →
+  continue → close）、**3 次 fresh-process restart**、**12 次受控重连**、**6 次受控 STALE→FRESH**、
+  **24 checkpoint**；`total_active = 44401.217 s`（≥ 43200）；Witness A/B/C 全成立；
+  `production_code_unchanged = true`；primary DB before == after；disposable residue `0`。
+- 🚩 **Memory 冻结 AND 门**：`finding = false`，但 **total-growth 支越线**（`77.711 MiB > 64`）、
+  second-half slope = `−0.639 MiB/h`（未越线）。越线支**已归因**为「warm-up-trim 后 `peak − baseline`
+  口径 × 3 次 fresh-process restart」的**跨进程混淆**（逐相位 RSS 均 `~113` 启动瞬态 → `~40` 平台；
+  overall `+0.021`、rolling `−0.075` MiB/h）。⇒ 继承 watch item **`N01-7-R01-RR-P2-01` 不关闭**，
+  继续作为未闭合 P2 保留；**禁止**写 `memory resolved` / `memory is fine` / `no memory concern`。
+- 🚩 **Baseline drift = YES**：run 期间 `main` 由 `dd78a979` 推进至
+  `b77c80333b85d6e3f1095ac7da9b13e9bf08163a`（10 commits，SE-02C 系列），**命中 STOP 触发区**
+  `backend/src/marketpulse/g2/runtime.py`（+25，opt-in `forward_path_recorder`）及
+  `market_data/{models,normalizer}.py`；migration head **未变**（仍单 head `20260913_0009`）。
+  ⇒ 本 Run 结论**只覆盖 Task Base `dd78a979`**，**不主张**可平移至当前 `main`；按 Task §14
+  **不自动重跑**，交 Independent Review 裁定 `no impact` / `targeted revalidation` / `full rerun`。
+  本窗口未做 rebase / reset / 改写。
+- 环境遗留（**未授权清理，原样保留**）：容器 `marketpulse-n01-8-pg` @ `127.0.0.1:5440` 与 worktree 内
+  gitignored `.env`（指向 5440）；释放命令 `docker rm -f -v marketpulse-n01-8-pg`。
+  `n01-8-*` 计划任务已全部删除（实测 0）；disposable DB 残留实测 0。
+- 详见 `dev_log/2026-09-14-n01-8-extended-soak.md`（§1–§46；raw evidence 在
+  `E:/Temp/n01-8/formal/`，不入 Git）。

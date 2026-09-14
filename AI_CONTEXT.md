@@ -130,6 +130,28 @@
 
 ## 6. Next Step Entry（下一步工作入口）
 
+### N01-8 12-hour Extended Runtime Soak — VALIDATED / READY FOR INDEPENDENT REVIEW（**非** ACCEPTED）
+
+- 任务：`N01-8`｜12-hour Extended Runtime Soak（Validation / Soak / Evidence Task；**非** 新实现、
+  **非** production fix、**非** Independent Review、**非** Human Acceptance）。
+- Task Base = `dd78a979d128dee385c7a8ddc2254a53366af714`；worktree
+  `E:\Documents\MarketPulse-AI-n01-8`，branch `n01-8-12h-extended-soak`。
+- 正式单轮（detached supervisor + 一次性 disposable PostgreSQL + 真实 OKX 公共行情）：
+  **`PASS`，99/99 checks true，`failures = []`**；4 相位 × 11100 s、`total_active 44401.217 s`、
+  3 次 fresh-process restart、12 次受控重连、6 次受控 STALE→FRESH、24 checkpoint、
+  `production_code_unchanged = true`、shared primary before == after、disposable residue `0`。
+- 🚩 **Memory**：冻结 AND 门 `finding = false`，但 **total-growth 支越线 77.711 MiB > 64**
+  （slope 支 `−0.639 MiB/h` 未越线）；越线支归因为「trim 后 `peak − baseline` 口径 × 3 次进程重启」
+  的跨进程混淆（逐相位 `~113` 启动瞬态 → `~40` 平台；overall `+0.021` / rolling `−0.075` MiB/h）。
+  ⇒ `N01-7-R01-RR-P2-01` **不关闭**；**禁止**写 `memory resolved` / `is fine` / `no concern`。
+- 🚩 **Baseline drift = YES**：`dd78a979 → b77c80333b85d6e3f1095ac7da9b13e9bf08163a`（10 commits，
+  SE-02C 系列），**命中 STOP 触发区** `g2/runtime.py`（+25，opt-in `forward_path_recorder`）；migration
+  head **未变**（`20260913_0009`）。⇒ 结论**只覆盖 Task Base**，交 Independent Review 裁定
+  `no impact` / `targeted revalidation` / `full rerun`；**未** rebase / reset / 改写。
+- 未授权清理项（原样保留）：容器 `marketpulse-n01-8-pg` @ `127.0.0.1:5440` + worktree `.env`（→5440）。
+- 详见 `dev_log/2026-09-14-n01-8-extended-soak.md`。`N01 overall` / `Integrated Runtime Host`
+  仍 `NOT ACCEPTED` / `NOT STARTED`。
+
 ### N01-7 / N01-7-R01 2-hour Medium Runtime Soak（含 Witness B Fix + Latest-Main Revalidation）— ACCEPTED / COMPLETE
 
 - 任务：`N01-7`｜2-hour Medium Runtime Soak → `N01-7-R01`｜Validation Harness Fix + Latest-Main
