@@ -10,11 +10,11 @@
 | 字段 | 值 |
 |---|---|
 | Project | MarketPulse AI（BTC/ETH 量化纸面交易终端，Modular Monolith） |
-| Current Acceptance Group | N01-7 / N01-7-R01 — 2-hour Medium Runtime Soak（含 Witness B Fix + Latest-Main Revalidation）— ACCEPTED / COMPLETE |
+| Current Acceptance Group | SE-02C — Forward Outcome Calculator — ACCEPTED / COMPLETE |
 | Accepted Main Source | Git `main` / `origin/main`；须在任务 preflight 按 CIP-02 实时读取，不以文档静态 SHA 为准 |
-| Current State | `SE-ARCH-FIX-02 = ACCEPTED / COMPLETE`（2026-09-13 Human Acceptance = `APPROVED` + Final Main Integration Closeout，已 fast-forward only 收编 `main`；Human-Accepted reviewed candidate = `15da7c1`；Implementation = `4c83582`）；`SE-ARCH-FIX-01 = ACCEPTED / COMPLETE`（2026-09-13 Human Acceptance = `APPROVED` + Final Main Integration Closeout；reviewed candidate = `1e2738b`）；`SE-02A = ACCEPTED / COMPLETE`；`SE-02B = ACCEPTED / COMPLETE`；**`SE-02C = IMPLEMENTED / FIXED / NOT ACCEPTED`**（第一次 Independent Review 的 R1-R4 已由 Fix-01 修复；其 Independent Re-Review 新发现 `SE02C-R5` P1 / `R6` P3；2026-09-14 `SE-02C-FIX-02 = IMPLEMENTED / READY FOR INDEPENDENT RE-REVIEW`，branch `se-02c-fix-02-stable-read-snapshot`，base = immutable Fix-01 candidate `2f986827`；**未** merge `main`、**未** Human Accept）；`SE-02D = NOT STARTED`；`N01-C = ACCEPTED / COMPLETE`；N01-A / N01-B 与 N01 验证修复 `N01-VAL-FIX-01/02/03` 均维持 `ACCEPTED / COMPLETE`；`N01-6 = ACCEPTED / COMPLETE`（Reviewed HEAD `3f591a7`）；**`N01-7-F01 = ACCEPTED / COMPLETE`**（2026-09-13 Human Acceptance = `CONFIRMED` + Final Main Integration；reviewed candidate `7c0ea7d` @ integration merge `ddf39f2`；已 fast-forward only 收编 `main`）；**`N01-7 / N01-7-R01 = ACCEPTED / COMPLETE`**（2026-09-14 Human Acceptance = `CONFIRMED` + Final Main Integration Closeout；Independent Re-Review = `PASS WITH NON-BLOCKING FINDINGS — READY FOR HUMAN ACCEPTANCE`；Human-Accepted reviewed candidate = `559f14be1fb89df58c11dfbea737eba4ac30421e`（branch `n01-7-r01-witness-b-latest-main`）；集成方法 = `FAST-FORWARD ONLY`）；🚩 遗留 P2 Watch Item `N01-7-R01-RR-P2-01`（Memory Operational Watch / Bounded Retention Growth，slope `≈16.02 MiB/h` > `5.0`、`total_growth ≈14.043 MiB ≤ 64` ⇒ `finding = false`，Acceptance Gate = PASS）**必须留待 `N01-8` 继续观察**（不得写 `memory resolved` / `memory is fine` / `no memory concern`）；`N01-8` / Integrated Runtime Host 仍 `NOT STARTED`；**N01 overall 仍 `NOT ACCEPTED`** |
-| Last Accepted Group | N01-7 / N01-7-R01 — 2-hour Medium Runtime Soak（含 Witness B Fix + Latest-Main Revalidation） |
-| Current Group Branch | `se-02c-fix-02-stable-read-snapshot`（SE-02C-FIX-02；base = immutable Fix-01 candidate `2f9868278ab1652c4e338ffb01337c6e736545d9`；**等待 Independent Re-Review**，**未** merge/push `main`）；Fix-01 branch `se-02c-fix-01-review-blockers` @ `2f986827` 保持 immutable；原候选 `se-02c-forward-outcome-calculator` @ `be3aa6c` 保持 immutable；已验收 lineage `n01-7-r01-witness-b-latest-main` 等不变 |
+| Current State | `SE-ARCH-FIX-02 = ACCEPTED / COMPLETE`（2026-09-13 Human Acceptance = `APPROVED` + Final Main Integration Closeout，已 fast-forward only 收编 `main`；Human-Accepted reviewed candidate = `15da7c1`；Implementation = `4c83582`）；`SE-ARCH-FIX-01 = ACCEPTED / COMPLETE`（2026-09-13 Human Acceptance = `APPROVED` + Final Main Integration Closeout；reviewed candidate = `1e2738b`）；`SE-02A = ACCEPTED / COMPLETE`；`SE-02B = ACCEPTED / COMPLETE`；**`SE-02C = ACCEPTED / COMPLETE`**（2026-09-14 Human Acceptance = `CONFIRMED` + Final Acceptance Closeout；Independent Re-Review = `PASS WITH NON-BLOCKING FINDINGS — READY FOR HUMAN ACCEPTANCE`；Human-Accepted reviewed candidate = `7bb3835d6b14a3fc86becff1881c7f53f1acd567`（branch `se-02c-fix-02-stable-read-snapshot`）；`SE-02C-FIX-01` / `SE-02C-FIX-02` = `ACCEPTED / CLOSED`；集成方法 = `FAST-FORWARD ONLY`；遗留 `SE02C-R7` = P3 / NON-BLOCKING / NOT FIXED）；`SE-02D = NOT STARTED`；`N01-C = ACCEPTED / COMPLETE`；N01-A / N01-B 与 N01 验证修复 `N01-VAL-FIX-01/02/03` 均维持 `ACCEPTED / COMPLETE`；`N01-6 = ACCEPTED / COMPLETE`（Reviewed HEAD `3f591a7`）；**`N01-7-F01 = ACCEPTED / COMPLETE`**（2026-09-13 Human Acceptance = `CONFIRMED` + Final Main Integration；reviewed candidate `7c0ea7d` @ integration merge `ddf39f2`；已 fast-forward only 收编 `main`）；**`N01-7 / N01-7-R01 = ACCEPTED / COMPLETE`**（2026-09-14 Human Acceptance = `CONFIRMED` + Final Main Integration Closeout；Independent Re-Review = `PASS WITH NON-BLOCKING FINDINGS — READY FOR HUMAN ACCEPTANCE`；Human-Accepted reviewed candidate = `559f14be1fb89df58c11dfbea737eba4ac30421e`（branch `n01-7-r01-witness-b-latest-main`）；集成方法 = `FAST-FORWARD ONLY`）；🚩 遗留 P2 Watch Item `N01-7-R01-RR-P2-01`（Memory Operational Watch / Bounded Retention Growth，slope `≈16.02 MiB/h` > `5.0`、`total_growth ≈14.043 MiB ≤ 64` ⇒ `finding = false`，Acceptance Gate = PASS）**必须留待 `N01-8` 继续观察**（不得写 `memory resolved` / `memory is fine` / `no memory concern`）；`N01-8` / Integrated Runtime Host 仍 `NOT STARTED`；**N01 overall 仍 `NOT ACCEPTED`** |
+| Last Accepted Group | SE-02C — Forward Outcome Calculator |
+| Current Group Branch | `se-02c-final-acceptance-closeout`（SE-02C-FINAL；base = immutable reviewed candidate `7bb3835d6b14a3fc86becff1881c7f53f1acd567`；docs/state-only closeout commit，已 fast-forward only 收编 `main`）；reviewed candidate branch `se-02c-fix-02-stable-read-snapshot` @ `7bb3835` 保持 immutable（远端未移动）；Fix-01 branch `se-02c-fix-01-review-blockers` @ `2f986827` 保持 immutable；原候选 `se-02c-forward-outcome-calculator` @ `be3aa6c` 保持 immutable；已验收 lineage `n01-7-r01-witness-b-latest-main` 等不变 |
 
 - G1–G4 acceptance 状态：`ACCEPTED` / `ACCEPTED` / `ACCEPTED` / `ACCEPTED`。
 - G5-0 / G5-1 / G5-2 / G5-3 / G5-4 acceptance 状态：`ACCEPTED`。
@@ -28,7 +28,8 @@
   N01-7 `20260912_0006` 保持不变（单 head `20260913_0008`）。P2 保留项 `TEST-ISO-01` /
   `RRF-03`（`DEFERRED`）/ `RRF-04` 均 `NON-BLOCKING`。本验收**不**构成
   `SE-ARCH-FIX-02`（`NOT STARTED`）/ `SE-02C`（`BLOCKED / NOT STARTED`）/ `SE-02D` /
-  Real AI Edge / Live / N01 的任何进度。详见
+  Real AI Edge / Live / N01 的任何进度（括号内状态为 SE-ARCH-FIX-01 收尾时；其后
+  `SE-ARCH-FIX-02` 与 `SE-02C` 均已 `ACCEPTED / COMPLETE`）。详见
   `dev_log/2026-09-12-se-arch-fix-01-stable-evidence-anchor.md`
   「Human Acceptance + Final Main Integration Closeout」。
 
@@ -45,13 +46,19 @@
   `ReplayTradingRunner.schema_head = 20260913_0009`。⚠️ FIX-02 Accepted **≠** SE-02C MAY START：
   `SE-02C` 保持 `BLOCKED / NOT STARTED`（仍需 Pre-SE-02C Re-Gate）。详见
   `dev_log/2026-09-13-se-arch-fix-02-outcome-revision-chain-scope.md`。
-  （历史记录：以上为 FIX-02 收尾时的边界表述；`SE-02C` 其后已由 2026-09-13 实现窗口推进为
-  `IMPLEMENTED / READY FOR INDEPENDENT REVIEW`，见下条。）
+  （历史记录：以上为 FIX-02 收尾时的边界表述；`SE-02C` 其后已由 2026-09-13 实现窗口推进，
+  并经 `SE-02C-FIX-01` / `SE-02C-FIX-02` 于 2026-09-14 Human Acceptance 转为
+  `ACCEPTED / COMPLETE`，见下条。）
 
-- SE-02C Forward Outcome Calculator = `IMPLEMENTED / FIXED / NOT ACCEPTED`
-  （2026-09-13 实现 + 验证窗口；原 branch `se-02c-forward-outcome-calculator` @ `be3aa6c`，
-  base `8a29306`，worktree `E:\Documents\MarketPulse-AI-se-02c`；**未** merge `main`、
-  **未** push `main`、**未**自行 Acceptance；前置授权 = 外部任务书声明的 Pre-SE-02C
+- SE-02C Forward Outcome Calculator = `ACCEPTED / COMPLETE`（2026-09-14 Human Acceptance =
+  `CONFIRMED` + Final Acceptance Closeout；Independent Re-Review = `PASS WITH NON-BLOCKING
+  FINDINGS — READY FOR HUMAN ACCEPTANCE`；Human-Accepted reviewed candidate =
+  `7bb3835d6b14a3fc86becff1881c7f53f1acd567`（branch `se-02c-fix-02-stable-read-snapshot`）；
+  `SE-02C-FIX-01` / `SE-02C-FIX-02` = `ACCEPTED / CLOSED`；集成方法 = `FAST-FORWARD ONLY`；
+  遗留 `SE02C-R7` = P3 / NON-BLOCKING / NOT FIXED）。实现落地于 2026-09-13 实现 + 验证窗口
+  （原 branch `se-02c-forward-outcome-calculator` @ `be3aa6c`，base `8a29306`，worktree
+  `E:\Documents\MarketPulse-AI-se-02c`；当时**未** merge `main`、**未** push `main`、
+  **未**自行 Acceptance；前置授权 = 外部任务书声明的 Pre-SE-02C
   Re-Gate `PASS — SE-02C MAY START`）。落地：纯计算核心 `edge/forward.py`
   （冻结 V1 mid/return/MFE-MAE 公式 + 精确乘性 `SPOT_LONG_TAKER_ROUND_TRIP` 成本 +
   `due_at = evidence_at + duration` + FIX-01 anchor 参考权威 + 5 s endpoint TTL +
@@ -72,8 +79,10 @@
   P1 BLOCKING）、`SE02C-R4`（anchor-only 情况应报 `ENDPOINT_MISSING` 而非
   `ENDPOINT_STALE`：Capture Anchor 只作 reference authority，不是 Forward endpoint；
   P2 NON-BLOCKING）。
-- SE-02C-FIX-01｜Review Blockers = `IMPLEMENTED / READY FOR INDEPENDENT RE-REVIEW`
-  （2026-09-14 Implementation + Verification 窗口；branch `se-02c-fix-01-review-blockers`，
+- SE-02C-FIX-01｜Review Blockers = `ACCEPTED / CLOSED`（2026-09-14 Implementation +
+  Verification 窗口；该窗口收尾时状态为 `IMPLEMENTED / READY FOR INDEPENDENT RE-REVIEW`，
+  其后经 Independent Re-Review 与 2026-09-14 Human Acceptance 转为 `ACCEPTED / CLOSED`；
+  branch `se-02c-fix-01-review-blockers`，
   worktree `E:\Documents\MarketPulse-AI-se-02c-fix-01`）。Lineage：以最新 Accepted Main
   `dd78a979d128dee385c7a8ddc2254a53366af714` 为第一父系，经**真实 merge**（`git merge
   --no-ff be3aa6c…`）集成原已复审候选 `be3aa6c817582f6161ea9903f7824200b7f5c843`，两条历史
@@ -81,8 +90,10 @@
   `Schema Changed = NO` / `Migration Added = NO`（单 head `20260913_0009`）。
   详见 `dev_log/2026-09-14-se-02c-fix-01-review-blockers.md`。
 
-- SE-02C-FIX-02｜Stable Read Snapshot = `IMPLEMENTED / READY FOR INDEPENDENT RE-REVIEW`
-  （2026-09-14 Implementation + Verification；branch
+- SE-02C-FIX-02｜Stable Read Snapshot = `ACCEPTED / CLOSED`（2026-09-14 Implementation +
+  Verification；该窗口收尾时状态为 `IMPLEMENTED / READY FOR INDEPENDENT RE-REVIEW`，其后经
+  Independent Re-Review 与 2026-09-14 Human Acceptance 转为 `ACCEPTED / CLOSED`；其 tip
+  `7bb3835` 即 Human-Accepted reviewed candidate；branch
   `se-02c-fix-02-stable-read-snapshot`；base / immutable Fix-01 candidate = `2f986827…`；
   Implementation SHA = `6b084595cde9c3e3257046b4694b134954923a4d`）。
   normal evaluator 以 canonical scope SHA-256 signed-int64 取得 PostgreSQL advisory xact lock，
@@ -164,10 +175,10 @@ disposable 库保持空表（症状 `relation "edge_opportunity_evidence" does n
 
 | 字段 | 值 |
 |---|---|
-| Current Group | N01-7 / N01-7-R01 — 2-hour Medium Runtime Soak（含 Witness B Fix + Latest-Main Revalidation）— `ACCEPTED / COMPLETE`（2026-09-14 Human Acceptance = `CONFIRMED` + Final Main Integration Closeout） |
-| Last accepted subgroup | N01-7 / N01-7-R01（`ACCEPTED / COMPLETE`）；SE-ARCH-FIX-02 / SE-ARCH-FIX-01 / SE-02A / SE-02B / N01-6 / N01-7-F01 / N01-C / N01-A / N01-B 亦维持 `ACCEPTED / COMPLETE`；N01 overall 仍 `NOT ACCEPTED` |
-| Next Group Design | `NOT STARTED`（须另开窗口）；已明确**不**自动开始 `SE-02C`（`SE-ARCH-FIX-02` 已收尾，`SE-02C` 启动前须先独立获批 Pre-SE-02C Re-Gate 且返回 `PASS — SE-02C MAY START`，见 §1；该 Gate 后 `SE-02C` 已由 2026-09-13 实现窗口推进，现处 review-fix 周期），也**不**自动开始 `N01-8`（须由总进度窗口另开独立获批的任务窗口） |
-| Next Group name/number | `N01-7 / N01-7-R01 = ACCEPTED / COMPLETE`（2026-09-14 Closeout；遗留 P2 `N01-7-R01-RR-P2-01` 见 §1）；`N01-8｜12-hour Extended Soak = NOT STARTED`；Integrated Runtime Host = `NOT STARTED`；`SE-ARCH-FIX-02 = ACCEPTED / COMPLETE`；`SE-02C = IMPLEMENTED / FIXED / NOT ACCEPTED`（Fix-01 后的 R5/R6 由 `SE-02C-FIX-02 = IMPLEMENTED / READY FOR INDEPENDENT RE-REVIEW` 修复）；`SE-02D = NOT STARTED` |
+| Current Group | SE-02C — Forward Outcome Calculator — `ACCEPTED / COMPLETE`（2026-09-14 Human Acceptance = `CONFIRMED` + Final Acceptance Closeout） |
+| Last accepted subgroup | SE-02C（`ACCEPTED / COMPLETE`）；N01-7 / N01-7-R01、SE-ARCH-FIX-02 / SE-ARCH-FIX-01 / SE-02A / SE-02B / N01-6 / N01-7-F01 / N01-C / N01-A / N01-B 亦维持 `ACCEPTED / COMPLETE`；N01 overall 仍 `NOT ACCEPTED` |
+| Next Group Design | `NOT STARTED`（须另开窗口）；已明确**不**自动开始 `SE-02D`（`SE-02C` 已收尾，`SE-02D` 须另开独立获批的窗口与门），也**不**自动开始 `N01-8`（须由总进度窗口另开独立获批的任务窗口） |
+| Next Group name/number | `SE-02C = ACCEPTED / COMPLETE`（2026-09-14 Final Acceptance Closeout；`SE-02C-FIX-01` / `SE-02C-FIX-02` = `ACCEPTED / CLOSED`；`SE02C-R7` = P3 / NON-BLOCKING / NOT FIXED）；`SE-02D｜Family Aggregation / Expectancy = NOT STARTED`；`N01-7 / N01-7-R01 = ACCEPTED / COMPLETE`（遗留 P2 `N01-7-R01-RR-P2-01` 见 §1）；`N01-8｜12-hour Extended Soak = NOT STARTED`；Integrated Runtime Host = `NOT STARTED`；`SE-ARCH-FIX-02 = ACCEPTED / COMPLETE` |
 
 - G4 **没有**提前实现完整 Replay / ReplayClock Engine。
 - 仓库中仅存在：`Clock` Protocol 的 `ReplayClock` 实现（`backend/src/marketpulse/clock.py`）与 `RunMode.REPLAY` 枚举（`config.py`）——这是既有 Clock 边界，**不是**完整回放引擎。
@@ -191,6 +202,45 @@ disposable 库保持空表（症状 `relation "edge_opportunity_evidence" does n
 **禁止依赖**：「上一个聊天应该知道」「前一个 AI 说已经做了」「我记得这个功能是……」。
 
 ## 6. Next Step Entry（下一步工作入口）
+
+### SE-02C Forward Outcome Calculator — ACCEPTED / COMPLETE
+
+- 任务：`SE-02C`｜Forward Outcome Calculator → `SE-02C-FIX-01`｜Review Blockers →
+  `SE-02C-FIX-02`｜Stable Read Snapshot；收尾轮 = `SE-02C-FINAL`｜Acceptance Closeout &
+  Main Integration（**非**新实现、**非**重新 Review、**非**新 Acceptance）。
+- 关闭的 Review Finding：`SE02C-R1` / `R2` / `R3` / `R4`（由 FIX-01）与 `R5` / `R6`
+  （由 FIX-02）全部 `CLOSED / PASS`。
+- Human Acceptance = `CONFIRMED`（2026-09-14）；Independent Re-Review = `PASS WITH
+  NON-BLOCKING FINDINGS — READY FOR HUMAN ACCEPTANCE`；**Human-Accepted reviewed candidate =
+  `7bb3835d6b14a3fc86becff1881c7f53f1acd567`**（branch `se-02c-fix-02-stable-read-snapshot`，
+  远端同 SHA、未被移动）；Accepted Main before = `dd78a979…`；集成方法 = `FAST-FORWARD ONLY`
+  （`dd78a979 → 51891c7`（true merge）× `be3aa6c` `→ 7ab1d42 → 2f98682 → 6b08459 → 7bb3835
+  → docs/state-only Acceptance Closeout Commit`；无 merge commit 到 `main` / squash / rebase /
+  cherry-pick / force push）。
+- 已验收能力：Forward Outcome Calculator（30s / 5m / 15m / 1h 四个 horizon）+ stable Capture
+  Anchor reference + complete Forward BBO path + deterministic endpoint + MFE / MAE +
+  reference return + executable LONG return + paper cost-adjusted return + `COMPLETE` /
+  `INSUFFICIENT_DATA` / `INVALID` 终态 + revision-1 immutable normal outcome +
+  retry / restart determinism + concurrent exactly-one + stable `REPEATABLE READ`
+  calculation snapshot + same-scope PostgreSQL advisory coordination + tradability authority +
+  Replay / Forward provenance separation。
+- `C-01..C-29 = ALL PASS`、`F02-01..F02-24 = ALL PASS`（**source = Independent Re-Review
+  evidence**，**非**本收尾窗口重跑）。
+- Closeout 四项不变：`Production code changed = NO` / `Tests changed = NO` /
+  `Migration changed = NO` / `Runtime config changed = NO`；`alembic heads` 单 head
+  `20260913_0009`（`20260911_0005` / `20260912_0006` / `20260913_0007` / `20260913_0008` /
+  `20260913_0009` 的 revision identity 未重写）。
+- 遗留 `SE02C-R7` = `P3 / NON-BLOCKING / NOT FIXED`（Human Accepted non-blocking finding；
+  如需清理另开独立 `P3 docs/comment cleanup task`；**未**修改
+  `backend/src/marketpulse/edge/forward_service.py`）。
+- ⚠️ `SE-02C` Accepted **≠** `SE-02D` MAY START：`SE-02D｜Family Aggregation / Expectancy`
+  仍 `NOT STARTED`，须另开独立获批的窗口与门；也**不**构成 `N01-8` / Integrated Runtime Host
+  的任何进度。
+- 收尾后的下一步：**SE-02C CLOSED. Do not start SE-02D automatically. Return to the SE
+  control window for the next task.**
+- 详见 `dev_log/2026-09-14-se-02c-final-acceptance-closeout.md`、
+  `dev_log/2026-09-14-se-02c-fix-02-stable-read-snapshot.md` 与
+  `dev_log/2026-09-14-se-02c-fix-01-review-blockers.md`。
 
 ### N01-7 / N01-7-R01 2-hour Medium Runtime Soak（含 Witness B Fix + Latest-Main Revalidation）— ACCEPTED / COMPLETE
 
@@ -252,8 +302,11 @@ disposable 库保持空表（症状 `relation "edge_opportunity_evidence" does n
 - Claim 边界：本验收**不得**推断 `SE-02C` / `SE-02D` / Forward Outcome Calculator / MFE-MAE /
   forward returns / expectancy / Real AI Edge / Live / N01-7 / N01-8 / Integrated Runtime Host
   的任何进度。
-- ⚠️ **FIX-02 Accepted ≠ SE-02C MAY START**：`SE-02C` 保持 `BLOCKED / NOT STARTED`；启动前必须
-  另开独立获批的 **Pre-SE-02C Re-Gate**，且仅当该 Gate 返回 `PASS — SE-02C MAY START` 才允许启动。
+- ⚠️ **FIX-02 Accepted ≠ SE-02C MAY START**：`SE-02C` 保持 `BLOCKED / NOT STARTED`
+  （SE-ARCH-FIX-02 收尾时；其后 `SE-02C` 已于 2026-09-14 经 Human Acceptance 转为
+  `ACCEPTED / COMPLETE`，见 `### SE-02C Forward Outcome Calculator — ACCEPTED / COMPLETE`）；
+  启动前必须另开独立获批的 **Pre-SE-02C Re-Gate**，且仅当该 Gate 返回
+  `PASS — SE-02C MAY START` 才允许启动。
   本窗口**未**启动该 Gate、**未**启动 SE-02C。
 - 详见 `dev_log/2026-09-13-se-arch-fix-02-outcome-revision-chain-scope.md`
   「Human Acceptance + Final Main Integration Closeout」与 `PROJECT_STATE.md`
@@ -284,7 +337,8 @@ disposable 库保持空表（症状 `relation "edge_opportunity_evidence" does n
   revision + table inventory fingerprint，不是 row-level proof，措辞边界保持）。
 - Claim 边界：本验收**不得**推断 `SE-ARCH-FIX-02`（`NOT STARTED`）/ `SE-02C`
   （`BLOCKED / NOT STARTED`，FIX-02 尚未完成）/ `SE-02D` / Forward Outcome Calculator /
-  MFE-MAE / expectancy / Real AI Edge / Live / N01-7 / N01-8 / Integrated Runtime Host 的任何进度。
+  MFE-MAE / expectancy / Real AI Edge / Live / N01-7 / N01-8 / Integrated Runtime Host 的任何进度
+  （括号内状态为 SE-ARCH-FIX-01 收尾时；其后二者均已 `ACCEPTED / COMPLETE`）。
 - 详见 `dev_log/2026-09-12-se-arch-fix-01-stable-evidence-anchor.md`
   「Human Acceptance + Final Main Integration Closeout｜2026-09-13」与 `PROJECT_STATE.md`
   「SE-ARCH-FIX-01 Result」。
