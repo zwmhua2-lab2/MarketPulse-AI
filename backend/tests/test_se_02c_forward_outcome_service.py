@@ -23,6 +23,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from uuid import uuid4
 
+import marketpulse.edge.forward_service as forward_service_module
 import pytest
 from alembic import command
 from alembic.config import Config
@@ -56,6 +57,7 @@ from marketpulse.edge.forward_service import (
     ForwardOutcomeService,
     ForwardPathRecorder,
     ForwardPathTradabilityUnknown,
+    _scope_advisory_lock_key,
     build_forward_path_observation,
     discover_due_scopes,
     evaluate_due_outcomes,
@@ -70,11 +72,7 @@ from marketpulse.edge.models import (
     build_evidence_revision,
     build_opportunity_identity,
 )
-from marketpulse.edge.repository import (
-    EdgeOutcomeConflict,
-    append_evidence_revision,
-    record_bbo_observation,
-)
+from marketpulse.edge.repository import append_evidence_revision, record_bbo_observation
 from marketpulse.g2.models import (
     EventType,
     FeatureSnapshot,
@@ -528,7 +526,9 @@ async def _capture_unanchored_evidence(sessions, *, event_id: str = "evt-se02c-u
     return facts
 
 
-async def _record_frames(sessions, frames=FRAMES) -> list[str | None]:
+async def _record_frames(
+    sessions, frames=FRAMES, *, instrument_id: str = INSTRUMENT
+) -> list[str | None]:
     recorder = ForwardPathRecorder(sessions)
     results: list[str | None] = []
     for offset, bid, ask, sequence in frames:
@@ -538,6 +538,7 @@ async def _record_frames(sessions, frames=FRAMES) -> list[str | None]:
                     bid=bid,
                     ask=ask,
                     at=START + timedelta(seconds=offset),
+                    instrument_id=instrument_id,
                     source_sequence=sequence,
                 )
             )
@@ -557,6 +558,61 @@ async def _due_scopes(factory, *, horizons=ALL_FORWARD_HORIZONS):
 
     async with factory() as session:
         return await discover_due_scopes(session, now=EVAL_NOW, horizons=horizons)
+
+
+class _PageOnePausedForwardOutcomeService(ForwardOutcomeService):
+    """Test witness that pauses only after the real first path SELECT has returned."""
+
+    def __init__(self, *args, page_one_loaded: asyncio.Event, resume: asyncio.Event, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.page_one_loaded = page_one_loaded
+        self.resume = resume
+        self.snapshot_isolation: str | None = None
+        self.snapshot_read_only: str | None = None
+        self.reference_session_id: int | None = None
+        self.path_session_id: int | None = None
+        self.calculation_count = 0
+
+    async def calculate_scope(self, scope):
+        self.calculation_count += 1
+        return await super().calculate_scope(scope)
+
+    async def _resolve_reference(self, session, scope):
+        result = await super()._resolve_reference(session, scope)
+        self.reference_session_id = id(session)
+        self.snapshot_isolation = await session.scalar(text("SHOW transaction_isolation"))
+        self.snapshot_read_only = await session.scalar(text("SHOW transaction_read_only"))
+        return result
+
+    async def _load_observations(self, session, scope):
+        self.path_session_id = id(session)
+        original_scalars = session.scalars
+        page_count = 0
+
+        async def paused_scalars(*args, **kwargs):
+            nonlocal page_count
+            result = await original_scalars(*args, **kwargs)
+            page_count += 1
+            if page_count == 1:
+                self.page_one_loaded.set()
+                await self.resume.wait()
+            return result
+
+        session.scalars = paused_scalars
+        try:
+            return await super()._load_observations(session, scope)
+        finally:
+            session.scalars = original_scalars
+
+
+class _CountingForwardOutcomeService(ForwardOutcomeService):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.calculation_count = 0
+
+    async def calculate_scope(self, scope):
+        self.calculation_count += 1
+        return await super().calculate_scope(scope)
 
 
 # --- §56 Forward BBO path capture --------------------------------------------------------
@@ -1088,6 +1144,310 @@ async def _causal_scenario(url: str) -> dict[str, object]:
 # --- §58 concurrency: exactly one durable outcome ----------------------------------------
 
 
+def test_scope_advisory_lock_key_uses_the_frozen_canonical_sha256_contract():
+    assert (
+        _scope_advisory_lock_key("opp-fixed", "ev-fixed", ForwardHorizon.M5)
+        == 750_685_418_615_989_498
+    )
+    assert _scope_advisory_lock_key(
+        "opp-fixed", "ev-fixed", ForwardHorizon.S30
+    ) != _scope_advisory_lock_key("opp-fixed", "ev-fixed", ForwardHorizon.M5)
+
+
+@pytest.mark.parametrize(
+    ("cursor_position", "late_offset"),
+    (("after", 300), ("before", 100)),
+    ids=("cursor-after", "cursor-before"),
+)
+def test_late_commit_is_excluded_by_the_stable_snapshot_and_visible_to_a_fresh_scope(
+    monkeypatch, cursor_position: str, late_offset: int
+):
+    monkeypatch.setattr(forward_service_module, "FORWARD_PATH_READ_PAGE_SIZE", 2)
+    with _se02c_database(f"snapshot_{cursor_position}") as url:
+        observed = asyncio.run(_snapshot_boundary_scenario(url, late_offset=late_offset))
+
+    assert observed["initial_rows_span_multiple_pages"] is True
+    assert observed["snapshot_isolation"] == "repeatable read"
+    assert observed["snapshot_read_only"] == "on"
+    assert observed["reference_and_path_session_match"] is True
+    assert observed["late_key_relation_matches_case"] is True
+    assert observed["late_row_is_market_time_eligible"] is True
+    assert observed["late_rows_durable"] is True
+    assert observed["current_loaded_count"] == observed["baseline_loaded_count"]
+    assert observed["current_endpoint"] == observed["baseline_endpoint"]
+    assert observed["current_mfe"] == observed["baseline_mfe"]
+    assert observed["current_mae"] == observed["baseline_mae"]
+    assert observed["current_calculation_digest"] == observed["baseline_calculation_digest"]
+    assert observed["current_outcome_hash"] == observed["baseline_outcome_hash"]
+    assert observed["fresh_loaded_count"] == observed["fresh_baseline_loaded_count"] + 1
+    assert observed["fresh_mfe"] > observed["fresh_baseline_mfe"]
+    assert observed["fresh_calculation_digest"] != observed["fresh_baseline_calculation_digest"]
+    assert observed["fresh_outcome_hash"] != observed["fresh_baseline_outcome_hash"]
+    if cursor_position == "after":
+        assert observed["fresh_endpoint"] == observed["fresh_late_observation_id"]
+        assert observed["fresh_endpoint"] != observed["fresh_baseline_endpoint"]
+    else:
+        assert observed["fresh_endpoint"] == observed["fresh_baseline_endpoint"]
+
+
+async def _snapshot_boundary_scenario(url: str, *, late_offset: int) -> dict[str, object]:
+    initial_frames = (
+        (298, 100.9, 101.1, 10),
+        (299, 101.9, 102.1, 20),
+    )
+    async with _sessions(url) as sessions:
+        await _capture_forward_opportunity(sessions)
+        await _capture_forward_opportunity(
+            sessions, event_id="evt-se02c-snapshot-control", instrument_id=SECOND_INSTRUMENT
+        )
+        await _record_frames(sessions, initial_frames)
+        await _record_frames(sessions, initial_frames, instrument_id=SECOND_INSTRUMENT)
+
+        scopes = await _due_scopes(sessions, horizons=(ForwardHorizon.M5,))
+        primary_scope = next(scope for scope in scopes if scope.instrument_id == INSTRUMENT)
+        control_scope = next(
+            scope for scope in scopes if scope.instrument_id == SECOND_INSTRUMENT
+        )
+        baseline_service = ForwardOutcomeService(sessions, horizons=(ForwardHorizon.M5,))
+        baseline = await baseline_service.calculate_scope(primary_scope)
+        fresh_baseline = await baseline_service.calculate_scope(control_scope)
+
+        page_one_loaded = asyncio.Event()
+        resume = asyncio.Event()
+        paused_service = _PageOnePausedForwardOutcomeService(
+            sessions,
+            horizons=(ForwardHorizon.M5,),
+            page_one_loaded=page_one_loaded,
+            resume=resume,
+        )
+        calculation = asyncio.create_task(paused_service.calculate_scope(primary_scope))
+        await asyncio.wait_for(page_one_loaded.wait(), timeout=5)
+
+        late_at = START + timedelta(seconds=late_offset)
+        late_observations = tuple(
+            build_bbo_observation(
+                instrument_id=instrument_id,
+                market_type=MarketType.SPOT,
+                bid=109.0,
+                ask=111.0,
+                available_at=late_at,
+                source_event_time=late_at,
+                received_at=late_at,
+                data_quality=DataQuality.FRESH,
+                tradable=True,
+                source="fixture-snapshot-late",
+                source_sequence=99,
+                created_at=late_at,
+            )
+            for instrument_id in (INSTRUMENT, SECOND_INSTRUMENT)
+        )
+        async with sessions() as writer, writer.begin():
+            for observation in late_observations:
+                assert await record_bbo_observation(writer, observation) == "INSERTED"
+
+        async with sessions() as verifier:
+            late_rows_durable = True
+            for observation in late_observations:
+                if (
+                    await verifier.get(
+                        EdgeBboObservationRecord, observation.observation_id
+                    )
+                    is None
+                ):
+                    late_rows_durable = False
+        resume.set()
+        current = await asyncio.wait_for(calculation, timeout=5)
+        fresh = await baseline_service.calculate_scope(control_scope)
+
+    return {
+        "initial_rows_span_multiple_pages": (
+            baseline.completeness_diagnostics["observation_count"] > 2
+        ),
+        "snapshot_isolation": paused_service.snapshot_isolation,
+        "snapshot_read_only": paused_service.snapshot_read_only,
+        "reference_and_path_session_match": (
+            paused_service.reference_session_id == paused_service.path_session_id
+        ),
+        "late_key_relation_matches_case": (
+            late_at > START + timedelta(seconds=298)
+            if late_offset == 300
+            else late_at < START + timedelta(seconds=298)
+        ),
+        "late_row_is_market_time_eligible": late_at <= primary_scope.due_at,
+        "late_rows_durable": late_rows_durable,
+        "baseline_loaded_count": baseline.completeness_diagnostics["observation_count"],
+        "current_loaded_count": current.completeness_diagnostics["observation_count"],
+        "baseline_endpoint": baseline.end_bbo_observation_id,
+        "current_endpoint": current.end_bbo_observation_id,
+        "baseline_mfe": baseline.mfe,
+        "current_mfe": current.mfe,
+        "baseline_mae": baseline.mae,
+        "current_mae": current.mae,
+        "baseline_calculation_digest": baseline.calculation_digest,
+        "current_calculation_digest": current.calculation_digest,
+        "baseline_outcome_hash": baseline.outcome_record_hash,
+        "current_outcome_hash": current.outcome_record_hash,
+        "fresh_baseline_loaded_count": fresh_baseline.completeness_diagnostics[
+            "observation_count"
+        ],
+        "fresh_loaded_count": fresh.completeness_diagnostics["observation_count"],
+        "fresh_baseline_endpoint": fresh_baseline.end_bbo_observation_id,
+        "fresh_endpoint": fresh.end_bbo_observation_id,
+        "fresh_late_observation_id": late_observations[1].observation_id,
+        "fresh_baseline_mfe": fresh_baseline.mfe,
+        "fresh_mfe": fresh.mfe,
+        "fresh_baseline_calculation_digest": fresh_baseline.calculation_digest,
+        "fresh_calculation_digest": fresh.calculation_digest,
+        "fresh_baseline_outcome_hash": fresh_baseline.outcome_record_hash,
+        "fresh_outcome_hash": fresh.outcome_record_hash,
+    }
+
+
+def test_two_evaluators_share_the_scope_lock_and_late_ingress_cannot_change_the_winner(
+    monkeypatch,
+):
+    monkeypatch.setattr(forward_service_module, "FORWARD_PATH_READ_PAGE_SIZE", 2)
+    with _se02c_database("stable_concurrency") as url:
+        observed = asyncio.run(_stable_concurrency_scenario(url))
+
+    assert observed["second_evaluator_waited_on_advisory_lock"] is True
+    assert observed["late_ingress_result"] == "INSERTED"
+    assert observed["late_row_durable"] is True
+    assert observed["winner_excluded_late_row"] is True
+    assert observed["both_callers_succeeded"] is True
+    assert observed["outcome_count"] == 1
+    assert observed["distinct_returned_outcome_ids"] == 1
+    assert observed["distinct_returned_digests"] == 1
+    assert observed["distinct_returned_hashes"] == 1
+    assert observed["both_callers_match_durable"] is True
+    assert observed["first_calculation_count"] == 1
+    assert observed["second_calculation_count"] == 0
+    assert observed["revision"] == 1
+
+
+async def _stable_concurrency_scenario(url: str) -> dict[str, object]:
+    initial_frames = (
+        (298, 100.9, 101.1, 10),
+        (299, 101.9, 102.1, 20),
+    )
+    async with _sessions(url) as setup_sessions:
+        await _capture_forward_opportunity(setup_sessions)
+        await _record_frames(setup_sessions, initial_frames)
+        scope = await _scope_of(setup_sessions, horizon=ForwardHorizon.M5)
+        baseline = await ForwardOutcomeService(setup_sessions).calculate_scope(scope)
+
+    engines = [
+        create_async_engine(
+            url,
+            poolclass=NullPool,
+            connect_args={"server_settings": {"application_name": application_name}},
+        )
+        for application_name in ("se02c-fix02-evaluator-a", "se02c-fix02-evaluator-b")
+    ]
+    writer_engine = create_async_engine(url, poolclass=NullPool)
+    observer_engine = create_async_engine(url, poolclass=NullPool)
+    try:
+        factories = [async_sessionmaker(engine, expire_on_commit=False) for engine in engines]
+        writer_factory = async_sessionmaker(writer_engine, expire_on_commit=False)
+        observer_factory = async_sessionmaker(observer_engine, expire_on_commit=False)
+        page_one_loaded = asyncio.Event()
+        resume = asyncio.Event()
+        first_service = _PageOnePausedForwardOutcomeService(
+            factories[0],
+            horizons=(ForwardHorizon.M5,),
+            page_one_loaded=page_one_loaded,
+            resume=resume,
+        )
+        second_service = _CountingForwardOutcomeService(
+            factories[1], horizons=(ForwardHorizon.M5,)
+        )
+
+        first_task = asyncio.create_task(first_service.evaluate_scope(scope))
+        await asyncio.wait_for(page_one_loaded.wait(), timeout=5)
+        second_task = asyncio.create_task(second_service.evaluate_scope(scope))
+        second_waited = await _wait_for_advisory_wait(
+            observer_factory, "se02c-fix02-evaluator-b"
+        )
+
+        late_at = scope.due_at
+        late_event = _ticker(
+            bid=109.0,
+            ask=111.0,
+            at=late_at,
+            source_sequence=99,
+        )
+        late_observation = build_forward_path_observation(late_event)
+        late_ingress_result = await ForwardPathRecorder(writer_factory).record_event(late_event)
+        async with writer_factory() as verifier:
+            late_row_durable = (
+                await verifier.get(EdgeBboObservationRecord, late_observation.observation_id)
+                is not None
+            )
+
+        resume.set()
+        returned = await asyncio.wait_for(
+            asyncio.gather(first_task, second_task), timeout=10
+        )
+        async with factories[0]() as session:
+            durable_rows = (
+                await session.scalars(
+                    select(EdgeForwardOutcomeRecord).where(
+                        EdgeForwardOutcomeRecord.opportunity_id == scope.opportunity_id,
+                        EdgeForwardOutcomeRecord.evidence_id == scope.evidence_id,
+                        EdgeForwardOutcomeRecord.horizon == scope.horizon.value,
+                    )
+                )
+            ).all()
+    finally:
+        for engine in (*engines, writer_engine, observer_engine):
+            await engine.dispose()
+
+    durable = durable_rows[0]
+    return {
+        "second_evaluator_waited_on_advisory_lock": second_waited,
+        "late_ingress_result": late_ingress_result,
+        "late_row_durable": late_row_durable,
+        "winner_excluded_late_row": (
+            returned[0].end_bbo_observation_id == baseline.end_bbo_observation_id
+            and returned[0].calculation_digest == baseline.calculation_digest
+            and returned[0].outcome_record_hash == baseline.outcome_record_hash
+        ),
+        "both_callers_succeeded": len(returned) == 2,
+        "outcome_count": len(durable_rows),
+        "distinct_returned_outcome_ids": len({item.outcome_id for item in returned}),
+        "distinct_returned_digests": len({item.calculation_digest for item in returned}),
+        "distinct_returned_hashes": len({item.outcome_record_hash for item in returned}),
+        "both_callers_match_durable": all(
+            item.outcome_id == durable.outcome_id
+            and item.calculation_digest == durable.calculation_digest
+            and item.outcome_record_hash == durable.outcome_record_hash
+            for item in returned
+        ),
+        "first_calculation_count": first_service.calculation_count,
+        "second_calculation_count": second_service.calculation_count,
+        "revision": durable.outcome_revision,
+    }
+
+
+async def _wait_for_advisory_wait(factory, application_name: str) -> bool:
+    for _ in range(100):
+        async with factory() as session:
+            waiting = await session.scalar(
+                text(
+                    "SELECT EXISTS ("
+                    "SELECT 1 FROM pg_stat_activity "
+                    "WHERE application_name = :application_name "
+                    "AND wait_event_type = 'Lock' AND wait_event = 'advisory'"
+                    ")"
+                ),
+                {"application_name": application_name},
+            )
+        if waiting:
+            return True
+        await asyncio.sleep(0.01)
+    return False
+
+
 def test_two_concurrent_evaluators_append_exactly_one_outcome_for_the_scope():
     with _se02c_database("concurrency") as url:
         observed = asyncio.run(_concurrency_scenario(url))
@@ -1153,8 +1513,8 @@ def test_a_settled_scope_never_grows_an_automatic_revision_two():
     assert observed["outcome_count"] == 4
     assert set(observed["revisions"].values()) == {1}
     assert observed["unsettled_after_a_late_frame"] == []
-    assert observed["changed_facts_conflict"] is True
-    assert observed["outcome_count_after_conflict"] == 4
+    assert observed["settled_retry_returned_existing"] is True
+    assert observed["outcome_count_after_retry"] == 4
     assert observed["hash_unchanged"] is True
 
 
@@ -1177,18 +1537,15 @@ async def _immutable_scenario(url: str) -> dict[str, object]:
         hash_before = _by_horizon(before["outcomes"])["5m"].outcome_record_hash
 
         # A late frame inside the same window arrives after settlement. Discovery
-        # still refuses to re-open the scope, and a forced re-evaluation surfaces
-        # the accepted writer's conflict instead of minting revision 2.
+        # still refuses to re-open the scope, and a forced normal re-evaluation
+        # returns the revision-1 row found after the scope lock. It never opens a
+        # fresh calculation snapshot and therefore cannot conflict or mint revision 2.
         await ForwardPathRecorder(factory).record_event(
             _ticker(bid=104.0, ask=104.4, at=START + timedelta(seconds=298), source_sequence=7)
         )
         async with factory() as session:
             unsettled = await discover_due_scopes(session, now=EVAL_NOW)
-        conflicted = False
-        try:
-            await service.evaluate_scope(m5_scope)
-        except EdgeOutcomeConflict:
-            conflicted = True
+        settled_retry = await service.evaluate_scope(m5_scope)
         after = await _durable(factory)
     finally:
         await engine.dispose()
@@ -1203,8 +1560,11 @@ async def _immutable_scenario(url: str) -> dict[str, object]:
             row.horizon: row.outcome_revision for row in _by_horizon(after["outcomes"]).values()
         },
         "unsettled_after_a_late_frame": [item.horizon.value for item in unsettled],
-        "changed_facts_conflict": conflicted,
-        "outcome_count_after_conflict": after["outcome_count"],
+        "settled_retry_returned_existing": (
+            settled_retry.outcome_id == retry.outcome_id
+            and settled_retry.outcome_record_hash == hash_before
+        ),
+        "outcome_count_after_retry": after["outcome_count"],
         "hash_unchanged": _by_horizon(after["outcomes"])["5m"].outcome_record_hash == hash_before,
     }
 

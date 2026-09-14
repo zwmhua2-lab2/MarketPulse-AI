@@ -31,12 +31,13 @@ Automatic correction stays the explicit immutable-correction path.
 
 from __future__ import annotations
 
+import hashlib
 import logging
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
-from sqlalchemy import and_, select, tuple_
+from sqlalchemy import and_, select, text, tuple_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -68,6 +69,7 @@ from marketpulse.edge.models import (
     build_bbo_observation,
 )
 from marketpulse.edge.repository import (
+    INSERTED,
     EdgeOutcomeConflict,
     append_forward_outcome,
     record_bbo_observation,
@@ -87,6 +89,15 @@ DEFAULT_MAX_SCOPES_PER_EVALUATION = 500
 # (task §8-§11). Because no ceiling exists, no partially loaded path can ever be
 # classified as COMPLETE.
 FORWARD_PATH_READ_PAGE_SIZE = 10_000
+
+
+def _scope_advisory_lock_key(
+    opportunity_id: str, evidence_id: str, horizon: ForwardHorizon
+) -> int:
+    """Return the deterministic PostgreSQL bigint lock key for one outcome scope."""
+
+    canonical = f"se02c|{opportunity_id}|{evidence_id}|{horizon.value}".encode()
+    return int.from_bytes(hashlib.sha256(canonical).digest()[:8], "big", signed=True)
 
 
 class ForwardPathTradabilityUnknown(ValueError):
@@ -468,15 +479,61 @@ class ForwardOutcomeService:
         return outcomes
 
     async def evaluate_scope(self, scope: DueForwardScope) -> ForwardOutcomeContract:
-        """Calculate and append the terminal outcome of exactly one due scope."""
+        """Serialize, calculate and append exactly one terminal revision-1 outcome.
 
-        outcome = await self.calculate_scope(scope)
-        return await self.append_outcome(outcome)
+        The coordinator transaction holds a PostgreSQL advisory transaction lock for
+        the complete scope identity until the outcome commit. The existing-outcome
+        check deliberately happens *after* lock acquisition: a waiter therefore sees
+        the winner's committed revision under READ COMMITTED and returns it without
+        opening a second calculation snapshot.
+        """
+
+        async with self._session_factory() as coordinator, coordinator.begin():
+            await coordinator.execute(
+                text("SELECT pg_advisory_xact_lock(:lock_key)"),
+                {
+                    "lock_key": _scope_advisory_lock_key(
+                        scope.opportunity_id, scope.evidence_id, scope.horizon
+                    )
+                },
+            )
+            existing = await load_forward_outcome_contract(
+                coordinator,
+                opportunity_id=scope.opportunity_id,
+                evidence_id=scope.evidence_id,
+                horizon=scope.horizon,
+                outcome_revision=RUNTIME_OUTCOME_REVISION,
+            )
+            if existing is not None:
+                return existing
+
+            outcome = await self.calculate_scope(scope)
+            result = await append_forward_outcome(coordinator, outcome)
+            if result == INSERTED:
+                return outcome
+
+            durable = await load_forward_outcome_contract(
+                coordinator,
+                opportunity_id=scope.opportunity_id,
+                evidence_id=scope.evidence_id,
+                horizon=scope.horizon,
+                outcome_revision=RUNTIME_OUTCOME_REVISION,
+            )
+            if durable is None:
+                raise RuntimeError("idempotent forward outcome is not durable")
+            return durable
 
     async def calculate_scope(self, scope: DueForwardScope) -> ForwardOutcomeContract:
-        """Build the deterministic calculation input and run the pure calculator."""
+        """Build the calculation input from one stable, read-only PostgreSQL snapshot."""
 
-        async with self._session_factory() as session:
+        async with self._session_factory() as session, session.begin():
+            # This is intentionally the first SQL statement in the transaction. The
+            # reference and every keyset page below must share the snapshot that this
+            # statement establishes; late commits remain durable but cannot alter the
+            # already-started calculation attempt.
+            await session.execute(
+                text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
+            )
             reference, structural_problem = await self._resolve_reference(session, scope)
             observations = await self._load_observations(session, scope)
         return calculate_forward_outcome(
@@ -539,19 +596,22 @@ class ForwardOutcomeService:
     ) -> tuple[BboObservation, ...]:
         """Load the **complete** forward path of one scope, page by page.
 
-        The durable window is ``evidence_at <= available_at <= due_at``. Both
-        bounds are immutable facts, so the loaded set -- and therefore every
-        diagnostic and every hash derived from it -- is identical no matter when
-        the evaluator runs. The causal cutoff is *also* enforced inside the pure
-        calculator, so a caller that hands it a later observation still gets it
-        rejected as future data.
+        The durable market-time window is
+        ``evidence_at <= available_at <= due_at``. Snapshot visibility is a second,
+        independent eligibility boundary: reference resolution and every page are
+        read in the caller's single REPEATABLE READ transaction, so a row committed
+        after that snapshot began cannot alter this calculation attempt. The causal
+        cutoff is also enforced inside the pure calculator, so a caller that hands
+        it a later observation still gets it rejected as future data.
 
-        Reading is keyset-paged on the same ``(available_at, observation_id)``
-        total order the endpoint tie-break uses, and the loop ends only when the
-        durable window is exhausted. ``FORWARD_PATH_READ_PAGE_SIZE`` therefore
-        bounds one statement, **not** the path: every durable observation in the
-        window reaches the calculator, so endpoint selection, MFE and MAE always
-        cover the whole path (task §8-§11).
+        Reading is keyset-paged on ``(available_at, observation_id)`` solely as a
+        complete traversal order. Endpoint selection remains the pure calculator's
+        independent total order
+        ``(available_at, has_source_sequence, source_sequence, observation_id)``.
+        The loop ends only when the durable snapshot window is exhausted.
+        ``FORWARD_PATH_READ_PAGE_SIZE`` therefore bounds one statement, **not** the
+        path: every snapshot-visible durable observation in the window reaches the
+        calculator, so endpoint selection, MFE and MAE cover the whole frozen path.
         """
 
         observations: list[BboObservation] = []
