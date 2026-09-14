@@ -12,7 +12,7 @@
 | Project | MarketPulse AI（BTC/ETH 量化纸面交易终端，Modular Monolith） |
 | Current Acceptance Group | SE-02C — Forward Outcome Calculator — ACCEPTED / COMPLETE |
 | Accepted Main Source | Git `main` / `origin/main`；须在任务 preflight 按 CIP-02 实时读取，不以文档静态 SHA 为准 |
-| Current State | `SE-ARCH-FIX-02 = ACCEPTED / COMPLETE`（2026-09-13 Human Acceptance = `APPROVED` + Final Main Integration Closeout，已 fast-forward only 收编 `main`；Human-Accepted reviewed candidate = `15da7c1`；Implementation = `4c83582`）；`SE-ARCH-FIX-01 = ACCEPTED / COMPLETE`（2026-09-13 Human Acceptance = `APPROVED` + Final Main Integration Closeout；reviewed candidate = `1e2738b`）；`SE-02A = ACCEPTED / COMPLETE`；`SE-02B = ACCEPTED / COMPLETE`；**`SE-02C = ACCEPTED / COMPLETE`**（2026-09-14 Human Acceptance = `CONFIRMED` + Final Acceptance Closeout；Independent Re-Review = `PASS WITH NON-BLOCKING FINDINGS — READY FOR HUMAN ACCEPTANCE`；Human-Accepted reviewed candidate = `7bb3835d6b14a3fc86becff1881c7f53f1acd567`（branch `se-02c-fix-02-stable-read-snapshot`）；`SE-02C-FIX-01` / `SE-02C-FIX-02` = `ACCEPTED / CLOSED`；集成方法 = `FAST-FORWARD ONLY`；遗留 `SE02C-R7` = P3 / NON-BLOCKING / NOT FIXED）；`SE-02D = NOT STARTED`；`N01-C = ACCEPTED / COMPLETE`；N01-A / N01-B 与 N01 验证修复 `N01-VAL-FIX-01/02/03` 均维持 `ACCEPTED / COMPLETE`；`N01-6 = ACCEPTED / COMPLETE`（Reviewed HEAD `3f591a7`）；**`N01-7-F01 = ACCEPTED / COMPLETE`**（2026-09-13 Human Acceptance = `CONFIRMED` + Final Main Integration；reviewed candidate `7c0ea7d` @ integration merge `ddf39f2`；已 fast-forward only 收编 `main`）；**`N01-7 / N01-7-R01 = ACCEPTED / COMPLETE`**（2026-09-14 Human Acceptance = `CONFIRMED` + Final Main Integration Closeout；Independent Re-Review = `PASS WITH NON-BLOCKING FINDINGS — READY FOR HUMAN ACCEPTANCE`；Human-Accepted reviewed candidate = `559f14be1fb89df58c11dfbea737eba4ac30421e`（branch `n01-7-r01-witness-b-latest-main`）；集成方法 = `FAST-FORWARD ONLY`）；🚩 遗留 P2 Watch Item `N01-7-R01-RR-P2-01`（Memory Operational Watch / Bounded Retention Growth，slope `≈16.02 MiB/h` > `5.0`、`total_growth ≈14.043 MiB ≤ 64` ⇒ `finding = false`，Acceptance Gate = PASS）**已由 `N01-8` 继续观察并保持开启（`REMAINS`）**（`N01-8` 冻结 AND 门 Formal Finding = `false`；本 Run `RSS growth 77.711 MiB` > `64`、second-half slope `−0.639369 MiB/h`；不得写 `memory resolved` / `memory is fine` / `no memory concern`）；**`N01-8 = ACCEPTED / COMPLETE`**（2026-09-14 Human Acceptance = `CONFIRMED` + Final Acceptance Closeout；Independent Review = `PASS WITH NON-BLOCKING FINDINGS — READY FOR HUMAN ACCEPTANCE`；Human-Accepted reviewed candidate = `d9306ada663a5cacb86bee26218e298169d82e6b`（branch `n01-8-12h-extended-soak`）；单轮 `total_active 44401.217 s`、99/99 aggregate checks True、Baseline Drift = `NO MATERIAL IMPACT`、Targeted Revalidation / Full Rerun = `NOT REQUIRED`；集成方法 = `FAST-FORWARD ONLY`）；Integrated Runtime Host 仍 `NOT STARTED`；**N01 overall = `ACCEPTED / COMPLETE`**（2026-09-14 Human Acceptance = `CONFIRMED` + N01 Overall Final Acceptance Closeout；Overall Final Review = `PASS WITH NON-BLOCKING FINDINGS — READY FOR HUMAN ACCEPTANCE`；Memory P2 `N01-7-R01-RR-P2-01` = `REMAINS` / NON-BLOCKING；`N01-9 = NOT REQUIRED / NOT CREATED`） |
+| Current State | `SE-ARCH-FIX-02 = ACCEPTED / COMPLETE`（2026-09-13 Human Acceptance = `APPROVED` + Final Main Integration Closeout，已 fast-forward only 收编 `main`；Human-Accepted reviewed candidate = `15da7c1`；Implementation = `4c83582`）；`SE-ARCH-FIX-01 = ACCEPTED / COMPLETE`（2026-09-13 Human Acceptance = `APPROVED` + Final Main Integration Closeout；reviewed candidate = `1e2738b`）；`SE-02A = ACCEPTED / COMPLETE`；`SE-02B = ACCEPTED / COMPLETE`；**`SE-02C = ACCEPTED / COMPLETE`**（2026-09-14 Human Acceptance = `CONFIRMED` + Final Acceptance Closeout；Independent Re-Review = `PASS WITH NON-BLOCKING FINDINGS — READY FOR HUMAN ACCEPTANCE`；Human-Accepted reviewed candidate = `7bb3835d6b14a3fc86becff1881c7f53f1acd567`（branch `se-02c-fix-02-stable-read-snapshot`）；`SE-02C-FIX-01` / `SE-02C-FIX-02` = `ACCEPTED / CLOSED`；集成方法 = `FAST-FORWARD ONLY`；遗留 `SE02C-R7` = P3 / NON-BLOCKING / NOT FIXED）；`SE-02D = NOT STARTED`（**`SE-02D-D01` Family Aggregation / Expectancy Contract（设计层）= `ACCEPTED / COMPLETE`**，2026-09-15 Human Acceptance = `CONFIRMED` + Final Acceptance Closeout；`SE-02D` production implementation 仍 `NOT STARTED`，见 §6）；`N01-C = ACCEPTED / COMPLETE`；N01-A / N01-B 与 N01 验证修复 `N01-VAL-FIX-01/02/03` 均维持 `ACCEPTED / COMPLETE`；`N01-6 = ACCEPTED / COMPLETE`（Reviewed HEAD `3f591a7`）；**`N01-7-F01 = ACCEPTED / COMPLETE`**（2026-09-13 Human Acceptance = `CONFIRMED` + Final Main Integration；reviewed candidate `7c0ea7d` @ integration merge `ddf39f2`；已 fast-forward only 收编 `main`）；**`N01-7 / N01-7-R01 = ACCEPTED / COMPLETE`**（2026-09-14 Human Acceptance = `CONFIRMED` + Final Main Integration Closeout；Independent Re-Review = `PASS WITH NON-BLOCKING FINDINGS — READY FOR HUMAN ACCEPTANCE`；Human-Accepted reviewed candidate = `559f14be1fb89df58c11dfbea737eba4ac30421e`（branch `n01-7-r01-witness-b-latest-main`）；集成方法 = `FAST-FORWARD ONLY`）；🚩 遗留 P2 Watch Item `N01-7-R01-RR-P2-01`（Memory Operational Watch / Bounded Retention Growth，slope `≈16.02 MiB/h` > `5.0`、`total_growth ≈14.043 MiB ≤ 64` ⇒ `finding = false`，Acceptance Gate = PASS）**已由 `N01-8` 继续观察并保持开启（`REMAINS`）**（`N01-8` 冻结 AND 门 Formal Finding = `false`；本 Run `RSS growth 77.711 MiB` > `64`、second-half slope `−0.639369 MiB/h`；不得写 `memory resolved` / `memory is fine` / `no memory concern`）；**`N01-8 = ACCEPTED / COMPLETE`**（2026-09-14 Human Acceptance = `CONFIRMED` + Final Acceptance Closeout；Independent Review = `PASS WITH NON-BLOCKING FINDINGS — READY FOR HUMAN ACCEPTANCE`；Human-Accepted reviewed candidate = `d9306ada663a5cacb86bee26218e298169d82e6b`（branch `n01-8-12h-extended-soak`）；单轮 `total_active 44401.217 s`、99/99 aggregate checks True、Baseline Drift = `NO MATERIAL IMPACT`、Targeted Revalidation / Full Rerun = `NOT REQUIRED`；集成方法 = `FAST-FORWARD ONLY`）；Integrated Runtime Host 仍 `NOT STARTED`；**N01 overall = `ACCEPTED / COMPLETE`**（2026-09-14 Human Acceptance = `CONFIRMED` + N01 Overall Final Acceptance Closeout；Overall Final Review = `PASS WITH NON-BLOCKING FINDINGS — READY FOR HUMAN ACCEPTANCE`；Memory P2 `N01-7-R01-RR-P2-01` = `REMAINS` / NON-BLOCKING；`N01-9 = NOT REQUIRED / NOT CREATED`） |
 | Last Accepted Group | SE-02C — Forward Outcome Calculator |
 | Current Group Branch | `se-02c-final-acceptance-closeout`（SE-02C-FINAL；base = immutable reviewed candidate `7bb3835d6b14a3fc86becff1881c7f53f1acd567`；docs/state-only closeout commit，已 fast-forward only 收编 `main`）；reviewed candidate branch `se-02c-fix-02-stable-read-snapshot` @ `7bb3835` 保持 immutable（远端未移动）；Fix-01 branch `se-02c-fix-01-review-blockers` @ `2f986827` 保持 immutable；原候选 `se-02c-forward-outcome-calculator` @ `be3aa6c` 保持 immutable；已验收 lineage `n01-7-r01-witness-b-latest-main` 等不变 |
 
@@ -38,6 +38,15 @@
   activation / live Opportunity → G3 handoff / `SE-02D` / Live Trading 的任何进度。
   Implementation carry-ins：`F-01`（`state_version_for` 必须绑定已接受的 durable
   state/version authority）/ `F-02`（safety queue capacity `64` 仅为初始可配置默认值）。
+- **SE-02D-D01 = `ACCEPTED / COMPLETE`**（2026-09-15 Human Acceptance = `CONFIRMED` + Final
+  Acceptance Closeout；Independent Initial Review = `FAIL — FIX REQUIRED`；FIX-01 Independent
+  Re-Review = `PASS`；`D01-R1` / `D01-R2` = `CLOSED`；`D01-R3` = `CLARIFIED / NON-BLOCKING`；
+  Human-Accepted candidate = `245b068199b7e6f3d32bf67e3b00163e4804afdf`（branch
+  `design/se-02d-d01-family-aggregation-expectancy`，immutable）；Accepted Design artifact =
+  `docs/design/SE-02D/SE-02D-D01-Family-Aggregation-Expectancy-Contract.md`）。
+  ⚠️ 本 Acceptance **仅**接受设计契约，**不**构成 `SE-02D` production implementation
+  （仍 `NOT STARTED`）/ family aggregation / expectancy 实现 / Real AI activation /
+  `Gate C`（`NOT PASSED`）/ `Live`（`NOT AUTHORIZED`）的任何进度（详见 §4 与 §6）。
 - SE-ARCH-FIX-01 Stable Evidence Anchor = `ACCEPTED / COMPLETE`（2026-09-13 Human Acceptance =
   `APPROVED`）：Second Independent Re-Review = `PASS — READY FOR HUMAN ACCEPTANCE`；
   Human-Accepted reviewed candidate = `1e2738b09a4e4a62d91cfa8a6ffd6fcec3c71a21`；
@@ -202,7 +211,7 @@ disposable 库保持空表（症状 `relation "edge_opportunity_evidence" does n
 | Current Group | SE-02C — Forward Outcome Calculator — `ACCEPTED / COMPLETE`（2026-09-14 Human Acceptance = `CONFIRMED` + Final Acceptance Closeout） |
 | Last accepted subgroup | **N01 overall**（`ACCEPTED / COMPLETE`，2026-09-14 Human Acceptance = `CONFIRMED` + N01 Overall Final Acceptance Closeout）；SE-02C / N01-8 / N01-7 / N01-7-R01 / SE-ARCH-FIX-02 / SE-ARCH-FIX-01 / SE-02A / SE-02B / N01-6 / N01-7-F01 / N01-C / N01-A / N01-B 亦维持 `ACCEPTED / COMPLETE` |
 | Next Group Design | `NOT STARTED`（须另开窗口）；已明确**不**自动开始 `SE-02D` / `Integrated Runtime Host`。`N01 Overall Final Review / Acceptance` 已完成（2026-09-14；见 §6「N01 Overall Final Acceptance Closeout — ACCEPTED / COMPLETE」）；下一 Runtime 边界 = `Integrated Runtime Host`（`NOT STARTED`，须由总进度窗口另开独立获批窗口与门，**不得**自动启动） |
-| Next Group name/number | `SE-02C = ACCEPTED / COMPLETE`（2026-09-14 Final Acceptance Closeout；`SE-02C-FIX-01` / `SE-02C-FIX-02` = `ACCEPTED / CLOSED`；`SE02C-R7` = P3 / NON-BLOCKING / NOT FIXED）；`SE-02D｜Family Aggregation / Expectancy = NOT STARTED`；`N01-7 / N01-7-R01 = ACCEPTED / COMPLETE`（遗留 P2 `N01-7-R01-RR-P2-01` 见 §1）；`N01-8｜12-hour Extended Soak = ACCEPTED / COMPLETE`（2026-09-14 Human Acceptance = `CONFIRMED` + Final Acceptance Closeout；Human-Accepted reviewed candidate = `d9306ada`；P2 `N01-7-R01-RR-P2-01` = `REMAINS`，见 §6）；Integrated Runtime Host = `NOT STARTED`；`SE-ARCH-FIX-02 = ACCEPTED / COMPLETE` |
+| Next Group name/number | `SE-02C = ACCEPTED / COMPLETE`（2026-09-14 Final Acceptance Closeout；`SE-02C-FIX-01` / `SE-02C-FIX-02` = `ACCEPTED / CLOSED`；`SE02C-R7` = P3 / NON-BLOCKING / NOT FIXED）；`SE-02D｜Family Aggregation / Expectancy = NOT STARTED`（**`SE-02D-D01` 设计契约 = `ACCEPTED / COMPLETE`**，2026-09-15，见 §6）；`N01-7 / N01-7-R01 = ACCEPTED / COMPLETE`（遗留 P2 `N01-7-R01-RR-P2-01` 见 §1）；`N01-8｜12-hour Extended Soak = ACCEPTED / COMPLETE`（2026-09-14 Human Acceptance = `CONFIRMED` + Final Acceptance Closeout；Human-Accepted reviewed candidate = `d9306ada`；P2 `N01-7-R01-RR-P2-01` = `REMAINS`，见 §6）；Integrated Runtime Host = `NOT STARTED`；`SE-ARCH-FIX-02 = ACCEPTED / COMPLETE` |
 
 - G4 **没有**提前实现完整 Replay / ReplayClock Engine。
 - 仓库中仅存在：`Clock` Protocol 的 `ReplayClock` 实现（`backend/src/marketpulse/clock.py`）与 `RunMode.REPLAY` 枚举（`config.py`）——这是既有 Clock 边界，**不是**完整回放引擎。
@@ -226,6 +235,32 @@ disposable 库保持空表（症状 `relation "edge_opportunity_evidence" does n
 **禁止依赖**：「上一个聊天应该知道」「前一个 AI 说已经做了」「我记得这个功能是……」。
 
 ## 6. Next Step Entry（下一步工作入口）
+
+### SE-02D-D01 Family Aggregation / Expectancy Contract — ACCEPTED / COMPLETE
+
+- 任务：`SE-02D-D01`｜Family Aggregation / Expectancy Contract →
+  `SE-02D-D01-FINAL-REC-01`｜Final Acceptance Closeout / 正交漂移和解（docs/state-only；
+  **非** Implementation、**非** New Design、**非** New Review、**非** Gate C、**非** Live）。
+- 状态：**`SE-02D-D01 = ACCEPTED / COMPLETE`**（2026-09-15 Human Acceptance = `CONFIRMED`）；
+  Independent Initial Review = `FAIL — FIX REQUIRED`；FIX-01 Independent Re-Review = `PASS`；
+  `D01-R1` / `D01-R2` = `CLOSED`；`D01-R3` = `CLARIFIED / NON-BLOCKING`。
+- **Human-Accepted candidate = `245b068199b7e6f3d32bf67e3b00163e4804afdf`**
+  （branch `design/se-02d-d01-family-aggregation-expectancy`，immutable evidence pointer；
+  该 branch **不是** current `main` 的 ancestor —— 本轮以 latest-main content-level
+  carry-forward 收编，`main` 由 `9e0553f5…` fast-forward）。
+- Accepted Design artifact =
+  `docs/design/SE-02D/SE-02D-D01-Family-Aggregation-Expectancy-Contract.md`；
+  closeout branch = `se-02d-d01-final-acceptance-closeout`；Closeout Reconciliation Base =
+  `9e0553f5…`；集成方法 = `FAST-FORWARD ONLY`。
+- 已接受 V1 决策摘要见 `DECISIONS.md` 「SE-02D-D01 V1」条目；完整契约见 Accepted Design
+  artifact（本文件**不**复制契约全文）。
+- ⚠️ **`SE-02D` production implementation = `NOT STARTED`**；本 Acceptance **不**构成
+  family aggregation / expectancy 实现；`Gate C = NOT PASSED`、`Live = NOT AUTHORIZED`、
+  Real AI = `NOT ACTIVATED`。实现前仍存三项独立 prerequisite：**historical revision-as-of =
+  `OPEN`**、**experiment/pair/arm identity = `OPEN`**、**durable regime = `OPEN`**。
+- 边界保持：`PRE-01B-D1 = ACCEPTED / COMPLETE`；`Integrated Runtime Host Implementation =
+  NOT STARTED`；Memory P2 `N01-7-R01-RR-P2-01` 保持 `REMAINS / NON-BLOCKING`。
+- 详见 `dev_log/2026-09-15-se-02d-d01-final-acceptance-closeout.md`。
 
 ### PRE-01B-D1 Integrated Runtime Host Formal Design — ACCEPTED / COMPLETE
 

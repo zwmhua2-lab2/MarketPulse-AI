@@ -84,3 +84,50 @@
     `Integrated Runtime Host Implementation`（`NOT STARTED`）/ runtime validation / Real AI
     activation / G2→G3 activation / `SE-02D` / Live Trading / profitability / edge 的任何进度。
     详见 `dev_log/2026-09-15-pre-01b-d1-final-acceptance-closeout.md`。
+
+- SE-02D-D01 V1（已批准，2026-09-15 Human Acceptance = `CONFIRMED`）：Family Aggregation /
+  Forward-Outcome Expectancy Contract V1（Accepted Design artifact =
+  `docs/design/SE-02D/SE-02D-D01-Family-Aggregation-Expectancy-Contract.md`；Human-Accepted
+  candidate = `245b068199b7e6f3d32bf67e3b00163e4804afdf`，branch
+  `design/se-02d-d01-family-aggregation-expectancy`，immutable；Independent Initial Review =
+  `FAIL — FIX REQUIRED`；FIX-01 Independent Re-Review = `PASS`；`D01-R1` / `D01-R2` = `CLOSED`；
+  `D01-R3` = `CLARIFIED / NON-BLOCKING`；Closeout Reconciliation Base =
+  `9e0553f5dee3fcb4a2dad0b672280657235656aa`；集成方法 = `FAST-FORWARD ONLY`）。冻结以下 V1
+  决策（**仅** Design 层；Implementation 未开始；权威细节以 Accepted Design artifact 为准，
+  本节不复制全文）：
+  - **Canonicalization**：先取完整 visible Evidence revision chain → 校验 → canonical Evidence
+    head → 该 head 的 exact-horizon 完整 visible Outcome chain → canonical Outcome head 或
+    `NO_OUTCOME` → 再由 heads 决定 membership / coverage / measurement compatibility。
+    **Fold complete revision chains before membership**：revision-mutable 字段不得在 head
+    selection 前用于过滤；superseded revision 不保留旧 population sample 或旧经济统计。
+  - **Population Key** = `family_id + family_version + instrument_id + market_type +
+    source_type + source_identity + evidence_contract_version`；**Population Aggregate
+    Identity** = `Population Key + fixed horizon`，它拥有 eligible / maturity / coverage
+    denominator（Outcome 缺失时 coverage membership 仍完整存在）。
+  - **Measurement Signature** = `outcome_contract_version + calculator_version + cost_policy +
+    cost_model_version + outcome_source_type + outcome_source_identity`，只由 canonical Outcome
+    head 派生，**只**负责经济/计算兼容性，不拥有 coverage membership。
+  - **`source_manifest_id` = provenance / stratification**，**不是** population identity、
+    **不是** measurement-signature 字段（有限、预先声明的 comparability rule）。
+  - **Mixed Measurement Signatures** = headline fail closed：`INCOMPATIBLE_MEASUREMENT_SIGNATURES`，
+    coverage 仍完整输出。
+  - **Primary Expectancy** = 唯一 compatible signature 下 `mean(cost_adjusted_forward_return)`
+    over canonical COMPLETE samples；**Primary Horizon = `5m`**；**Secondary Horizons =
+    `30s / 15m / 1h`** 分别报告，不平均、不合并、不换 primary。
+  - **Coverage = population-based**：`COMPLETE / INSUFFICIENT_DATA / INVALID / MISSING_OUTCOME`
+    必须显式输出、不得静默消失；`coverage_rate` / `settlement_rate` 定义见 artifact §8。
+  - **Statistical Sufficiency** = 已接受的确定性规则（无固定 raw N；100% coverage +
+    `n_clusters >= 3` + 非退化 95% interval + interval excludes 0 + leave-one-cluster-out
+    稳定）；**Uncertainty** = 已接受的 deterministic overlap-cluster percentile bootstrap，
+    双侧 95%，**无 SciPy production dependency**。
+  - **Tail Evidence** = `worst_observation` + `worst_decile_mean`；**V1 不设 tail pass/fail
+    threshold**。
+  - **Instrument Pooling = NO**；**K/D/K = SE-02D V1 不输出任何 KEEP / DOWNWEIGHT / KILL
+    label**；**Persistence = deterministic on-demand derived aggregate**（无新表 / migration /
+    worker）；**Regime Gate = `NONE_IN_SE02D_V1`**；**Historical revision-as-of = 无独立
+    prerequisite 前 `NOT SUPPORTED`**。
+  - **边界**：**`SE-02D capability complete != Gate C PASS`**、**`Gate C PASS != Live
+    authorization`**；SE-02D-D01 Acceptance **不**构成 `SE-02D` implementation
+    （`NOT STARTED`）/ family aggregation 实现 / expectancy 实现 / Gate C PASS / Real AI
+    activated / Live authorized；Gate C 前仍需 experiment/pair/arm identity 与 durable regime
+    两个独立 prerequisite。详见 `dev_log/2026-09-15-se-02d-d01-final-acceptance-closeout.md`。

@@ -16,6 +16,17 @@ FINDINGS — READY FOR HUMAN ACCEPTANCE`；Human-Accepted reviewed candidate =
 
 SE-02D — Family Aggregation / Expectancy — NOT STARTED
 
+SE-02D-D01 — Family Aggregation / Expectancy Contract（设计契约）— ACCEPTED / COMPLETE（2026-09-15 Human
+Acceptance = `CONFIRMED` + Final Acceptance Closeout；Independent Initial Review = `FAIL — FIX
+REQUIRED`；FIX-01 Independent Re-Review = `PASS`；`D01-R1` / `D01-R2` = `CLOSED`；`D01-R3` =
+`CLARIFIED / NON-BLOCKING`；Human-Accepted candidate =
+`245b068199b7e6f3d32bf67e3b00163e4804afdf`，branch
+`design/se-02d-d01-family-aggregation-expectancy`，immutable；Accepted Design artifact =
+`docs/design/SE-02D/SE-02D-D01-Family-Aggregation-Expectancy-Contract.md`。本轮为**正交漂移
+和解**收尾：PRE-01B-D1 已接受 docs/state 漂移使 candidate 不再是 current `main` 的
+ancestor，内容以 latest-main content-level carry-forward 搬运后 `FAST-FORWARD ONLY`
+集成。**`SE-02D` production implementation 仍 `NOT STARTED`**，详见「SE-02D-D01 Result」）
+
 SE-ARCH-FIX-01 — Stable Evidence Anchor — ACCEPTED / COMPLETE
 
 SE-ARCH-FIX-02 — Outcome Revision Chain Scope — ACCEPTED / COMPLETE（2026-09-13 Human Acceptance = `APPROVED` + Final Main Integration Closeout）
@@ -116,7 +127,9 @@ state/version authority）/ `F-02`（safety queue capacity `64` 仅为初始可�
   Fix-02 implementation `6b084595` 均保持 immutable；`SE-02C-FIX-01` / `SE-02C-FIX-02` =
   `ACCEPTED / CLOSED`；已 fast-forward only 收编 `main`；`SE02C-R7` = P3 / NON-BLOCKING /
   NOT FIXED；`Schema Changed = NO`、`Migration Added = NO`，单 head 仍 `20260913_0009`）；
-  `SE-02D = NOT STARTED`
+  `SE-02D = NOT STARTED`（**`SE-02D-D01` 设计契约 =
+  `ACCEPTED / COMPLETE`**，2026-09-15 Human Acceptance = `CONFIRMED` + Final
+  Acceptance Closeout；`SE-02D` production implementation 仍 `NOT STARTED`）
 
 ## Branch / Source
 
@@ -492,7 +505,11 @@ state/version authority）/ `F-02`（safety queue capacity `64` 仅为初始可�
   见 `dev_log/2026-09-13-se-02c-forward-outcome-calculator.md` 与
   `dev_log/2026-09-14-se-02c-final-acceptance-closeout.md`。
 - **SE-02D｜Family Aggregation / Expectancy = `NOT STARTED`**（family aggregation、expectancy、
-  KEEP / DOWNWEIGHT / KILL 均未实现）。
+  KEEP / DOWNWEIGHT / KILL 均未实现）。**`SE-02D-D01`（Family Aggregation / Expectancy
+  Contract，设计层）= `ACCEPTED / COMPLETE`**（2026-09-15 Human Acceptance = `CONFIRMED` +
+  Final Acceptance Closeout；Human-Accepted candidate = `245b068…`，immutable；Accepted Design
+  artifact = `docs/design/SE-02D/SE-02D-D01-Family-Aggregation-Expectancy-Contract.md`；该
+  Acceptance **仅**接受设计契约，**不**构成 `SE-02D` production implementation 的任何进度）。
 - SE-02C 的**验收**（`ACCEPTED / COMPLETE`）**不**构成 SE-02D 的启动授权；SE-02D /
   Integrated Runtime Host 仍须另开窗口并经批准的门执行（该句写于 SE-02C 收尾时；N01-8 其后
   已另行获批并执行完毕，见 Completed 与「N01-8 Result」）。
@@ -1415,3 +1432,43 @@ state/version authority）/ `F-02`（safety queue capacity `64` 仅为初始可�
 - 集成方法 = `FAST-FORWARD ONLY`；closeout branch =
   `pre-01b-d1-final-acceptance-closeout`。
 - 详见 `dev_log/2026-09-15-pre-01b-d1-final-acceptance-closeout.md`。
+
+## SE-02D-D01 Result
+
+- 任务：`SE-02D-D01`｜Family Aggregation / Expectancy Contract → `SE-02D-D01-FINAL`｜Acceptance
+  Closeout（首次尝试 = `BLOCKED — BASELINE MISMATCH`，零仓库改动）→
+  `SE-02D-D01-FINAL-REC-01`｜Final Acceptance Closeout / 正交漂移和解（docs/state-only、
+  **非** Implementation、**非** New Design、**非** New Review、**非** Gate C、**非** Live）。
+- 状态 = `SE-02D-D01 = ACCEPTED / COMPLETE`（2026-09-15 Human Acceptance = `CONFIRMED` +
+  Final Acceptance Closeout）；Independent Initial Review = `FAIL — FIX REQUIRED`；FIX-01
+  Independent Re-Review = `PASS`；`D01-R1` / `D01-R2` = `CLOSED`；`D01-R3` =
+  `CLARIFIED / NON-BLOCKING`。
+- Human-Accepted candidate（**immutable、远端未移动**）=
+  `245b068199b7e6f3d32bf67e3b00163e4804afdf`（branch
+  `design/se-02d-d01-family-aggregation-expectancy`）；其 lineage = `1e7eeb2a → 1b2494c →
+  245b068`，单 parent 线性。
+- Accepted Design artifact =
+  `docs/design/SE-02D/SE-02D-D01-Family-Aggregation-Expectancy-Contract.md`（Artifact status =
+  `ACCEPTED DESIGN`；与 candidate 版差异仅 Acceptance-state / closeout metadata，实质契约语义
+  未改）。
+- 正交漂移和解：首次 `SE-02D-D01-FINAL` 在 preflight 命中 `BASELINE MISMATCH`（remote `main`
+  由 `1e7eeb2a` 前进到 `9e0553f5`；drift = PRE-01B-D1 Formal Design + 其 Final Acceptance
+  Closeout，docs/state-only，不含任何 D01 路径）⇒ 当次 **STOP、零仓库改动**。本轮经 Human 授权
+  以 latest-main content-level carry-forward 和解：closeout branch =
+  `se-02d-d01-final-acceptance-closeout`（从 `9e0553f5` 建立），`git checkout 245b068 -- <3 个
+  exact approved paths>` 精确搬运 2 个 D01 dev_log（与 candidate 字节一致）+ design artifact
+  （随后仅 Acceptance-state 收口）；状态文档以 `9e0553f5` 版为基础做最小同步。**`245b068`
+  **不是**、也**不**被宣称成为 new `main` 的 ancestor —— 它只是 immutable Human-Accepted
+  evidence identity。
+- 集成方法 = `FAST-FORWARD ONLY`（closeout commit 单 parent = `9e0553f5…`；无 merge commit /
+  squash / rebase / cherry-pick / force push；`main` 由 `9e0553f5` fast-forward 到 closeout
+  commit）。
+- 本收尾为 docs/state-only：`Production Code = ZERO CHANGE` / `Tests = ZERO CHANGE` /
+  `Schema / Migration = ZERO CHANGE` / `Config = ZERO CHANGE` / `Runtime Impact = ZERO`；
+  `alembic heads` 单 head 仍 `20260913_0009`（只读，**未**触碰 DB）。
+- 边界：本 Acceptance **仅**接受设计契约本身，**不**构成 `SE-02D` production implementation /
+  family aggregation 实现 / expectancy 实现 / Real AI activation / Gate C PASS / Live 授权；
+  `SE-02D = NOT STARTED`、`Integrated Runtime Host = NOT STARTED`、Real AI =
+  `NOT ACTIVATED`、Live Trading = `DISABLED`。实现前仍存三项独立 prerequisite：historical
+  revision-as-of = `OPEN`、experiment/pair/arm identity = `OPEN`、durable regime = `OPEN`。
+- 详见 `dev_log/2026-09-15-se-02d-d01-final-acceptance-closeout.md`。
