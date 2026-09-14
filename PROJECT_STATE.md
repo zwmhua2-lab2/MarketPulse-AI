@@ -67,6 +67,22 @@ Real AI provider runtime evidence 仍 `NOT PRESENT`；`SE-02D` 仍 `NOT STARTED`
 `NOT ACCEPTED / NOT ACTIVE`。**不**构成 Real AI implementation complete / PRE-01 complete /
 AI edge proven / Runtime Host complete。详见「PRE-01A-D1 Result」）
 
+PRE-01B-D1 — Integrated Runtime Host Formal Design — ACCEPTED / COMPLETE（2026-09-15 Human
+Acceptance = `CONFIRMED` + Final Acceptance Closeout；Independent Review = `PASS WITH
+NON-BLOCKING FINDINGS`；P0 = `NONE` / P1 = `NONE`；Human-Accepted reviewed candidate =
+`80cb2babe9f55b3a3b1dc2d3b7913a405607ac22`，branch `design/pre-01b-d1-runtime-host-contract`，
+immutable；Accepted Design artifact =
+`docs/design/PRE-01B/PRE-01B-D1-Integrated-Runtime-Host-Contract.md`。
+**本 Acceptance 仅接受 Formal Design 本身**：`Integrated Runtime Host
+Implementation` 仍 `NOT STARTED`；Real AI runtime activation 仍
+`NOT STARTED / NOT ACTIVATED`；live Opportunity → G3 integrated handoff 仍
+`NOT ACCEPTED / NOT ACTIVE`；`SE-02D` 仍 `NOT STARTED`；Live Trading 仍 `DISABLED`；
+Memory P2 `N01-7-R01-RR-P2-01` 仍 `REMAINS / NON-BLOCKING`。Implementation carry-ins：
+`F-01`（`state_version_for` 实现必须绑定已接受的 durable
+state/version authority）/ `F-02`（safety queue capacity `64` 仅为初始可配置
+默认值，待 implementation/runtime sizing evidence 验证）。详见
+「PRE-01B-D1 Result」）
+
 ## GitHub Repository
 
 - GitHub Repository Full Name: `zwmhua2-lab2/MarketPulse-AI`
@@ -508,8 +524,16 @@ AI edge proven / Runtime Host complete。详见「PRE-01A-D1 Result」）
   已 fast-forward only 收编 `main`；见 Completed、Acceptance Record 与本文「N01-8 Result」）。
   该项本身不单独构成 `N01 overall` Acceptance（`N01 overall` 已于 2026-09-14 经 N01 Overall
   Final Acceptance Closeout 转 `ACCEPTED / COMPLETE`）。
-- **`Integrated Runtime Host = NOT STARTED`**（须由总进度窗口另开独立获批的任务窗口；
-  本窗口**未**自动开始 Runtime Host）。
+- **`PRE-01B-D1｜Integrated Runtime Host Formal Design = ACCEPTED / COMPLETE`**（2026-09-15 Human
+  Acceptance = `CONFIRMED` + Final Acceptance Closeout；Human-Accepted reviewed candidate =
+  `80cb2ba`，branch `design/pre-01b-d1-runtime-host-contract`，immutable；Independent
+  Review = `PASS WITH NON-BLOCKING FINDINGS`；已 fast-forward only 收编 `main`；
+  见 Current Group 与本文「PRE-01B-D1 Result」）。该 Acceptance **仅**
+  接受 Formal Design，**不** 构成 `Integrated Runtime Host Implementation`
+  的任何进度。
+- **`Integrated Runtime Host Implementation = NOT STARTED`**（Design 已 Accept（`PRE-01B-D1`），
+  但 Implementation 仍须由总进度窗口另开独立获批的任务窗口；
+  本窗口**未**自动开始 Runtime Host Implementation）。
 - **N01-A / N01-B / N01-C / N01-6 / N01-7-F01 / N01-7（N01-7-R01）/ N01-8 均已
   `ACCEPTED / COMPLETE`**（见 Completed）；`N01 overall` 亦已于 2026-09-14 经 N01 Overall
   Final Acceptance Closeout 转 `ACCEPTED / COMPLETE`（该总体结论由独立的 Overall Final
@@ -1348,3 +1372,46 @@ AI edge proven / Runtime Host complete。详见「PRE-01A-D1 Result」）
 - 本收尾为 docs/state-only：`Production Code = ZERO CHANGE` / `Tests = ZERO CHANGE` /
   `Schema / Migration = ZERO CHANGE` / `Runtime Impact = ZERO`。
 - 详见 `dev_log/2026-09-14-pre-01a-d1-real-ai-v1-experiment-contract.md`。
+
+## PRE-01B-D1 Result
+
+- 任务：`PRE-01B-D1`｜Integrated Runtime Host Formal Design →
+  `PRE-01B-D1-CLOSE`｜Acceptance Closeout & Main Integration（docs/state-only、
+  **非** Implementation、**非** New Design、**非** New Review、
+  **非** Runtime validation、**非** Real AI activation、**非** `SE-02D`）。
+- 状态 = `PRE-01B-D1 = ACCEPTED / COMPLETE`（2026-09-15 Human Acceptance = `CONFIRMED`）。
+- Independent Review = `PASS WITH NON-BLOCKING FINDINGS`；P0 = `NONE`；P1 = `NONE`。
+- Human-Accepted reviewed candidate（**immutable、远端未移动**）=
+  `80cb2babe9f55b3a3b1dc2d3b7913a405607ac22`（branch
+  `design/pre-01b-d1-runtime-host-contract`）；其 parent = `1e7eeb2a…`，
+  lineage 为线性单 parent（仅 +1 docs commit）。
+- Accepted Design artifact =
+  `docs/design/PRE-01B/PRE-01B-D1-Integrated-Runtime-Host-Contract.md`（Artifact status =
+  `ACCEPTED / COMPLETE`）。
+- 已接受架构语义（摘要；完整决策见 `DECISIONS.md`
+  「PRE-01B-D1 V1」条目）：`RuntimeHost` = 唯一 production composition
+  owner；FastAPI lifespan = lifecycle anchor（**不**是 process supervisor）；
+  structured concurrency = AnyIO TaskGroup / CancelScope；TaskGroup ≠ 自动 restart
+  supervisor；single process / one Uvicorn worker / reload off；PostgreSQL session advisory
+  lock = duplicate-host defense-in-depth；Host 拥有 DB engine/session lifecycle 与
+  disposal；latest market/BBO observation 可为 ephemeral、durable business/state-version
+  authority 仍为已接受 durable state；recovery-only fresh-BBO warm-up 先于
+  new-risk readiness；Protection path 与 Scanner / 未来 AI backpressure 隔离；
+  G2→G3 live advisory handoff `DEFERRED`；periodic reconciliation = detector-only；
+  OS/service process supervision 在 Host Core 之外。
+- Implementation carry-ins（**必须**带入实现窗口；**不**表示设计
+  有缺陷或未被接受）：`F-01` — `state_version_for` 实现必须显式
+  绑定已接受的 durable state/version authority，`RuntimeHost` /
+  `LiveMarketState` **不得** 自造并行 `state_version` authority；`F-02` —
+  safety queue capacity `64` 仅为**初始可配置默认值**，
+  Implementation Acceptance **必须**用 queue high-water / runtime evidence 验证 sizing，
+  **不是**免证据的永久架构常量。`F-03..F-08` = P3 /
+  NON-BLOCKING 历史 findings，**不**为其单独开 Fix batch。
+- 本 Acceptance **仅**接受 Formal Design，**不**证明 / **不**授权：
+  `Integrated Runtime Host Implementation`（仍 `NOT STARTED`）、runtime validation、
+  Real AI activation、G2→G3 activation、`SE-02D`、Live Trading、profitability / edge。
+- 本收尾为 docs/state-only：`Production Code = ZERO CHANGE` / `Tests = ZERO CHANGE` /
+  `Schema / Migration = ZERO CHANGE` / `Config = ZERO CHANGE` / `Runtime Impact = ZERO`。
+- 集成方法 = `FAST-FORWARD ONLY`；closeout branch =
+  `pre-01b-d1-final-acceptance-closeout`。
+- 详见 `dev_log/2026-09-15-pre-01b-d1-final-acceptance-closeout.md`。

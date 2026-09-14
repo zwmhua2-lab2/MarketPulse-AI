@@ -4,8 +4,11 @@
 
 ```text
 Artifact: PRE-01B-D1 Integrated Runtime Host Contract
-Status: CANDIDATE DESIGN
-Review: PENDING INDEPENDENT REVIEW
+Status: ACCEPTED / COMPLETE
+Human Acceptance: CONFIRMED — 2026-09-15
+Human-Accepted reviewed candidate: 80cb2babe9f55b3a3b1dc2d3b7913a405607ac22
+Independent Review: PASS WITH NON-BLOCKING FINDINGS
+P0 / P1: NONE
 Task type: FORMAL DESIGN / ARCHITECTURE CONTRACT / DOCS ONLY
 Implementation authorized by this artifact: NO
 Runtime activation authorized by this artifact: NO
@@ -711,8 +714,62 @@ Periodic Reconciliation = INCLUDED, detector-only + accepted fail-closed transit
 Memory P2 = telemetry boundary added; finding REMAINS / NON-BLOCKING
 Unnecessary Infrastructure = NONE
 Implementation Blocking Unknowns = NONE
-Artifact Status = CANDIDATE DESIGN / PENDING INDEPENDENT REVIEW
-Task Status = READY FOR INDEPENDENT REVIEW (only after docs validation and candidate push)
+Artifact Status = ACCEPTED / COMPLETE
+Task Status = ACCEPTED / COMPLETE (Human Acceptance 2026-09-15)
 ```
 
-本 verdict 不构成 Human Acceptance，不授权 Implementation、Runtime activation、SE-02D、Real AI 或 Live。
+本 verdict 为设计时点记录；Human Acceptance 见文末「Acceptance Record」（2026-09-15：`PRE-01B-D1 = ACCEPTED / COMPLETE`）。本 Acceptance 仅接受 Formal Design，不授权 Implementation、Runtime activation、SE-02D、Real AI 或 Live。
+
+## Acceptance Record
+
+```text
+Artifact: PRE-01B-D1 Integrated Runtime Host Contract
+Status: ACCEPTED / COMPLETE
+Task type: FORMAL DESIGN / ARCHITECTURE CONTRACT / DOCS ONLY
+Human Acceptance: CONFIRMED — 2026-09-15
+Human-Accepted reviewed candidate: 80cb2babe9f55b3a3b1dc2d3b7913a405607ac22
+Independent Review: PASS WITH NON-BLOCKING FINDINGS
+P0: NONE
+P1: NONE
+Closeout branch: pre-01b-d1-final-acceptance-closeout
+Main integration: FAST-FORWARD ONLY
+Integrated Runtime Host Implementation: NOT STARTED
+```
+
+本 Acceptance **仅** 接受本文件所冻结的
+`Integrated Runtime Host V1` Formal Design。它 **不** 证明、
+**不** 授权：Runtime Host Implementation、runtime validation、
+Real AI activation、G2→G3 activation、`SE-02D`、Live Trading、
+profitability / edge。
+
+协议版本说明：本文档 `Repository Truth` 记录的是
+**设计时点**的 Global Protocol 快照（v1.0.0 / `e92fcc38…`）；
+本次 Human Acceptance 执行时点的实际 accepted protocol 为
+**v1.1.0**（remote `main` = tag `protocol-v1.1.0` =
+`07e2df83266d4ecdea46caff5c61f000937b8913`）。该差异属协议仓库
+自身的版本推进，**不** 改变、**不** 影响本设计
+任何架构语义。
+
+### Implementation Carry-Ins
+
+以下两项 **必须** 带入 `Integrated Runtime Host` 的
+Implementation 窗口；它们 **不** 表示本设计存在缺陷
+或未被接受：
+
+- **F-01**：`state_version_for` 的实现 **必须** 显式绑定
+  已接受的 durable state/version authority；`RuntimeHost` /
+  `LiveMarketState` **不得** 另造一套并行 `state_version` authority。
+- **F-02**：safety queue capacity `64` 只是 **初始可配置默认值**；
+  Implementation Acceptance **必须** 用 queue high-water / runtime evidence 验证其
+  sizing。它 **不是** 免证据的永久架构常量。
+
+`F-03` .. `F-08` = P3 / NON-BLOCKING 历史 review findings；**不** 为其单独开
+Fix batch。
+
+### 收口编辑边界
+
+本次 closeout 对本文件只做了状态级最小同步：
+上方 `Artifact Status` 块、`Candidate Design Verdict` 的 `Artifact Status` /
+`Task Status` 两行、以及 verdict 末句的 supersession 指向。718 行
+设计正文（Problem Statement / Accepted Inputs / Architecture Contract / Invariants /
+Risks 等）**逐字未改**，架构语义保持原样。

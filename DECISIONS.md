@@ -30,3 +30,57 @@
   - **Activation gates**：**Gate A = Provider Shadow Activation**（真实 provider 调用 + durable provenance，零新增风险权限）；**Gate B = Paper Economic Activation**（每 pair 恰好一个预先声明的 authoritative arm，activation/safety gate，不构成 edge 证明）；**Gate C = Selection / Participation Edge Evidence**（仅 selection/participation edge 判定，不授权 Live）。
   - **依赖边界**：**SE-02C = REUSE**（不重算、不重定义其 cost model / horizon identity / revision chain / completeness 语义）；**SE-02D = required before Gate C edge declaration**（family/arm aggregation 与 Expectancy 尚未实现/验收，SE-02D 前 Gate C 不得通过）；**Runtime Host = separate future design/research boundary**（D1 不选型、不设计 asyncio TaskGroup / Docker supervisor / systemd / Celery / Redis / Kafka / Kubernetes）。
   - **边界**：本 Acceptance **不**声称 Real AI implemented / activated、AI edge proven、SE-02D complete、Runtime Host complete 或 Live Trading enabled；Real AI runtime activation 仍 `NOT STARTED / NOT ACTIVATED`，Real AI provider runtime evidence 仍 `NOT PRESENT`，`SE-02D` / `Integrated Runtime Host` 仍 `NOT STARTED`，live Opportunity → G3 integrated handoff 仍 `NOT ACCEPTED / NOT ACTIVE`。详见 `dev_log/2026-09-14-pre-01a-d1-real-ai-v1-experiment-contract.md`。
+
+- PRE-01B-D1 V1（已批准，2026-09-15 Human Acceptance = `CONFIRMED`）：Integrated Runtime Host
+  Formal Design（Accepted Design artifact =
+  `docs/design/PRE-01B/PRE-01B-D1-Integrated-Runtime-Host-Contract.md`；Human-Accepted reviewed
+  candidate = `80cb2babe9f55b3a3b1dc2d3b7913a405607ac22`，branch
+  `design/pre-01b-d1-runtime-host-contract`，immutable；Independent Review = `PASS WITH
+  NON-BLOCKING FINDINGS`；P0 / P1 = `NONE`）。冻结以下架构决策（**仅** Design
+  层；Implementation 未开始）：
+  - **Composition owner**：`RuntimeHost` = 唯一 production composition root / owner；
+    production 只存在一个 Runtime。
+  - **Lifecycle anchor**：FastAPI `lifespan` = Host 唯一 activation boundary（创建 /
+    进入 / 退出）；它 **不是** process supervisor；模块导入与普通
+    request 不创建 Runtime。
+  - **Structured concurrency**：AnyIO TaskGroup / CancelScope 为唯一 Host
+    structured-concurrency model。
+  - **TaskGroup ≠ restart supervisor**：AnyIO TaskGroup 不提供自动 restart 语义；
+    child failure 按失败矩阵 fail closed 并产生 external-restart signal。
+  - **Process model**：single process / one Uvicorn worker / `reload=off`；不得依赖
+    多 worker 共享 Runtime。
+  - **Duplicate fence**：PostgreSQL session advisory lock = duplicate-host
+    defense-in-depth（补充部署约定，非替代）。
+  - **DB ownership**：Host 拥有 DB engine / session lifecycle 与 disposal（补上当前无
+    production engine dispose owner 的缺口）。
+  - **State authority**：latest market / BBO observation 可为 ephemeral；durable business /
+    state-version authority 仍为已接受的 durable state —— Host state 不替代、
+    不重定义 G4 durable state，且 `RuntimeHost` / `LiveMarketState` **不得**自造
+    并行 `state_version` authority。
+  - **Startup ordering**：DB / singleton → recovery-only live BBO warm-up → Recovery +
+    startup reconciliation → bounded safety / G2 runtime → readiness conjunction；
+    recovery-only fresh-BBO warm-up 先于 new-risk readiness。
+  - **Readiness**：API liveness **不**等于 trading readiness；STALE / reconnect / SAFE_MODE /
+    DB failure 返回诚实的 503 + reason。
+  - **Protection isolation**：Protection path 与 Scanner / 未来 AI backpressure 隔离；
+    per-instrument bounded non-lossy safety lanes，safety BBO 永不静默 drop / coalesce；
+    scanner overload 不阻塞 protection。
+  - **Shutdown**：30 s graceful + 5 s shielded disposal reserve；producer-first stop、
+    engine-last dispose。
+  - **G2→G3 live advisory handoff** = `DEFERRED`（Host Core V1 不构造 AI queue /
+    consumer / provider）。
+  - **Real AI** 保持 `NOT ACTIVATED`；本设计不新增 Real AI business timeout 数值，
+    继承 PRE-01A-D1 absolute `decision_deadline_at` 语义。
+  - **Periodic reconciliation** = detector-only（+ 已接受 fail-closed transition），
+    不 repair。
+  - **OS / service process supervision**（如 WinSW）= Host Core 之外的独立边界，
+    future task。
+  - Memory P2 `N01-7-R01-RR-P2-01` 保持 observation-only / `REMAINS / NON-BLOCKING`。
+  - **Implementation carry-ins**：`F-01`（`state_version_for` 实现必须绑定已接受的
+    durable state/version authority）；`F-02`（safety queue capacity `64` = 初始可配置
+    默认值，Implementation Acceptance 必须以 queue high-water / runtime evidence
+    验证 sizing，非免证据永久常量）。
+  - **边界**：本 Acceptance **仅**接受 Formal Design，不构成
+    `Integrated Runtime Host Implementation`（`NOT STARTED`）/ runtime validation / Real AI
+    activation / G2→G3 activation / `SE-02D` / Live Trading / profitability / edge 的任何进度。
+    详见 `dev_log/2026-09-15-pre-01b-d1-final-acceptance-closeout.md`。

@@ -26,6 +26,18 @@
   `docs/design/PRE-01A/PRE-01A-D1-Real-AI-V1-Trade-Decision-Experiment-Contract.md`）。
   **本 Acceptance 仅接受 Real AI V1 设计本身**，不构成 Real AI implementation / activation /
   edge 或 Runtime Host 的任何进度（详见 §3 invariant 11 与 §6）。
+- **PRE-01B-D1 = `ACCEPTED / COMPLETE`**（2026-09-15 Human Acceptance = `CONFIRMED` + Final
+  Acceptance Closeout；Independent Review = `PASS WITH NON-BLOCKING FINDINGS`；P0 = `NONE` /
+  P1 = `NONE`；Human-Accepted reviewed candidate =
+  `80cb2babe9f55b3a3b1dc2d3b7913a405607ac22`（branch
+  `design/pre-01b-d1-runtime-host-contract`，immutable；远端同 SHA、未被移动）；
+  Accepted Design artifact =
+  `docs/design/PRE-01B/PRE-01B-D1-Integrated-Runtime-Host-Contract.md`）。
+  **本 Acceptance 仅接受 Integrated Runtime Host 的 Formal Design**，**不**
+  构成 `Integrated Runtime Host Implementation`（仍 `NOT STARTED`）/ Real AI
+  activation / live Opportunity → G3 handoff / `SE-02D` / Live Trading 的任何进度。
+  Implementation carry-ins：`F-01`（`state_version_for` 必须绑定已接受的 durable
+  state/version authority）/ `F-02`（safety queue capacity `64` 仅为初始可配置默认值）。
 - SE-ARCH-FIX-01 Stable Evidence Anchor = `ACCEPTED / COMPLETE`（2026-09-13 Human Acceptance =
   `APPROVED`）：Second Independent Re-Review = `PASS — READY FOR HUMAN ACCEPTANCE`；
   Human-Accepted reviewed candidate = `1e2738b09a4e4a62d91cfa8a6ffd6fcec3c71a21`；
@@ -214,6 +226,38 @@ disposable 库保持空表（症状 `relation "edge_opportunity_evidence" does n
 **禁止依赖**：「上一个聊天应该知道」「前一个 AI 说已经做了」「我记得这个功能是……」。
 
 ## 6. Next Step Entry（下一步工作入口）
+
+### PRE-01B-D1 Integrated Runtime Host Formal Design — ACCEPTED / COMPLETE
+
+- 任务：`PRE-01B-D1`｜Integrated Runtime Host Formal Design →
+  `PRE-01B-D1-CLOSE`｜Acceptance Closeout & Main Integration（docs/state-only；
+  **非** Implementation、**非** New Design、**非** New Review、
+  **非** Runtime activation、**非** `SE-02D`）。
+- 状态：**`PRE-01B-D1 = ACCEPTED / COMPLETE`**（2026-09-15 Human Acceptance =
+  `CONFIRMED`）。Independent Review = `PASS WITH NON-BLOCKING FINDINGS`；
+  P0 = `NONE`、P1 = `NONE`。
+- **Human-Accepted reviewed candidate = `80cb2babe9f55b3a3b1dc2d3b7913a405607ac22`**
+  （branch `design/pre-01b-d1-runtime-host-contract`，远端同 SHA、immutable、
+  未被移动）。
+- Accepted Design artifact =
+  `docs/design/PRE-01B/PRE-01B-D1-Integrated-Runtime-Host-Contract.md`；closeout branch =
+  `pre-01b-d1-final-acceptance-closeout`；集成方法 = `FAST-FORWARD ONLY`。
+- 已接受架构决策摘要见 `DECISIONS.md` 「PRE-01B-D1 V1」条目；
+  完整契约见 Accepted Design artifact（本文件**不**复制契约全文）。
+- Implementation carry-ins（**必须**带入实现窗口）：`F-01` —
+  `state_version_for` 实现必须显式绑定已接受的 durable state/version
+  authority，`RuntimeHost` / `LiveMarketState` **不得**自造并行 `state_version`
+  authority；`F-02` — safety queue capacity `64` 仅为**初始可配置默认值**，
+  Implementation Acceptance **必须**用 queue high-water / runtime evidence 验证 sizing。
+  `F-03..F-08` = P3 / NON-BLOCKING，**不**为其单独开 Fix batch。
+- ⚠️ 本 Acceptance **只**接受 Formal Design，**不**证明 / 不授权：
+  `Integrated Runtime Host Implementation`（仍 `NOT STARTED`）、runtime validation、
+  Real AI activation、G2→G3 activation、`SE-02D`、Live Trading、profitability / edge。
+- 边界保持：`N01 overall = ACCEPTED / COMPLETE`；Memory P2
+  `N01-7-R01-RR-P2-01` = `REMAINS / NON-BLOCKING`（**禁止**写 `memory resolved` /
+  `memory is fine` / `no memory concern`）；`SE-02D = NOT STARTED`；Real AI =
+  `NOT ACTIVATED`；live Opportunity → G3 = `NOT ACTIVE`；Live Trading = `DISABLED`。
+- 详见 `dev_log/2026-09-15-pre-01b-d1-final-acceptance-closeout.md`。
 
 ### N01-8 12-hour Extended Runtime Soak — ACCEPTED / COMPLETE
 
