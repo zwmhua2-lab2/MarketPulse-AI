@@ -19,6 +19,13 @@
 - G1–G4 acceptance 状态：`ACCEPTED` / `ACCEPTED` / `ACCEPTED` / `ACCEPTED`。
 - G5-0 / G5-1 / G5-2 / G5-3 / G5-4 acceptance 状态：`ACCEPTED`。
 - G5 overall = `ACCEPTED / COMPLETE`。
+- **PRE-01A-D1 = `ACCEPTED / COMPLETE`**（2026-09-14 Human Acceptance = `CONFIRMED` + Final
+  Acceptance Closeout；Independent Re-Review = `PASS`；`D1-R1` / `D1-R2` = `CLOSED`；
+  Human-Accepted candidate = `e3fb721c678e2b3ca0af6fb4663f349c6a641159`（branch
+  `design/pre-01a-d1-real-ai-v1-contract`，immutable）；Accepted Design artifact =
+  `docs/design/PRE-01A/PRE-01A-D1-Real-AI-V1-Trade-Decision-Experiment-Contract.md`）。
+  **本 Acceptance 仅接受 Real AI V1 设计本身**，不构成 Real AI implementation / activation /
+  edge 或 Runtime Host 的任何进度（详见 §3 invariant 11 与 §6）。
 - SE-ARCH-FIX-01 Stable Evidence Anchor = `ACCEPTED / COMPLETE`（2026-09-13 Human Acceptance =
   `APPROVED`）：Second Independent Re-Review = `PASS — READY FOR HUMAN ACCEPTANCE`；
   Human-Accepted reviewed candidate = `1e2738b09a4e4a62d91cfa8a6ffd6fcec3c71a21`；
@@ -168,6 +175,7 @@ disposable 库保持空表（症状 `relation "edge_opportunity_evidence" does n
 8. **`TradePlan.invalidation` = advisory text**（AI/human-readable，非 machine-executable condition；Runtime 不得解析其自然语言）。
 9. **`stop_loss` = 唯一 machine-enforceable hard invalidation**。
 10. **架构冻结**：Python/FastAPI/asyncio backend + React/TypeScript/Vite frontend + PostgreSQL（Docker）；Modular Monolith；默认 `LOCAL_ONLY=true`、`RUN_MODE=TEST`、监听 `127.0.0.1`；Secret 不进入 Git / Frontend / API 返回。
+11. **Real AI V1 设计边界（PRE-01A-D1 ACCEPTED DESIGN，2026-09-14）**：Real AI V1 placement = `C. Trade Decision` only；`AI = Advisory`、`Deterministic System = Authority`（AI 无 repository/risk/execution/accounting/protection handle）；WITHOUT-AI selection benchmark = `ALL_ELIGIBLE_LONG_SHADOW_V1`；V1 causal claim = **Real AI Trade-Decision selection / participation edge only**（treatment = `PARTICIPATE_LONG` vs `NO_LONG`），**不得**扩展为 entry / stop / target / sizing / full `AIAnalysis` package / executed-trade edge；one `decision_invocation_id` → exactly one collision-free logical durable final decision；Single Primary Provider / No automatic fallback / No model voting；Gate A = Provider Shadow Activation、Gate B = Paper Economic Activation、Gate C = Selection / Participation Edge Evidence。指针：`docs/design/PRE-01A/PRE-01A-D1-Real-AI-V1-Trade-Decision-Experiment-Contract.md`。
 
 > 若后续仓库事实已明确改变上述任一边界：以仓库事实为准并报告差异，不把本文件文本当成高于 repository truth 的事实源。
 
@@ -202,6 +210,31 @@ disposable 库保持空表（症状 `relation "edge_opportunity_evidence" does n
 **禁止依赖**：「上一个聊天应该知道」「前一个 AI 说已经做了」「我记得这个功能是……」。
 
 ## 6. Next Step Entry（下一步工作入口）
+
+### PRE-01A-D1 Real AI V1 Trade Decision Experiment Contract — ACCEPTED / COMPLETE
+
+- 任务：PRE-01A-D1｜Real AI V1 Trade Decision Experiment Contract → `PRE-01A-D1-FINAL`｜
+  Acceptance Closeout & Main Integration（docs/state-only 收尾；**非**新实现 / 新设计 /
+  新 Review / Real AI activation / Runtime Host design / SE-02D）。
+- Human Acceptance = `CONFIRMED`（2026-09-14）；Independent Re-Review = `PASS`；
+  `D1-R1` / `D1-R2` = `CLOSED`；**Human-Accepted candidate =
+  `e3fb721c678e2b3ca0af6fb4663f349c6a641159`**（branch `design/pre-01a-d1-real-ai-v1-contract`，
+  远端同 SHA、未被移动）；Accepted Design artifact =
+  `docs/design/PRE-01A/PRE-01A-D1-Real-AI-V1-Trade-Decision-Experiment-Contract.md`。
+- 已接受边界：placement = `C. Trade Decision` only；AI advisory / deterministic authority；
+  baseline = `ALL_ELIGIBLE_LONG_SHADOW_V1`；V1 claim = selection / participation edge only；
+  Single Primary Provider / no fallback / no voting；`SE-02C = REUSE`；
+  `SE-02D = required before Gate C edge declaration`；`Runtime Host = separate future boundary`。
+- 当前 blockers / prerequisites（**均未**由本 Acceptance 解锁）：
+  `SE-02D = NOT STARTED`；`Integrated Runtime Host = NOT STARTED`；
+  live Opportunity → G3 integrated handoff = `NOT ACCEPTED / NOT ACTIVE`；
+  Real AI provider runtime evidence = `NOT PRESENT`（Real AI runtime activation =
+  `NOT STARTED / NOT ACTIVATED`）。
+- ⚠️ `PRE-01A-D1 = ACCEPTED` **≠** Real AI implementation / activation / edge /
+  `SE-02D` / Runtime Host / Live 的任何进度。
+- 收尾后的下一步：**PRE-01A-D1 CLOSED. Do not start Real AI implementation or SE-02D
+  automatically.**
+- 详见 `dev_log/2026-09-14-pre-01a-d1-real-ai-v1-experiment-contract.md`。
 
 ### SE-02C Forward Outcome Calculator — ACCEPTED / COMPLETE
 

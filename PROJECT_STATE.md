@@ -45,7 +45,20 @@ Confirmed + Final Main Integration）；`N01-7 = ACCEPTED / COMPLETE`（2026-09-
 Acceptance = `CONFIRMED` + Final Acceptance Closeout；N01-7-R01 harness fix + latest-main
 targeted revalidation + 全新单轮 2h Acceptance Run：`total_active 7320.252 s`、84/84 checks
 true；已 fast-forward only 收编 `main`）；N01-8 与 Integrated Runtime Host 仍 `NOT STARTED`；
-N01-6 的验收不得推断 Continuous Runtime / soak / 7x24 / Integrated Runtime Host）
+  N01-6 的验收不得推断 Continuous Runtime / soak / 7x24 / Integrated Runtime Host）
+
+PRE-01A-D1 — Real AI V1 Trade Decision Experiment Contract — ACCEPTED / COMPLETE
+
+（2026-09-14 Human Acceptance = `CONFIRMED` + Final Acceptance Closeout；Independent Re-Review =
+`PASS`；`D1-R1` / `D1-R2` = `CLOSED`；Human-Accepted candidate =
+`e3fb721c678e2b3ca0af6fb4663f349c6a641159`，branch `design/pre-01a-d1-real-ai-v1-contract`；
+Accepted Design artifact =
+`docs/design/PRE-01A/PRE-01A-D1-Real-AI-V1-Trade-Decision-Experiment-Contract.md`。
+本 Acceptance 仅接受设计本身：Real AI runtime activation 仍 `NOT STARTED / NOT ACTIVATED`；
+Real AI provider runtime evidence 仍 `NOT PRESENT`；`SE-02D` 仍 `NOT STARTED`；
+`Integrated Runtime Host` 仍 `NOT STARTED`；live Opportunity → G3 integrated handoff 仍
+`NOT ACCEPTED / NOT ACTIVE`。**不**构成 Real AI implementation complete / PRE-01 complete /
+AI edge proven / Runtime Host complete。详见「PRE-01A-D1 Result」）
 
 ## GitHub Repository
 
@@ -1094,3 +1107,40 @@ N01-6 的验收不得推断 Continuous Runtime / soak / 7x24 / Integrated Runtim
   其后 `SE-02C-FIX-02 = ACCEPTED / CLOSED`、`SE-02C = ACCEPTED / COMPLETE`（2026-09-14
   SE-02C-FINAL Human Acceptance + Final Acceptance Closeout）。
 - 详见 `dev_log/2026-09-14-se-02c-fix-02-stable-read-snapshot.md`。
+
+## PRE-01A-D1 Result
+
+- 任务：PRE-01A-D1｜Real AI V1 Trade Decision Experiment Contract → `PRE-01A-D1-FINAL`｜
+  Acceptance Closeout & Main Integration（**非** Implementation、**非** New Design、
+  **非** New Review、**非** Real AI activation、**非** Runtime Host design、**非** SE-02D）。
+  本轮为 docs/state-only 收尾。
+- Acceptance lineage：`PRE-01A Research → S1 Context Pack → DS1 External Evidence → FIX-01
+  → S2 Final Research Verdict → D1 Candidate → Human Review FAIL / FIX REQUIRED → D1-R1
+  → D1-R2 → FIX-01 → Independent Re-Review PASS → Human Acceptance CONFIRMED → Final
+  Acceptance Closeout`。
+- Human-Accepted reviewed candidate（**immutable、远端未移动**）=
+  `e3fb721c678e2b3ca0af6fb4663f349c6a641159`（branch
+  `design/pre-01a-d1-real-ai-v1-contract`）；其父系 = `f612f0afbc5b0e17135364335261345cfe0f6e19`
+  （parent = `b77c80333b85d6e3f1095ac7da9b13e9bf08163a`）；lineage 为线性单 parent。
+- 状态 = `PRE-01A-D1 = ACCEPTED / COMPLETE`（2026-09-14 Human Acceptance = `CONFIRMED`；
+  Independent Re-Review = `PASS`；`D1-R1` / `D1-R2` = `CLOSED`）。
+- Accepted Design artifact =
+  `docs/design/PRE-01A/PRE-01A-D1-Real-AI-V1-Trade-Decision-Experiment-Contract.md`
+  （Artifact status = `ACCEPTED DESIGN`）。
+- 已接受语义（只列已 Human-Accepted 内容）：Real AI V1 placement = `C. Trade Decision` only；
+  `AI = Advisory` / `Deterministic System = Authority`；WITHOUT-AI selection benchmark =
+  `ALL_ELIGIBLE_LONG_SHADOW_V1`；V1 causal claim = Real AI Trade-Decision selection /
+  participation edge only（`PARTICIPATE_LONG` vs `NO_LONG`）；one `decision_invocation_id`
+  → exactly one collision-free logical durable final decision；Single Primary Provider /
+  No automatic fallback / No model voting；Gate A = Provider Shadow Activation、Gate B =
+  Paper Economic Activation、Gate C = Selection / Participation Edge Evidence；
+  `SE-02C = REUSE`；`SE-02D = required before Gate C edge declaration`；
+  `Runtime Host = separate future design / research boundary`。
+- Closeout 后仍**不得**声称：Real AI implemented / Real AI activated / AI edge proven /
+  SE-02D complete / Runtime Host complete / Live Trading enabled；Real AI runtime activation
+  仍 `NOT STARTED / NOT ACTIVATED`；Real AI provider runtime evidence 仍 `NOT PRESENT`；
+  `SE-02D` 与 `Integrated Runtime Host` 仍 `NOT STARTED`；live Opportunity → G3 integrated
+  handoff 仍 `NOT ACCEPTED / NOT ACTIVE`。
+- 本收尾为 docs/state-only：`Production Code = ZERO CHANGE` / `Tests = ZERO CHANGE` /
+  `Schema / Migration = ZERO CHANGE` / `Runtime Impact = ZERO`。
+- 详见 `dev_log/2026-09-14-pre-01a-d1-real-ai-v1-experiment-contract.md`。

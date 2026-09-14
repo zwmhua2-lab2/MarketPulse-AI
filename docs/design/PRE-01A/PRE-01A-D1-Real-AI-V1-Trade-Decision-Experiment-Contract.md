@@ -6,13 +6,18 @@
 
 | Classification | Item | Value |
 |---|---|---|
-| **DESIGN DECISION** | Artifact status | `CANDIDATE DESIGN / PENDING HUMAN REVIEW` |
+| **DESIGN DECISION** | Artifact status | `ACCEPTED DESIGN` |
 | **DESIGN DECISION** | Task type | `DESIGN FIX / DOC-ONLY` |
 | **DESIGN DECISION** | V1 placement | `C. Trade Decision` only |
 | **DESIGN DECISION** | Implementation authority | None |
 | **DESIGN DECISION** | Activation authority | None |
+| **FACT** | Independent Re-Review | `PASS` |
+| **FACT** | D1-R1 | `CLOSED` |
+| **FACT** | D1-R2 | `CLOSED` |
+| **FACT** | Human Acceptance | `CONFIRMED`（2026-09-14） |
+| **FACT** | Human-Accepted Candidate | `e3fb721c678e2b3ca0af6fb4663f349c6a641159`（branch `design/pre-01a-d1-real-ai-v1-contract`，immutable、远端未移动） |
 
-本文件在 Human Acceptance 之前不是 Accepted Design，不授权实现、migration、Runtime Host、provider/model 选择、真实 provider 调用、Paper Economic activation 或 Live Trading。
+本文件自 2026-09-14 Human Acceptance 起为 Accepted Design。Acceptance 只接受本设计本身；**不**授权实现、migration、Runtime Host、provider/model 选择、真实 provider 调用、Paper Economic activation 或 Live Trading —— 这些仍须各自独立获批的后续窗口与门。
 
 ### 1.2 Repository baseline
 
@@ -686,7 +691,7 @@ All items are required:
 | **OPEN QUESTION** | Freeze Gate A Shadow minimum window and operational pass thresholds | No Real AI runtime evidence exists |
 | **OPEN QUESTION** | Freeze Gate C selection-edge primary horizon, minimum sample, uncertainty method, materiality/tail/regime thresholds | Depends on future accepted SE-02D design and sample evidence |
 
-**DESIGN DECISION** — The recommended baseline, arm model and authority boundary are not open implementation choices. They remain Candidate Design pending Human review of this document as a whole.
+**DESIGN DECISION** — The recommended baseline, arm model and authority boundary are not open implementation choices. They are Accepted Design as of the 2026-09-14 Human Acceptance recorded in §1.1.
 
 ## 23. Acceptance Criteria for Future Implementation
 
@@ -739,7 +744,7 @@ Future implementation is not complete unless independent evidence proves every i
 
 ---
 
-## Candidate Design Verdict
+## Accepted Design Verdict
 
 ```text
 Real AI V1 Placement = C. Trade Decision only
@@ -755,5 +760,7 @@ Economic arms = One predeclared authoritative arm + one shadow counterfactual
 Provider fallback / model voting = FORBIDDEN
 SE-02C = REUSE
 SE-02D = REQUIRED BEFORE EDGE DECLARATION / NOT IMPLEMENTED HERE
-Status = CANDIDATE DESIGN / PENDING HUMAN REVIEW
+Status = ACCEPTED DESIGN
+Human Acceptance = CONFIRMED (2026-09-14)
+Human-Accepted Candidate = e3fb721c678e2b3ca0af6fb4663f349c6a641159
 ```
