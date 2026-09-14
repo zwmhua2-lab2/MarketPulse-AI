@@ -46,17 +46,13 @@ HUMAN ACCEPTANCE`；Human-Accepted reviewed candidate =
 
 Integrated Runtime Host — NOT STARTED
 
-N01 overall — NOT ACCEPTED（`N01-7-F01 = ACCEPTED / COMPLETE`（2026-09-13 Human Acceptance
-Confirmed + Final Main Integration）；`N01-7 = ACCEPTED / COMPLETE`（2026-09-14 Human
-Acceptance = `CONFIRMED` + Final Acceptance Closeout；N01-7-R01 harness fix + latest-main
-targeted revalidation + 全新单轮 2h Acceptance Run：`total_active 7320.252 s`、84/84 checks
-true；已 fast-forward only 收编 `main`）；**`N01-8 = ACCEPTED / COMPLETE`**（2026-09-14 Human
-Acceptance = `CONFIRMED` + Final Acceptance Closeout；单轮 `total_active 44401.217 s`、99/99
-aggregate checks True；Memory P2 `N01-7-R01-RR-P2-01` 仍 `REMAINS`；已 fast-forward only
-收编 `main`）；`Integrated Runtime Host` 仍 `NOT STARTED`；
-**本总体验收状态不由任何单门 N01 验收自动推进** —— `N01 overall` 须另行独立
-Final Review / Acceptance；
-  N01-6 的验收不得推断 Continuous Runtime / soak / 7x24 / Integrated Runtime Host）
+N01 overall — ACCEPTED / COMPLETE（2026-09-14 Human Acceptance = `CONFIRMED` + N01 Overall
+Final Acceptance Closeout；Overall Final Review = `PASS WITH NON-BLOCKING FINDINGS — READY
+FOR HUMAN ACCEPTANCE`；已 fast-forward only 收编 `main`。所含已验收门：`N01-A` / `N01-B` /
+`N01-VAL-FIX-01/02/03` / `N01-C` / `N01-6` / `N01-7-F01` / `N01-7`（`N01-7-R01`）/ `N01-8`
+全部 `ACCEPTED / COMPLETE`；该总体结论由独立的 Overall Final Review / Acceptance 确立，
+不由任何单门 N01 验收自动推断；`Integrated Runtime Host` 仍 `NOT STARTED`；Memory P2
+`N01-7-R01-RR-P2-01` = `REMAINS` / NON-BLOCKING；`N01-9 = NOT REQUIRED / NOT CREATED`）
 
 PRE-01A-D1 — Real AI V1 Trade Decision Experiment Contract — ACCEPTED / COMPLETE
 
@@ -85,13 +81,15 @@ AI edge proven / Runtime Host complete。详见「PRE-01A-D1 Result」）
   `N01-7-F01 ACCEPTED / COMPLETE`（2026-09-13 Human Acceptance Confirmed + Final Main
   Integration，已 fast-forward only 收编 `main`）；`N01-C ACCEPTED / COMPLETE`；
   `N01-6 ACCEPTED / COMPLETE`；N01-A / N01-B 与
-  `N01-VAL-FIX-01/02/03` 均维持已验收结论，N01 overall 仍未验收；
+  `N01-VAL-FIX-01/02/03` 均维持已验收结论；`N01 overall = ACCEPTED / COMPLETE`
+  （2026-09-14 Human Acceptance = `CONFIRMED` + N01 Overall Final Acceptance Closeout）；
   **`N01-7` / `N01-7-R01 ACCEPTED / COMPLETE`**（2026-09-14 Human Acceptance = `CONFIRMED` +
   Final Acceptance Closeout，已 fast-forward only 收编 `main`）；
   **`N01-8 ACCEPTED / COMPLETE`**（2026-09-14 Human Acceptance = `CONFIRMED` + Final
   Acceptance Closeout，已 fast-forward only 收编 `main`；`Integrated Runtime Host` 仍
-  `NOT STARTED`）；`N01 overall` 仍 `NOT ACCEPTED`（待独立的 N01 Overall Final Review /
-  Acceptance）；
+  `NOT STARTED`）；`N01 overall = ACCEPTED / COMPLETE`（2026-09-14 Human Acceptance =
+  `CONFIRMED` + N01 Overall Final Acceptance Closeout；Overall Final Review = `PASS WITH
+  NON-BLOCKING FINDINGS — READY FOR HUMAN ACCEPTANCE`）；
   `SE-ARCH-FIX-02 ACCEPTED / COMPLETE`（2026-09-13 Human Acceptance = `APPROVED` + Final Main
   Integration Closeout，已 fast-forward only 收编 `main`）；
   `SE-02C = ACCEPTED / COMPLETE`
@@ -319,7 +317,9 @@ AI edge proven / Runtime Host complete。详见「PRE-01A-D1 Result」）
   `Tests changed = NO` / `Migration changed = NO`；`alembic heads` 单 head `20260912_0006`；
   accepted lineage 仅 fast-forward（`ddf39f2 → 7c0ea7d → Final Acceptance Closeout Commit`）。
   ⚠️ 本验收**不**构成 N01-7 2h soak / N01-8 / Integrated Runtime Host / Continuous Runtime /
-  7×24 / Real AI Edge / Live 的任何进度；`N01 overall` 仍 `NOT ACCEPTED`。详见
+  7×24 / Real AI Edge / Live 的任何进度（本验收不构成 `N01 overall` Acceptance；其后
+  `N01 overall` 已于 2026-09-14 经 N01 Overall Final Acceptance Closeout 转
+  `ACCEPTED / COMPLETE`）。详见
   `dev_log/2026-09-13-n01-7-f01-final-acceptance-closeout.md` 与
   `dev_log/2026-09-12-n01-7-f01-latest-main-integration.md`。
 
@@ -435,8 +435,9 @@ AI edge proven / Runtime Host complete。详见「PRE-01A-D1 Result」）
   operational watch **未**闭合；**不得**写 `memory resolved` / `memory is fine` /
   `no memory concern`。P3 findings（`N01-8-IR-P3-01` / `P3-02` / `P3-03`）保留为
   `NON-BLOCKING`，**未**升级 P1/P0。
-  ⚠️ 本验收**不**构成 `N01 overall` Acceptance，也**不**构成 `Integrated Runtime Host` /
-  Continuous Runtime / 7×24 / `SE-02D` / Real AI Edge / Live 的任何进度。
+  ⚠️ 本验收**不**构成 `Integrated Runtime Host` / Continuous Runtime / 7×24 / `SE-02D` /
+  Real AI Edge / Live 的任何进度（`N01-8` 收尾时 `N01 overall` 尚未验收；其后已于
+  2026-09-14 经 N01 Overall Final Acceptance Closeout 转 `ACCEPTED / COMPLETE`）。
   详见 `dev_log/2026-09-14-n01-8-extended-soak.md`（§47 Final Acceptance Closeout）。
 
 ## In Progress
@@ -500,23 +501,29 @@ AI edge proven / Runtime Host complete。详见「PRE-01A-D1 Result」）
 - **`N01-7 / N01-7-R01 = ACCEPTED / COMPLETE`**（2026-09-14 Human Acceptance = `CONFIRMED` +
   Final Main Integration Closeout；Human-Accepted reviewed candidate = `559f14b`；Accepted Main
   before = `8a29306`；已 fast-forward only 收编 `main`；见 Completed、Acceptance Record 与本文
-  「N01-7 / N01-7-R01 Result」）。该项**不**构成 `N01 overall` Acceptance。
+  「N01-7 / N01-7-R01 Result」）。该项本身不单独构成 `N01 overall` Acceptance（`N01 overall`
+  已于 2026-09-14 经 N01 Overall Final Acceptance Closeout 转 `ACCEPTED / COMPLETE`）。
 - **`N01-8｜12-hour Extended Soak = ACCEPTED / COMPLETE`**（2026-09-14 Human Acceptance =
   `CONFIRMED` + Final Acceptance Closeout；Human-Accepted reviewed candidate = `d9306ada`；
   已 fast-forward only 收编 `main`；见 Completed、Acceptance Record 与本文「N01-8 Result」）。
-  该项**不**构成 `N01 overall` Acceptance。
+  该项本身不单独构成 `N01 overall` Acceptance（`N01 overall` 已于 2026-09-14 经 N01 Overall
+  Final Acceptance Closeout 转 `ACCEPTED / COMPLETE`）。
 - **`Integrated Runtime Host = NOT STARTED`**（须由总进度窗口另开独立获批的任务窗口；
   本窗口**未**自动开始 Runtime Host）。
 - **N01-A / N01-B / N01-C / N01-6 / N01-7-F01 / N01-7（N01-7-R01）/ N01-8 均已
-  `ACCEPTED / COMPLETE`**（见 Completed）；N01 overall 仍未验收，也不由任何单门 N01 验收推断。
-- N01 Continuous Runtime / Soak 本身仍 `NOT ACCEPTED`；不得由 N01-B / N01-6 / N01-7 / N01-8
-  验收推断 N01 整体验收。
+  `ACCEPTED / COMPLETE`**（见 Completed）；`N01 overall` 亦已于 2026-09-14 经 N01 Overall
+  Final Acceptance Closeout 转 `ACCEPTED / COMPLETE`（该总体结论由独立的 Overall Final
+  Review / Acceptance 确立，不由任何单门 N01 验收自动推断）。
+- N01 Continuous Runtime / Soak 线（`N01 overall`）= `ACCEPTED / COMPLETE`（2026-09-14）；
+  其 claim 边界见「N01 Overall Result」与 N01 Overall Final Acceptance Closeout dev_log。
 - N01-6 15m Runtime Smoke、N01-7（含 N01-7-R01）与 N01-8 12h Extended Soak 均已完成 Final
   Acceptance Closeout 并 `ACCEPTED / COMPLETE`（见 Completed 与
   `dev_log/2026-09-12-n01-6-15m-runtime-smoke.md` /
   `dev_log/2026-09-14-n01-7-final-acceptance-closeout.md` /
   `dev_log/2026-09-14-n01-8-extended-soak.md`）。`Integrated Runtime Host` 仍 `NOT STARTED`，
-  须另开窗口并按各自批准的门执行。下一步为独立的 **N01 Overall Final Review / Acceptance**。
+  须另开窗口并按各自批准的门执行。N01 Overall Final Review / Acceptance 已完成
+  （2026-09-14；见「N01 Overall Result」）；下一步的 Runtime 边界为 `Integrated Runtime Host`
+  （`NOT STARTED`，**不得**自动启动）。
 
 ## Blocked
 
@@ -655,7 +662,9 @@ AI edge proven / Runtime Host complete。详见「PRE-01A-D1 Result」）
   `Production code changed = NO` / `Tests changed = NO` / `Migration changed = NO`；
   E1 = `FOREIGN WRITER CONFIRMED`（原始 shared-primary 指纹门 `INVALIDATED BY ENVIRONMENT /
   NON-BLOCKING`）。**不得**由本验收推断 N01-7 2h soak / N01-8 / Integrated Runtime Host /
-  Continuous Runtime / 7×24 / Real AI Edge / Live；`N01 overall` 仍 `NOT ACCEPTED`。
+  Continuous Runtime / 7×24 / Real AI Edge / Live；本验收不构成 `N01 overall` Acceptance
+  （`N01 overall` 其后已于 2026-09-14 经 N01 Overall Final Acceptance Closeout 转
+  `ACCEPTED / COMPLETE`）。
 - N01-7 / N01-7-R01｜2-hour Medium Runtime Soak（含 Witness B Fix + Latest-Main Revalidation）
   = `ACCEPTED / COMPLETE`（2026-09-14；Human Acceptance = `CONFIRMED`；Independent Re-Review =
   `PASS WITH NON-BLOCKING FINDINGS — READY FOR HUMAN ACCEPTANCE`；Human-Accepted reviewed
@@ -687,10 +696,10 @@ AI edge proven / Runtime Host complete。详见「PRE-01A-D1 Result」）
   🚩 P2 `N01-7-R01-RR-P2-01` = `REMAINS`（NON-BLOCKING；冻结 AND 门 Formal Finding = `false`，
   但 operational watch 未闭合；**不得**写 `memory resolved` / `memory is fine` /
   `no memory concern`）。P3 `N01-8-IR-P3-01` / `P3-02` / `P3-03` = `NON-BLOCKING`（**未**升级）。
-  **不得**由本验收推断 `N01 overall` Acceptance、`Integrated Runtime Host` / Continuous
-  Runtime / 7×24 / `SE-02D` / Real AI Edge / Live 的任何进度；`N01 overall` = `NOT ACCEPTED`
-  （下一步 = 独立的 N01 Overall Final Review / Acceptance）；`Integrated Runtime Host` =
-  `NOT STARTED`。
+  **不得**由本验收推断 `Integrated Runtime Host` / Continuous Runtime / 7×24 / `SE-02D` /
+  Real AI Edge / Live 的任何进度（本验收不构成 `N01 overall` Acceptance）；`N01 overall` 已于
+  2026-09-14 经 N01 Overall Final Acceptance Closeout 转 `ACCEPTED / COMPLETE`；
+  `Integrated Runtime Host` = `NOT STARTED`。
 - SE-ARCH-FIX-01｜Stable Evidence Anchor = `ACCEPTED / COMPLETE`（2026-09-13；Human Acceptance =
   `APPROVED`（日期 2026-09-13）；Second Independent Re-Review = `PASS — READY FOR HUMAN
   ACCEPTANCE`；Human-Accepted reviewed candidate = `1e2738b09a4e4a62d91cfa8a6ffd6fcec3c71a21`；
@@ -980,7 +989,8 @@ AI edge proven / Runtime Host complete。详见「PRE-01A-D1 Result」）
   `SE-ARCH-FIX-01 = ACCEPTED / COMPLETE`；`SE-ARCH-FIX-02` 当时为 `IMPLEMENTED /
   READY FOR INDEPENDENT REVIEW`，其后于 2026-09-13 经 Human Acceptance = `APPROVED` 转为
   `ACCEPTED / COMPLETE`（见「SE-ARCH-FIX-02 Result」）；`SE-02C = BLOCKED / NOT STARTED`；
-  `SE-02D = NOT STARTED`；`N01 overall` 仍 `NOT ACCEPTED`。
+  `SE-02D = NOT STARTED`。该段为 SE-ARCH-FIX-01 收尾时状态；`N01 overall` 其后已于
+  2026-09-14 经 N01 Overall Final Acceptance Closeout 转 `ACCEPTED / COMPLETE`。
 - 详见 `dev_log/2026-09-12-se-arch-fix-01-stable-evidence-anchor.md`
   「Human Acceptance + Final Main Integration Closeout｜2026-09-13」。
 
@@ -1059,10 +1069,11 @@ AI edge proven / Runtime Host complete。详见「PRE-01A-D1 Result」）
 - 环境遗留（**未授权清理，原样保留**）：隔离容器 `marketpulse-n01-7-r01-pg` @
   `127.0.0.1:5434` 与 worktree 内 gitignored `.env`（指向 5434）；释放命令
   `docker rm -f -v marketpulse-n01-7-r01-pg`。副作用：在该 worktree 内跑 pytest 会走 5434。
-- ⚠️ `N01-7` / `N01-7-R01` Accepted **≠** `N01 overall` Accepted（仍 `NOT ACCEPTED`），
-  也**≠** `N01-8` MAY START（N01-7 收尾时仍 `NOT STARTED`；其后 N01-8 已另行获批执行并于
-  2026-09-14 经 Human Acceptance 转 `ACCEPTED / COMPLETE`，见「N01-8 Result」）；
-  `Integrated Runtime Host` 仍 `NOT STARTED`。
+- ⚠️ `N01-7` / `N01-7-R01` Accepted **≠** `N01 overall` Accepted（N01-7 收尾时 `N01 overall`
+  尚未验收；其后已于 2026-09-14 经 N01 Overall Final Acceptance Closeout 转
+  `ACCEPTED / COMPLETE`），也**≠** `N01-8` MAY START（N01-7 收尾时仍 `NOT STARTED`；其后
+  N01-8 已另行获批执行并于 2026-09-14 经 Human Acceptance 转 `ACCEPTED / COMPLETE`，见
+  「N01-8 Result」）；`Integrated Runtime Host` 仍 `NOT STARTED`。
 - 详见 `dev_log/2026-09-14-n01-7-final-acceptance-closeout.md` 与
   `dev_log/2026-09-13-n01-7-r01-witness-b-revalidation.md`。
 ## N01-8 Result
@@ -1113,15 +1124,71 @@ AI edge proven / Runtime Host complete。详见「PRE-01A-D1 Result」）
   的格式自然消除，未改写 Human-Accepted candidate commit）；`N01-8-IR-P3-03`（无单独
   supervisor process exit-code artifact；由 phase exit 0、`FINISHED/PASS` 与完整
   raw/stdout/error evidence 补强）。
-- ⚠️ `N01-8 = ACCEPTED / COMPLETE` **≠** `N01 overall` Accepted：`N01 overall` 仍
-  `NOT ACCEPTED`，须另开独立的 **N01 Overall Final Review / Acceptance**；本 Task **未**自动
-  接受 `N01 overall`、**未**启动 Integrated Runtime Host、**未**启动 SE-02D。
+- ⚠️ `N01-8 = ACCEPTED / COMPLETE` **≠** `N01 overall` Accepted：本 Task（N01-8）**未**自动
+  接受 `N01 overall`、**未**启动 Integrated Runtime Host、**未**启动 SE-02D。`N01 overall`
+  其后已于 2026-09-14 经独立的 **N01 Overall Final Acceptance Closeout** 转
+  `ACCEPTED / COMPLETE`（见「N01 Overall Result」），该结论**不**由此 N01-8 Task 推断。
   `Integrated Runtime Host = NOT STARTED`（不构成 Integrated Runtime Host implemented /
   7×24 formal application runtime / production daemon / Live enabled）。
 - 环境遗留（**未授权清理，原样保留**）：容器 `marketpulse-n01-8-pg` @ `127.0.0.1:5440` 与
   worktree `E:\Documents\MarketPulse-AI-n01-8` 内 gitignored `.env`（指向 5440）；释放命令
   `docker rm -f -v marketpulse-n01-8-pg`。
 - 详见 `dev_log/2026-09-14-n01-8-extended-soak.md`（§47 Final Acceptance Closeout）。
+
+## N01 Overall Result
+
+- 任务：`N01`｜Overall Final Acceptance Closeout（Closeout / Integration Task；**非**新 Runtime
+  Validation、**非**新 Independent Review、**非**新实现、**非** N01-9）。
+- Human Acceptance = `CONFIRMED`（2026-09-14）；Overall Independent Review Verdict =
+  `PASS WITH NON-BLOCKING FINDINGS — READY FOR HUMAN ACCEPTANCE`（P0 = `NONE`、P1 = `NONE`）。
+- Closeout Base（= 任务 preflight 实测 remote `main`）=
+  `3f51ac7388627f09a96aeb05419dcfb4492b69f8`（与任务书导航值一致 ⇒ **无** `BASELINE MOVED
+  AFTER TASK DISPATCH`）；closeout branch = `n01-overall-final-acceptance-closeout`；worktree =
+  `E:\Documents\MarketPulse-AI-n01-overall-final-closeout`（clean；会话 cwd 的 dirty 历史
+  branch worktree **未**参与）。
+- Accepted Gate Inventory（全部 `ACCEPTED / COMPLETE`，内容不变）：`N01-A`、`N01-B`、
+  `N01-VAL-FIX-01`、`N01-VAL-FIX-02`、`N01-VAL-FIX-03`、`N01-C`、`N01-6`、`N01-7-F01`、
+  `N01-7`、`N01-7-R01`、`N01-8`。
+- Accepted Claim Boundary：`N01 overall` 仅证明在批准的 validation harness、真实 PostgreSQL、
+  真实 OKX public market data 与 Paper boundary 下，冻结范围内已有的 deterministic runtime
+  lifecycle / task-worker-queue lifecycle / PostgreSQL session lifecycle / reconnect /
+  freshness / stale fail-closed / Paper economic safety / restart / durable recovery /
+  reconciliation / no fabricated historical economics / exactly-once economic safety /
+  durable Position protection authority / 15-minute runtime smoke / 2-hour medium soak /
+  12-hour extended soak / 冻结 resource-memory acceptance checks 已完成并验收；**不得**扩大为
+  其它产品能力。
+- Explicitly NOT Proven / Out of Scope：`Integrated Runtime Host`、FastAPI integrated 7×24
+  daemon、deployment、unattended production supervisor、Live Trading readiness、Real AI runtime
+  activation、Trading Edge、`SE-02D`、SWAP runtime、长期盈利能力 —— 均**未**由本 Acceptance
+  推进：`Integrated Runtime Host = NOT STARTED`、`SE-02D = NOT STARTED`、
+  Real AI runtime activation = `NOT STARTED / NOT ACTIVATED`、`Live = NOT ENABLED`。
+- 🚩 Memory P2 `N01-7-R01-RR-P2-01` = `REMAINS`（P2 / NON-BLOCKING / Memory Operational Watch /
+  Bounded Retention Growth）：N01-8 冻结 AND contract（`growth > 64 MiB` **AND** second-half
+  `slope > 5 MiB/h`）Formal Finding = `FALSE`（`RSS growth 77.711 MiB`、second-half slope
+  `−0.639369 MiB/hour`）⇒ 不阻塞 N01 Overall Acceptance，但 operational watch **未**闭合；
+  **禁止**写 `memory resolved` / `memory is fine` / `memory problem closed` /
+  `no memory concern`。未来观察面 = `Integrated Runtime Host` + 更长无人值守 Paper 运行；
+  **不得**因此创建 `N01-9`。
+- P3 findings（保留、`NON-BLOCKING`、**未**修复 / 关闭 / 升级 / 重分类）：`N01-8-IR-P3-01`
+  （`companion_structures_bounded=false` 属 diagnostic）、`N01-8-IR-P3-02`（candidate EOF
+  whitespace hygiene，historical）、`N01-8-IR-P3-03`（无独立 supervisor exit-code artifact，
+  evidence gap）、`SE02C-R7`（MVCC comment accuracy，Human-Accepted P3 / NON-BLOCKING /
+  NOT FIXED）。
+- Migration Head = `20260913_0009`（单 head，未新增 / 未重写 revision identity）。
+- 集成方法 = `FAST-FORWARD ONLY`（Closeout Base `3f51ac73 → docs/state-only N01 Overall Final
+  Acceptance Closeout Commit`；单 parent；无 merge commit / squash / rebase / cherry-pick /
+  force push）；closeout branch 已推送远端并验证；`main` 以 fast-forward only 更新。
+- 变更面（docs/state-only）：`Production code changed = NO` / `Migration changed = NO` /
+  `Tests changed = NO` / `Frontend changed = NO` / `Runtime config changed = NO` /
+  `PRODUCT_REQUIREMENTS.md changed = NO` / `DECISIONS.md changed = NO`。
+- 最终状态：`N01 overall = ACCEPTED / COMPLETE`；`Human Acceptance = CONFIRMED`；
+  `Overall Final Review = PASS WITH NON-BLOCKING FINDINGS — READY FOR HUMAN ACCEPTANCE`；
+  `Integrated Runtime Host = NOT STARTED`；`N01-9 = NOT REQUIRED / NOT CREATED`。
+- 详见 `dev_log/2026-09-14-n01-overall-final-acceptance-closeout.md`。
+- 下一步：`Integrated Runtime Host`（**NOT STARTED**；须由总进度窗口另开独立获批的窗口与门，
+  **不得**自动启动）。本窗口**未**启动 `Integrated Runtime Host` / `SE-02D` / Real AI
+  implementation，**未**创建 `N01-9`，**未**删除 / 清理任何 historical evidence branch 或
+  N01 raw evidence。
 
 ## SE-02C Result
 
