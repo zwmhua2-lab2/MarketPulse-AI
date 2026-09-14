@@ -8,7 +8,9 @@ SE-02B — Opportunity Capture + Attribution — ACCEPTED / COMPLETE
 
 SE-02C — Forward Outcome Calculator — IMPLEMENTED / FIXED / NOT ACCEPTED（第一次 Independent
 Review = `FAIL — FIX REQUIRED`；修复窗口 `SE-02C-FIX-01` = `IMPLEMENTED / READY FOR
-INDEPENDENT RE-REVIEW`，branch `se-02c-fix-01-review-blockers`；未 merge `main`、未自行 Acceptance）
+INDEPENDENT RE-REVIEW`；其 Independent Re-Review 新发现 R5/R6 后，修复窗口
+`SE-02C-FIX-02` = `IMPLEMENTED / READY FOR INDEPENDENT RE-REVIEW`，branch
+`se-02c-fix-02-stable-read-snapshot`；未 merge `main`、未自行 Acceptance）
 
 SE-02D — Family Aggregation / Expectancy — NOT STARTED
 
@@ -65,18 +67,19 @@ N01-6 的验收不得推断 Continuous Runtime / soak / 7x24 / Integrated Runtim
   Integration Closeout，已 fast-forward only 收编 `main`）；`SE-02C = IMPLEMENTED / FIXED /
   NOT ACCEPTED`（2026-09-13 实现 + 验证窗口 branch `se-02c-forward-outcome-calculator` @
   `be3aa6c`；第一次 Independent Review = `FAIL — FIX REQUIRED`；2026-09-14 修复窗口
-  `SE-02C-FIX-01` = `IMPLEMENTED / READY FOR INDEPENDENT RE-REVIEW`，branch
-  `se-02c-fix-01-review-blockers`，base = 最新 Accepted Main `dd78a979` + 真实 merge 原候选；
+  `SE-02C-FIX-01` 后续 Independent Re-Review 新发现 `SE02C-R5/R6`；2026-09-14 修复窗口
+  `SE-02C-FIX-02` = `IMPLEMENTED / READY FOR INDEPENDENT RE-REVIEW`，branch
+  `se-02c-fix-02-stable-read-snapshot`，base = immutable Fix-01 candidate `2f986827`；
   **未** merge `main`、**未**自行 Acceptance；`Schema Changed = NO`、`Migration Added = NO`，
   单 head 仍 `20260913_0009`）；`SE-02D = NOT STARTED`
 
 ## Branch / Source
 
 - Current Accepted Branch: `main`
-- Current Group Branch: `se-02c-fix-01-review-blockers`（SE-02C-FIX-01｜Review Blockers 修复；
-  base = 最新 Accepted Main `dd78a979d128dee385c7a8ddc2254a53366af714`，以 **真实 merge**
-  （`--no-ff`）集成原已复审候选 `be3aa6c817582f6161ea9903f7824200b7f5c843`；**等待
-  Independent Re-Review**，**未** merge `main`、**未** push `main`）；原已复审候选 branch
+- Current Group Branch: `se-02c-fix-02-stable-read-snapshot`（SE-02C-FIX-02｜Stable Read
+  Snapshot；base = immutable Fix-01 candidate `2f9868278ab1652c4e338ffb01337c6e736545d9`；
+  **等待 Independent Re-Review**，**未** merge `main`、**未** push `main`）；Fix-01 branch
+  `se-02c-fix-01-review-blockers` @ `2f986827` 保持 immutable；原已复审候选 branch
   `se-02c-forward-outcome-calculator` @ `be3aa6c`（**immutable，保留未改写**）；已验收 lineage
   `n01-7-r01-witness-b-latest-main`（N01-7 / N01-7-R01；closeout 直接在已复审候选 tip
   `559f14b` 上线性 +1 docs/state-only commit，仅 fast-forward 收编至 `main`，历史分支保留）；
@@ -948,8 +951,9 @@ N01-6 的验收不得推断 Continuous Runtime / soak / 7x24 / Integrated Runtim
   BLOCKING，`SE02C-R4` = P2 NON-BLOCKING）。
 - 未决语义点 (a)「窗口内只有 anchor BBO 自身时 reason 为 `ENDPOINT_STALE`」已由
   SE-02C-FIX-01 按 Approved semantics 关闭为 `ENDPOINT_MISSING`（anchor 只作 reference
-  authority，不得作 endpoint）；未决语义点 (b)「已结算 scope 事实变化后强制重评估抛
-  `EdgeOutcomeConflict`」行为保持不变（fail closed，不写 revision 2）。
+  authority，不得作 endpoint）；原未决语义点 (b)「已结算 scope 事实变化后强制重评估抛
+  `EdgeOutcomeConflict`」已由 SE-02C-FIX-02 的冻结语义取代：normal evaluator 先取得 scope lock，
+  锁后发现 revision-1 即直接 return existing，不重算、不冲突、不写 revision 2。
 - 详见 `dev_log/2026-09-13-se-02c-forward-outcome-calculator.md`。
 
 ## SE-02C-FIX-01 Result
@@ -980,3 +984,29 @@ N01-6 的验收不得推断 Continuous Runtime / soak / 7x24 / Integrated Runtim
 - 状态：`SE-02C-FIX-01 = IMPLEMENTED / READY FOR INDEPENDENT RE-REVIEW`；
   `SE-02C = IMPLEMENTED / FIXED / NOT ACCEPTED`；`SE-02D = NOT STARTED`。
 - 详见 `dev_log/2026-09-14-se-02c-fix-01-review-blockers.md`。
+
+## SE-02C-FIX-02 Result
+
+- 任务：SE-02C-FIX-02｜Stable Read Snapshot（Implementation + Verification；非 Review、非
+  Human Acceptance）。关闭 `SE02C-R5`（P1 / BLOCKING：分页 SELECT 不共享稳定 snapshot）与
+  `SE02C-R6`（P3 / NON-BLOCKING：pagination/endpoint order docstring 错误）。
+- Latest Accepted Main = `dd78a979d128dee385c7a8ddc2254a53366af714`；Fix-01 Candidate =
+  `2f9868278ab1652c4e338ffb01337c6e736545d9`（immutable）；Fix-02 branch =
+  `se-02c-fix-02-stable-read-snapshot`；worktree =
+  `E:\Documents\MarketPulse-AI-se-02c-fix-02`；Implementation SHA =
+  `6b084595cde9c3e3257046b4694b134954923a4d`。
+- normal evaluator 使用 deterministic same-scope PostgreSQL advisory xact lock；锁后复查
+  revision-1。若不存在，reference + 全部 keyset pages 在同一个独立 `REPEATABLE READ READ
+  ONLY` transaction 中读取；仍持 coordinator lock append/commit。等待者得锁后 return existing，
+  不建立第二 snapshot。
+- 真实 PostgreSQL `postgres:16-alpine` / `PostgreSQL 16.15` @ `127.0.0.1:5443`：cursor-after、
+  cursor-before、fresh snapshot control、two-evaluator + concurrent ForwardPathRecorder 全部通过；
+  B 实测等待 advisory lock，A/B same id/digest/hash，durable revision-1 row = 1，无 conflict。
+- regression：SE-02C service `16 passed`（含真实 50,001）；SE-02A/B + pure calculator/revision
+  `201 passed`；G2 + G5 `62 passed`；G4/N01-7 preservation `105 passed`；full backend
+  `425 passed, 1 warning`；Ruff / compileall / diff-check PASS。
+- `Schema Changed = NO` / `Migration Added = NO`；Alembic / G5 schema head 均为
+  `20260913_0009`。
+- 状态：`SE-02C-FIX-02 = IMPLEMENTED / READY FOR INDEPENDENT RE-REVIEW`；
+  `SE-02C = IMPLEMENTED / FIXED / NOT ACCEPTED`；`SE-02D = NOT STARTED`。
+- 详见 `dev_log/2026-09-14-se-02c-fix-02-stable-read-snapshot.md`。
