@@ -458,6 +458,13 @@ state/version authority）/ `F-02`（safety queue capacity `64` 仅为初始可�
 
 ## In Progress
 
+- **PRE-01B-I1｜Integrated Runtime Host Core Implementation =
+  `IMPLEMENTED / READY FOR INDEPENDENT REVIEW`**（2026-09-15；branch
+  `pre-01b-i1-runtime-host-core`，Task Base `9e0553f5`；候选尚未经人工验收，
+  **未** merge `main`、**未** 移动 `main`、**未** Human Accept。Host Core V1 实现、
+  聚焦测试、disposable PostgreSQL 全量回归与公网 OKX 5 分钟运行验证均已完成；
+  见本文「PRE-01B-I1 Result」与
+  `dev_log/2026-09-15-pre-01b-i1-runtime-host-core.md`）。
 - **SE-ARCH-FIX-01｜Stable Evidence Anchor = `ACCEPTED / COMPLETE`**（2026-09-13 Human Acceptance
   = `APPROVED` + Final Main Integration Closeout）。该 `INTEGRATED / READY FOR INDEPENDENT
   RE-REVIEW` 状态已由本次 Human Acceptance 取代：Second Independent Re-Review =
@@ -1415,3 +1422,38 @@ state/version authority）/ `F-02`（safety queue capacity `64` 仅为初始可�
 - 集成方法 = `FAST-FORWARD ONLY`；closeout branch =
   `pre-01b-d1-final-acceptance-closeout`。
 - 详见 `dev_log/2026-09-15-pre-01b-d1-final-acceptance-closeout.md`。
+
+## PRE-01B-I1 Result
+
+- 任务：`PRE-01B-I1`｜Integrated Runtime Host Core Implementation（Host Core V1）——
+  IMPLEMENTATION / VERIFICATION / CANDIDATE DELIVERY；**非** Human Acceptance、
+  **非** `main` 集成、**非** Real AI / G2→G3 / `SE-02D` / Live Trading。
+- 状态 = `PRE-01B-I1 = IMPLEMENTED / READY FOR INDEPENDENT REVIEW`
+  （**未** `ACCEPTED`、**未** `COMPLETE`）。
+- Task Base = Accepted Main at dispatch =
+  `9e0553f5dee3fcb4a2dad0b672280657235656aa`（执行前实时读取确认，无 drift）。
+- Branch = `pre-01b-i1-runtime-host-core`（候选 commit SHA 以该分支 tip 与
+  Completion Report 为准；不把 commit 自身 SHA 写入其内容）。
+- 实现范围：唯一 production composition owner `RuntimeHost`；FastAPI `lifespan` = 唯一
+  activation boundary（**不**是 process supervisor）；DB engine / session factory
+  ownership + disposal；PostgreSQL session advisory lock（duplicate Host fail closed，
+  **无** schema / migration）；process-local `LiveMarketState`（ephemeral observation ≠
+  durable business authority）；11 步确定性 startup；AnyIO TaskGroup / CancelScope
+  结构化并发（**无** in-process restart supervisor）；safety / scanner 有界 lane
+  隔离（safety 先于 scanner）；liveness / readiness / degraded / Host lifecycle state /
+  durable G4 `SystemState` 严格区分；startup / periodic / final-shutdown
+  reconciliation（detector-only，**不**修复经济事实）；依赖反序有界 shutdown；
+  P2 有界内存遥测（无 unbounded series，**不**宣称 Memory P2 resolved）。
+- Carry-in `F-01` = `PASS`：`state_version_for` 绑定 durable G2
+  `symbol_states.state_version`（经 Host 持有的 `PostgresG2Repository`），**未**自造、
+  递增或从 `LiveMarketState` 推导并行 `state_version` authority。
+- Carry-in `F-02` = `INITIAL DEFAULT = 64`（`runtime_safety_queue_capacity`，可配置）；
+  capacity / current size / high-water / overflow / reject 计数均已暴露，
+  实际 sizing 证据见 dev_log。
+- `Production Scope = PASS`（仅 §15 允许路径）；`Migration = NO` / `Schema = NO` /
+  `G3 Production = NO` / `G4 Production = NO` / `Edge Production = NO` /
+  `Frontend = NO` / `Deployment = NO`。
+- `Real AI Calls = 0` / `G2→G3 live handoff = 0` / `Live Trading = 0`。
+- 本候选**不**解锁任何下游：Real AI、G2→G3 live advisory handoff、`SE-02D`、
+  Live Trading、长期 soak 均保持未启动；`main` 在本任务中保持未移动。
+- 详见 `dev_log/2026-09-15-pre-01b-i1-runtime-host-core.md`。

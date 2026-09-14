@@ -315,6 +315,66 @@ class EventRuntime:
                 transition if persisted else None,
             )
 
+    # ------------------------------------------------------------------ read-only telemetry
+    # Added for the Integrated Runtime Host's bounded observation surface. These accessors
+    # only report accepted G2 state; they never mutate it and never change G2 business or
+    # state-machine semantics.
+
+    @property
+    def worker_tasks(self) -> tuple[asyncio.Task[None], ...]:
+        """The exact accepted finite worker tasks, so their owner can verify liveness."""
+        return tuple(self._workers)
+
+    @property
+    def live_worker_count(self) -> int:
+        return sum(1 for task in self._workers if not task.done())
+
+    @property
+    def done_worker_count(self) -> int:
+        return sum(1 for task in self._workers if task.done())
+
+    @property
+    def queue_size(self) -> int:
+        return self.queue.qsize()
+
+    @property
+    def queue_capacity(self) -> int:
+        return self.queue.maxsize
+
+    @property
+    def inflight_size(self) -> int:
+        return len(self._inflight)
+
+    @property
+    def dedupe_size(self) -> int:
+        return len(self._dedupe)
+
+    @property
+    def dedupe_capacity(self) -> int:
+        return self._dedupe_capacity
+
+    @property
+    def worker_exception_size(self) -> int:
+        return len(self.worker_exceptions)
+
+    @property
+    def worker_exception_capacity(self) -> int:
+        return self._worker_exception_capacity
+
+    def telemetry_snapshot(self) -> dict[str, object]:
+        return {
+            "worker_count_configured": self.worker_count,
+            "worker_count_live": self.live_worker_count,
+            "worker_count_done": self.done_worker_count,
+            "queue_size": self.queue_size,
+            "queue_capacity": self.queue_capacity,
+            "inflight": self.inflight_size,
+            "dedupe_size": self.dedupe_size,
+            "dedupe_capacity": self.dedupe_capacity,
+            "worker_exception_size": self.worker_exception_size,
+            "worker_exception_capacity": self.worker_exception_capacity,
+        }
+
 
 class ScannerPipeline:
     """Connect normalized G1 events to rolling features, scanner facts, and G2 runtime."""
@@ -476,3 +536,22 @@ class ScannerPipeline:
         if not isinstance(event, NormalizedTrade):
             return None
         return (event.exchange, event.instrument_id, event.market_type.value, event.trade_id)
+
+    # ------------------------------------------------------------------ read-only telemetry
+
+    @property
+    def trade_dedupe_size(self) -> int:
+        return len(self._trade_dedupe)
+
+    @property
+    def trade_dedupe_capacity(self) -> int:
+        return self._trade_dedupe_capacity
+
+    def telemetry_snapshot(self) -> dict[str, object]:
+        """Bounded retention sizes only; no unbounded series and no business mutation."""
+        return {
+            "trade_dedupe_size": self.trade_dedupe_size,
+            "trade_dedupe_capacity": self.trade_dedupe_capacity,
+            "btc_return_cache_size": len(self._btc_returns),
+            "last_detected_event_count": len(self.last_detected_events),
+        }
