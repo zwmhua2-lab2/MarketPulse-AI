@@ -281,3 +281,225 @@ main    = f887981d18fd7fc696d99cde702d0fec3e72a16c（本地 = origin = live remo
 ```
 
 未 push、未 merge `main`、未创建 tag（等待 Independent Review）。
+
+> 后续事实更正：该 I01 段落后经 `SE-02D-I01｜Publish Review Evidence` 步骤推送至
+> `origin/se-02d-i01-aggregation-core`（tip = `9cb361a`）。I01 段落原文保留，不重写。
+
+---
+
+# SE-02D-I01-FIX-01｜Deterministic Contract Correctness Blockers
+
+## Task / Status
+
+```text
+Independent Review = FAIL — FIX REQUIRED
+SE02D-I01-R1 / P1 = FIXED / AWAITING INDEPENDENT RE-REVIEW
+SE02D-I01-R2 / P1 = FIXED / AWAITING INDEPENDENT RE-REVIEW
+SE02D-I01-R3 / P1 = FIXED / AWAITING INDEPENDENT RE-REVIEW
+SE-02D-I01-FIX-01 = READY FOR INDEPENDENT RE-REVIEW
+```
+
+Worker **不**把任何 finding 标记为 `CLOSED` / `ACCEPTED`。这些状态属于 Independent
+Re-Review / Human Acceptance。本次修复**不**重设计 SE-02D，**不**启动 I02，**不**触碰 `main`。
+
+## Repository Truth
+
+| 项 | 值 |
+| --- | --- |
+| previous reviewed tip | `9cb361a4169e4db379e7548b3f6ada01aa07c909` |
+| new fix commit（代码） | `77457958c69ed2a9a2a9c42bbad0ad8cdbdc6e7a` |
+| new branch tip | 本 dev_log commit（见 `git log`；自引用不写入文件体） |
+| branch | `se-02d-i01-aggregation-core`（原地追加，未 amend / rebase / squash） |
+| Accepted Main（推送前 / 后） | `f887981d18fd7fc696d99cde702d0fec3e72a16c`（一致） |
+| Global Protocol | `1.1.0 / ACCEPTED`（`refs/tags/protocol-v1.1.0` = `07e2df83266d4ecdea46caff5c61f000937b8913` = `main`） |
+| `BASELINE MISMATCH` | NO |
+
+## Files Changed
+
+```text
+backend/src/marketpulse/edge/aggregation.py        （修改）
+backend/tests/test_se_02d_aggregation.py           （修改）
+dev_log/2026-09-15-se-02d-i01-aggregation-core.md  （本段）
+```
+
+`backend/src/marketpulse/edge/__init__.py` 本次**保持不变**。白名单外路径零改动。
+
+## R1 — Measurement Signature identity encoding collision（FIXED）
+
+**根因**：`MeasurementSignature.canonical_key()` 与 `PopulationKey.canonical_key()` 使用
+`"|".join(f"{name}={value}")` 作为身份编码。字段值本身可能包含 `|` 或 `=`，因此该编码
+**非单射**：两个结构上不同的 signature 可以塌进同一个语义桶。后果实测为
+`status = VALID` / `measurement_signature_state = EXACT` / headline 非 NULL，而 D01 §6.2
+要求 `INCOMPATIBLE_MEASUREMENT_SIGNATURES` / `MIXED` / headline NULL —— 即两个语义不同的
+COMPLETE 测量集被**静默 pool**成一个经济统计。
+
+**修法（语义与诊断严格分离）**：
+
+- **语义 authority** = `MeasurementSignature` 六字段 dataclass 的结构化 equality/hash。
+  `distinct_signatures` 由真实对象集合 `{signature}` 构成，`canonical_key()` 仅用于给该集合
+  一个确定顺序；`EXACT` 分支直接取 `distinct_signatures[0]`，删除了原先"用 key 反查
+  signature 对象"的脆弱路径（该路径在碰撞时会选到**错误**对象）。
+- **诊断/排序渲染** = `canonical_bytes(canonical_payload()).hex()`（复用 G5
+  canonicalization boundary，无新 serializer）。`measurement_signature_counts`、
+  `PopulationKey.canonical_key()`、`CanonicalScopeFacts.sample_id` 全部改用该无损表示。
+- **不**用 SHA digest 作为语义 equality authority；`hashing.py` / `identity.py` 未改。
+- Population Key 字段集合与业务语义未变；`source_manifest_id` 仍不入 Population Key。
+- sample identity 的**语义**去重仍走结构化 tuple `sample_identity()`；只有派生字符串改为
+  collision-safe。
+
+修复前后实测（同一对抗样本，`cost_policy` / `cost_model_version` 之间拆分 `|`）：
+
+```text
+                       pre-FIX                    post-FIX
+canonical_key 碰撞     True                       False
+status                 VALID                      INCOMPATIBLE_MEASUREMENT_SIGNATURES
+signature state        EXACT                      MIXED
+signature_counts       1 个桶                     2 个桶（各 1）
+statistics             NOT NULL                   NULL
+uncertainty            NOT NULL                   NULL
+```
+
+## R2 — headline deterministic arithmetic order（FIXED）
+
+**根因**：`economic_statistics()` 内部无条件 `sorted(returns)` 并按值序累加，丢弃了调用方
+（`aggregate()` 已按 `sample_id` lexical ascending 排好）的顺序；D01 §7.1 末条明确要求
+「计算顺序：按 `sample_id` lexical ascending」。
+
+**修法**：把两个顺序显式分开 ——
+
+- `sample_ordered`（= 调用方给的 `sample_id` 序）用于：headline mean（`math.fsum`）、
+  variance / standard-deviation 累加、正 / 平 / 负计数；
+- `value_sorted`（函数内私有副本）**只**用于数学上必须值序的 order statistics：
+  `median`、`worst_observation`、`worst_decile_mean`。
+
+实测（monkeypatch `math.fsum` 记录操作数顺序）：
+
+```text
+caller 序 [0.5, 0.001, 0.2]
+  pre-FIX  操作数 = [0.001, 0.2, 0.5]   （被数值重排）
+  post-FIX 操作数 = [0.5, 0.001, 0.2]   （保持 sample_id 序）
+端到端 headline 累加序 = sample_id 序；caller 传入顺序不影响结果（permutation invariance 保持）
+```
+
+`math.fsum` 精确舍入且与顺序无关，所以该缺陷**不会**改变数值 —— 这正是它此前未被测试发现的
+原因；但一旦改用普通 `sum()` / `+=` 累积，公开数值会静默改变，故顺序必须由契约冻结。
+
+**未改**：bootstrap 累加顺序、cluster 顺序、LOCO 语义、RNG —— Review 未对其提出 blocker。
+
+## R3 — generated canonical manifest omits Population Key（FIXED）
+
+**根因**：`build_ordered_input_manifest()` 生成的每条 entry 有 `horizon` 但**没有**
+`population_key`，违反 D01 §9.2「每条 entry 至少记录 Population Key + horizon」。
+
+**修法**：每条生成 entry 增加 `"population_key": item.population_key.canonical_payload()`
+（复用冻结投影，不手工重建 key），保留 `"horizon"`。`compute_input_fingerprint()` 的
+**顶层** `population_key` 保留不变（payload 结构未变）。caller 自带 `ordered_input_manifest`
+的路径不变；I01 仍不 fold revision chain，不发明 revision 数据。
+
+## Golden Vector Changes（任务卡 §18）
+
+因生成 manifest 内容变化，受影响链条必须重冻结。实测新旧值：
+
+| 项 | pre-FIX 形状 | post-FIX（已 pin） |
+| --- | --- | --- |
+| generated manifest fingerprint | `6b1808df759d45275a9ec9b6c2a6b94d887aa2881174d3c7e95ef810216511eb` | `4d6f2b40b46fa912f14de87f3d2a79d3f2382171d344e17a9a3bb289f6b73855` |
+| bootstrap seed hex | `e670ea2e47ad7d53c1f51162331ea5614652a4efe55afecc6ae2234a95013e4a` | `fc206f667e0a1b571ab5b36a588946aaaaf909c666fd4280a4ca1b5109e894b8` |
+| real-seed cluster draws（n=3，前 10 个 ordinal） | — | `[0, 1, 2, 1, 0, 2, 1, 1, 2, 0]` |
+
+**保持原值、未受影响**的冻结量：
+
+- `FROZEN_FINGERPRINT` = `3cb82ce8…`、`FROZEN_SEED_HEX` = `919df6df…`、
+  `FROZEN_DRAWS_FROM_REAL_SEED` —— 这三者绑定的是 **caller 自带**
+  `FROZEN_GOLDEN_MANIFEST`，该路径未变，不应改动；
+- `ZERO_SEED` 系 RNG 向量（`FROZEN_DRAWS_N3` / `FROZEN_DRAWS_N7`）与 seed 无关，未改；
+- `SHA256_COUNTER_REJECTION_V1` 算法、counter 编码、rejection 规则、`[249, 9749]` 索引、
+  10 000 replicates、95% 双侧、`n_clusters >= 3` sufficiency、coverage 阈值、tail 语义、
+  overlap clustering、LOCO 语义、`UNCERTAINTY_METHOD_VERSION` —— 全部未改。
+
+## Tests Executed
+
+```text
+PYTHONPATH=backend/src py -3.14 -m pytest backend/tests/test_se_02d_aggregation.py -q
+108 passed in 5.54s
+```
+
+（I01 原有 94 项 + FIX-01 新增 14 项）
+
+FIX-01 新增覆盖：
+
+- **R1**：结构化 six-field equality/hash 为语义 authority；诊断 key 与
+  `canonical_bytes(payload).hex()` 一致、无损、不含未转义分隔符；对抗性 delimiter 碰撞 ⇒
+  `INCOMPATIBLE_MEASUREMENT_SIGNATURES` / `MIXED` / `measurement_signature = NULL` /
+  `statistics = NULL` / `tail_risk = NULL` / `uncertainty = NULL` / `evidence_sufficient = False`，
+  且 `measurement_signature_counts` 为**两个**桶各 1、coverage 仍完整输出；PopulationKey
+  派生 key 碰撞安全且字段集合不变；`sample_id` 碰撞安全。
+- **R2**：`economic_statistics` 的 headline 与 variance 累加操作数 = caller 序，且
+  **≠** 值序重排；值序只用于 `median` / `worst_observation` / `worst_decile_mean`；
+  端到端 headline `math.fsum` 操作数 = `sample_id` lexical 序；caller 传入顺序不影响累加序。
+- **R3**：生成 entry 含 `population_key` + `horizon`；`population_key == canonical_payload()`；
+  去掉该字段会改变 fingerprint 且改变 seed（新旧值均冻结）；post-FIX golden 已 pin。
+
+**反向验证（任务卡 §10「必须对 pre-FIX 失败」）**：以
+`git show 9cb361a:backend/src/marketpulse/edge/aggregation.py` 导出 pre-FIX 源码，按
+`marketpulse.edge._aggregation_pre_fix` 载入（相对 import 仍解析到真实包）并重跑同一对抗样本，
+确认 pre-FIX 行为 = 上述失败态（`VALID` / `EXACT` / 1 个桶 / statistics NOT NULL /
+`uncertainty` NOT NULL / entry 无 `population_key` / 值序重排）。三条全部 **CONFIRMED**。
+
+## Regression
+
+```text
+PYTHONPATH=backend/src py -3.14 -m pytest \
+  backend/tests/test_se_02a_edge_contracts.py \
+  backend/tests/test_se_02c_forward_outcome_calculator.py -q
+99 passed in 0.67s
+```
+
+## Static Verification
+
+```text
+py -3.14 -m ruff check backend/src backend/tests scripts   → All checks passed!
+git diff --check                                          → rc = 0
+```
+
+## Full Backend Suite
+
+```text
+FULL BACKEND SUITE = NOT VERIFIED — FIX-01 worktree 无 `.env` 且环境中无 `DATABASE_URL`，
+因此 `Settings` 回退到共享的 `127.0.0.1:5432/marketpulse`（存活，旧 revision
+`20260905_0004`）；同时不存在隔离的 disposable PostgreSQL 实例（5434/5437/5438/5440/
+5441/5443 全部不可达），且本机有 33 个 sibling worktree 共用该 host。运行全量套件会改动
+共享数据库状态，而不是产出 FIX-01 证据。
+```
+
+## Scope Verification
+
+- changed paths = 3，全部在白名单内；白名单外路径 = **0**；
+- `backend/src/marketpulse/edge/__init__.py` 未改；
+- `DB code changed = NO` / `Migration changed = NO`（单 head 仍为 `20260913_0009`）/
+  `Schema changed = NO` / `Production dependency changed = NO`（无 NumPy / SciPy / pandas）/
+  `Runtime changed = NO` / `Accepted Design changed = NO` / `PROJECT_STATE changed = NO` /
+  `AI_CONTEXT changed = NO` / `DECISIONS changed = NO` / `main changed = NO`；
+- K/D/K、任何 threshold、Gate C、Real AI、Live 均未触及。
+
+## Remaining Limitations（未闭合；禁止写 resolved / no concern）
+
+- I01（含 FIX-01）仍为**纯计算**层；
+- DB revision-chain discovery / folding 仍未实现；
+- current-snapshot / repeatable-read service wiring 仍为未来工作；
+- historical revision-as-of prerequisite 仍 **OPEN**；
+- experiment / pair / arm identity prerequisite 仍 **OPEN**；
+- durable regime prerequisite 仍 **OPEN**；
+- `Gate C = NOT PASSED`；`Live = NOT AUTHORIZED`；
+- R1 / R2 / R3 的正式关闭权属 Independent Re-Review；Human Acceptance 仍 `NOT GRANTED`。
+
+## Git
+
+```text
+previous reviewed tip = 9cb361a4169e4db379e7548b3f6ada01aa07c909
+new fix commit        = 77457958c69ed2a9a2a9c42bbad0ad8cdbdc6e7a
+new branch tip        = 本 dev_log commit（push 后 = origin/se-02d-i01-aggregation-core）
+main                  = f887981d18fd7fc696d99cde702d0fec3e72a16c（推送前后一致）
+```
+
+未 amend / rebase / squash / reset / cherry-pick 重建 / force push；未 push `main`；
+未创建 tag；未开始 I02。
