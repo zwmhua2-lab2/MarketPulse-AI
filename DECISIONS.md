@@ -131,3 +131,25 @@
     （`NOT STARTED`）/ family aggregation 实现 / expectancy 实现 / Gate C PASS / Real AI
     activated / Live authorized；Gate C 前仍需 experiment/pair/arm identity 与 durable regime
     两个独立 prerequisite。详见 `dev_log/2026-09-15-se-02d-d01-final-acceptance-closeout.md`。
+
+- SE-02D-I01（已批准 / 已验收，2026-09-15 Human Acceptance = `CONFIRMED`）：Deterministic
+  Aggregation Core = `ACCEPTED / COMPLETE`；Human-Accepted reviewed candidate =
+  `13b37dff4b8150dea869ba6257ae9f3df24cc1e5`（branch `se-02d-i01-aggregation-core`，
+  immutable）；Independent Initial Review = `FAIL — FIX REQUIRED`；FIX-01 Independent
+  Re-Review = `PASS`；`SE02D-I01-R1` / `R2` / `R3` = `CLOSED`；集成方法 = `FAST-FORWARD
+  ONLY`。权威细节以 Accepted Design artifact 与 `dev_log/2026-09-15-se-02d-i01-aggregation-core.md`
+  为准，本节不复制契约全文。
+  - **实现契约澄清（accepted implementation-contract clarification）**：
+    `UNCERTAINTY_METHOD_VERSION` = `"se02d-overlap-cluster-percentile-bootstrap-v1"`。
+    Accepted `SE-02D-D01` §10.1 要求该 version identifier 进入 deterministic bootstrap seed，
+    但**未**冻结其字面量 ⇒ 由 Human Design Clarification 补齐。它是**已接受**的
+    deterministic overlap-cluster percentile bootstrap V1 的 version identifier，
+    **不修改任何统计语义**（bootstrap 语义、RNG 语义、95% 双侧区间、10,000 replicates、
+    clustering、LOCO、coverage、sufficiency、tail evidence、Gate C 边界均不变）；
+    Accepted D01 design artifact 逐字**未**改。
+  - **边界**：`SE-02D-I01 = ACCEPTED / COMPLETE` **≠** `SE-02D` complete ——
+    `SE-02D Production Implementation = IN PROGRESS`；PostgreSQL loading / revision-chain
+    folding / canonical-head loading / current-snapshot orchestration / service wiring /
+    historical revision-as-of 仍 `NOT IMPLEMENTED`；`Gate C = NOT PASSED`；
+    `Live = NOT AUTHORIZED`。详见
+    `dev_log/2026-09-15-se-02d-i01-final-acceptance-closeout.md`。

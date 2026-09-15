@@ -14,7 +14,16 @@ FINDINGS — READY FOR HUMAN ACCEPTANCE`；Human-Accepted reviewed candidate =
 `ACCEPTED / CLOSED`（implementation `6b084595`）；集成方法 = `FAST-FORWARD ONLY`；
 遗留 `SE02C-R7` = P3 / NON-BLOCKING / NOT FIXED）
 
-SE-02D — Family Aggregation / Expectancy — NOT STARTED
+SE-02D — Family Aggregation / Expectancy — IN PROGRESS（`SE-02D-I01` = `ACCEPTED / COMPLETE`；
+remaining production implementation = `NOT COMPLETE`）
+
+SE-02D-I01 — Deterministic Aggregation Core — ACCEPTED / COMPLETE（2026-09-15 Human Acceptance =
+`CONFIRMED`；Independent Initial Review = `FAIL — FIX REQUIRED`；FIX-01 Independent Re-Review =
+`PASS`；`SE02D-I01-R1` / `SE02D-I01-R2` / `SE02D-I01-R3` = `CLOSED`；Human-Accepted reviewed
+candidate = `13b37dff4b8150dea869ba6257ae9f3df24cc1e5`，branch
+`se-02d-i01-aggregation-core`，immutable；集成方法 = `FAST-FORWARD ONLY`。**`I01 Accepted`
+≠ `SE-02D Complete`**：PostgreSQL 加载 / revision-chain folding / canonical head selection /
+current-snapshot orchestration / service wiring 仍未实现；详见「SE-02D-I01 Result」）
 
 SE-02D-D01 — Family Aggregation / Expectancy Contract（设计契约）— ACCEPTED / COMPLETE（2026-09-15 Human
 Acceptance = `CONFIRMED` + Final Acceptance Closeout；Independent Initial Review = `FAIL — FIX
@@ -25,7 +34,9 @@ REQUIRED`；FIX-01 Independent Re-Review = `PASS`；`D01-R1` / `D01-R2` = `CLOSE
 `docs/design/SE-02D/SE-02D-D01-Family-Aggregation-Expectancy-Contract.md`。本轮为**正交漂移
 和解**收尾：PRE-01B-D1 已接受 docs/state 漂移使 candidate 不再是 current `main` 的
 ancestor，内容以 latest-main content-level carry-forward 搬运后 `FAST-FORWARD ONLY`
-集成。**`SE-02D` production implementation 仍 `NOT STARTED`**，详见「SE-02D-D01 Result」）
+集成。**`SE-02D` production implementation 当时仍 `NOT STARTED`**（SE-02D-D01 收尾时；其后
+`SE-02D-I01` 已于 2026-09-15 经 Human Acceptance 转为 `ACCEPTED / COMPLETE`，父状态
+= `IN PROGRESS`，剩余实现仍 `NOT COMPLETE`；详见「SE-02D-D01 Result」与「SE-02D-I01 Result」）
 
 SE-ARCH-FIX-01 — Stable Evidence Anchor — ACCEPTED / COMPLETE
 
@@ -73,7 +84,9 @@ PRE-01A-D1 — Real AI V1 Trade Decision Experiment Contract — ACCEPTED / COMP
 Accepted Design artifact =
 `docs/design/PRE-01A/PRE-01A-D1-Real-AI-V1-Trade-Decision-Experiment-Contract.md`。
 本 Acceptance 仅接受设计本身：Real AI runtime activation 仍 `NOT STARTED / NOT ACTIVATED`；
-Real AI provider runtime evidence 仍 `NOT PRESENT`；`SE-02D` 仍 `NOT STARTED`；
+Real AI provider runtime evidence 仍 `NOT PRESENT`；`SE-02D` 当时仍 `NOT STARTED`
+（PRE-01A-D1 收尾时；其后 `SE-02D-I01` 已于 2026-09-15 经 Human Acceptance 转为
+`ACCEPTED / COMPLETE`）；
 `Integrated Runtime Host` 仍 `NOT STARTED`；live Opportunity → G3 integrated handoff 仍
 `NOT ACCEPTED / NOT ACTIVE`。**不**构成 Real AI implementation complete / PRE-01 complete /
 AI edge proven / Runtime Host complete。详见「PRE-01A-D1 Result」）
@@ -87,7 +100,9 @@ immutable；Accepted Design artifact =
 **本 Acceptance 仅接受 Formal Design 本身**：`Integrated Runtime Host
 Implementation` 仍 `NOT STARTED`；Real AI runtime activation 仍
 `NOT STARTED / NOT ACTIVATED`；live Opportunity → G3 integrated handoff 仍
-`NOT ACCEPTED / NOT ACTIVE`；`SE-02D` 仍 `NOT STARTED`；Live Trading 仍 `DISABLED`；
+`NOT ACCEPTED / NOT ACTIVE`；`SE-02D` 当时仍 `NOT STARTED`（PRE-01B-D1 收尾时；其后
+`SE-02D-I01` 已于 2026-09-15 经 Human Acceptance 转为 `ACCEPTED / COMPLETE`）；Live Trading
+仍 `DISABLED`；
 Memory P2 `N01-7-R01-RR-P2-01` 仍 `REMAINS / NON-BLOCKING`。Implementation carry-ins：
 `F-01`（`state_version_for` 实现必须绑定已接受的 durable
 state/version authority）/ `F-02`（safety queue capacity `64` 仅为初始可配置
@@ -127,9 +142,10 @@ state/version authority）/ `F-02`（safety queue capacity `64` 仅为初始可�
   Fix-02 implementation `6b084595` 均保持 immutable；`SE-02C-FIX-01` / `SE-02C-FIX-02` =
   `ACCEPTED / CLOSED`；已 fast-forward only 收编 `main`；`SE02C-R7` = P3 / NON-BLOCKING /
   NOT FIXED；`Schema Changed = NO`、`Migration Added = NO`，单 head 仍 `20260913_0009`）；
-  `SE-02D = NOT STARTED`（**`SE-02D-D01` 设计契约 =
-  `ACCEPTED / COMPLETE`**，2026-09-15 Human Acceptance = `CONFIRMED` + Final
-  Acceptance Closeout；`SE-02D` production implementation 仍 `NOT STARTED`）
+  **`SE-02D = IN PROGRESS`**（`SE-02D-I01` = `ACCEPTED / COMPLETE`，2026-09-15 Human Acceptance =
+  `CONFIRMED` + Final Acceptance Closeout；parent production implementation 的剩余部分 =
+  `NOT COMPLETE`；**`SE-02D-D01` 设计契约 = `ACCEPTED / COMPLETE`**，2026-09-15 Human
+  Acceptance = `CONFIRMED` + Final Acceptance Closeout）
 
 ## Branch / Source
 
@@ -504,12 +520,28 @@ state/version authority）/ `F-02`（safety queue capacity `64` 仅为初始可�
   full backend 417 passed、`ruff check` 全绿。
   见 `dev_log/2026-09-13-se-02c-forward-outcome-calculator.md` 与
   `dev_log/2026-09-14-se-02c-final-acceptance-closeout.md`。
-- **SE-02D｜Family Aggregation / Expectancy = `NOT STARTED`**（family aggregation、expectancy、
-  KEEP / DOWNWEIGHT / KILL 均未实现）。**`SE-02D-D01`（Family Aggregation / Expectancy
-  Contract，设计层）= `ACCEPTED / COMPLETE`**（2026-09-15 Human Acceptance = `CONFIRMED` +
-  Final Acceptance Closeout；Human-Accepted candidate = `245b068…`，immutable；Accepted Design
-  artifact = `docs/design/SE-02D/SE-02D-D01-Family-Aggregation-Expectancy-Contract.md`；该
-  Acceptance **仅**接受设计契约，**不**构成 `SE-02D` production implementation 的任何进度）。
+- **SE-02D｜Family Aggregation / Expectancy = `IN PROGRESS`**（parent production
+  implementation 剩余部分 = `NOT COMPLETE`）。**`SE-02D-I01｜Deterministic Aggregation
+  Core`（纯确定性聚合 / 统计内核）= `ACCEPTED / COMPLETE`**（2026-09-15 Human Acceptance =
+  `CONFIRMED` + Final Acceptance Closeout；Independent Initial Review = `FAIL — FIX
+  REQUIRED`；FIX-01 Independent Re-Review = `PASS`；`SE02D-I01-R1` / `R2` / `R3` =
+  `CLOSED`；Human-Accepted reviewed candidate = `13b37df…`（branch
+  `se-02d-i01-aggregation-core`，immutable）；集成方法 = `FAST-FORWARD ONLY`）。
+  - **I01 own 的范围**：pure deterministic aggregation / statistics core
+    （`marketpulse.edge.aggregation`；**不** fold revision chain，只消费已 canonicalize 的
+    scope facts）。
+  - **NOT YET IMPLEMENTED（parent `SE-02D` 剩余部分）**：PostgreSQL loading、full Evidence
+    revision-chain discovery、canonical Evidence-head selection from DB、full Outcome
+    revision-chain discovery、canonical Outcome-head selection from DB、`REPEATABLE READ` /
+    current-snapshot orchestration、final revision manifest construction from DB、
+    service / repository integration、historical revision-as-of support。
+  - ⚠️ **`I01 Accepted` ≠ `SE-02D Complete`**；`SE-02D = IN PROGRESS` **不**构成
+    family aggregation 全量实现 / KEEP / DOWNWEIGHT / KILL / `Gate C = PASS` / `Live` 授权。
+- **`SE-02D-D01`（Family Aggregation / Expectancy Contract，设计层）= `ACCEPTED / COMPLETE`**
+  （2026-09-15 Human Acceptance = `CONFIRMED` + Final Acceptance Closeout；Human-Accepted
+  candidate = `245b068…`，immutable；Accepted Design artifact =
+  `docs/design/SE-02D/SE-02D-D01-Family-Aggregation-Expectancy-Contract.md`；该 Acceptance
+  **仅**接受设计契约）。
 - SE-02C 的**验收**（`ACCEPTED / COMPLETE`）**不**构成 SE-02D 的启动授权；SE-02D /
   Integrated Runtime Host 仍须另开窗口并经批准的门执行（该句写于 SE-02C 收尾时；N01-8 其后
   已另行获批并执行完毕，见 Completed 与「N01-8 Result」）。
@@ -787,7 +819,8 @@ state/version authority）/ `F-02`（safety queue capacity `64` 仅为初始可�
   **非**本 Closeout 重跑）。遗留 `SE02C-R7` = `P3 / NON-BLOCKING / NOT FIXED`（Human Accepted
   non-blocking finding；**未**修改 `edge/forward_service.py` 注释）。
   ⚠️ 本验收**不**构成 `SE-02D` / Family Aggregation / Expectancy / Real AI Edge / Live /
-  N01-8 / Integrated Runtime Host 的任何进度；`SE-02D = NOT STARTED`。
+  N01-8 / Integrated Runtime Host 的任何进度；`SE-02D = NOT STARTED`（SE-02C 收尾时；其后
+  `SE-02D-I01` 已于 2026-09-15 经 Human Acceptance 转为 `ACCEPTED / COMPLETE`）。
 
 ## Group 5-1 Result
 
@@ -991,7 +1024,9 @@ state/version authority）/ `F-02`（safety queue capacity `64` 仅为初始可�
   SE-02B 定向 smoke `46 passed`；`alembic heads` 单 head `20260911_0005`。
 - Closeout 阶段四项不变：`Production code changed = NO`、`Tests changed = NO`、
   `Migration changed = NO`、`Contract changed = NO`。
-- 边界：**SE-02C / SE-02D = `NOT STARTED`**；Forward Outcome Calculator / MFE-MAE / forward
+- 边界：**SE-02C / SE-02D = `NOT STARTED`**（SE-02B 收尾时；其后 `SE-02C` 已于 2026-09-14、
+  `SE-02D-I01` 已于 2026-09-15 经 Human Acceptance 转为 `ACCEPTED / COMPLETE`）；
+  Forward Outcome Calculator / MFE-MAE / forward
   returns / family aggregation / expectancy / KEEP-DOWNWEIGHT-KILL / Real AI Edge / Live /
   N01-7 / N01-8 / Integrated Runtime Host 均不在本批 claim 边界内。
 - 备注：本批次**未**对共享 primary PostgreSQL 库执行任何 migration / downgrade（保留其它窗口状态）。
@@ -1062,7 +1097,9 @@ state/version authority）/ `F-02`（safety queue capacity `64` 仅为初始可�
   `.env`；共享 5432 只读指纹 `20260905_0004` / 24 表，**未**被本批升级；无 disposable 残留。
 - 状态（Implementation 完成时）：`SE-ARCH-FIX-02 = IMPLEMENTED / READY FOR INDEPENDENT
   REVIEW`（当时未 Human Accept、未 merge `main`、未启动 SE-02C）。
-- 边界：**SE-02C / SE-02D = `NOT STARTED`**；Forward Outcome Calculator / MFE-MAE / forward
+- 边界：**SE-02C / SE-02D = `NOT STARTED`**（SE-ARCH-FIX-02 收尾时；其后 `SE-02C` 已于
+  2026-09-14、`SE-02D-I01` 已于 2026-09-15 经 Human Acceptance 转为 `ACCEPTED / COMPLETE`）；
+  Forward Outcome Calculator / MFE-MAE / forward
   returns / family aggregation / expectancy / Real AI Edge / Live / N01-7 / N01-8 /
   Integrated Runtime Host 均不在本批 claim 边界内。`TEST-ISO-01` / `RRF-03` / `RRF-04`
   保持独立 P2，**未**顺手修改。
@@ -1201,7 +1238,8 @@ state/version authority）/ `F-02`（safety queue capacity `64` 仅为初始可�
 - Explicitly NOT Proven / Out of Scope：`Integrated Runtime Host`、FastAPI integrated 7×24
   daemon、deployment、unattended production supervisor、Live Trading readiness、Real AI runtime
   activation、Trading Edge、`SE-02D`、SWAP runtime、长期盈利能力 —— 均**未**由本 Acceptance
-  推进：`Integrated Runtime Host = NOT STARTED`、`SE-02D = NOT STARTED`、
+  推进（N01 Overall 收尾时）：`Integrated Runtime Host = NOT STARTED`、`SE-02D = NOT STARTED`
+  （其后 `SE-02D-I01` 已于 2026-09-15 经 Human Acceptance 转为 `ACCEPTED / COMPLETE`）、
   Real AI runtime activation = `NOT STARTED / NOT ACTIVATED`、`Live = NOT ENABLED`。
 - 🚩 Memory P2 `N01-7-R01-RR-P2-01` = `REMAINS`（P2 / NON-BLOCKING / Memory Operational Watch /
   Bounded Retention Growth）：N01-8 冻结 AND contract（`growth > 64 MiB` **AND** second-half
@@ -1290,7 +1328,9 @@ state/version authority）/ `F-02`（safety queue capacity `64` 仅为初始可�
   - 四项不变：`Production code changed = NO` / `Tests changed = NO` /
     `Migration changed = NO` / `Runtime config changed = NO`。
   - ⚠️ `SE-02C` Accepted **≠** `SE-02D` MAY START：`SE-02D = NOT STARTED`，须另开独立获批的
-    窗口与门；`N01-8` / Integrated Runtime Host 当时亦仍 `NOT STARTED`（SE-02C 收尾时；其后
+    窗口与门（该句为 SE-02C 收尾时；其后 `SE-02D-D01` 与 `SE-02D-I01` 已分别于 2026-09-15
+    经 Human Acceptance 转为 `ACCEPTED / COMPLETE`，父 `SE-02D` = `IN PROGRESS`）；
+    `N01-8` / Integrated Runtime Host 当时亦仍 `NOT STARTED`（SE-02C 收尾时；其后
     N01-8 已于 2026-09-14 经 Human Acceptance 转 `ACCEPTED / COMPLETE`，见「N01-8 Result」）。
   - 详见 `dev_log/2026-09-14-se-02c-final-acceptance-closeout.md`。
 
@@ -1384,7 +1424,9 @@ state/version authority）/ `F-02`（safety queue capacity `64` 仅为初始可�
 - Closeout 后仍**不得**声称：Real AI implemented / Real AI activated / AI edge proven /
   SE-02D complete / Runtime Host complete / Live Trading enabled；Real AI runtime activation
   仍 `NOT STARTED / NOT ACTIVATED`；Real AI provider runtime evidence 仍 `NOT PRESENT`；
-  `SE-02D` 与 `Integrated Runtime Host` 仍 `NOT STARTED`；live Opportunity → G3 integrated
+  `SE-02D` 与 `Integrated Runtime Host` 当时仍 `NOT STARTED`（PRE-01A-D1 收尾时；其后
+  `SE-02D-I01` 已于 2026-09-15 经 Human Acceptance 转为 `ACCEPTED / COMPLETE`）；
+  live Opportunity → G3 integrated
   handoff 仍 `NOT ACCEPTED / NOT ACTIVE`。
 - 本收尾为 docs/state-only：`Production Code = ZERO CHANGE` / `Tests = ZERO CHANGE` /
   `Schema / Migration = ZERO CHANGE` / `Runtime Impact = ZERO`。
@@ -1468,7 +1510,56 @@ state/version authority）/ `F-02`（safety queue capacity `64` 仅为初始可�
   `alembic heads` 单 head 仍 `20260913_0009`（只读，**未**触碰 DB）。
 - 边界：本 Acceptance **仅**接受设计契约本身，**不**构成 `SE-02D` production implementation /
   family aggregation 实现 / expectancy 实现 / Real AI activation / Gate C PASS / Live 授权；
-  `SE-02D = NOT STARTED`、`Integrated Runtime Host = NOT STARTED`、Real AI =
+  `SE-02D = NOT STARTED`（SE-02D-D01 收尾时；其后 `SE-02D-I01` 已于 2026-09-15 经 Human
+  Acceptance 转为 `ACCEPTED / COMPLETE`，父状态 = `IN PROGRESS`）、
+  `Integrated Runtime Host = NOT STARTED`、Real AI =
   `NOT ACTIVATED`、Live Trading = `DISABLED`。实现前仍存三项独立 prerequisite：historical
   revision-as-of = `OPEN`、experiment/pair/arm identity = `OPEN`、durable regime = `OPEN`。
 - 详见 `dev_log/2026-09-15-se-02d-d01-final-acceptance-closeout.md`。
+
+## SE-02D-I01 Result
+
+- 任务：`SE-02D-I01`｜Deterministic Aggregation Core → `SE-02D-I01-FINAL`｜Human-Accepted Final
+  Acceptance Closeout / State Sync / Main Integration（docs/state-only、**非**新实现、**非**
+  新 Review、**非** I02、**非** DB / revision-folding 实现、**非** Gate C、**非** Live）。
+- 状态 = `SE-02D-I01 = ACCEPTED / COMPLETE`（2026-09-15 Human Acceptance = `CONFIRMED`）。
+- Independent Review 历史：Independent Initial Review = `FAIL — FIX REQUIRED`；`SE02D-I01-R1` /
+  `R2` / `R3`（全部 P1）= 由 `SE-02D-I01-FIX-01` 修复；FIX-01 Independent Re-Review = `PASS`；
+  Human Acceptance = `CONFIRMED — 2026-09-15` —— 至此三者记为 `CLOSED`（Worker 不自行宣告
+  `CLOSED`）。
+- Human-Accepted reviewed candidate（**immutable、远端未移动**）=
+  `13b37dff4b8150dea869ba6257ae9f3df24cc1e5`（branch `se-02d-i01-aggregation-core`）。
+- 已接受实现：`backend/src/marketpulse/edge/aggregation.py`（`marketpulse.edge.aggregation`，
+  1549 行）+ `backend/tests/test_se_02d_aggregation.py`；纯确定性（无 DB / runtime / 新
+  dependency / KEEP-DOWNWEIGHT-KILL / threshold）。I01 **不** fold revision chain —— 它消费
+  已 canonicalize 的 scope facts。
+- Human Design Clarification（2026-09-15，已正式同步至 `DECISIONS.md`）：
+  `UNCERTAINTY_METHOD_VERSION = "se02d-overlap-cluster-percentile-bootstrap-v1"` ——
+  Accepted `SE-02D-D01` §10.1 要求该 version identifier 进入 deterministic bootstrap seed，
+  却未冻结其字面量；本次**仅**补齐 version identifier，**不**改变 bootstrap / RNG 语义、
+  95% 区间、10,000 replicates、clustering、LOCO、coverage、sufficiency、tail evidence 或
+  Gate C 边界；Accepted D01 design artifact 逐字**未**修改。
+- 最终回归（closeout 窗口实测，cwd = closeout worktree、未导出 `DATABASE_URL`）：focused
+  `108 passed`；SE-02A/SE-02C 命名回归 `99 passed`；
+  `ruff check backend/src backend/tests scripts` = `All checks passed!`；
+  `git diff --check` rc=0。`FULL BACKEND SUITE = NOT VERIFIED — isolated DB environment
+  unavailable`（本批次为纯模块，已接受范围不需要 DB；不制造 PASS）。
+- 集成：Accepted Main before = `f887981d18fd7fc696d99cde702d0fec3e72a16c`；closeout branch =
+  `se-02d-i01-final-acceptance-closeout`（base = `13b37dff…`）；集成方法 = `FAST-FORWARD
+  ONLY`（单 parent、无 merge commit / squash / rebase / cherry-pick / force push /
+  candidate branch movement）。lineage：
+  `f887981 → 0c8c095 → 9cb361a → 7745795 → 13b37df → I01 Final Closeout`。
+- 本收尾为 docs/state-only：`Production Code Changed After Review = NO` / `Tests Changed
+  After Review = NO` / `Schema Changed = NO` / `Migration Added = NO` / `Production
+  Dependency Changed = NO` / `Runtime Impact of Closeout = ZERO`；`alembic heads` 单 head 仍
+  `20260913_0009`。
+- 剩余 `SE-02D` 工作（I01 **未** own、仍未实现）：PostgreSQL loading、full Evidence
+  revision-chain discovery、canonical Evidence-head selection from DB、full Outcome
+  revision-chain discovery、canonical Outcome-head selection from DB、`REPEATABLE READ` /
+  current-snapshot orchestration、final revision manifest construction from DB、
+  service / repository integration、historical revision-as-of support。
+  **`I01 Accepted` ≠ `SE-02D Complete`**；`SE-02D Production Implementation = IN PROGRESS`。
+- 边界：`Gate C = NOT PASSED`；`Live = NOT AUTHORIZED`；Real AI = `NOT ACTIVATED`；
+  `Integrated Runtime Host = NOT STARTED`；三项 prerequisite（historical revision-as-of /
+  experiment/pair/arm identity / durable regime）仍 `OPEN`。本收尾**不**解锁 `I02`。
+- 详见 `dev_log/2026-09-15-se-02d-i01-final-acceptance-closeout.md`。

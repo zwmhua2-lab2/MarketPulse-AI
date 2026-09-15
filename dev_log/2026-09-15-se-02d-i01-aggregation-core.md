@@ -503,3 +503,92 @@ main                  = f887981d18fd7fc696d99cde702d0fec3e72a16c（推送前后�
 
 未 amend / rebase / squash / reset / cherry-pick 重建 / force push；未 push `main`；
 未创建 tag；未开始 I02。
+
+---
+
+# SE-02D-I01-FINAL｜Human Acceptance Record（2026-09-15）
+
+本节由 `SE-02D-I01-FINAL` 收尾窗口**追加**；上方 I01 与 FIX-01 的 Worker 状态原文保留、
+**不重写**。
+
+## Review History
+
+```text
+Independent Initial Review
+= FAIL — FIX REQUIRED
+
+SE02D-I01-R1 / P1
+= CLOSED
+
+SE02D-I01-R2 / P1
+= CLOSED
+
+SE02D-I01-R3 / P1
+= CLOSED
+
+SE-02D-I01-FIX-01 Independent Re-Review
+= PASS
+```
+
+R1 / R2 / R3 的 `CLOSED` 状态由 Independent Re-Review 的 `PASS` 确立；FIX-01 窗口的 Worker
+只报 `FIXED / AWAITING INDEPENDENT RE-REVIEW`，**未**自行宣告 `CLOSED`。
+
+## Human Acceptance
+
+```text
+Human Acceptance
+= CONFIRMED — 2026-09-15
+
+Human-Accepted Reviewed Candidate
+= 13b37dff4b8150dea869ba6257ae9f3df24cc1e5
+```
+
+## Human Design Clarification（正式状态同步）
+
+```text
+UNCERTAINTY_METHOD_VERSION
+= "se02d-overlap-cluster-percentile-bootstrap-v1"
+```
+
+该字面量已在 `SE-02D-I01-FINAL` 中正式同步至 `DECISIONS.md`（accepted
+implementation-contract clarification）。它**不**改变 bootstrap 语义、RNG 语义、95% 区间、
+10,000 replicates、clustering、LOCO、coverage、sufficiency、tail evidence 或 Gate C 边界；
+Accepted `SE-02D-D01` design artifact 逐字**未**修改。
+
+## Final Regression（收尾窗口实测）
+
+```text
+PYTHONPATH=backend/src py -3.14 -m pytest backend/tests/test_se_02d_aggregation.py -q
+108 passed
+
+PYTHONPATH=backend/src py -3.14 -m pytest backend/tests/test_se_02a_edge_contracts.py \
+  backend/tests/test_se_02c_forward_outcome_calculator.py -q
+99 passed
+
+py -3.14 -m ruff check backend/src backend/tests scripts
+All checks passed!
+
+git diff --check
+rc = 0
+
+FULL BACKEND SUITE
+= NOT VERIFIED — isolated DB environment unavailable
+```
+
+## Boundary（未闭合；禁止写 resolved / no concern）
+
+- 本批次（含 FIX-01）仍为**纯计算**层；DB revision-chain discovery / folding **未**实现；
+- current-snapshot / repeatable-read service wiring 仍为未来工作；
+- historical revision-as-of / experiment-pair-arm identity / durable regime 三项 prerequisite
+  仍 **OPEN**；
+- `Gate C = NOT PASSED`；`Live = NOT AUTHORIZED`；`SE-02D-I01-FINAL` **不**解锁 `I02`。
+
+## Git
+
+```text
+Human-Accepted reviewed candidate = 13b37dff4b8150dea869ba6257ae9f3df24cc1e5
+candidate branch                  = se-02d-i01-aggregation-core（immutable，未移动）
+closeout branch                   = se-02d-i01-final-acceptance-closeout
+Accepted Main before              = f887981d18fd7fc696d99cde702d0fec3e72a16c
+集成方法                          = FAST-FORWARD ONLY
+```
