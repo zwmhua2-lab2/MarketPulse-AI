@@ -53,7 +53,7 @@ backend/tests/test_runtime_host.py
 scripts/verify_pre_01b_runtime_host.py
 ```
 
-`git status --porcelain --untracked-files=all` = 5 条（无临时文件残留）。
+`git status --porcelain --untracked-files=all` = **6 条**（5 个 `M` + 本 dev_log 的 `??`；无临时文件残留、无禁止路径）。
 
 ## 3. 修复前的机制取证（先取证，再改代码）
 
@@ -204,7 +204,21 @@ byte_exact_restore: True
 | B | `test_group4` | **105 passed** |
 | C | `test_group5_1..5_4` + `test_n01_restart_recovery` + `test_n01_okx_paper_safety` + `test_se_02a_*` + `test_se_02b_*` + `test_se_02c_*` | **259 passed** |
 
-合计 **476 passed / 0 failed**，覆盖 `backend/tests` **全部 20 个测试文件**（= 本机可执行的 backend 全量套件）。
+合计 **476 passed / 0 failed**，覆盖 `backend/tests` **全部 19 个测试文件**（= 本机可执行的 backend 全量套件；目录内 `.py` 计数实测为 **19**）。
+
+分组明细（G2/G3/G4 单独复核，供 §23 报告使用）：
+
+| 组 | 文件 | 结果 |
+| --- | --- | --- |
+| G2 | `test_group2.py` | **30 passed** |
+| G3 | `test_group3.py` | **16 passed** |
+| G4 | `test_group4.py` | **105 passed** |
+| batch A 剩余 | `test_group1` + `test_auth` + `test_n01_runtime_resource_lifecycle` | **15 passed**（= 61 − 46） |
+
+G2/G3 的单独计数用两条**独立**证据交叉核对，而不是靠 `--collect-only` 自己算：
+① `pytest test_group2.py test_group3.py test_group4.py -q` → **151 passed**（110.20 s）；
+② 逐文件 `--collect-only` → G2 = 30、G3 = 16，两者之和 46 **恰等于** `151 − 105（G4 独立跑得 105）`。
+⇒ 收集数 = 通过数，不存在被 skip / xfail 掩盖的差额。
 
 ### 5.5 真实链路（§19 / §20）
 
@@ -298,7 +312,8 @@ byte_exact_restore: True
 | --- | --- | --- |
 | 静态 | `ruff check backend/src backend/tests scripts`；`compileall`；`git diff --check` | `All checks passed!` / exit 0 / clean |
 | 确定性（focus） | `backend/tests/test_runtime_host.py` | **51 passed**（唯一 warning = 第三方 Starlette 弃用警告；修复前存在的 `SAWarning` 已消失） |
-| 回归（backend 全量） | 4 批串行独占：`51 / 61 / 105 / 259` | **476 passed / 0 failed**，覆盖 `backend/tests` 全部 20 个文件 |
+| 回归（backend 全量） | 4 批串行独占：`51 / 61 / 105 / 259` | **476 passed / 0 failed**，覆盖 `backend/tests` 全部 **19** 个文件 |
+| 分组复核（G2/G3/G4） | `pytest test_group2 test_group3 test_group4 -q` → 151 passed；逐文件 `--collect-only` → 30 / 16 / 105 | **G2 = 30、G3 = 16、G4 = 105**（30 + 16 = 151 − 105，自洽） |
 | 变异（"测试有牙齿"证明） | `mutation_check_p2_01.py`：临时关 3 处 shield → 跑 P2-01 → 按字节还原 | 关 shield ⇒ **FAIL**；`byte_exact_restore: True`（sha256 校验） |
 | 真实链路 | OKX 公共 REST + disposable PG，`--minutes 5` | **`result = PASS`，`pass_conditions` 22 / 22 true** |
 | Scope | `git diff --name-only`；`.workbuddy/memory` 与 `.workbuddy/skills` 零改动 | 恰好 5 个 allowed 文件；唯一 untracked 是本 dev_log；forbidden 路径 ZERO CHANGE |
