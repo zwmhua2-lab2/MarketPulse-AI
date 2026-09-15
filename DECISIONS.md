@@ -85,6 +85,20 @@
     activation / G2→G3 activation / `SE-02D` / Live Trading / profitability / edge 的任何进度。
     详见 `dev_log/2026-09-15-pre-01b-d1-final-acceptance-closeout.md`。
 
+- PRE-01B-I1 V1（已批准，2026-09-15 Human Acceptance = `CONFIRMED`）：Integrated Runtime Host Core V1 Implementation（Human-Accepted reviewed candidate = `68dd7e96cc8547433794b045fa99e1e9dc5b7892`，branch `pre-01b-i1-fix-01-runtime-host-lifecycle`，immutable；Original Candidate = `b66e17d34173156b3797b664dbe09625511a0a11`；Independent Initial Review = `FAIL — FIX REQUIRED`；FIX-01 Independent Re-Review = `PASS WITH NON-BLOCKING FINDINGS`；P0 / P1 = `NONE`）。冻结以下实现层决策（仅 Implementation 层；Design 决策见 `PRE-01B-D1 V1`）：
+  - **RuntimeHost Core V1 accepted**：集成 RuntimeHost 作为唯一 production composition owner。
+  - **Host singleton fence** 使用 PostgreSQL session advisory lock（defense-in-depth，非替代部署约定）。
+  - **SQLAlchemy transaction**：由 lock/liveness SQL 创建的 transaction 必须结束，session advisory lock 仍持有。
+  - **Critical Host failure**：先 bounded cleanup，再 `HostTerminalResult`，再 lifespan/process failure signal。
+  - **No in-process child restart supervisor**：child failure 按失败矩阵 fail closed 并产生 external-restart signal。
+  - **DatabaseResources** 仅在实际成功 dispose 后才报告 disposed。
+  - **External cancellation** 不能绕过 bounded shielded mandatory cleanup。
+  - **Host telemetry / history retention** 有界（bounded）。
+  - **Enabled Host V1** 需 BTC-USDT + ETH-USDT。
+  - **Real AI / G2→G3 / Live** 在本 Acceptance 之外（仍 `NOT ACTIVATED / NOT ACCEPTED / DISABLED`）。
+  - **`F-01`** durable `state_version` authority 保留（Host 不造并行 authority）；**`F-02`** safety queue capacity `64` 仍 configurable / evidence-based（非永久架构常量）。
+  - **边界**：本 Acceptance **仅**接受 Implementation Core V1，不构成 OS/service deployment / Real AI activation / G2→G3 activation / `SE-02D` Production complete / Live Trading / profitability / edge 的任何进度。详见 `dev_log/2026-09-15-pre-01b-i1-final-acceptance-reconciliation.md`。
+
 - SE-02D-D01 V1（已批准，2026-09-15 Human Acceptance = `CONFIRMED`）：Family Aggregation /
   Forward-Outcome Expectancy Contract V1（Accepted Design artifact =
   `docs/design/SE-02D/SE-02D-D01-Family-Aggregation-Expectancy-Contract.md`；Human-Accepted

@@ -29,11 +29,46 @@ class Settings(BaseSettings):
     openai_api_key: SecretStr | None = None
     paper_initial_balance: float = 10_000.0
 
+    # --- PRE-01B Integrated Runtime Host (Host Core V1) -------------------------------
+    # Ownership, not activation: the RuntimeHost is never composed implicitly, and every
+    # value below is an operational default rather than a correctness constant. In
+    # particular `runtime_safety_queue_capacity` is the accepted *initial* default that
+    # Implementation Acceptance must size with observed queue high-water evidence
+    # (PRE-01B-D1 carry-in F-02); it is deliberately a bounded setting, never a literal
+    # frozen into the Host.
+    runtime_host_enabled: bool = False
+    runtime_host_instruments: str = "BTC-USDT,ETH-USDT"
+    runtime_workers: int = 1
+    runtime_reload: bool = False
+    runtime_startup_timeout_seconds: float = 60.0
+    runtime_shutdown_grace_seconds: float = 30.0
+    runtime_shutdown_dispose_seconds: float = 5.0
+    runtime_safety_queue_capacity: int = 64
+    runtime_scanner_queue_capacity: int = 2048
+    runtime_market_freshness_seconds: float = 5.0
+    runtime_heartbeat_interval_seconds: float = 5.0
+    runtime_reconciliation_interval_seconds: float = 60.0
+    runtime_telemetry_interval_seconds: float = 5.0
+    runtime_database_application_name: str = "marketpulse-runtime-host"
+    # Stable cross-process namespace for the duplicate-Host advisory lock. Only the
+    # namespace + `run_mode` key are used; the lock needs no schema and no migration.
+    runtime_advisory_lock_namespace: int = 0x4D50
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     @property
     def is_test(self) -> bool:
         return self.run_mode == "TEST"
+
+    @property
+    def runtime_host_instrument_list(self) -> list[str]:
+        """Configured Host subscriptions in declaration order, de-duplicated."""
+        seen: dict[str, None] = {}
+        for item in self.runtime_host_instruments.split(","):
+            symbol = item.strip().upper()
+            if symbol:
+                seen.setdefault(symbol, None)
+        return list(seen)
 
 
 @lru_cache

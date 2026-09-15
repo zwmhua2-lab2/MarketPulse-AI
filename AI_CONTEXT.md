@@ -302,8 +302,7 @@ disposable 库保持空表（症状 `relation "edge_opportunity_evidence" does n
   family aggregation / expectancy 实现；`Gate C = NOT PASSED`、`Live = NOT AUTHORIZED`、
   Real AI = `NOT ACTIVATED`。实现前仍存三项独立 prerequisite：**historical revision-as-of =
   `OPEN`**、**experiment/pair/arm identity = `OPEN`**、**durable regime = `OPEN`**。
-- 边界保持：`PRE-01B-D1 = ACCEPTED / COMPLETE`；`Integrated Runtime Host Implementation =
-  NOT STARTED`；Memory P2 `N01-7-R01-RR-P2-01` 保持 `REMAINS / NON-BLOCKING`。
+- 边界保持：`PRE-01B-D1 = ACCEPTED / COMPLETE`；`PRE-01B-I1 = ACCEPTED / COMPLETE`（`Integrated Runtime Host Core V1 Implementation`，2026-09-15 Human Acceptance = `CONFIRMED`；**不** 构成 OS/service deployment / Real AI activation / G2→G3 / `SE-02D` Production / Live Trading）；Memory P2 `N01-7-R01-RR-P2-01` 保持 `REMAINS / NON-BLOCKING`。
 - 详见 `dev_log/2026-09-15-se-02d-d01-final-acceptance-closeout.md`。
 
 ### PRE-01B-D1 Integrated Runtime Host Formal Design — ACCEPTED / COMPLETE
@@ -332,6 +331,15 @@ disposable 库保持空表（症状 `relation "edge_opportunity_evidence" does n
 - ⚠️ 本 Acceptance **只**接受 Formal Design，**不**证明 / 不授权：
   `Integrated Runtime Host Implementation`（仍 `NOT STARTED`）、runtime validation、
   Real AI activation、G2→G3 activation、`SE-02D`、Live Trading、profitability / edge。
+
+### PRE-01B-I1 Integrated Runtime Host Core V1 Implementation — ACCEPTED / COMPLETE
+
+- 任务：`PRE-01B-I1`｜Integrated Runtime Host Core V1 Implementation → `PRE-01B-I1-CLOSE`｜Human Acceptance Closeout & Latest-Main Reconciliation（content-level carry-forward；**非** 重新设计、**非** 第二份实现、**非** New Review、**非** Runtime validation、**非** Real AI activation、**非** `SE-02D`）。
+- 状态：**`PRE-01B-I1 = ACCEPTED / COMPLETE`**（2026-09-15 Human Acceptance = `CONFIRMED`）。Independent Initial Review = `FAIL — FIX REQUIRED`；FIX-01 Independent Re-Review = `PASS WITH NON-BLOCKING FINDINGS`；P0 = `NONE`、P1 = `NONE`。
+- **Human-Accepted reviewed candidate = `68dd7e96cc8547433794b045fa99e1e9dc5b7892`**（branch `pre-01b-i1-fix-01-runtime-host-lifecycle`，远端同 SHA、immutable、未被移动）。
+- Accepted Design pointer = `docs/design/PRE-01B/PRE-01B-D1-Integrated-Runtime-Host-Contract.md`（`PRE-01B-D1 = ACCEPTED / COMPLETE`）；closeout branch = `pre-01b-i1-final-acceptance-reconciliation`；集成方法 = `FAST-FORWARD ONLY`（content-level carry-forward onto latest `main` `0ae5b0b…`）。
+- 已接受实现层 Runtime 属性（摘要；完整实现见 `68dd7e9` 与 Review/Re-Review 报告；本文件**不** 复制实现全文）：`RuntimeHost` = 唯一 production composition owner；FastAPI `lifespan` = activation boundary；session advisory-lock fence；无 idle-in-transaction singleton leak；fatal critical child propagates to lifecycle/process failure；mandatory cleanup failure 是 truthful；cancellation 不能绕过 final disposal；explicit DB ownership；bounded retention；enabled V1 需 BTC-USDT + ETH-USDT；`F-01` durable `state_version` authority 保留；`F-02` safety queue `64` 仍 configurable / evidence-based。
+- ⚠️ 本 Acceptance **只**接受 Implementation Core V1，**不**证明 / 不授权：Real AI activation、G2→G3 activation、`SE-02D` Production complete、OS/service packaging、Live Trading、profitability / edge。
 - 边界保持：`N01 overall = ACCEPTED / COMPLETE`；Memory P2
   `N01-7-R01-RR-P2-01` = `REMAINS / NON-BLOCKING`（**禁止**写 `memory resolved` /
   `memory is fine` / `no memory concern`）；`SE-02D = NOT STARTED`（PRE-01B-D1 收尾时；其后

@@ -109,6 +109,8 @@ state/version authority）/ `F-02`（safety queue capacity `64` 仅为初始可�
 默认值，待 implementation/runtime sizing evidence 验证）。详见
 「PRE-01B-D1 Result」）
 
+PRE-01B-I1 — Integrated Runtime Host Core V1 Implementation — ACCEPTED / COMPLETE（2026-09-15 Human Acceptance = `CONFIRMED` + Final Acceptance Closeout & Latest-Main Reconciliation；Independent Initial Review = `FAIL — FIX REQUIRED`；FIX-01 Independent Re-Review = `PASS WITH NON-BLOCKING FINDINGS`；P0 = `NONE` / P1 = `NONE`；Human-Accepted reviewed candidate = `68dd7e96cc8547433794b045fa99e1e9dc5b7892`，branch `pre-01b-i1-fix-01-runtime-host-lifecycle`，immutable；Original Candidate = `b66e17d34173156b3797b664dbe09625511a0a11`；集成方法 = `FAST-FORWARD ONLY`（content-level carry-forward onto latest `main` `0ae5b0b…`；drift 正交 = `SE-02D-I01`，未触碰任何 PRE-01B 路径）；Runtime Host Core V1 = `ACCEPTED / COMPLETE`。**本 Acceptance 仅接受 Implementation Core V1 本身**：Real AI runtime activation 仍 `NOT STARTED / NOT ACTIVATED`；live G2→G3 integrated handoff 仍 `NOT ACCEPTED / NOT ACTIVE`；`SE-02D` Production = `IN PROGRESS`（SE-02D-I01 = `ACCEPTED / COMPLETE`）；OS/service / WinSW / Live Trading 仍 `NOT COMPLETE / DISABLED / NOT AUTHORIZED`；Memory P2 `N01-7-R01-RR-P2-01` 仍 `REMAINS / NON-BLOCKING`；RR-P2-01（Alembic URL 优先级 / `DATABASE_URL` 交互）= `NON-BLOCKING TEST-INFRASTRUCTURE DEBT`（本任务不修）；P2-02（历史 process-scope violation）= `REMAINS AS AUDIT FINDING`。详见「PRE-01B-I1 Result」）
+
 ## GitHub Repository
 
 - GitHub Repository Full Name: `zwmhua2-lab2/MarketPulse-AI`
@@ -580,9 +582,8 @@ state/version authority）/ `F-02`（safety queue capacity `64` 仅为初始可�
   见 Current Group 与本文「PRE-01B-D1 Result」）。该 Acceptance **仅**
   接受 Formal Design，**不** 构成 `Integrated Runtime Host Implementation`
   的任何进度。
-- **`Integrated Runtime Host Implementation = NOT STARTED`**（Design 已 Accept（`PRE-01B-D1`），
-  但 Implementation 仍须由总进度窗口另开独立获批的任务窗口；
-  本窗口**未**自动开始 Runtime Host Implementation）。
+- **`PRE-01B-I1｜Integrated Runtime Host Core V1 Implementation = ACCEPTED / COMPLETE`**（2026-09-15 Human Acceptance = `CONFIRMED` + Final Acceptance Closeout & Latest-Main Reconciliation；Human-Accepted reviewed candidate = `68dd7e9`，branch `pre-01b-i1-fix-01-runtime-host-lifecycle`，immutable；Original Candidate = `b66e17d…`；Independent Initial Review = `FAIL — FIX REQUIRED`；FIX-01 Independent Re-Review = `PASS WITH NON-BLOCKING FINDINGS`；已 content-level carry-forward 收编 latest `main` `0ae5b0b…`（drift 正交 = `SE-02D-I01`，未触碰任何 PRE-01B 路径）；见 Current Group 与本文「PRE-01B-I1 Result」）。该 Acceptance 接受 **Implementation Core V1**，**不** 构成 OS/service deployment / Real AI activation / G2→G3 activation / `SE-02D` Production complete / Live Trading 的任何进度。
+- **`Integrated Runtime Host Core V1 Implementation = ACCEPTED / COMPLETE`**（PRE-01B-I1，2026-09-15 Human Acceptance = `CONFIRMED`；content-level carry-forward 收编 latest `main` `0ae5b0b…`；集成方法 = `FAST-FORWARD ONLY`）。**不** 构成 OS/service / WinSW process supervision / Real AI activation / G2→G3 live handoff / `SE-02D` Production complete / Live Trading 的任何进度（这些仍 `NOT COMPLETE / DISABLED / NOT AUTHORIZED`）。
 - **N01-A / N01-B / N01-C / N01-6 / N01-7-F01 / N01-7（N01-7-R01）/ N01-8 均已
   `ACCEPTED / COMPLETE`**（见 Completed）；`N01 overall` 亦已于 2026-09-14 经 N01 Overall
   Final Acceptance Closeout 转 `ACCEPTED / COMPLETE`（该总体结论由独立的 Overall Final
@@ -1474,6 +1475,23 @@ state/version authority）/ `F-02`（safety queue capacity `64` 仅为初始可�
 - 集成方法 = `FAST-FORWARD ONLY`；closeout branch =
   `pre-01b-d1-final-acceptance-closeout`。
 - 详见 `dev_log/2026-09-15-pre-01b-d1-final-acceptance-closeout.md`。
+
+## PRE-01B-I1 Result
+
+- 任务：`PRE-01B-I1`｜Integrated Runtime Host Core V1 Implementation → `PRE-01B-I1-CLOSE`｜Human Acceptance Closeout & Latest-Main Reconciliation（content-level carry-forward、**非** 重新设计、**非** 第二份实现、**非** New Review、**非** Runtime validation、**非** Real AI activation、**非** `SE-02D`）。
+- 状态 = `PRE-01B-I1 = ACCEPTED / COMPLETE`（2026-09-15 Human Acceptance = `CONFIRMED`）。Independent Initial Review = `FAIL — FIX REQUIRED`；FIX-01 Independent Re-Review = `PASS WITH NON-BLOCKING FINDINGS`；P0 = `NONE`；P1 = `NONE`。
+- Human-Accepted reviewed candidate（**immutable、远端未移动**）= `68dd7e96cc8547433794b045fa99e1e9dc5b7892`（branch `pre-01b-i1-fix-01-runtime-host-lifecycle`）；lineage = `b66e17d… → 596b04e… → 68dd7e9…`，单 parent 线性。Original Candidate = `b66e17d34173156b3797b664dbe09625511a0a11`（branch `pre-01b-i1-runtime-host-core`）。
+- Accepted Design pointer = `docs/design/PRE-01B/PRE-01B-D1-Integrated-Runtime-Host-Contract.md`（`PRE-01B-D1 = ACCEPTED / COMPLETE`）。
+- Latest-Main drift 裁定：review-time `main` = `f887981…`；current `main` = `0ae5b0b…`；drift = `SE-02D-I01` production + tests + docs/state（正交）。`git diff --name-only f887981 0ae5b0b` **未** 触碰任何 §7 PRE-01B 路径（仅 `edge/`、`AI_CONTEXT`/`DECISIONS`/`PROJECT_STATE`、`SE-02D` dev_log）；因此 `68dd7e9` 内容级搬运到 latest `main` 不覆盖任何 SE-02D 已接受内容。
+- Content-level reconciliation：closeout branch = `pre-01b-i1-final-acceptance-reconciliation`（从 `0ae5b0b…` 建立）；`git checkout 68dd7e9 -- <9 个 §7 实现/测试/脚本路径 + 2 个历史 dev_log>` 逐字节搬运；blob 身份比对 `git rev-parse :0:<path>` 全部 == `68dd7e9`（11/11 MATCH）。
+- Files carried forward（blob == 68dd7e9）：`backend/requirements.txt`、`backend/src/marketpulse/api/app.py`、`backend/src/marketpulse/config.py`、`backend/src/marketpulse/db/session.py`、`backend/src/marketpulse/g2/runtime.py`、`backend/src/marketpulse/runtime.py`、`backend/src/marketpulse/runtime_host.py`（新增）、`backend/tests/test_runtime_host.py`（新增）、`scripts/verify_pre_01b_runtime_host.py`（新增）、`dev_log/2026-09-15-pre-01b-i1-runtime-host-core.md`、`dev_log/2026-09-15-pre-01b-i1-fix-01-runtime-host-lifecycle.md`。
+- Latest-Main SE-02D 状态保留：`SE-02D-I01 = ACCEPTED / COMPLETE`；`SE-02D` Production = `IN PROGRESS`；`N01 overall = ACCEPTED / COMPLETE`；Memory P2 `N01-7-R01-RR-P2-01 = REMAINS / NON-BLOCKING`；Real AI = `NOT ACTIVATED`；live G2→G3 = `NOT ACTIVE / NOT ACCEPTED`；Live Trading = `DISABLED / NOT AUTHORIZED`。
+- Non-blocking findings（诚实保留，不膨胀为 blocker）：`P2-02`（历史 process-scope violation）= `REMAINS AS AUDIT FINDING`；`RR-P2-01`（Alembic URL 优先级 / `DATABASE_URL` 交互）= `NON-BLOCKING TEST-INFRASTRUCTURE DEBT`（本任务**不**修，未触碰 `backend/alembic/**`）。
+- 验证状态（本执行环境）：`git diff --check` 干净；`ruff check backend/src backend/tests scripts` 通过；focused `test_runtime_host.py` 与 `test_se_02d_aggregation.py` 已运行；**full backend 回幒因本环境无隔离 PostgreSQL 实例（Docker 不可达）无法合规运行 ⇒ `NOT VERIFIED`**，`main` 集成按 §18 在 full backend 闸门前 STOP（closeout 分支已 push 供后续窗口接力）。
+- 集成方法 = `FAST-FORWARD ONLY`（closeout commit 单 parent = `0ae5b0b…`；无 merge commit / squash / rebase / cherry-pick / force push）。
+- 本 Acceptance **证明**：Integrated Runtime Host Core V1 implementation 已 **接受**。
+- 本 Acceptance **不**证明 / **不**授权：Real AI activation、G2→G3 live handoff、`SE-02D` Production complete、Forward Outcome scheduler、OS/service / WinSW packaging、Live Trading、profitability / edge、Memory P2 `N01-7-R01-RR-P2-01` resolution。
+- 详见 `dev_log/2026-09-15-pre-01b-i1-final-acceptance-reconciliation.md`。
 
 ## SE-02D-D01 Result
 
