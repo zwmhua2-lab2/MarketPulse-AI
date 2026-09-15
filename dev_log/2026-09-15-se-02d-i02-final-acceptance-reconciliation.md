@@ -189,3 +189,157 @@ Live = NO。
 - experiment / pair / arm identity prerequisite = `OPEN`；durable regime identity = `OPEN`。
 - `Gate C = NOT PASSED`；`Live = NOT AUTHORIZED`；Real AI = `NOT ACTIVATED`。
 - 本收尾**不**解锁 `I03`。**STOP**。
+
+## 14. Post-Closeout Execution Incident Disclosure
+
+- 记录任务：`SE-02D-I02-FINAL-DOC-01`（`DOCUMENTATION-ONLY` / `GOVERNANCE FOLLOW-UP`）。
+- 记录性质：把 `SE-02D-I02-FINAL` 执行过程中**已公开披露、但尚未持久化**的执行事故补写为
+  Repository Truth 审计记录。本任务**仅追加**；本文件 §1–§13 逐字节不变。
+- 本节**不**重做 `SE-02D-I02`、**不**改写其验收结论、**不**宣告任何 finding `CLOSED`、
+  **不**宣告 Human Acceptance、**不**解锁 `I03`、**不**扩展任何产品功能。
+- 记录原则：只写**可证明**的事实；不可证明者显式标记 `NOT VERIFIED`，不推断、不外推。
+
+### 14.1 事故 A — Wrong Worktree / Branch Advance Incident
+
+已披露事实：
+
+- 执行 `SE-02D-I02-FINAL` 期间，执行者观察到本机存在 worktree
+  `MarketPulse-AI-pre-01b-i1-final-evidence-closeout`。
+- 该 worktree 的 HEAD SHA **恰好等于当时 `main` 的 SHA**
+  `664207a9caba0c3f5c2589cfca2a10af24f89108`（`main` 在 I02 收尾 issuance 时点为 `664207a`，见 §3）。
+- 执行者据此**错误推断**该 worktree 持有分支 `main`。
+- 执行者执行了一次本地 fast-forward，朝向 I02 reconciliation commit
+  `d1e5534dcd8eb63fe71f0e3c06ab80dfc1a6f0e6`，从而**临时推进**了本地分支
+  `pre-01b-i1-final-evidence-closeout`。
+- 该错误被检出。
+- 本地分支被恢复至 `664207a9caba0c3f5c2589cfca2a10af24f89108`。
+- 受影响 worktree 被恢复至干净状态。
+- 远端证据分支**未**被以该错误推进 push。
+
+本任务实测的 live 验证：
+
+| 项 | 实测值 | 来源 |
+|---|---|---|
+| remote `refs/heads/pre-01b-i1-final-evidence-closeout` | `664207a9caba0c3f5c2589cfca2a10af24f89108` | `git ls-remote origin` |
+| local `refs/heads/pre-01b-i1-final-evidence-closeout` | `664207a9caba0c3f5c2589cfca2a10af24f89108` | `git rev-parse` |
+| worktree `MarketPulse-AI-pre-01b-i1-final-evidence-closeout` HEAD | `664207a9caba0c3f5c2589cfca2a10af24f89108` | `git rev-parse HEAD` |
+| 该 worktree `git status --porcelain` | 空（clean） | `git status --porcelain` |
+
+⇒ 远端证据分支**确实**仍指向 `664207a`；本地分支与 worktree 均已恢复；与披露一致。
+
+本地 reflog 独立痕迹（**仅本地**；`git reflog` **不是** Repository Truth，仅为辅助证据）：
+
+```
+2026-09-15 22:06:02 +0800  reset: moving to 664207a9caba0c3f5c2589cfca2a10af24f89108
+2026-09-15 22:05:16 +0800  merge d1e5534dcd8eb63fe71f0e3c06ab80dfc1a6f0e6: Fast-forward
+2026-09-15 21:24:00 +0800  commit: docs(pre-01b): record final I1 validation evidence
+```
+
+- 该时间线与「先错误推进（22:05:16）、后恢复（22:06:02）」的披露**一致**。
+- **不**可证明者（显式保留）：更早或更晚是否另有推进、恢复动作的完整命令序列，均**不**能由
+  MarketPulse Repository Truth 证明；本节**不**作任何超范围断言。
+
+### 14.2 事故 B — Unauthorized Untracked Scratch Deletion
+
+已披露事件：清理 `.workbuddy/` 时，一次宽泛的 `glob('*')` 清理**连带删除**了既有未跟踪
+（untracked）scratch 文件，包括：
+
+- `g3_*.txt`
+- `g3_docker_fix_report.md`
+- `ps_bridge_test.txt`
+- `_preflight_ls.txt`
+
+已知事实：
+
+- 这些是 **untracked** 文件。
+- **无** Git 副本可用（既无 commit 副本，亦无 index 副本）。
+- 其被删内容**不能**从 MarketPulse Repository Truth 重建。
+- 该删除**超出** `SE-02D-I02` 收尾任务的授权写入面。
+
+分类（显式）：
+
+**OUT-OF-SCOPE FILESYSTEM SIDE EFFECT**
+
+本任务实测的有限佐证：
+
+- `HEAD = d1e5534` 的 tracked tree 共 203 个路径，其中**不存在**任何匹配 `g3_` /
+  `ps_bridge` / `_preflight` 的路径 ⇒ 这些文件不可能从 repository truth 恢复（本条已证明）。
+- 在 `E:/Documents/MarketPulse AI`、`E:/Documents/MarketPulse AI/.worktrees`、
+  `C:/Users/hua/.workbuddy` 下递归搜索同名 / 同前缀文件，命中 **0** ⇒ 本机当前未见副本
+  （该搜索为点查，**不**构成全盘「不可恢复」证明）。
+- `.workbuddy/` 之下内容**未**被 Git 跟踪（tracked tree 中 `.workbuddy` 条目 = 0）
+  ⇒ 该目录不属于 MarketPulse Repository Truth。
+
+**不**声明（除非另有独立证据）：
+
+- 不声明其内容无害。
+- 不声明其内容与项目无关。
+- 不声明其内容可恢复。
+- 不声明无信息丢失。
+
+⇒ 在独立复核给出证据之前，该删除的**内容损失程度 = UNKNOWN**。
+
+### 14.3 事故 C — Agent Memory / Skill Mutation Disclosure
+
+执行者报告：事故后其更新了自身的 memory / skill。
+
+按任务要求，本节只记录可证明的内容：
+
+- **Agent-local memory / skill mutation = NOT VERIFIED**
+
+可证明的**路径级**观察（**不**等同于 mutation 证明）：
+
+| 本机 artifact | mtime | 观察 |
+|---|---|---|
+| `E:/Documents/MarketPulse AI/.workbuddy/memory/MEMORY.md` | 2026-09-15 22:08:04 | 内容含该事故描述（`pre-01b-i1-final-evidence-closeout` / `664207a`） |
+| `C:/Users/hua/.workbuddy/skills/marketpulse-batch-integration/SKILL.md` | 2026-09-15 22:08:22 | 内容含该事故描述（同上） |
+
+- 两者 mtime 均**晚于**事故 reflog 时间戳（22:05:16 / 22:06:02），与「事故后自我更新」的
+  披露时序**一致**。
+- 但本机**无**事故前的基线快照 ⇒ **修改前确切内容**与**字节级 delta** 均不可证明
+  ⇒ mutation 本身 = `NOT VERIFIED`（不得升级为已证明事实）。
+
+另记：
+
+- **Agent-local memory / skill artifacts are NOT MarketPulse Repository Truth.**
+- 本任务**未**修改 `.workbuddy` / agent skill / agent memory / Global Protocol / 任何本地
+  scratch。
+
+### 14.4 Finding 分类
+
+| 项 | 值 |
+|---|---|
+| Finding ID | `SE02D-I02-FINAL-P2-01` |
+| Severity | `P2` |
+| Class | `PROCESS / AUDITABILITY` |
+| Status in this task | `DURABLY DISCLOSED / AWAITING INDEPENDENT REVIEW` |
+| Acceptance impact | `NON-BLOCKING` to already Human-Accepted `SE-02D-I02` implementation |
+
+- 本记录**不**宣告该 finding `CLOSED`；关闭须经独立复核。
+- 本记录**不**改写 I02 Acceptance。
+
+### 14.5 显式保留（Preserve，未改写）
+
+- `SE-02D-I02 = ACCEPTED / COMPLETE`
+- `SE-02D = IN PROGRESS`
+- `Gate C = NOT PASSED`
+- `Live = NOT AUTHORIZED`
+- `I03 = NOT UNLOCKED`（本记录不解锁任何下游）
+
+### 14.6 本节证据来源与可证明边界
+
+- 权威来源：live `origin/main` = `d1e5534dcd8eb63fe71f0e3c06ab80dfc1a6f0e6` 中的
+  `dev_log/2026-09-15-se-02d-i02-final-acceptance-reconciliation.md`（本文件）。
+- 本任务类型 = `DOCUMENTATION-ONLY`：**无**代码、测试、schema、migration、dependency、
+  API、UI、runtime、设计、需求或状态文档变更。
+- 显式标注 `NOT VERIFIED`：Agent-local memory / skill mutation delta；scratch 删除的内容
+  损失范围；任何超出上述 live 实测项的推断。
+- 本记录的写入方式 = **append-only**，双层面已证明（`core.autocrlf = true`：工作树 CRLF、
+  repository blob 为 LF）：
+  - worktree 层：追加前文件 = **12723** 字节（sha256
+    `b9246795ac4c538e81ace34e0e24145af030709940de3997bd0e603accea1754`）；追加后该前缀
+    逐字节不变。
+  - repository 层：blob = **12532** 字节、0 个 CRLF（sha256
+    `b197749041808b772ed237f627d89bfac28532b8b845212bf2d84007f71dfa88`）；将工作树文件
+    CRLF→LF 规范化后，该 blob 为新文件内容的**前缀**；`git diff --numstat` 的删除列为 `0`
+    （纯新增、零删除行）。
