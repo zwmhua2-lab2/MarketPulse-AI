@@ -29,9 +29,11 @@ from marketpulse.db.models import (
     EdgeForwardOutcomeRecord,
     EdgeOpportunityEvidenceRecord,
 )
+from marketpulse.edge.aggregation import NO_MEASUREMENT, build_ordered_input_manifest
 from marketpulse.edge.aggregation_snapshot import (
     CurrentSnapshotRevisionReader,
     SnapshotIntegrityError,
+    _check_cross_integrity,
     _evidence_from_record,
     _fold_evidence_chains,
     _fold_outcome_chains,
@@ -182,6 +184,11 @@ def _outcome(
     lifecycle=None,
     due_at=None,
     completeness_diagnostics=None,
+    cost_adjusted_forward_return=None,
+    reference_return=None,
+    executable_long_return=None,
+    mfe=None,
+    mae=None,
 ):
     if due_at is None:
         due_at = forward_due_at(evidence.evidence_at, horizon)
@@ -201,6 +208,11 @@ def _outcome(
         reference_price=99.5,
         end_bid=100.5,
         end_ask=100.6,
+        mfe=mfe,
+        mae=mae,
+        reference_return=reference_return,
+        executable_long_return=executable_long_return,
+        cost_adjusted_forward_return=cost_adjusted_forward_return,
         created_at=START,
         supersedes_outcome_id=supersedes,
         completeness_diagnostics=completeness_diagnostics,
@@ -616,6 +628,178 @@ def test_no_historical_as_of_interface():
     assert sig.parameters["horizon"].annotation is not inspect.Parameter.empty
 
 
+# === FIX-01 R1: complete Evidence <-> Outcome cross-integrity =============================
+
+
+def test_evidence_outcome_source_type_mismatch_fails_closed():
+    """A matching ``source_identity`` must not hide a ``source_type`` mismatch."""
+
+    opp = _opportunity()
+    ev = _evidence(
+        opp,
+        revision=1,
+        source_type=EvidenceSource.HISTORICAL_REPLAY,
+        source_identity="same-source",
+    )
+    o = _outcome(
+        opp,
+        ev,
+        revision=1,
+        source_type=EvidenceSource.FORWARD_PAPER,
+        source_identity="same-source",
+    )
+    efolds = _fold_evidence_chains({opp.opportunity_id: [ev]})
+    ofolds = _fold_outcome_chains({(opp.opportunity_id, ev.evidence_id): [o]})
+    with pytest.raises(SnapshotIntegrityError):
+        _project(efolds, ofolds, ForwardHorizon.M5, _now())
+
+
+def test_cross_integrity_checks_every_link_field_fail_closed():
+    """Each of the six cross-integrity links fails closed on its own mismatch."""
+
+    opp = _opportunity()
+    other_opp = _opportunity(candidate_id="sc_other")
+    ev = _evidence(opp, revision=1)
+    other_ev = _evidence(other_opp, revision=1)
+
+    # matching link -> silent
+    _check_cross_integrity(ev, _outcome(opp, ev, revision=1), horizon=ForwardHorizon.M5)
+
+    mismatch = (
+        ("opportunity_id", _outcome(other_opp, ev, revision=1)),
+        ("evidence_id", _outcome(opp, other_ev, revision=1)),
+        ("horizon", _outcome(opp, ev, revision=1, horizon=ForwardHorizon.M15)),
+        ("source_type", _outcome(opp, ev, revision=1, source_type=EvidenceSource.FORWARD_PAPER)),
+        ("source_identity", _outcome(opp, ev, revision=1, source_identity="other-source")),
+        ("due_at", _outcome(opp, ev, revision=1, due_at=ev.evidence_at + timedelta(days=1))),
+    )
+    for _link, bad_outcome in mismatch:
+        with pytest.raises(SnapshotIntegrityError):
+            _check_cross_integrity(ev, bad_outcome, horizon=ForwardHorizon.M5)
+
+    # NO_OUTCOME stays a no-op
+    _check_cross_integrity(ev, None, horizon=ForwardHorizon.M5)
+
+
+# === FIX-01 R2: I01 canonical manifest authority + revision identities ====================
+
+
+def test_i02_manifest_preserves_every_i01_base_key_and_value():
+    """I02 may ADD revision-aware fields; it may never drop or alter I01 fields."""
+
+    opp = _opportunity()
+    ev1 = _evidence(opp, revision=1)
+    ev2 = _evidence(opp, revision=2, supersedes=ev1.evidence_id)
+    o2 = _outcome(opp, ev2, revision=1)
+    efolds = _fold_evidence_chains({opp.opportunity_id: [ev1, ev2]})
+    ofolds = _fold_outcome_chains({(opp.opportunity_id, ev2.evidence_id): [o2]})
+    proj = _project(efolds, ofolds, ForwardHorizon.M5, _now())
+
+    base = build_ordered_input_manifest(proj.facts, as_of=proj.as_of)
+    assert len(base) == len(proj.manifest)
+    for base_entry, i02_entry in zip(base, proj.manifest, strict=True):
+        for key, value in base_entry.items():
+            assert i02_entry[key] == value
+
+    # the I02-only extension is present on the same entry
+    entry = proj.manifest[0]
+    assert entry["no_outcome"] is False
+    assert entry["evidence_revision_identities"]
+    assert entry["outcome_revision_identities"]
+
+
+def test_i02_manifest_evidence_revision_identities_carry_identity_fields():
+    opp = _opportunity()
+    ev1 = _evidence(opp, revision=1)
+    ev2 = _evidence(opp, revision=2, supersedes=ev1.evidence_id)
+    efolds = _fold_evidence_chains({opp.opportunity_id: [ev1, ev2]})
+    proj = _project(efolds, {}, ForwardHorizon.M5, _now())
+
+    identities = proj.manifest[0]["evidence_revision_identities"]
+    assert [i["evidence_revision"] for i in identities] == [1, 2]
+    assert [i["evidence_id"] for i in identities] == [ev1.evidence_id, ev2.evidence_id]
+    assert [i["evidence_hash"] for i in identities] == [ev1.evidence_hash, ev2.evidence_hash]
+    assert [i["role"] for i in identities] == ["FOLDED_EVIDENCE", "CANONICAL"]
+
+
+def test_i02_manifest_outcome_revision_identities_carry_identity_fields():
+    opp = _opportunity()
+    ev = _evidence(opp, revision=1)
+    o1 = _outcome(opp, ev, revision=1)
+    o2 = _outcome(opp, ev, revision=2, supersedes=o1.outcome_id)
+    efolds = _fold_evidence_chains({opp.opportunity_id: [ev]})
+    ofolds = _fold_outcome_chains({(opp.opportunity_id, ev.evidence_id): [o1, o2]})
+    proj = _project(efolds, ofolds, ForwardHorizon.M5, _now())
+
+    identities = proj.manifest[0]["outcome_revision_identities"]
+    assert [i["outcome_revision"] for i in identities] == [1, 2]
+    assert [i["outcome_id"] for i in identities] == [o1.outcome_id, o2.outcome_id]
+    assert [i["outcome_record_hash"] for i in identities] == [
+        o1.outcome_record_hash,
+        o2.outcome_record_hash,
+    ]
+    assert [i["role"] for i in identities] == ["FOLDED_OUTCOME", "CANONICAL"]
+
+
+def test_i02_manifest_no_outcome_preserves_i01_no_measurement():
+    opp = _opportunity()
+    ev = _evidence(opp, revision=1)
+    efolds = _fold_evidence_chains({opp.opportunity_id: [ev]})
+    proj = _project(efolds, {}, ForwardHorizon.M5, _now())
+
+    entry = proj.manifest[0]
+    assert entry["outcome_id"] is None
+    assert entry["outcome_revision"] is None
+    assert entry["outcome_record_hash"] is None
+    assert entry["measurement_signature"] == NO_MEASUREMENT
+    assert entry["maturity_marker"] in ("NOT_YET_DUE", "MISSING_OUTCOME")
+    assert entry["outcome_revision_identities"] == []
+
+
+def test_i02_manifest_complete_numeric_hex_bindings_match_i01():
+    opp = _opportunity()
+    ev = _evidence(opp, revision=1)
+    o = _outcome(
+        opp,
+        ev,
+        revision=1,
+        cost_adjusted_forward_return=0.0123,
+        reference_return=0.01,
+        executable_long_return=0.0099,
+        mfe=0.02,
+        mae=-0.005,
+    )
+    efolds = _fold_evidence_chains({opp.opportunity_id: [ev]})
+    ofolds = _fold_outcome_chains({(opp.opportunity_id, ev.evidence_id): [o]})
+    proj = _project(efolds, ofolds, ForwardHorizon.M5, _now())
+
+    base = build_ordered_input_manifest(proj.facts, as_of=proj.as_of)
+    entry = proj.manifest[0]
+    for key in (
+        "cost_adjusted_forward_return_hex",
+        "reference_return_hex",
+        "executable_long_return_hex",
+        "mfe_hex",
+        "mae_hex",
+    ):
+        assert entry[key] is not None
+        assert entry[key] == base[0][key]
+    assert entry["cost_adjusted_forward_return_hex"] == 0.0123.hex()
+    assert entry["integrity_conflicts"] == []
+
+
+# === FIX-01 R3: explicit projection horizon ===============================================
+
+
+def test_projection_carries_requested_horizon():
+    opp = _opportunity()
+    ev = _evidence(opp, revision=1)
+    efolds = _fold_evidence_chains({opp.opportunity_id: [ev]})
+    proj = _project(efolds, {}, ForwardHorizon.M15, _now())
+    assert proj.horizon == ForwardHorizon.M15
+    assert proj.facts[0].horizon == ForwardHorizon.M15
+
+
 # === PostgreSQL MVCC tests (task section 29) ==============================================
 
 
@@ -776,3 +960,22 @@ async def _regression_run(url: str):
         reader = CurrentSnapshotRevisionReader(factory)
         proj = await reader.read(ForwardHorizon.M5)
         return proj
+
+
+# === FIX-01 R3: empty snapshot still carries the requested horizon =======================
+
+
+def test_empty_snapshot_projection_carries_requested_horizon():
+    """The horizon is a property of the request, not of the presence of facts."""
+
+    with _se02d_database("empty_projection") as url:
+        proj = asyncio.run(_empty_projection_run(url))
+    assert proj.horizon == ForwardHorizon.M5
+    assert proj.facts == ()
+    assert proj.manifest == ()
+
+
+async def _empty_projection_run(url: str):
+    async with _sessions(url) as factory:
+        reader = CurrentSnapshotRevisionReader(factory)
+        return await reader.read(ForwardHorizon.M5)

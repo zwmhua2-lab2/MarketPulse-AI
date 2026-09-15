@@ -37,7 +37,7 @@ from marketpulse.edge.aggregation import (
     CanonicalScopeFacts,
     MeasurementSignature,
     PopulationKey,
-    classify_maturity,
+    build_ordered_input_manifest,
 )
 from marketpulse.edge.forward import forward_due_at
 from marketpulse.edge.models import (
@@ -88,9 +88,15 @@ class _OutcomeFold:
 
 @dataclass(frozen=True, slots=True)
 class CurrentSnapshotProjection:
-    """The revision-aware projection of one database snapshot."""
+    """The revision-aware projection of one database snapshot.
+
+    ``horizon`` is carried explicitly rather than being inferred from the
+    projected facts: an empty snapshot has no facts at all, yet it still has a
+    well-defined requested horizon (task section 16-17).
+    """
 
     as_of: datetime
+    horizon: ForwardHorizon
     facts: tuple[CanonicalScopeFacts, ...]
     manifest: tuple[dict[str, Any], ...]
 
@@ -364,9 +370,46 @@ def _check_cross_integrity(
     *,
     horizon: ForwardHorizon,
 ) -> None:
-    """Fail closed if the canonical Outcome is inconsistent with its Evidence."""
+    """Fail closed if the canonical Outcome is inconsistent with its Evidence.
+
+    The canonical Outcome must agree with the canonical Evidence on the *whole*
+    linking contract -- ``opportunity_id``, ``evidence_id``, ``horizon``,
+    ``source_type``, ``source_identity`` and the horizon-derived ``due_at``
+    (task section 7). Neither side is ever normalized onto the other, and a
+    matching ``source_identity`` can never hide a ``source_type`` mismatch.
+    """
     if outcome is None:
         return
+    if outcome.opportunity_id != evidence.opportunity_id:
+        raise SnapshotIntegrityError(
+            (
+                (f"evidence_outcome_opportunity_mismatch:{evidence.opportunity_id}:"
+                f"{evidence.evidence_id}:outcome={outcome.opportunity_id}"),
+            )
+        )
+    if outcome.evidence_id != evidence.evidence_id:
+        raise SnapshotIntegrityError(
+            (
+                (f"evidence_outcome_evidence_id_mismatch:{evidence.opportunity_id}:"
+                f"expected={evidence.evidence_id}:outcome={outcome.evidence_id}"),
+            )
+        )
+    if outcome.horizon != horizon:
+        raise SnapshotIntegrityError(
+            (
+                (f"evidence_outcome_horizon_mismatch:{evidence.opportunity_id}:"
+                f"{evidence.evidence_id}:expected={horizon.value}:"
+                f"got={outcome.horizon.value}"),
+            )
+        )
+    if outcome.source_type != evidence.source_type:
+        raise SnapshotIntegrityError(
+            (
+                (f"evidence_outcome_source_type_mismatch:{evidence.opportunity_id}:"
+                f"{evidence.evidence_id}:evidence={evidence.source_type.value}:"
+                f"outcome={outcome.source_type.value}"),
+            )
+        )
     if evidence.source_identity != outcome.source_identity:
         raise SnapshotIntegrityError(
             (
@@ -410,7 +453,13 @@ def _project(
             folded_evidence_ids[opportunity_id].add(rev.evidence_id)
 
     facts: list[CanonicalScopeFacts] = []
-    manifest: list[dict[str, Any]] = []
+    # I02 owns only the revision-chain identities. Every *base* manifest field
+    # stays I01's authority (``build_ordered_input_manifest``); the extension is
+    # collected here and merged onto the I01 base entries at the end of this
+    # function, so no canonical manifest field is ever re-derived in I02.
+    revision_identities: dict[
+        tuple[str, str, str], tuple[bool, list[dict[str, Any]], list[dict[str, Any]]]
+    ] = {}
 
     for opportunity_id, efold in evidence_folds.items():
         canonical_evidence = efold.canonical
@@ -497,8 +546,9 @@ def _project(
             )
             outcome_identities = [
                 {
-                    "outcome_revision": rev.outcome_revision,
                     "outcome_id": rev.outcome_id,
+                    "outcome_revision": rev.outcome_revision,
+                    "outcome_record_hash": rev.outcome_record_hash,
                     "role": "CANONICAL" if rev is canonical_outcome else "FOLDED_OUTCOME",
                 }
                 for rev in ordered_outcomes
@@ -510,35 +560,46 @@ def _project(
         )
         evidence_identities = [
             {
+                "evidence_id": rev.evidence_id,
                 "evidence_revision": rev.evidence_revision,
+                "evidence_hash": rev.evidence_hash,
                 "role": "CANONICAL" if rev is canonical_evidence else "FOLDED_EVIDENCE",
             }
             for rev in ordered_evidence
         ]
 
         facts.append(fact)
+        revision_identities[(opportunity_id, canonical_evidence.evidence_id, horizon.value)] = (
+            canonical_outcome is None,
+            evidence_identities,
+            outcome_identities,
+        )
+
+    base_manifest = build_ordered_input_manifest(facts, as_of=as_of)
+    facts_by_key = {
+        (fact.opportunity_id, fact.evidence_id, fact.horizon.value): fact for fact in facts
+    }
+
+    ordered_facts: list[CanonicalScopeFacts] = []
+    manifest: list[dict[str, Any]] = []
+    for base_entry in base_manifest:
+        key = (base_entry["opportunity_id"], base_entry["evidence_id"], base_entry["horizon"])
+        no_outcome, ev_identities, out_identities = revision_identities[key]
+        ordered_facts.append(facts_by_key[key])
         manifest.append(
             {
-                "opportunity_id": opportunity_id,
-                "evidence_id": canonical_evidence.evidence_id,
-                "horizon": horizon.value,
-                "no_outcome": canonical_outcome is None,
-                "outcome_id": canonical_outcome.outcome_id if canonical_outcome is not None else None,
-                "population_key": population_key.canonical_payload(),
-                "evidence_revision_identities": evidence_identities,
-                "outcome_revision_identities": outcome_identities,
-                "maturity_marker": classify_maturity(fact, as_of=as_of).value,
+                **base_entry,
+                "no_outcome": no_outcome,
+                "evidence_revision_identities": ev_identities,
+                "outcome_revision_identities": out_identities,
             }
         )
 
-    ordered = sorted(
-        range(len(facts)),
-        key=lambda i: (facts[i].opportunity_id, facts[i].evidence_id, facts[i].horizon.value),
-    )
     return CurrentSnapshotProjection(
         as_of=as_of,
-        facts=tuple(facts[i] for i in ordered),
-        manifest=tuple(manifest[i] for i in ordered),
+        horizon=horizon,
+        facts=tuple(ordered_facts),
+        manifest=tuple(manifest),
     )
 
 
