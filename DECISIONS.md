@@ -164,9 +164,10 @@
   - **边界**：`SE-02D-I01 = ACCEPTED / COMPLETE` **≠** `SE-02D` complete ——
     `SE-02D Production Implementation = IN PROGRESS`；PostgreSQL loading / revision-chain
     folding / canonical-head loading / current-snapshot orchestration 已于 `SE-02D-I02`
-    实现并验收（见下方 `SE-02D-I02` 条目）；population grouping + 调用 I01 `aggregate()`、
-    aggregate / API / product integration、historical revision-as-of 仍 `NOT IMPLEMENTED`；
-    `Gate C = NOT PASSED`；`Live = NOT AUTHORIZED`。详见
+    实现并验收（见下方 `SE-02D-I02` 条目）；population grouping + 调用 I01 `aggregate()`
+    已于 `SE-02D-I03` 实现并验收（见下方 `SE-02D-I03` 条目）；aggregate / API / product
+    integration、historical revision-as-of 仍 `NOT IMPLEMENTED`；`Gate C = NOT PASSED`；
+    `Live = NOT AUTHORIZED`。详见
     `dev_log/2026-09-15-se-02d-i01-final-acceptance-closeout.md`。
 
 - SE-02D-I02（已批准 / 已验收，2026-09-15 Human Acceptance = `CONFIRMED`）：
@@ -187,7 +188,31 @@
     `NO_OUTCOME`、canonical Evidence ↔ Outcome cross-integrity、`CanonicalScopeFacts`
     projection、revision-aware canonical manifest。
   - **边界**：`SE-02D-I02 = ACCEPTED / COMPLETE` **≠** `SE-02D` complete ——
-    population grouping + orchestration that invokes I01 `aggregate()`、aggregate / API /
-    product integration、historical arbitrary revision-as-of 仍 `NOT IMPLEMENTED`；
-    `Gate C = NOT PASSED`；`Live = NOT AUTHORIZED`。详见
+    population grouping + orchestration that invokes I01 `aggregate()` 已于 `SE-02D-I03`
+    实现并验收（见下方 `SE-02D-I03` 条目）；aggregate / API / product integration、
+    historical arbitrary revision-as-of 仍 `NOT IMPLEMENTED`；`Gate C = NOT PASSED`；
+    `Live = NOT AUTHORIZED`。详见
     `dev_log/2026-09-15-se-02d-i02-final-acceptance-reconciliation.md`。
+
+- SE-02D-I03（已批准 / 已验收，2026-09-16 Human Acceptance = `CONFIRMED`）：
+  Population Grouping + Aggregate Orchestration = `ACCEPTED / COMPLETE`；Human-Accepted
+  reviewed HEAD = `20a7c333abf81077c409811302331119dff485a5`（branch
+  `se-02d-i03-fix-01-projection-identity-validation`，immutable）；Original Reviewed
+  Candidate = `44d0e4b14ba0037de4da8e605d7b04b9f5d721e4`（branch
+  `se-02d-i03-population-aggregate-orchestration`，immutable）；Initial Independent
+  Review = `FAIL — FIX REQUIRED`；`SE02D-I03-R1`（P1）= `CLOSED`；FIX-01 Independent
+  Re-Review = `PASS — READY FOR HUMAN ACCEPTANCE`；集成方法 = `FAST-FORWARD ONLY`。
+  本节仅为**实现验收指针 + 已接受边界**，权威细节以 Accepted `D01` / `I01` / `I02` 行为
+  与 `dev_log` 为准，**不**新增设计决策：
+  - **Accepted implementation boundary**：I03 消费一份 I02
+    `CurrentSnapshotProjection`，在 facts ↔ revision-aware manifest 一一对应完整性门
+    （fail closed）之后按完整结构 `PopulationKey` 分组，每个 population **恰好一次** I01
+    `aggregate()` 调用，并输出确定性有序 `tuple[AggregationResult, ...]`；薄 async
+    wrapper 只做一次 `reader.read(horizon)`。
+  - **无新统计 / 身份语义**：`I01` 仍为 statistics / uncertainty / sufficiency /
+    fingerprint 的权威；`I02` 仍为 revision folding / snapshot / canonical head 的权威；
+    I03 未新增 Population Key、Measurement Signature、horizon 语义，也未做二次审判。
+  - **边界**：`SE-02D-I03 = ACCEPTED / COMPLETE` **≠** `SE-02D` complete ——
+    aggregate / API / product integration、historical arbitrary revision-as-of 仍
+    `NOT IMPLEMENTED`；`Gate C = NOT PASSED`；`Live = NOT AUTHORIZED`。详见
+    `dev_log/2026-09-16-se-02d-i03-final-acceptance-closeout.md`。

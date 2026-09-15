@@ -378,3 +378,69 @@ SE-02D = IN PROGRESS（未完成，未宣称 complete）
 - 前文 `Remaining Boundaries` 记录的 `edge/__init__.py` 包文档陈旧问题**依旧未修**
   （不在本卡允许写入面内，CIP-05 记录不修）。
 - 无阻塞项；无 Scope 偏差。
+
+---
+
+# SE-02D-I03-FINAL｜Human Acceptance + Final Acceptance Record
+
+> 本节为**追加**记录（2026-09-16 closeout 窗口）。既有 worker / review 历史条目**逐字未改**。
+
+```text
+SE-02D-I03 Initial Independent Review = FAIL — FIX REQUIRED
+SE02D-I03-R1 / P1 = CLOSED
+SE-02D-I03-FIX-01 Independent Re-Review = PASS — READY FOR HUMAN ACCEPTANCE
+Human Acceptance = CONFIRMED — 2026-09-16
+SE-02D-I03 = ACCEPTED / COMPLETE
+SE-02D = IN PROGRESS（未完成，未宣称 complete）
+```
+
+| 项 | 值 |
+| --- | --- |
+| Human-Accepted Reviewed HEAD | `20a7c333abf81077c409811302331119dff485a5` |
+| Original Reviewed Candidate | `44d0e4b14ba0037de4da8e605d7b04b9f5d721e4` |
+| 原候选 branch（immutable） | `se-02d-i03-population-aggregate-orchestration` |
+| FIX branch（immutable） | `se-02d-i03-fix-01-projection-identity-validation` |
+| Closeout branch | `se-02d-i03-final-acceptance-closeout`（base = FIX HEAD） |
+| 集成方法 | `FAST-FORWARD ONLY`（无 merge / squash / rebase / cherry-pick / force push） |
+
+## Final Accepted Implementation Scope
+
+```text
+CurrentSnapshotProjection
+    -> strict facts <-> revision-aware manifest integrity gate（fail closed）
+    -> complete structural PopulationKey grouping
+    -> exactly one I01 aggregate() invocation per population
+    -> deterministic ordered tuple[AggregationResult, ...]
+```
+
+（第二行 `facts` 与 `manifest` 之间原文为双向箭头；此处以 `<->` 记录以免歧义。）
+
+## Final Regression（closeout 窗口实测）
+
+cwd = Human-Accepted FIX lineage worktree（HEAD = `20a7c333…`）；未导出 `DATABASE_URL`；
+DB-backed I02 用例在既有 disposable 路径下通过，未触碰 accepted / shared 应用库。
+
+| 验证 | 命令 | 结果 |
+| --- | --- | --- |
+| I03 定向 | `pytest -q backend/tests/test_se_02d_aggregation_orchestration.py` | **57 passed** |
+| I01 | `pytest -q backend/tests/test_se_02d_aggregation.py` | **108 passed** |
+| I02 | `pytest -q backend/tests/test_se_02d_aggregation_snapshot.py` | **44 passed** |
+| I01+I02+I03 合并 | 三文件同批 | **209 passed** |
+| 项目 ruff 门 | `ruff check backend/src backend/tests scripts` | `All checks passed!` |
+| 空白检查 | `git diff --check` | rc = 0 |
+| 全量 backend suite | — | **NOT REQUIRED FOR THIS CLOSEOUT / NOT VERIFIED** |
+
+## Closeout Scope Verification
+
+- `Production Code Changed After Human Review = NO`
+- `Tests Changed After Human Review = NO`
+- `Schema Changed = NO` / `Migration Added = NO`
+- `Production Dependency Changed = NO` / `Runtime Behavior Changed By Closeout = NO`
+- `20a7c333…` → closeout HEAD 的 diff **仅**含：本批 dev_log 追加、新增 closeout dev_log、
+  `PROJECT_STATE.md` / `AI_CONTEXT.md` / `DECISIONS.md`（无其它 tracked 文件）。
+
+## Boundaries
+
+`SE-02D = IN PROGRESS`；aggregate / API / product integration 仍 `NOT IMPLEMENTED`；
+historical revision-as-of 仍 `OPEN`；`Gate C = NOT PASSED`；`Live = NOT AUTHORIZED`；
+Real AI 未由本验收获得任何新授权。本收尾**不**定义也不启动 I04。

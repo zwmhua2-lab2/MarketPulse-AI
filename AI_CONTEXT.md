@@ -12,7 +12,7 @@
 | Project | MarketPulse AI（BTC/ETH 量化纸面交易终端，Modular Monolith） |
 | Current Acceptance Group | SE-02C — Forward Outcome Calculator — ACCEPTED / COMPLETE |
 | Accepted Main Source | Git `main` / `origin/main`；须在任务 preflight 按 CIP-02 实时读取，不以文档静态 SHA 为准 |
-| Current State | `SE-ARCH-FIX-02 = ACCEPTED / COMPLETE`（2026-09-13 Human Acceptance = `APPROVED` + Final Main Integration Closeout，已 fast-forward only 收编 `main`；Human-Accepted reviewed candidate = `15da7c1`；Implementation = `4c83582`）；`SE-ARCH-FIX-01 = ACCEPTED / COMPLETE`（2026-09-13 Human Acceptance = `APPROVED` + Final Main Integration Closeout；reviewed candidate = `1e2738b`）；`SE-02A = ACCEPTED / COMPLETE`；`SE-02B = ACCEPTED / COMPLETE`；**`SE-02C = ACCEPTED / COMPLETE`**（2026-09-14 Human Acceptance = `CONFIRMED` + Final Acceptance Closeout；Independent Re-Review = `PASS WITH NON-BLOCKING FINDINGS — READY FOR HUMAN ACCEPTANCE`；Human-Accepted reviewed candidate = `7bb3835d6b14a3fc86becff1881c7f53f1acd567`（branch `se-02c-fix-02-stable-read-snapshot`）；`SE-02C-FIX-01` / `SE-02C-FIX-02` = `ACCEPTED / CLOSED`；集成方法 = `FAST-FORWARD ONLY`；遗留 `SE02C-R7` = P3 / NON-BLOCKING / NOT FIXED）；**`SE-02D = IN PROGRESS`**（`SE-02D-I01 = ACCEPTED / COMPLETE`、`SE-02D-I02 = ACCEPTED / COMPLETE`，均于 2026-09-15 Human Acceptance = `CONFIRMED` + Final Acceptance Closeout；parent production implementation 剩余部分仍 `NOT COMPLETE`；**`SE-02D-D01` Family Aggregation / Expectancy Contract（设计层）= `ACCEPTED / COMPLETE`**，2026-09-15 Human Acceptance = `CONFIRMED` + Final Acceptance Closeout，见 §6）；`N01-C = ACCEPTED / COMPLETE`；N01-A / N01-B 与 N01 验证修复 `N01-VAL-FIX-01/02/03` 均维持 `ACCEPTED / COMPLETE`；`N01-6 = ACCEPTED / COMPLETE`（Reviewed HEAD `3f591a7`）；**`N01-7-F01 = ACCEPTED / COMPLETE`**（2026-09-13 Human Acceptance = `CONFIRMED` + Final Main Integration；reviewed candidate `7c0ea7d` @ integration merge `ddf39f2`；已 fast-forward only 收编 `main`）；**`N01-7 / N01-7-R01 = ACCEPTED / COMPLETE`**（2026-09-14 Human Acceptance = `CONFIRMED` + Final Main Integration Closeout；Independent Re-Review = `PASS WITH NON-BLOCKING FINDINGS — READY FOR HUMAN ACCEPTANCE`；Human-Accepted reviewed candidate = `559f14be1fb89df58c11dfbea737eba4ac30421e`（branch `n01-7-r01-witness-b-latest-main`）；集成方法 = `FAST-FORWARD ONLY`）；🚩 遗留 P2 Watch Item `N01-7-R01-RR-P2-01`（Memory Operational Watch / Bounded Retention Growth，slope `≈16.02 MiB/h` > `5.0`、`total_growth ≈14.043 MiB ≤ 64` ⇒ `finding = false`，Acceptance Gate = PASS）**已由 `N01-8` 继续观察并保持开启（`REMAINS`）**（`N01-8` 冻结 AND 门 Formal Finding = `false`；本 Run `RSS growth 77.711 MiB` > `64`、second-half slope `−0.639369 MiB/h`；不得写 `memory resolved` / `memory is fine` / `no memory concern`）；**`N01-8 = ACCEPTED / COMPLETE`**（2026-09-14 Human Acceptance = `CONFIRMED` + Final Acceptance Closeout；Independent Review = `PASS WITH NON-BLOCKING FINDINGS — READY FOR HUMAN ACCEPTANCE`；Human-Accepted reviewed candidate = `d9306ada663a5cacb86bee26218e298169d82e6b`（branch `n01-8-12h-extended-soak`）；单轮 `total_active 44401.217 s`、99/99 aggregate checks True、Baseline Drift = `NO MATERIAL IMPACT`、Targeted Revalidation / Full Rerun = `NOT REQUIRED`；集成方法 = `FAST-FORWARD ONLY`）；Integrated Runtime Host 仍 `NOT STARTED`；**N01 overall = `ACCEPTED / COMPLETE`**（2026-09-14 Human Acceptance = `CONFIRMED` + N01 Overall Final Acceptance Closeout；Overall Final Review = `PASS WITH NON-BLOCKING FINDINGS — READY FOR HUMAN ACCEPTANCE`；Memory P2 `N01-7-R01-RR-P2-01` = `REMAINS` / NON-BLOCKING；`N01-9 = NOT REQUIRED / NOT CREATED`） |
+| Current State | `SE-ARCH-FIX-02 = ACCEPTED / COMPLETE`（2026-09-13 Human Acceptance = `APPROVED` + Final Main Integration Closeout，已 fast-forward only 收编 `main`；Human-Accepted reviewed candidate = `15da7c1`；Implementation = `4c83582`）；`SE-ARCH-FIX-01 = ACCEPTED / COMPLETE`（2026-09-13 Human Acceptance = `APPROVED` + Final Main Integration Closeout；reviewed candidate = `1e2738b`）；`SE-02A = ACCEPTED / COMPLETE`；`SE-02B = ACCEPTED / COMPLETE`；**`SE-02C = ACCEPTED / COMPLETE`**（2026-09-14 Human Acceptance = `CONFIRMED` + Final Acceptance Closeout；Independent Re-Review = `PASS WITH NON-BLOCKING FINDINGS — READY FOR HUMAN ACCEPTANCE`；Human-Accepted reviewed candidate = `7bb3835d6b14a3fc86becff1881c7f53f1acd567`（branch `se-02c-fix-02-stable-read-snapshot`）；`SE-02C-FIX-01` / `SE-02C-FIX-02` = `ACCEPTED / CLOSED`；集成方法 = `FAST-FORWARD ONLY`；遗留 `SE02C-R7` = P3 / NON-BLOCKING / NOT FIXED）；**`SE-02D = IN PROGRESS`**（`SE-02D-I01 = ACCEPTED / COMPLETE`、`SE-02D-I02 = ACCEPTED / COMPLETE`，均于 2026-09-15 Human Acceptance = `CONFIRMED` + Final Acceptance Closeout；`SE-02D-I03 = ACCEPTED / COMPLETE`，2026-09-16 Human Acceptance = `CONFIRMED` + Final Acceptance Closeout；parent production implementation 剩余部分仍 `NOT COMPLETE`；**`SE-02D-D01` Family Aggregation / Expectancy Contract（设计层）= `ACCEPTED / COMPLETE`**，2026-09-15 Human Acceptance = `CONFIRMED` + Final Acceptance Closeout，见 §6）；`N01-C = ACCEPTED / COMPLETE`；N01-A / N01-B 与 N01 验证修复 `N01-VAL-FIX-01/02/03` 均维持 `ACCEPTED / COMPLETE`；`N01-6 = ACCEPTED / COMPLETE`（Reviewed HEAD `3f591a7`）；**`N01-7-F01 = ACCEPTED / COMPLETE`**（2026-09-13 Human Acceptance = `CONFIRMED` + Final Main Integration；reviewed candidate `7c0ea7d` @ integration merge `ddf39f2`；已 fast-forward only 收编 `main`）；**`N01-7 / N01-7-R01 = ACCEPTED / COMPLETE`**（2026-09-14 Human Acceptance = `CONFIRMED` + Final Main Integration Closeout；Independent Re-Review = `PASS WITH NON-BLOCKING FINDINGS — READY FOR HUMAN ACCEPTANCE`；Human-Accepted reviewed candidate = `559f14be1fb89df58c11dfbea737eba4ac30421e`（branch `n01-7-r01-witness-b-latest-main`）；集成方法 = `FAST-FORWARD ONLY`）；🚩 遗留 P2 Watch Item `N01-7-R01-RR-P2-01`（Memory Operational Watch / Bounded Retention Growth，slope `≈16.02 MiB/h` > `5.0`、`total_growth ≈14.043 MiB ≤ 64` ⇒ `finding = false`，Acceptance Gate = PASS）**已由 `N01-8` 继续观察并保持开启（`REMAINS`）**（`N01-8` 冻结 AND 门 Formal Finding = `false`；本 Run `RSS growth 77.711 MiB` > `64`、second-half slope `−0.639369 MiB/h`；不得写 `memory resolved` / `memory is fine` / `no memory concern`）；**`N01-8 = ACCEPTED / COMPLETE`**（2026-09-14 Human Acceptance = `CONFIRMED` + Final Acceptance Closeout；Independent Review = `PASS WITH NON-BLOCKING FINDINGS — READY FOR HUMAN ACCEPTANCE`；Human-Accepted reviewed candidate = `d9306ada663a5cacb86bee26218e298169d82e6b`（branch `n01-8-12h-extended-soak`）；单轮 `total_active 44401.217 s`、99/99 aggregate checks True、Baseline Drift = `NO MATERIAL IMPACT`、Targeted Revalidation / Full Rerun = `NOT REQUIRED`；集成方法 = `FAST-FORWARD ONLY`）；Integrated Runtime Host 仍 `NOT STARTED`；**N01 overall = `ACCEPTED / COMPLETE`**（2026-09-14 Human Acceptance = `CONFIRMED` + N01 Overall Final Acceptance Closeout；Overall Final Review = `PASS WITH NON-BLOCKING FINDINGS — READY FOR HUMAN ACCEPTANCE`；Memory P2 `N01-7-R01-RR-P2-01` = `REMAINS` / NON-BLOCKING；`N01-9 = NOT REQUIRED / NOT CREATED`） |
 | Last Accepted Group | SE-02C — Forward Outcome Calculator |
 | Current Group Branch | `se-02c-final-acceptance-closeout`（SE-02C-FINAL；base = immutable reviewed candidate `7bb3835d6b14a3fc86becff1881c7f53f1acd567`；docs/state-only closeout commit，已 fast-forward only 收编 `main`）；reviewed candidate branch `se-02c-fix-02-stable-read-snapshot` @ `7bb3835` 保持 immutable（远端未移动）；Fix-01 branch `se-02c-fix-01-review-blockers` @ `2f986827` 保持 immutable；原候选 `se-02c-forward-outcome-calculator` @ `be3aa6c` 保持 immutable；已验收 lineage `n01-7-r01-witness-b-latest-main` 等不变 |
 
@@ -67,10 +67,22 @@
   数据库 `statement_timestamp()` 作 `as_of`，折叠全量可见 Evidence / 精确 horizon Outcome
   修订链、选 canonical head、做 cross-integrity 校验，输出 `CanonicalScopeFacts` +
   revision-aware manifest（**不**调用 `aggregate()`）。
-- ⚠️ **`I01 / I02 Accepted` ≠ `SE-02D Complete`**：**`SE-02D Production Implementation =
-  IN PROGRESS`**（剩余实现 = `NOT COMPLETE`）；**population grouping + invocation of I01
-  `aggregate()` = NOT YET IMPLEMENTED**；aggregate / API / product integration 亦未实现；
-  historical revision-as-of = `OPEN`。
+- **SE-02D-I03 = `ACCEPTED / COMPLETE`**（2026-09-16 Human Acceptance = `CONFIRMED`；
+  Initial Independent Review = `FAIL — FIX REQUIRED`；`SE02D-I03-R1`（P1）= `CLOSED`；FIX-01
+  Independent Re-Review = `PASS — READY FOR HUMAN ACCEPTANCE`；Human-Accepted reviewed HEAD =
+  `20a7c333abf81077c409811302331119dff485a5`（branch
+  `se-02d-i03-fix-01-projection-identity-validation`，immutable；远端同 SHA、未被移动）；
+  Original Reviewed Candidate = `44d0e4b14ba0037de4da8e605d7b04b9f5d721e4`（branch
+  `se-02d-i03-population-aggregate-orchestration`，immutable）；集成方法 = `FAST-FORWARD
+  ONLY`）。**Population grouping + I01 `aggregate()` 编排已实现**：
+  `marketpulse.edge.aggregation_orchestration` 消费一份 I02 `CurrentSnapshotProjection`，
+  经 facts ↔ revision-aware manifest 一一对应完整性门（fail closed）后按完整结构
+  `PopulationKey` 分组，每个 population **恰好一次** I01 `aggregate()` 调用，输出确定性有序
+  `tuple[AggregationResult, ...]`（**不** own 统计 / revision folding / DB snapshot 语义 /
+  新 Population Key 语义 / Measurement Signature 语义 / API & product 集成）。
+- ⚠️ **`I01 / I02 / I03 Accepted` ≠ `SE-02D Complete`**：**`SE-02D Production Implementation =
+  IN PROGRESS`**（剩余实现 = `NOT COMPLETE`）；**aggregate / API / product integration =
+  NOT YET IMPLEMENTED**；**historical revision-as-of = `OPEN`**。
 - SE-ARCH-FIX-01 Stable Evidence Anchor = `ACCEPTED / COMPLETE`（2026-09-13 Human Acceptance =
   `APPROVED`）：Second Independent Re-Review = `PASS — READY FOR HUMAN ACCEPTANCE`；
   Human-Accepted reviewed candidate = `1e2738b09a4e4a62d91cfa8a6ffd6fcec3c71a21`；
@@ -283,8 +295,8 @@ disposable 库保持空表（症状 `relation "edge_opportunity_evidence" does n
   IN PROGRESS`。**PostgreSQL loading / full Evidence & Outcome revision-chain discovery /
   canonical head selection from DB / `REPEATABLE READ` current-snapshot orchestration /
   final revision manifest construction from DB** 已于 **`SE-02D-I02`** 实现并验收（见下）；
-  **仍未实现** = population grouping + 调用 I01 `aggregate()`、aggregate / API / product
-  integration、historical revision-as-of。
+  **population grouping + 调用 I01 `aggregate()`** 已于 **`SE-02D-I03`** 实现并验收（见下）；
+  **仍未实现** = aggregate / API / product integration、historical revision-as-of。
 - 三项独立 prerequisite 仍 `OPEN`：**historical revision-as-of**、**experiment/pair/arm
   identity**、**durable regime**。`Gate C = NOT PASSED`；`Live = NOT AUTHORIZED`；
   Real AI = `NOT ACTIVATED`；Memory P2 `N01-7-R01-RR-P2-01` 保持
@@ -314,14 +326,43 @@ disposable 库保持空表（症状 `relation "edge_opportunity_evidence" does n
   `as_of`；**未**引入新统计语义（I01 仍为 canonical manifest base fields / fingerprint /
   bootstrap / statistics / uncertainty / sufficiency 的权威）。
 - ⚠️ **`I02 Accepted` ≠ `SE-02D Complete`**：`SE-02D Production Implementation =
-  IN PROGRESS`；**population grouping + invocation of I01 `aggregate()` = NOT YET
-  IMPLEMENTED**；aggregate / API / product integration 亦未实现。
+  IN PROGRESS`；**population grouping + invocation of I01 `aggregate()` 已于 `SE-02D-I03`
+  实现并验收**（见下）；aggregate / API / product integration 仍未实现。
 - 边界：`Gate C = NOT PASSED`；`Live = NOT AUTHORIZED`；Real AI = `NOT ACTIVATED`；
   **historical revision-as-of = `OPEN`**、**experiment/pair/arm identity = `OPEN`**、
   **durable regime identity = `OPEN`**；Memory P2 `N01-7-R01-RR-P2-01` 保持
   `REMAINS / NON-BLOCKING`。
 - 详见 `dev_log/2026-09-15-se-02d-i02-final-acceptance-reconciliation.md` 与
   `dev_log/2026-09-15-se-02d-i02-current-snapshot-folding.md`。
+
+### SE-02D-I03 Population Grouping + Aggregate Orchestration — ACCEPTED / COMPLETE
+
+- 任务：`SE-02D-I03`｜Population Grouping + Aggregate Orchestration → `SE-02D-I03-FINAL`｜
+  Human Acceptance + State Sync + Main Integration（docs/state-only；**非**新实现、**非**新
+  Review、**非** Gate C、**非** Live）。
+- 状态：**`SE-02D-I03 = ACCEPTED / COMPLETE`**（2026-09-16 Human Acceptance = `CONFIRMED`）；
+  Initial Independent Review = `FAIL — FIX REQUIRED`；`SE02D-I03-R1`（P1）= `CLOSED`；FIX-01
+  Independent Re-Review = `PASS — READY FOR HUMAN ACCEPTANCE`。
+- **Human-Accepted reviewed HEAD = `20a7c333abf81077c409811302331119dff485a5`**
+  （branch `se-02d-i03-fix-01-projection-identity-validation`，immutable evidence pointer；
+  远端未被移动）；Original Reviewed Candidate = `44d0e4b…`（branch
+  `se-02d-i03-population-aggregate-orchestration`，immutable）；closeout branch =
+  `se-02d-i03-final-acceptance-closeout`；Accepted Main before =
+  `44df66603e6bdba1f3f80c21be5b30c295e4a20a`；集成方法 = `FAST-FORWARD ONLY`。
+- 已接受范围：**population grouping + I01 `aggregate()` orchestration**
+  （`marketpulse.edge.aggregation_orchestration`）—— 消费一份 I02
+  `CurrentSnapshotProjection`；facts ↔ revision-aware manifest 一一对应完整性门（fail
+  closed）；按完整结构 `PopulationKey` 分组；每个 population **恰好一次** I01 `aggregate()`
+  调用；确定性 population 排序；薄 async 单次读 wrapper。**不** own 统计 / revision
+  folding / DB snapshot 语义 / 新 Population Key 语义 / Measurement Signature 语义 /
+  API & product 集成。
+- ⚠️ **`I03 Accepted` ≠ `SE-02D Complete`**：`SE-02D Production Implementation =
+  IN PROGRESS`；**aggregate / API / product integration = NOT YET IMPLEMENTED**；
+  historical revision-as-of 仍 `OPEN`。
+- 边界：`Gate C = NOT PASSED`；`Live = NOT AUTHORIZED`；Real AI = `NOT ACTIVATED`；
+  Memory P2 `N01-7-R01-RR-P2-01` 保持 `REMAINS / NON-BLOCKING`。本收尾**不**定义 / 启动 I04。
+- 详见 `dev_log/2026-09-16-se-02d-i03-final-acceptance-closeout.md` 与
+  `dev_log/2026-09-16-se-02d-i03-population-aggregate-orchestration.md`。
 
 ### SE-02D-D01 Family Aggregation / Expectancy Contract — ACCEPTED / COMPLETE
 
