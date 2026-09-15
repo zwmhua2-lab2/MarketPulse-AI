@@ -62,8 +62,10 @@ from marketpulse.edge.aggregation import (
     economic_statistics,
     percentile_interval,
     replicate_means,
+    sample_identity,
     worst_decile_k,
 )
+from marketpulse.edge.hashing import canonical_bytes
 from marketpulse.edge.models import (
     EdgeFamily,
     EvidenceSource,
@@ -1260,3 +1262,311 @@ def test_result_exposes_the_population_aggregate_identity():
 
 def test_aggregation_module_is_reachable_through_the_package():
     assert aggregation_module.AGGREGATION_CONTRACT_VERSION == AGGREGATION_CONTRACT_VERSION
+
+
+# --- SE-02D-I01-FIX-01 regression coverage ---------------------------------------------------
+#
+# Independent Review returned ``FAIL — FIX REQUIRED`` with three P1 findings:
+#
+#   SE02D-I01-R1  Measurement Signature identity encoding is non-injective
+#   SE02D-I01-R2  headline arithmetic order violated the accepted sample_id order
+#   SE02D-I01-R3  generated canonical input manifest omitted the Population Key
+#
+# Every test in this section fails against the reviewed pre-FIX implementation.
+
+# Adversarial delimiter-injection pair: all six fields identical except for how one
+# ``|`` / ``=`` sequence is split across ``cost_policy`` / ``cost_model_version``.
+_COLLIDING_A = MeasurementSignature(
+    outcome_contract_version="se02-outcome-v1",
+    calculator_version="se02c-forward-outcome-v1",
+    cost_policy="P|cost_model_version=Q",
+    cost_model_version="R",
+    outcome_source_type=EvidenceSource.FORWARD_PAPER,
+    outcome_source_identity=SOURCE_IDENTITY,
+)
+_COLLIDING_B = MeasurementSignature(
+    outcome_contract_version="se02-outcome-v1",
+    calculator_version="se02c-forward-outcome-v1",
+    cost_policy="P",
+    cost_model_version="Q|cost_model_version=R",
+    outcome_source_type=EvidenceSource.FORWARD_PAPER,
+    outcome_source_identity=SOURCE_IDENTITY,
+)
+
+# Adversarial Population Key pair: all seven fields identical except for how the same
+# delimiter sequence is split across ``family_version`` / ``instrument_id``.
+_KEY_COLLIDING_A = _key(family_version="g2-v1|instrument_id=X", instrument_id="Y")
+_KEY_COLLIDING_B = _key(family_version="g2-v1", instrument_id="X|instrument_id=Y")
+
+# Post-FIX-01 frozen chain for the *generated* manifest over
+# ``_resolved_positive_facts()`` with ``AS_OF`` / ``HORIZON``. Recording the R3
+# Population Key in every generated entry changes the fingerprint, therefore the
+# bootstrap seed and every draw taken from that seed.
+FROZEN_GENERATED_FINGERPRINT = "4d6f2b40b46fa912f14de87f3d2a79d3f2382171d344e17a9a3bb289f6b73855"
+FROZEN_GENERATED_SEED_HEX = "fc206f667e0a1b571ab5b36a588946aaaaf909c666fd4280a4ca1b5109e894b8"
+FROZEN_GENERATED_DRAWS_N3 = [0, 1, 2, 1, 0, 2, 1, 1, 2, 0]
+# Same fixtures with the R3 field stripped again, i.e. the reviewed pre-FIX shape.
+FROZEN_PRE_FIX_SHAPE_FINGERPRINT = (
+    "6b1808df759d45275a9ec9b6c2a6b94d887aa2881174d3c7e95ef810216511eb"
+)
+FROZEN_PRE_FIX_SHAPE_SEED_HEX = (
+    "e670ea2e47ad7d53c1f51162331ea5614652a4efe55afecc6ae2234a95013e4a"
+)
+
+
+def _capture_fsum_operand_orders(call, *, limit):
+    """Run ``call`` with ``math.fsum`` spied on; return the first ``limit`` operand orders."""
+
+    observed: list[list[float]] = []
+    real_fsum = math.fsum
+
+    def spy(sequence):
+        materialised = [float(value) for value in sequence]
+        if len(observed) < limit:
+            observed.append(materialised)
+        return real_fsum(materialised)
+
+    math.fsum = spy
+    try:
+        call()
+    finally:
+        math.fsum = real_fsum
+    return observed
+
+
+# --- R1: structural identity + collision-safe diagnostics ------------------------------------
+
+
+def test_r1_structural_fields_are_the_signature_equality_authority():
+    assert _COLLIDING_A != _COLLIDING_B
+    assert hash(_COLLIDING_A) != hash(_COLLIDING_B)
+    assert _signature() == SIGNATURE
+    assert hash(_signature()) == hash(SIGNATURE)
+
+
+def test_r1_diagnostic_key_is_collision_safe_and_lossless():
+    left = _COLLIDING_A.canonical_key()
+    right = _COLLIDING_B.canonical_key()
+    assert left != right
+    assert left == canonical_bytes(_COLLIDING_A.canonical_payload()).hex()
+    assert right == canonical_bytes(_COLLIDING_B.canonical_payload()).hex()
+    # Same six-field payload -> same diagnostic key.
+    assert _signature().canonical_key() == SIGNATURE.canonical_key()
+    # The representation carries no unescaped delimiter of its own.
+    for rendered in (left, right):
+        assert "|" not in rendered
+        assert "=" not in rendered
+
+
+def test_r1_adversarial_delimiter_collision_fails_closed():
+    facts = [
+        _fact("opp-1", start_offset_hours=1, return_value=0.10, signature=_COLLIDING_A),
+        _fact("opp-2", start_offset_hours=4, return_value=-0.05, signature=_COLLIDING_B),
+    ]
+    result = _aggregate(facts)
+
+    assert result.status is AggregateStatus.INCOMPATIBLE_MEASUREMENT_SIGNATURES
+    assert result.measurement_signature_state is MeasurementSignatureState.MIXED
+    assert result.measurement_signature is None
+    assert result.statistics is None
+    assert result.tail_risk is None
+    assert result.uncertainty is None
+    assert result.evidence_sufficient is False
+    assert (
+        SufficiencyReason.INCOMPATIBLE_MEASUREMENT_SIGNATURES.value
+        in result.sufficiency_reasons
+    )
+
+    # Coverage is still reported in full, with both signatures visible as separate buckets.
+    assert result.coverage.complete == 2
+    assert result.coverage.mature_denominator == 2
+    counts = result.coverage.measurement_signature_counts
+    assert len(counts) == 2
+    assert sorted(counts.values()) == [1, 1]
+    assert set(counts) == {
+        _COLLIDING_A.canonical_key(),
+        _COLLIDING_B.canonical_key(),
+    }
+
+
+def test_r1_population_key_derived_key_is_collision_safe():
+    assert _KEY_COLLIDING_A != _KEY_COLLIDING_B
+    assert _KEY_COLLIDING_A.canonical_key() != _KEY_COLLIDING_B.canonical_key()
+    assert _KEY_COLLIDING_A.canonical_key() == canonical_bytes(
+        _KEY_COLLIDING_A.canonical_payload()
+    ).hex()
+    assert _KEY_COLLIDING_B.canonical_key() == canonical_bytes(
+        _KEY_COLLIDING_B.canonical_payload()
+    ).hex()
+    # Structurally equal keys still share one derived rendering.
+    assert _key().canonical_key() == KEY.canonical_key()
+    # The frozen field set is unchanged.
+    assert tuple(_KEY_COLLIDING_A.canonical_payload()) == (
+        "family_id",
+        "family_version",
+        "instrument_id",
+        "market_type",
+        "source_type",
+        "source_identity",
+        "evidence_contract_version",
+    )
+
+
+def test_r1_sample_id_is_collision_safe():
+    shared_opportunity = "opp-shared"
+    first = _fact(shared_opportunity, start_offset_hours=1, key=_KEY_COLLIDING_A)
+    second = _fact(shared_opportunity, start_offset_hours=1, key=_KEY_COLLIDING_B)
+
+    assert sample_identity(first) != sample_identity(second)
+    assert first.sample_id != second.sample_id
+    assert "\n" not in first.sample_id
+
+
+# --- R2: accepted arithmetic order -----------------------------------------------------------
+
+
+def test_r2_economic_statistics_accumulates_in_caller_order():
+    orders = _capture_fsum_operand_orders(
+        lambda: economic_statistics((0.5, 0.001, 0.2)), limit=3
+    )
+    # 1) the headline mean accumulates the returns in the caller (sample) order.
+    assert orders[0] == [0.5, 0.001, 0.2]
+    # 2) the variance accumulation also walks the caller order; its operands are the
+    #    squared deviations, so the sequence must follow 0.5, 0.001, 0.2 and must not
+    #    be the value-sorted alternative.
+    mean = math.fsum((0.5, 0.001, 0.2)) / 3
+    deviations = [(0.5 - mean) ** 2, (0.001 - mean) ** 2, (0.2 - mean) ** 2]
+    assert orders[1] == deviations
+    assert orders[1] != sorted(deviations)
+    # 3) the worst-decile mean is an order statistic: value order is used only here.
+    assert orders[2] == [0.001]
+
+
+def test_r2_value_sorting_is_limited_to_order_statistics():
+    returns = (0.5, 0.001, 0.2)
+    stats = economic_statistics(returns)
+
+    assert stats.n_economic_samples == 3
+    # Arithmetic tied to the accepted sample order.
+    assert stats.mean == math.fsum(returns) / 3
+    assert stats.positive_count == 3
+    assert stats.flat_count == 0
+    assert stats.negative_count == 0
+    assert stats.positive_rate == 1.0
+    # Order statistics follow value order, which differs from the sample order above.
+    assert stats.median == 0.2
+    assert stats.worst_observation == 0.001
+    assert stats.worst_decile_mean == 0.001
+
+
+def test_r2_headline_fsum_uses_sample_id_lexical_order():
+    facts = [
+        _fact("opp-a", start_offset_hours=1, return_value=0.5),
+        _fact("opp-b", start_offset_hours=4, return_value=0.001),
+        _fact("opp-c", start_offset_hours=7, return_value=0.2),
+    ]
+    orders = _capture_fsum_operand_orders(lambda: _aggregate(facts), limit=1)
+    assert orders[0] == [0.5, 0.001, 0.2]
+
+
+def test_r2_accumulation_order_is_independent_of_caller_order():
+    facts = [
+        _fact("opp-a", start_offset_hours=1, return_value=0.5),
+        _fact("opp-b", start_offset_hours=4, return_value=0.001),
+        _fact("opp-c", start_offset_hours=7, return_value=0.2),
+    ]
+    forward = _capture_fsum_operand_orders(lambda: _aggregate(list(facts)), limit=1)
+    backward = _capture_fsum_operand_orders(
+        lambda: _aggregate(list(reversed(facts))), limit=1
+    )
+    assert forward == backward
+    assert forward[0] == [0.5, 0.001, 0.2]
+
+
+# --- R3: manifest Population Key + regenerated golden chain ----------------------------------
+
+
+def test_r3_generated_manifest_records_population_key_and_horizon():
+    result = _aggregate(_resolved_positive_facts())
+    assert result.input_manifest
+    for entry in result.input_manifest:
+        assert entry["population_key"] == KEY.canonical_payload()
+        assert entry["horizon"] == HORIZON.value
+
+
+def test_r3_manifest_population_key_reuses_canonical_payload():
+    manifest = build_ordered_input_manifest(_resolved_positive_facts(), as_of=AS_OF)
+    entry = manifest[0]
+    assert entry["population_key"] == KEY.canonical_payload()
+    assert set(entry["population_key"]) == {
+        "family_id",
+        "family_version",
+        "instrument_id",
+        "market_type",
+        "source_type",
+        "source_identity",
+        "evidence_contract_version",
+    }
+    assert "source_manifest_id" not in entry["population_key"]
+
+
+def test_r3_top_level_fingerprint_payload_still_carries_population_key():
+    facts = _resolved_positive_facts()
+    result = _aggregate(facts)
+    stripped = tuple(
+        {key: value for key, value in entry.items() if key != "population_key"}
+        for entry in result.input_manifest
+    )
+    # Dropping only the *entry-level* key does not drop the top-level one.
+    assert compute_input_fingerprint(
+        as_of=AS_OF,
+        population_key=KEY,
+        horizon=HORIZON,
+        ordered_input_manifest=stripped,
+    ) == FROZEN_PRE_FIX_SHAPE_FINGERPRINT
+
+
+def test_r3_population_key_changes_fingerprint_and_seed():
+    result = _aggregate(_resolved_positive_facts())
+    stripped = tuple(
+        {key: value for key, value in entry.items() if key != "population_key"}
+        for entry in result.input_manifest
+    )
+    pre_fix_fingerprint = compute_input_fingerprint(
+        as_of=AS_OF,
+        population_key=KEY,
+        horizon=HORIZON,
+        ordered_input_manifest=stripped,
+    )
+    assert pre_fix_fingerprint != result.input_fingerprint
+    assert pre_fix_fingerprint == FROZEN_PRE_FIX_SHAPE_FINGERPRINT
+    assert FROZEN_PRE_FIX_SHAPE_FINGERPRINT != FROZEN_GENERATED_FINGERPRINT
+
+    pre_fix_seed = bootstrap_seed(
+        population_key=KEY,
+        horizon=HORIZON,
+        as_of=AS_OF,
+        input_fingerprint=pre_fix_fingerprint,
+    )
+    assert pre_fix_seed.hex() == FROZEN_PRE_FIX_SHAPE_SEED_HEX
+    assert pre_fix_seed.hex() != FROZEN_GENERATED_SEED_HEX
+
+
+def test_r3_golden_vectors_are_pinned():
+    result = _aggregate(_resolved_positive_facts())
+    assert result.input_fingerprint == FROZEN_GENERATED_FINGERPRINT
+
+    seed = bootstrap_seed(
+        population_key=KEY,
+        horizon=HORIZON,
+        as_of=AS_OF,
+        input_fingerprint=result.input_fingerprint,
+    )
+    assert seed.hex() == FROZEN_GENERATED_SEED_HEX
+    assert len(result.clusters) == 3
+    assert [
+        draw_cluster_index(seed, 3, ordinal) for ordinal in range(len(FROZEN_GENERATED_DRAWS_N3))
+    ] == FROZEN_GENERATED_DRAWS_N3
+    # The RNG algorithm itself is unchanged (D01 section 10.1 item 7).
+    assert RNG_ALGORITHM_VERSION == "SHA256_COUNTER_REJECTION_V1"
+    assert [draw_cluster_index(ZERO_SEED, 3, ordinal) for ordinal in range(12)] == FROZEN_DRAWS_N3

@@ -45,7 +45,26 @@ Frozen version literals (Accepted Design pointers):
 Determinism notes:
 
 * every derived sequence is sorted before use, so the input order of ``facts``
-  cannot change any output value (permutation invariance);
+  cannot change any output value (permutation invariance). Sorting keys are always
+  built from the frozen fields; the arithmetic accumulation order is a separate,
+  explicitly named concept (see the next two notes);
+* identity encoding is **structural** (SE02D-I01-R1). Semantic compatibility --
+  population identity, sample identity, Measurement Signature distinctness -- is
+  decided on the frozen field tuples themselves. Derived strings exist only for
+  ordering, diagnostics and set keys, and are produced through the accepted G5
+  boundary as ``canonical_bytes(payload).hex()`` so they are injective. A
+  delimiter-joined ``field=value|...`` rendering is never used, because field
+  values may themselves contain ``|`` or ``=`` and could then collapse two
+  structurally different identities into one bucket;
+* two arithmetic orders are kept explicitly apart (SE02D-I01-R2, D01 section 7.1).
+  ``sample_id`` lexical ascending is the **accumulation** order for the headline
+  mean, the variance/standard-deviation accumulation and the sign counts, and is
+  passed to :func:`economic_statistics` unchanged. A value-sorted copy is used only
+  for the order statistics that are defined on value order -- ``median``,
+  ``worst_observation`` and ``worst_decile_mean``. ``math.fsum`` is exactly rounded
+  and therefore order-independent, which is precisely why the order must be frozen
+  by contract rather than left to an implicit sort: swapping to a non-exact
+  accumulator would otherwise change the published number;
 * ``ceil(0.10 * n)`` is implemented as the exact integer ceiling ``-(-n // 10)``.
   ``math.ceil(0.10 * n)`` is a floating-point expression whose result can drift
   from its own mathematical definition; the exact form is provably identical on
@@ -280,9 +299,19 @@ class PopulationKey:
         }
 
     def canonical_key(self) -> str:
-        """Deterministic, human-readable rendering used for ordering only."""
+        """Collision-safe derived representation of this key.
 
-        return "|".join(f"{name}={value}" for name, value in self.canonical_payload().items())
+        Derived through the accepted G5 canonicalization boundary:
+        ``canonical_bytes(canonical_payload()).hex()``. A delimiter-joined
+        ``field=value|...`` rendering is **not** injective, because values may
+        themselves contain ``|`` or ``=``, so two structurally different keys could
+        share one derived string (SE02D-I01-R1). This representation cannot.
+
+        Structural equality of this dataclass -- not this string -- remains the
+        semantic authority for population identity.
+        """
+
+        return canonical_bytes(self.canonical_payload()).hex()
 
 
 @dataclass(frozen=True, slots=True)
@@ -311,7 +340,19 @@ class MeasurementSignature:
         }
 
     def canonical_key(self) -> str:
-        return "|".join(f"{name}={value}" for name, value in self.canonical_payload().items())
+        """Collision-safe **diagnostic** identity of this signature.
+
+        Diagnostic / ordering output only. It is derived through the accepted G5
+        boundary as ``canonical_bytes(canonical_payload()).hex()``, so different
+        canonical payloads always give different keys and the same six-field
+        payload always gives the same key (SE02D-I01-R1).
+
+        Semantic compatibility is decided by this dataclass's structural
+        equality/hash -- the six frozen fields themselves. It is never decided by
+        this string, and never by a digest standing in for the fields.
+        """
+
+        return canonical_bytes(self.canonical_payload()).hex()
 
 
 @dataclass(frozen=True, slots=True)
@@ -433,17 +474,30 @@ class CanonicalScopeFacts:
 
     @property
     def sample_id(self) -> str:
-        """Frozen sample identity rendered as one deterministic string.
+        """Frozen sample identity rendered as one collision-safe string.
 
         The frozen *identity* is ``(population_key, horizon, opportunity_id)``;
-        inside a single aggregate the first two components are constant.
+        inside a single aggregate the first two components are constant. The
+        population component is rendered through the collision-safe
+        :meth:`PopulationKey.canonical_key`, so an ambiguous ``field=value|...``
+        rendering can never make two structurally different identities share one
+        ``sample_id`` (SE02D-I01-R1). Within one aggregate this therefore renders a
+        total order on ``opportunity_id``, which is the order D01 section 7.1
+        freezes for the headline ``math.fsum`` accumulation.
         """
 
         return f"{self.population_key.canonical_key()}|{self.horizon.value}|{self.opportunity_id}"
 
 
 def sample_identity(facts: CanonicalScopeFacts) -> tuple[PopulationKey, ForwardHorizon, str]:
-    """Freeze the D01 section 4.1 sample identity as a comparable tuple."""
+    """Freeze the D01 section 4.1 sample identity as a comparable tuple.
+
+    This structured tuple -- not the derived :attr:`CanonicalScopeFacts.sample_id`
+    string -- is the semantic authority for duplicate detection. The derived string
+    is only ever an ordering / diagnostic / set-key rendering, and it is
+    collision-safe so it can be used for those purposes without ever merging two
+    structurally different identities (SE02D-I01-R1).
+    """
 
     return (facts.population_key, facts.horizon, facts.opportunity_id)
 
@@ -524,9 +578,10 @@ def build_ordered_input_manifest(
 ) -> tuple[dict[str, Any], ...]:
     """Deterministic canonical input manifest (D01 section 9.2).
 
-    Ordered by ``(opportunity_id, evidence_id, horizon)``. Numeric returns are
-    recorded as their exact ``float.hex()`` bit representation, so the manifest
-    binds the precise bits that produced the aggregate.
+    Ordered by ``(opportunity_id, evidence_id, horizon)``. Every entry records the
+    Population Key and the horizon, as D01 section 9.2 requires (SE02D-I01-R3), and
+    numeric returns are recorded as their exact ``float.hex()`` bit representation,
+    so the manifest binds the precise bits that produced the aggregate.
 
     Boundary note: I01 does not fold revision chains, so it can record the folded
     revision *counts* but not the identity of every folded revision. A later
@@ -541,6 +596,11 @@ def build_ordered_input_manifest(
         entries.append(
             {
                 "opportunity_id": item.opportunity_id,
+                # D01 section 9.2 requires every logical opportunity's entry to
+                # record the Population Key as well as the horizon (SE02D-I01-R3).
+                # The value is the frozen ``canonical_payload()`` projection, never
+                # a locally reconstructed key.
+                "population_key": item.population_key.canonical_payload(),
                 "horizon": item.horizon.value,
                 "evidence_id": item.evidence_id,
                 "evidence_revision": item.evidence_revision,
@@ -899,31 +959,51 @@ def worst_decile_k(n_economic_samples: int) -> int:
 
 
 def economic_statistics(returns: Sequence[float]) -> EconomicStatistics:
-    """Expectancy and the frozen descriptive set over already-ordered returns.
+    """Expectancy and the frozen descriptive set.
 
-    ``expectancy = math.fsum(x_i) / n`` with the deterministic sample order fixed
-    by the caller; ``sample_standard_deviation`` uses the ``n - 1`` denominator
-    and is ``NULL`` below two samples. Units stay dimensionless decimal returns
-    where ``0.01 == +1%`` and the sign split uses no epsilon.
+    Two distinct orderings are used deliberately (SE02D-I01-R2, D01 section 7.1):
+
+    * ``returns`` arrives in the caller's **sample order** -- ``sample_id`` lexical
+      ascending -- and every arithmetic accumulation that the Accepted contract
+      ties to that order uses exactly this sequence: the headline mean, the
+      variance / standard-deviation accumulation and the sign counts. The sequence
+      is never value-sorted before accumulation.
+    * a private ``value_sorted`` copy is used **only** for the order statistics
+      that mathematically require value order: ``median``,
+      ``worst_observation`` and ``worst_decile_mean``.
+
+    ``math.fsum`` is the required deterministic summation. ``sample_standard_
+    deviation`` uses the ``n - 1`` denominator and is ``NULL`` below two samples.
+    Units stay dimensionless decimal returns where ``0.01 == +1%`` and the sign
+    split uses no epsilon.
     """
 
     if not returns:
         raise AggregationError("economic statistics require at least one sample")
-    ordered = sorted(returns)
-    n = len(ordered)
-    mean = math.fsum(ordered) / n
-    if n % 2 == 1:
-        median = ordered[n // 2]
-    else:
-        median = math.fsum((ordered[n // 2 - 1], ordered[n // 2])) / 2.0
-    positive = sum(1 for value in ordered if value > 0.0)
-    negative = sum(1 for value in ordered if value < 0.0)
+
+    sample_ordered = tuple(returns)
+    n = len(sample_ordered)
+
+    # Arithmetic tied to the Accepted sample order: accumulate in that order only.
+    mean = math.fsum(sample_ordered) / n
+    positive = sum(1 for value in sample_ordered if value > 0.0)
+    negative = sum(1 for value in sample_ordered if value < 0.0)
     flat = n - positive - negative
     if n < 2:
         deviation: float | None = None
     else:
-        deviation = math.sqrt(math.fsum((value - mean) ** 2 for value in ordered) / (n - 1))
+        deviation = math.sqrt(
+            math.fsum((value - mean) ** 2 for value in sample_ordered) / (n - 1)
+        )
+
+    # Order statistics only: these are defined on value order by the contract.
+    value_sorted = sorted(sample_ordered)
+    if n % 2 == 1:
+        median = value_sorted[n // 2]
+    else:
+        median = math.fsum((value_sorted[n // 2 - 1], value_sorted[n // 2])) / 2.0
     k = worst_decile_k(n)
+
     return EconomicStatistics(
         n_economic_samples=n,
         mean=mean,
@@ -933,8 +1013,8 @@ def economic_statistics(returns: Sequence[float]) -> EconomicStatistics:
         negative_count=negative,
         positive_rate=positive / n,
         sample_standard_deviation=deviation,
-        worst_observation=ordered[0],
-        worst_decile_mean=math.fsum(ordered[:k]) / k,
+        worst_observation=value_sorted[0],
+        worst_decile_mean=math.fsum(value_sorted[:k]) / k,
     )
 
 
@@ -1301,8 +1381,13 @@ def aggregate(
     signatures = [item.measurement_signature for item in usable_complete]
     if any(signature is None for signature in signatures):
         raise AggregationError("a usable COMPLETE sample must carry a Measurement Signature")
+    # Structural authority (SE02D-I01-R1): distinctness is decided on the actual
+    # six frozen fields of ``MeasurementSignature``, never on a derived string or
+    # digest. ``canonical_key()`` is used here only to give the distinct set a
+    # deterministic order for reporting.
     distinct_signatures = sorted(
-        {signature.canonical_key() for signature in signatures if signature is not None}
+        {signature for signature in signatures if signature is not None},
+        key=MeasurementSignature.canonical_key,
     )
 
     coverage = CoverageReport(
@@ -1382,11 +1467,7 @@ def aggregate(
         exact_signature: MeasurementSignature | None = None
     elif len(distinct_signatures) == 1:
         signature_state = MeasurementSignatureState.EXACT
-        exact_signature = next(
-            signature
-            for signature in signatures
-            if signature is not None and signature.canonical_key() == distinct_signatures[0]
-        )
+        exact_signature = distinct_signatures[0]
     else:
         signature_state = MeasurementSignatureState.MIXED
         exact_signature = None
