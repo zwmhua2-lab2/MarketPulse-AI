@@ -209,3 +209,24 @@ FIX-01 push 后复核远端真值时发现 `main` 已推进：
 | `refs/heads/main` | `664207a9caba0c3f5c2589cfca2a10af24f89108` |
 
 Push 为 fast-forward（`77c01c9..3e9b8f0`），未 force push。
+
+### 8.11 FIX-01 追加 commit 全序列与最终 tip 定义
+
+FIX-01 在 `77c01c9` 之后追加的 commit（fast-forward push；未 rebase / squash / merge main /
+cherry-pick / reset history / force push；未 amend `77c01c9`）：
+
+| # | SHA | message |
+|---|---|---|
+| 1 | `bf8cb6f33f724f2e68872d27b68df627afe14fd8` | `fix(se-02d-i02): close snapshot projection review blockers`（code + tests） |
+| 2 | `3e9b8f016369758100fd5999388d815b097023ed` | `docs(se-02d-i02): record FIX-01 verification evidence` |
+| 3 | `bcceedbb29af8c9c6c8340ba62894551bb78b68a` | `docs(se-02d-i02): record FIX-01 main drift observation` |
+| 4 | 本 §8.11 记录 commit | `docs(se-02d-i02): record FIX-01 addendum commit sequence` |
+
+- 权威 fix commit = #1 `bf8cb6f`（不随后续文档 commit 变化）。
+- **New branch tip = 上述追加链的最后一个 commit（即承载本 §8.11 的 commit）**；
+  字面值以 `git rev-parse se-02d-i02-current-snapshot-folding` /
+  `git ls-remote origin refs/heads/se-02d-i02-current-snapshot-folding` 为准，
+  并在 FIX-01 Final Report Section D 明确给出。
+- §8.1 / §8.10 中出现的字面 tip 值均为其记录时点的观测值（写入时刻为真，后续文档 commit
+  使其不再是 tip）；最终以本节定义为准。dev_log 无法自指承载自身的 commit SHA，
+  因此 tip 以「追加链末端」定义而非字面自指。
