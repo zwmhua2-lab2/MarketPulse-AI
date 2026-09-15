@@ -178,3 +178,34 @@ Runtime 激活 = NO；API/UI = NO；`main` 被 FIX-01 改动 = NO。
 - 已知残留（本 FIX-01 未触碰、未获授权清理）：工作树内上一会话遗留日志
   `pytest_i02_pure.log` / `pytest_i02_pure2.log` / `pytest_i02_all.log`（gitignored，非本次产物）。
 - 未启动 I03。STOP。
+
+### 8.9 NEW MAIN DRIFT（FIX-01 期间实测记录，更正 §8.1）
+
+FIX-01 push 后复核远端真值时发现 `main` 已推进：
+
+- 任务卡 issuance 时 live main：`41558c9096a42bc7a960d4d04cd4b0a9955163ea`
+- FIX-01 完成后实测 live main（`git ls-remote origin refs/heads/main`）：
+  `664207a9caba0c3f5c2589cfca2a10af24f89108`
+- 新增 commit：`664207a` `docs(pre-01b): record final I1 validation evidence`（2026-09-15 21:24:00 +0800）
+- 该 commit 改动文件（全部）：`dev_log/2026-09-15-pre-01b-i1-close-final-validation.md`（+138，仅文档）
+- 关系：`git merge-base --is-ancestor 41558c9 664207a` 成立 ⇒ **forward**，非历史重写；
+  与 I02 分支 lineage（`0ae5b0b → 77c01c9 → bf8cb6f → 3e9b8f0`）正交。
+
+相关性判定：该 drift 不触及 `backend/**`、`frontend/**`、`config/**`、`scripts/**`、
+`docs/design/**`，不含 schema / migration 变更，也不触及任何 R1 / R2 / R3 的修复面
+（`backend/src/marketpulse/edge/aggregation_snapshot.py`、
+`backend/tests/test_se_02d_aggregation_snapshot.py`）。
+⇒ **demonstrably irrelevant to 三项授权修复**，按任务卡 §22 继续执行；
+本 FIX-01 未做任何 main reconciliation（未 rebase / 未 merge main / 未 cherry-pick / 未改 main）。
+
+> 更正声明：§8.1 中「无新增 main drift」系基于任务开始 preflight 的推断，现已过时；
+> 以本节实测值为准。
+
+### 8.10 远端真值（push 后核实）
+
+| Ref | SHA |
+|---|---|
+| `refs/heads/se-02d-i02-current-snapshot-folding` | `3e9b8f016369758100fd5999388d815b097023ed` |
+| `refs/heads/main` | `664207a9caba0c3f5c2589cfca2a10af24f89108` |
+
+Push 为 fast-forward（`77c01c9..3e9b8f0`），未 force push。
