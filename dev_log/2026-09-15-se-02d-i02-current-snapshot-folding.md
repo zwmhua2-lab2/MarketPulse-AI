@@ -78,3 +78,103 @@ Accepted Main SHA（CIP-02 实时读取）：`0ae5b0b`（HEAD = main = origin/ma
 ## 7. 状态
 
 - 实现完成、验证全绿、待 Independent Review。STOP（不启动 I03）。
+
+## 8. FIX-01 — Cross-Integrity + Canonical Manifest Contract（2026-09-15）
+
+Independent Review = **FAIL — FIX REQUIRED**（P0：NONE）
+
+| Finding | 级别 | 状态 |
+|---|---|---|
+| `SE02D-I02-R1` Evidence ↔ Outcome cross-integrity omits `source_type` | P1 | **FIXED / AWAITING INDEPENDENT RE-REVIEW** |
+| `SE02D-I02-R2` I02 hand-built manifest drops Accepted I01/D01 canonical manifest fields | P1 | **FIXED / AWAITING INDEPENDENT RE-REVIEW** |
+| `SE02D-I02-R3` `CurrentSnapshotProjection` does not explicitly carry `horizon` | P2 | **FIXED / AWAITING INDEPENDENT RE-REVIEW** |
+
+> Worker 不将任何 finding 标记为 CLOSED / ACCEPTED。
+
+### 8.1 SHA 基线
+
+- Previous candidate SHA（Independent Review 时点）：`77c01c945d2a9dc7cae68435e0c334b1cd5d9c72`
+- FIX-01 fix commit（code + tests）：`bf8cb6f33f724f2e68872d27b68df627afe14fd8`
+- FIX-01 dev_log 记录 commit（= new branch tip）：紧随 `bf8cb6f` 的
+  `docs(se-02d-i02): record FIX-01 verification evidence`；literal SHA 见 FIX-01 Final Report Section D
+- 当前 live main（实时 `git ls-remote origin refs/heads/main`）：`41558c9096a42bc7a960d4d04cd4b0a9955163ea`（= 任务卡 issuance 值，无新增 main drift）
+- I02 lineage：`0ae5b0b` → `77c01c9` → `bf8cb6f` →（dev_log commit）。
+  未 rebase / squash / merge main / cherry-pick main / reset history / force push；未 amend `77c01c9`。
+
+### 8.2 改动文件（仅 3 个授权文件）
+
+| 文件 | 变更 |
+|---|---|
+| `backend/src/marketpulse/edge/aggregation_snapshot.py` | R1 交叉完整性补齐 4 项校验；R2 manifest 改为复用 `build_ordered_input_manifest`；R3 `CurrentSnapshotProjection` 增加 `horizon` |
+| `backend/tests/test_se_02d_aggregation_snapshot.py` | 新增 9 个测试（R1 ×2、R2 ×5、R3 ×2） |
+| `dev_log/2026-09-15-se-02d-i02-current-snapshot-folding.md` | 本 FIX-01 记录 |
+
+### 8.3 R1 — 完整 Evidence ↔ Outcome 交叉完整性
+
+`_check_cross_integrity` 现在逐项 fail closed（`SnapshotIntegrityError`，冲突标识符一律单元素元组）：
+
+1. `outcome.opportunity_id == evidence.opportunity_id`
+2. `outcome.evidence_id == evidence.evidence_id`
+3. `outcome.horizon == requested horizon`
+4. `outcome.source_type == evidence.source_type`（**新增，R1 核心**）
+5. `outcome.source_identity == evidence.source_identity`（保持）
+6. `outcome.due_at == forward_due_at(evidence.evidence_at, horizon)`（保持）
+
+不把任一侧规范化到另一侧，不静默保留 Outcome。定向回归：Evidence `source_type=HISTORICAL_REPLAY` /
+`source_identity="same-source"` vs Outcome `source_type=FORWARD_PAPER` / `source_identity="same-source"`
+→ `SnapshotIntegrityError`，证明匹配的 `source_identity` 不能掩盖 `source_type` 不一致
+（`test_evidence_outcome_source_type_mismatch_fails_closed`）。六项链接各有独立反例
+（`test_cross_integrity_checks_every_link_field_fail_closed`），并验证 `outcome=None` 仍为 no-op。
+
+### 8.4 R2 — I01 canonical manifest 权威
+
+- 删除 I02 手写 manifest schema，改调 `build_ordered_input_manifest(facts, as_of=as_of)` 生成 base，
+  再逐条扩展 `no_outcome`（I02 原有诊断字段；任务 §11/§14 允许 I02 附加字段，§5 禁止清单未含此键）、
+  `evidence_revision_identities`、`outcome_revision_identities`。
+- 未引入第二个 serializer、第二个 float→hex 实现，未在 I02 重算任何 I01 字段。
+- revision identity 补全身份字段：Evidence `{evidence_id, evidence_revision, evidence_hash, role}`；
+  Outcome `{outcome_id, outcome_revision, outcome_record_hash, role}`；role 仍为
+  `CANONICAL` / `FOLDED_EVIDENCE` / `FOLDED_OUTCOME`，按 revision 升序。
+- 强兼容证明：`zip(base, projection.manifest, strict=True)` 后逐 key 断言 `i02_entry[key] == value`
+  （`test_i02_manifest_preserves_every_i01_base_key_and_value`）。
+- `NO_OUTCOME` 保持 I01 语义：`outcome_id` / `outcome_revision` / `outcome_record_hash` = `None`、
+  `measurement_signature = NO_MEASUREMENT`、`outcome_revision_identities = []`。
+- COMPLETE 数值位绑定保持：5 个 `*_hex` 与 I01 base 逐位相等且非 None，`integrity_conflicts == []`。
+
+### 8.5 R3 — 显式 projection horizon
+
+`CurrentSnapshotProjection` 形状 = `as_of` / `horizon` / `facts` / `manifest`；
+`read(horizon)` 返回 `projection.horizon == horizon`。空快照证明：0 行 Evidence 的 disposable 库上
+`read(ForwardHorizon.M5)` → `horizon == ForwardHorizon.M5`、`facts == ()`、`manifest == ()`，
+horizon 不依赖 sample facts 是否存在。
+
+### 8.6 验证结果（真实验行）
+
+| 项 | 结果 |
+|---|---|
+| I02 focused（`test_se_02d_aggregation_snapshot.py`） | **44 passed**（11.34s）；原 35 + 新增 9 |
+| PostgreSQL MVCC（snapshot A/B/C/D + query-time regression + empty projection） | **全过**（含在 44 内） |
+| I01 回归（`test_se_02d_aggregation.py`） | **108 passed**（6.17s） |
+| SE-02A/SE-02C 回归（contracts / persistence / calculator / service） | **155 passed**（220.38s） |
+| `ruff check backend/src backend/tests scripts` | **All checks passed!**（rc=0） |
+| `git diff --check` | rc=0 |
+
+DB-backed 测试全部使用 disposable DB（`marketpulse_se02d_*` 现场建/删），未触碰 accepted / shared 应用库。
+reader 事务契约（单事务 / `REPEATABLE READ READ ONLY` / `statement_timestamp()` 作 `as_of` / rollback）
+未做任何改动。
+
+### 8.7 Scope 核实
+
+Schema = NO；Migration = NO；Production Dependency = NO；Accepted I01 实现改动 = NO；
+State Docs（AGENTS / AI_CONTEXT / PROJECT_STATE / DECISIONS / PRODUCT_REQUIREMENTS）= NO；
+Runtime 激活 = NO；API/UI = NO；`main` 被 FIX-01 改动 = NO。
+
+### 8.8 剩余限制
+
+- I01 = ACCEPTED / COMPLETE；I02 = **AWAITING INDEPENDENT RE-REVIEW**（Worker 不判 CLOSED）。
+- Population grouping + invocation of I01 aggregate = NOT YET IMPLEMENTED。
+- Historical revision-as-of = OPEN；Experiment / pair / arm identity = OPEN；Durable regime identity = OPEN。
+- Gate C = NOT PASSED；Live = NOT AUTHORIZED。
+- 已知残留（本 FIX-01 未触碰、未获授权清理）：工作树内上一会话遗留日志
+  `pytest_i02_pure.log` / `pytest_i02_pure2.log` / `pytest_i02_all.log`（gitignored，非本次产物）。
+- 未启动 I03。STOP。
