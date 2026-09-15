@@ -33,6 +33,11 @@ Boundaries that are deliberately **not** crossed here:
 * the revision-aware manifest I02 built is the manifest supplied to I01.
   ``build_ordered_input_manifest()`` is never used as a fallback, rows are never
   discarded, de-duplicated, fabricated or re-derived;
+* every projection identity this module dereferences -- ``projection.horizon``,
+  each ``fact.horizon`` and each ``fact.population_key`` -- is proven to be the
+  Accepted runtime type first, so malformed or tampered input fails closed as
+  :class:`AggregationOrchestrationError` rather than leaking an incidental
+  ``AttributeError`` (SE02D-I03-R1);
 * no statistic, threshold, maturity / coverage rule, fingerprint algorithm or
   KEEP / DOWNWEIGHT / KILL decision is recomputed here;
 * no API, persistence, migration, scheduler or runtime host is involved.
@@ -96,16 +101,49 @@ def _require_text(value: Any, *, field: str, origin: str) -> str:
     return value
 
 
+def _require_forward_horizon(value: Any, *, marker: str) -> None:
+    """Fail closed unless ``value`` really is a :class:`ForwardHorizon` member.
+
+    Neither :class:`~marketpulse.edge.aggregation_snapshot.CurrentSnapshotProjection`
+    nor :class:`~marketpulse.edge.aggregation.CanonicalScopeFacts` runtime-validates
+    the type of ``horizon``, so dereferencing ``.value`` on a malformed or tampered
+    projection would otherwise escape this module's fail-closed boundary as an
+    incidental ``AttributeError`` (SE02D-I03-R1).
+    """
+
+    if not isinstance(value, ForwardHorizon):
+        raise AggregationOrchestrationError(f"{marker}:{type(value).__name__}")
+
+
+def _require_population_key(value: Any) -> None:
+    """Fail closed unless ``value`` really is a structural :class:`PopulationKey`.
+
+    ``CanonicalScopeFacts.population_key`` is likewise unvalidated at runtime, so
+    grouping on it or calling ``canonical_payload()`` on a tampered fact would
+    otherwise raise an incidental error instead of this module's fail-closed type
+    (SE02D-I03-R1).
+    """
+
+    if not isinstance(value, PopulationKey):
+        raise AggregationOrchestrationError(
+            f"malformed_fact_population_key:{type(value).__name__}"
+        )
+
+
 def _index_facts(
     projection: CurrentSnapshotProjection,
 ) -> dict[LogicalIdentity, CanonicalScopeFacts]:
     """Index every projected fact by its logical identity.
 
-    Fails closed on a malformed fact, on a fact whose horizon is not the
-    projection's requested horizon (task section 9 rule 5) and on two facts that
-    share one logical identity (rule 3). Nothing is silently dropped or merged.
+    Fails closed on a malformed projection horizon, on a malformed fact, on a fact
+    whose horizon is not the projection's requested horizon (task section 9 rule 5)
+    and on two facts that share one logical identity (rule 3). Nothing is silently
+    dropped or merged.
     """
 
+    _require_forward_horizon(
+        projection.horizon, marker="malformed_projection_identity:horizon"
+    )
     horizon_value = projection.horizon.value
     index: dict[LogicalIdentity, CanonicalScopeFacts] = {}
     duplicates: set[LogicalIdentity] = set()
@@ -114,6 +152,10 @@ def _index_facts(
             raise AggregationOrchestrationError(
                 f"malformed_fact:not_canonical_scope_facts:{type(fact).__name__}"
             )
+        _require_forward_horizon(
+            fact.horizon, marker="malformed_fact_logical_identity:horizon"
+        )
+        _require_population_key(fact.population_key)
         opportunity_id = _require_text(
             fact.opportunity_id, field="opportunity_id", origin="fact"
         )

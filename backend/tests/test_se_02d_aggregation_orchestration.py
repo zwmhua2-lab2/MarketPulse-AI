@@ -662,6 +662,122 @@ def test_non_canonical_scope_fact_fails_closed():
         aggregate_projection(_tampered(projection, facts=("not-a-fact",)))
 
 
+# === SE02D-I03-R1. malformed projection identity (FIX-01) ===================================
+
+
+@pytest.mark.parametrize("malformed", ["5m", "M5", None, 5, []])
+def test_malformed_projection_horizon_fails_closed(malformed):
+    projection = _projection({"candidate_id": "a"})
+
+    with pytest.raises(
+        AggregationOrchestrationError, match="malformed_projection_identity:horizon"
+    ):
+        aggregate_projection(_tampered(projection, horizon=malformed))
+
+
+def test_malformed_projection_horizon_fails_closed_without_any_fact():
+    projection = CurrentSnapshotProjection(
+        as_of=AS_OF, horizon="5m", facts=(), manifest=()
+    )
+
+    with pytest.raises(
+        AggregationOrchestrationError, match="malformed_projection_identity:horizon"
+    ):
+        aggregate_projection(projection)
+
+
+@pytest.mark.parametrize("malformed", ["5m", "M5", None, 5, []])
+def test_malformed_fact_horizon_fails_closed(malformed):
+    projection = _projection({"candidate_id": "a"})
+    fact = dataclasses.replace(projection.facts[0], horizon=malformed)
+
+    with pytest.raises(
+        AggregationOrchestrationError, match="malformed_fact_logical_identity:horizon"
+    ):
+        aggregate_projection(_tampered(projection, facts=(fact,)))
+
+
+@pytest.mark.parametrize("malformed", ["not-a-population-key", None, 17, ("t",)])
+def test_malformed_fact_population_key_fails_closed(malformed):
+    projection = _projection({"candidate_id": "a"})
+    fact = dataclasses.replace(projection.facts[0], population_key=malformed)
+
+    with pytest.raises(
+        AggregationOrchestrationError, match="malformed_fact_population_key"
+    ):
+        aggregate_projection(_tampered(projection, facts=(fact,)))
+
+
+def test_malformed_projection_identity_messages_are_exact_and_deterministic():
+    projection = _projection({"candidate_id": "a"})
+    fact = projection.facts[0]
+
+    cases = (
+        (
+            _tampered(projection, horizon="5m"),
+            "malformed_projection_identity:horizon:str",
+        ),
+        (
+            _tampered(projection, facts=(dataclasses.replace(fact, horizon="5m"),)),
+            "malformed_fact_logical_identity:horizon:str",
+        ),
+        (
+            _tampered(
+                projection,
+                facts=(dataclasses.replace(fact, population_key="not-a-key"),),
+            ),
+            "malformed_fact_population_key:str",
+        ),
+    )
+
+    for tampered, expected in cases:
+        with pytest.raises(AggregationOrchestrationError) as captured:
+            aggregate_projection(tampered)
+        assert str(captured.value) == expected
+
+
+def test_malformed_projection_identity_never_reaches_i01(monkeypatch):
+    projection = _projection({"candidate_id": "a"})
+    fact = projection.facts[0]
+    calls = _spy_on_aggregate(monkeypatch)
+
+    tampered_projections = (
+        _tampered(projection, horizon="5m"),
+        _tampered(projection, facts=(dataclasses.replace(fact, horizon="5m"),)),
+        _tampered(
+            projection,
+            facts=(dataclasses.replace(fact, population_key="not-a-key"),),
+        ),
+    )
+
+    for tampered in tampered_projections:
+        with pytest.raises(AggregationOrchestrationError):
+            aggregate_projection(tampered)
+
+    assert calls == []
+
+
+def test_valid_projection_behavior_is_unchanged_by_the_fix(monkeypatch):
+    projection = _three_populations()
+    calls = _spy_on_aggregate(monkeypatch)
+
+    results = aggregate_projection(projection)
+
+    assert len(results) == 3
+    assert sorted(len(call["facts"]) for call in calls) == [1, 2, 3]
+    assert [result.population_key.canonical_key() for result in results] == sorted(
+        result.population_key.canonical_key() for result in results
+    )
+    assert all(result.horizon is HORIZON for result in results)
+    # An empty projection still aggregates to nothing, without any failure.
+    assert (
+        aggregate_projection(
+            CurrentSnapshotProjection(as_of=AS_OF, horizon=HORIZON, facts=(), manifest=())
+        )
+        == ()
+    )
+
+
 # === N. async wrapper =======================================================================
 
 
