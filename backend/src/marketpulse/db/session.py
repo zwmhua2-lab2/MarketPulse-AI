@@ -1,4 +1,3 @@
-from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
 
 from sqlalchemy.ext.asyncio import (
@@ -31,11 +30,16 @@ class DatabaseResources:
         self.session_factory = async_sessionmaker(self.engine, expire_on_commit=False)
 
     async def dispose(self) -> None:
-        """Dispose the owned engine. Idempotent: a second call is a no-op, not a re-dispose."""
+        """Dispose the owned engine, and stay truthful about whether that happened.
+
+        Idempotent: a second call is a no-op, not a re-dispose. ``disposed`` is set only
+        *after* ``engine.dispose()`` returned, so a disposal that raises leaves the flag
+        ``False`` and no caller can mistake an undisposed engine for a released one.
+        """
         if self.disposed:
             return
-        self.disposed = True
         await self.engine.dispose()
+        self.disposed = True
 
 
 def create_database_resources(
@@ -43,8 +47,12 @@ def create_database_resources(
 ) -> DatabaseResources:
     """Construct an owned engine/factory bundle.
 
-    `application_name` is set per connection so PostgreSQL can attribute every session to
-    its owning lifecycle; it never carries a DSN, a credential or a query.
+    This is the only way production code opens an engine. It deliberately has no
+    "return the factory only" sibling: a factory whose owning engine handle was dropped
+    cannot be disposed by anyone, which is exactly the hidden-engine ownership gap the
+    accepted PRE-01B-D1 contract closed. `application_name` is set per connection so
+    PostgreSQL can attribute every session to its owning lifecycle; it never carries a
+    DSN, a credential or a query.
     """
     connect_args: dict[str, object] = {}
     if application_name:
@@ -53,17 +61,3 @@ def create_database_resources(
         settings.database_url, pool_pre_ping=True, connect_args=connect_args
     )
     return DatabaseResources(engine=engine)
-
-
-def create_session_factory(settings: Settings) -> async_sessionmaker[AsyncSession]:
-    """Backwards-compatible convenience wrapper; it does not surrender engine ownership.
-
-    A caller that needs disposal must use :func:`create_database_resources` instead.
-    """
-    return create_database_resources(settings).session_factory
-
-
-async def get_db(settings: Settings) -> AsyncGenerator[AsyncSession]:
-    factory = create_session_factory(settings)
-    async with factory() as session:
-        yield session

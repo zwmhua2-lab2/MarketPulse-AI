@@ -16,14 +16,21 @@ Three response surfaces are kept strictly distinct:
 
 Detailed telemetry stays behind the pre-existing authenticated ``/api/v1/runtime``
 boundary, and Host-owned objects stay in ``app.state`` — they are never serialized.
+
+While the Host is running, its fatal outcome is a ``lifespan``-owned lifecycle result: the
+lifespan awaits it, requests the OS process stop the accepted D1 contract leaves to the
+external supervisor, and ends the run phase. A dead runtime can therefore never masquerade as
+a healthy process that merely happens to be waiting for a shutdown.
 """
 
 from __future__ import annotations
 
 import logging
+import signal
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
+import anyio
 from fastapi import Depends, FastAPI, Request, Response
 
 from marketpulse.api.auth import router as auth_router
@@ -32,7 +39,7 @@ from marketpulse.api.market import router as market_router
 from marketpulse.config import get_settings
 from marketpulse.logging_config import configure_logging
 from marketpulse.runtime import HostLifecycleState
-from marketpulse.runtime_host import RuntimeHost
+from marketpulse.runtime_host import HostTerminalResult, RuntimeHost
 
 configure_logging()
 logger = logging.getLogger(__name__)
@@ -51,46 +58,103 @@ def host_of(request: Request) -> RuntimeHost | None:
     return getattr(request.app.state, HOST_STATE_KEY, None)
 
 
+def request_process_stop(reason: str) -> None:
+    """Ask the OS to stop this process, so an external supervisor sees a nonzero exit.
+
+    The accepted PRE-01B-D1 contract keeps process supervision *outside* the Host: the Host
+    owns the in-process lifecycle and a deterministic exit signal, and the external OS/service
+    layer watches the process exit code. Uvicorn maps ``SIGTERM`` into ASGI lifespan shutdown,
+    so the request still runs the accepted shutdown path — it never bypasses cleanup, never
+    restarts a child and never restarts the process.
+
+    Refused when no server owns ``SIGTERM``: an unmapped ``SIGTERM`` terminates the interpreter
+    immediately and would skip the cleanup this signal exists to precede.
+    """
+    if signal.getsignal(signal.SIGTERM) in (signal.SIG_DFL,):
+        logger.error("runtime_host_process_stop_unmapped", extra={"reason": reason})
+        return
+    signal.raise_signal(signal.SIGTERM)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Enter and exit the single Runtime Host.
 
     Startup failure is fatal and fail-closed: the exception leaves this context, so the
-    server never begins serving requests while the runtime is not actually owned. A
-    terminal ``STOP_FAILED`` is surfaced as a shutdown error rather than being reported as
-    a clean stop.
+    server never begins serving requests while the runtime is not actually owned.
+
+    While running, the lifespan *owns* the Host's fatal outcome instead of leaving it to a
+    detached background task. A critical child failure is therefore observed here, during the
+    run phase, and not merely discovered when an external shutdown happens to arrive. The
+    observation requests the OS process stop and also ends the run phase directly, so the
+    failure reaches even an ASGI caller that never sends a shutdown of its own. A terminal
+    ``STOP_FAILED`` is surfaced as a shutdown error rather than being reported as a clean stop.
     """
     host: RuntimeHost | None = None
     if not settings.runtime_host_enabled:
         app.state.host = None
+        app.state.runtime_failure = None
         logger.warning(
             "runtime_host_disabled",
             extra={"run_mode": settings.run_mode, "local_only": settings.local_only},
         )
-    else:
-        host = RuntimeHost(settings)
-        app.state.host = host
-        await host.start()
-        logger.info(
-            "runtime_host_started",
-            extra={
-                "instance_id": host.instance_id,
-                "run_mode": host.run_mode.value,
-                "state": host.state.value,
-                "instruments": list(host.instruments),
-            },
-        )
-    try:
         yield
-    finally:
-        if host is not None:
-            await host.stop()
-            if host.state is HostLifecycleState.STOP_FAILED:
+        return
+
+    host = RuntimeHost(settings)
+    app.state.host = host
+    app.state.runtime_failure = None
+    await host.start()
+    logger.info(
+        "runtime_host_started",
+        extra={
+            "instance_id": host.instance_id,
+            "run_mode": host.run_mode.value,
+            "state": host.state.value,
+            "instruments": list(host.instruments),
+        },
+    )
+    failure: HostTerminalResult | None = None
+    try:
+        async with anyio.create_task_group() as task_group:
+
+            async def own_runtime_failure() -> None:
+                """Lifespan-owned observation of a fatal Host completion."""
+                nonlocal failure
+                failure = await host.wait_for_terminal_result()
+                app.state.runtime_failure = failure
                 logger.critical(
-                    "runtime_host_stop_failed",
-                    extra={"instance_id": host.instance_id, "failures": host.ownership_snapshot()["shutdown_failures"]},
+                    "runtime_host_fatal",
+                    extra={
+                        "instance_id": host.instance_id,
+                        "reason": failure.reason,
+                        "state": failure.state.value,
+                        "shutdown_failures": list(failure.shutdown_failures),
+                    },
                 )
-                raise RuntimeError("runtime_host_stop_failed")
+                request_process_stop(failure.reason)
+                task_group.cancel_scope.cancel()
+
+            task_group.start_soon(own_runtime_failure)
+            yield
+            task_group.cancel_scope.cancel()
+    finally:
+        # The Host already ran its own bounded cleanup before publishing the result, but the
+        # lifespan's own shutdown is shielded too: nothing may interrupt the disposal of what
+        # this boundary owns. Only afterwards does the failure surface to the caller.
+        with anyio.CancelScope(shield=True):
+            await host.stop()
+        if failure is not None:
+            raise RuntimeError(f"runtime_host_fatal:{failure.reason}")
+        if host.state is HostLifecycleState.STOP_FAILED:
+            logger.critical(
+                "runtime_host_stop_failed",
+                extra={
+                    "instance_id": host.instance_id,
+                    "failures": host.ownership_snapshot()["shutdown_failures"],
+                },
+            )
+            raise RuntimeError("runtime_host_stop_failed")
 
 
 def create_app() -> FastAPI:

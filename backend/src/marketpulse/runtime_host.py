@@ -29,6 +29,20 @@ Deferred by the accepted contract and deliberately absent here: G2→G3 live han
 Forward-Outcome scheduling, WinSW/service packaging and live trading. In particular the
 Host constructs **no AI provider at all** (see :class:`_AIDisabledSentinel`), so
 "provider constructor call count = 0" is mechanical rather than a matter of trust.
+
+PRE-01B-I1-FIX-01 lifecycle closure notes, so the *why* of each shape survives a re-read:
+
+* the dedicated singleton-lock connection ends its SQLAlchemy transaction after every lock
+  and liveness statement. A *session* advisory lock is not transaction-scoped, so committing
+  here keeps the fence held while removing the ``idle in transaction`` state the accepted D1
+  contract forbids;
+* a critical child failure publishes a :class:`HostTerminalResult` that the FastAPI lifespan
+  owns and awaits, instead of a detached cleanup task nobody observes. The result is only
+  published *after* bounded cleanup finished, so whoever observes it observes a settled Host;
+* every cleanup step is attempted independently and its failure is recorded rather than
+  swallowed, and the terminal state is ``STOPPED`` only when mandatory cleanup really
+  succeeded. A cancelled shutdown still runs the shielded final disposal before the
+  cancellation is propagated.
 """
 
 from __future__ import annotations
@@ -38,7 +52,8 @@ import contextlib
 import logging
 import math
 import time
-from collections.abc import AsyncIterator, Callable
+from collections import deque
+from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any, ClassVar, Self
@@ -124,6 +139,7 @@ __all__ = [
     "HostFatalError",
     "HostInvariantError",
     "HostStartupError",
+    "HostTerminalResult",
     "LiveMarketState",
     "RuntimeHost",
     "SafetyQueueOverflowError",
@@ -138,6 +154,16 @@ POLL_INTERVAL_SECONDS = 0.2
 MONITOR_INTERVAL_SECONDS = 0.25
 #: Prefix for every Host-owned child task name, so a task can be attributed to this Host.
 HOST_TASK_PREFIX = "marketpulse-host"
+
+#: Bounded retention for the two Host collections that otherwise grow with uptime. The bound
+#: lives on the storage itself (`deque(maxlen=...)`), not on the read path: slicing a list at
+#: telemetry time would still retain every historical entry in memory.
+STATE_HISTORY_MAXLEN = 64
+SCANNER_ERROR_SAMPLE_MAXLEN = 16
+
+#: The V1 activation contract: an enabled Host must subscribe at least BTC-USDT and ETH-USDT.
+#: Additional symbols are allowed; a missing one of these two is not.
+V1_REQUIRED_INSTRUMENTS = ("BTC-USDT", "ETH-USDT")
 
 _NO_ITEM: Any = object()
 
@@ -211,6 +237,21 @@ class HostInvariantError(RuntimeError):
 
 class HostStartupError(RuntimeError):
     """Startup could not reach readiness within the accepted absolute deadline."""
+
+
+@dataclass(frozen=True)
+class HostTerminalResult:
+    """The lifespan-owned outcome of a Host that died on its own.
+
+    Published only for a Host that terminated *because of a fatal condition*, and only after
+    its bounded cleanup finished, so a lifespan that awaits it observes a settled Host rather
+    than a mid-flight one. An orderly lifespan/operator stop never produces it, which is what
+    keeps "the runtime died" distinguishable from "we were asked to shut down".
+    """
+
+    reason: str
+    state: HostLifecycleState
+    shutdown_failures: tuple[str, ...]
 
 
 @dataclass
@@ -504,9 +545,10 @@ class RuntimeHost:
 
         # --- lifecycle -------------------------------------------------------------
         self._state = HostLifecycleState.CREATED
-        self._state_history: list[tuple[str, str]] = [
-            (self.clock.now().isoformat(), HostLifecycleState.CREATED.value)
-        ]
+        self._state_history: deque[tuple[str, str]] = deque(
+            [(self.clock.now().isoformat(), HostLifecycleState.CREATED.value)],
+            maxlen=STATE_HISTORY_MAXLEN,
+        )
         self._start_invoked = False
         self._stop_completed = False
         self._shutting_down = False
@@ -515,6 +557,8 @@ class RuntimeHost:
         self._child_failure: BaseException | None = None
         self._stop_lock = asyncio.Lock()
         self._cleanup_task: asyncio.Task[None] | None = None
+        self._terminal_result: HostTerminalResult | None = None
+        self._terminal_event = anyio.Event()
 
         # --- resources -------------------------------------------------------------
         self._db: DatabaseResources | None = None
@@ -590,7 +634,7 @@ class RuntimeHost:
         self._scanner_rejections = 0
         self._scanner_processed = 0
         self._scanner_errors = 0
-        self._scanner_error_samples: list[str] = []
+        self._scanner_error_samples: deque[str] = deque(maxlen=SCANNER_ERROR_SAMPLE_MAXLEN)
         self._eventruntime_worker_exits = 0
         self._invariant_violations = 0
         self._telemetry_errors = 0
@@ -627,6 +671,36 @@ class RuntimeHost:
     @property
     def failure_reason(self) -> str | None:
         return self._failure_reason
+
+    @property
+    def terminal_result(self) -> HostTerminalResult | None:
+        """The published fatal outcome, or ``None`` while the Host has not died on its own."""
+        return self._terminal_result
+
+    async def wait_for_terminal_result(self) -> HostTerminalResult:
+        """Lifespan-owned awaitable for a fatal Host completion.
+
+        Resolves only after a fatal child failure has been followed by bounded cleanup and a
+        truthful terminal state, so an observer never races the cleanup it is meant to outlive.
+        An orderly ``stop()`` never resolves it, which keeps "the runtime died" distinct from
+        "we were asked to shut down".
+        """
+        await self._terminal_event.wait()
+        result = self._terminal_result
+        if result is None:  # pragma: no cover - the event is only set together with a result
+            raise HostInvariantError("terminal_event_set_without_result")
+        return result
+
+    def _publish_terminal_result(self) -> None:
+        """Publish the fatal outcome exactly once, after cleanup has settled the Host."""
+        if self._terminal_event.is_set():
+            return
+        self._terminal_result = HostTerminalResult(
+            reason=self._failure_reason or "host_failed",
+            state=self._state,
+            shutdown_failures=tuple(self._shutdown_failures),
+        )
+        self._terminal_event.set()
 
     @property
     def health(self) -> HealthRegistry:
@@ -869,6 +943,13 @@ class RuntimeHost:
             raise HostConfigurationError("HOST_TEST_REQUIRES_INJECTED_DEPENDENCIES")
         if not self.instruments:
             raise HostConfigurationError("NO_INSTRUMENTS_CONFIGURED")
+        missing_v1 = sorted(set(V1_REQUIRED_INSTRUMENTS) - set(self.instruments))
+        if missing_v1:
+            # V1 activation contract: an enabled Host always covers both accepted instruments.
+            # Additional symbols stay allowed; a missing BTC-USDT / ETH-USDT does not.
+            raise HostConfigurationError(
+                "V1_REQUIRED_INSTRUMENTS_MISSING:" + ",".join(missing_v1)
+            )
         if self.run_mode is RunMode.LIVE_PAPER:
             if not settings.local_only or settings.host != "127.0.0.1":
                 raise HostConfigurationError("LIVE_PAPER_REQUIRES_LOCAL_ONLY")
@@ -958,6 +1039,11 @@ class RuntimeHost:
                     "key": self._advisory_lock_key(),
                 },
             )
+            # The statement above autobegan a transaction. It is committed immediately so the
+            # dedicated connection never sits `idle in transaction` for the whole Host
+            # lifetime. A *session* advisory lock is not transaction-scoped, so committing
+            # here leaves the fence held — only an explicit unlock or a disconnect ends it.
+            await self._lock_connection.commit()
         except BaseException:
             await self._release_singleton_lock()
             raise
@@ -968,10 +1054,17 @@ class RuntimeHost:
         self._health.set("SINGLETON_LOCK", HealthStatus.HEALTHY.value)
 
     async def _release_singleton_lock(self) -> None:
+        """Release the singleton fence. Every step is attempted and reported separately.
+
+        Nothing here is swallowed: a failed unlock, an unreturned dedicated connection or a
+        failed lock-engine disposal is recorded in `shutdown_failures`. A fence that is still
+        held or a connection that never came back is exactly what a "clean stop" must not
+        paper over.
+        """
         connection, self._lock_connection = self._lock_connection, None
         if connection is not None:
             if self._lock_held:
-                with contextlib.suppress(Exception):
+                try:
                     await connection.scalar(
                         text("SELECT pg_advisory_unlock(:namespace, :key)"),
                         {
@@ -979,14 +1072,21 @@ class RuntimeHost:
                             "key": self._advisory_lock_key(),
                         },
                     )
-            with contextlib.suppress(Exception):
+                    await connection.commit()
+                except Exception as exc:  # noqa: BLE001 - recorded, never swallowed
+                    self._record_cleanup_failure("singleton_unlock_failed", exc)
+            try:
                 await connection.close()
+            except Exception as exc:  # noqa: BLE001 - recorded, never swallowed
+                self._record_cleanup_failure("singleton_connection_close_failed", exc)
         self._lock_held = False
         injected = self.dependencies.lock_database if self.dependencies is not None else None
         lock_db, self._lock_db = self._lock_db, None
         if lock_db is not None and lock_db is not injected:
-            with contextlib.suppress(Exception):
+            try:
                 await lock_db.dispose()
+            except Exception as exc:  # noqa: BLE001 - recorded, never swallowed
+                self._record_cleanup_failure("lock_engine_dispose_failed", exc)
 
     def _compose_services(self) -> None:
         assert self._sessions is not None
@@ -1097,37 +1197,41 @@ class RuntimeHost:
 
     async def _load_active_risk_instruments(self) -> None:
         assert self._sessions is not None
-        async with self._sessions() as session:
-            orders = set(
-                (
-                    await session.scalars(
-                        select(PaperOrderRecord.instrument_id).where(
-                            PaperOrderRecord.run_mode == self.run_mode,
-                            PaperOrderRecord.status == OrderStatus.OPEN,
+        # Shielded so a sibling cancellation cannot land inside the session's exit: a
+        # cancelled `AsyncSession.close()` aborts the connection return and the pool silently
+        # loses that checkout. This covers one bounded set of queries, not an unbounded wait.
+        with anyio.CancelScope(shield=True):
+            async with self._sessions() as session:
+                orders = set(
+                    (
+                        await session.scalars(
+                            select(PaperOrderRecord.instrument_id).where(
+                                PaperOrderRecord.run_mode == self.run_mode,
+                                PaperOrderRecord.status == OrderStatus.OPEN,
+                            )
                         )
-                    )
-                ).all()
-            )
-            positions = set(
-                (
-                    await session.scalars(
-                        select(PositionRecord.instrument_id).where(
-                            PositionRecord.run_mode == self.run_mode,
-                            PositionRecord.quantity > 0,
+                    ).all()
+                )
+                positions = set(
+                    (
+                        await session.scalars(
+                            select(PositionRecord.instrument_id).where(
+                                PositionRecord.run_mode == self.run_mode,
+                                PositionRecord.quantity > 0,
+                            )
                         )
-                    )
-                ).all()
-            )
-            plans = set(
-                (
-                    await session.scalars(
-                        select(TradePlanRecord.instrument_id).where(
-                            TradePlanRecord.run_mode == self.run_mode,
-                            TradePlanRecord.status == PlanStatus.ACTIVE,
+                    ).all()
+                )
+                plans = set(
+                    (
+                        await session.scalars(
+                            select(TradePlanRecord.instrument_id).where(
+                                TradePlanRecord.run_mode == self.run_mode,
+                                TradePlanRecord.status == PlanStatus.ACTIVE,
+                            )
                         )
-                    )
-                ).all()
-            )
+                    ).all()
+                )
         self._active_risk_instruments = tuple(sorted(orders | positions | plans))
 
     def required_instruments(self) -> tuple[str, ...]:
@@ -1267,11 +1371,28 @@ class RuntimeHost:
                 extra={"instance_id": self.instance_id, "reason": self._failure_reason},
                 exc_info=exc,
             )
-            # Bounded cleanup with a deterministic failure signal. The supervisor task
-            # itself has already unwound, so `stop()` awaiting it cannot self-deadlock.
+            # Bounded cleanup, then publish the terminal result. The supervisor task itself has
+            # already unwound, so `stop()` awaiting it cannot self-deadlock. Publishing only
+            # after `stop()` returned is what makes the result a settled lifecycle fact a
+            # lifespan can own, instead of a detached fire-and-forget notification.
             self._cleanup_task = asyncio.create_task(
-                self.stop(), name=f"{HOST_TASK_PREFIX}-failure-cleanup"
+                self._failure_cleanup(), name=f"{HOST_TASK_PREFIX}-failure-cleanup"
             )
+
+    async def _failure_cleanup(self) -> None:
+        """Own a fatal failure's cleanup and publish its terminal result.
+
+        The Host half of the lifespan-observable failure signal: the result is published only
+        once cleanup finished and the terminal state is truthful, so an observer never sees a
+        result that outruns the disposal standing behind it. A cleanup failure is recorded
+        rather than left as an unretrieved task exception.
+        """
+        try:
+            await self.stop()
+        except Exception as exc:  # noqa: BLE001 - recorded, never left unretrieved
+            self._record_cleanup_failure("failure_cleanup_failed", exc)
+        finally:
+            self._publish_terminal_result()
 
     def _mark_started(self, name: str) -> None:
         self._children_live.add(name)
@@ -1325,11 +1446,16 @@ class RuntimeHost:
         soon as the closed generator's frame is released, and forcing a collection while Host
         workers could still hold SQLAlchemy connections would risk finalising a live
         connection wrapper.
+
+        A close that fails is recorded in ``shutdown_failures`` rather than swallowed: an
+        unreported provider disposal is a resource claim the Host cannot honestly make.
         """
-        with contextlib.suppress(Exception):
+        try:
             close = getattr(stream, "aclose", None)
             if close is not None:
                 await close()
+        except Exception as exc:  # noqa: BLE001 - recorded, never swallowed
+            self._record_cleanup_failure("provider_close_failed", exc)
         self._stream = None
         for _ in range(8):
             with anyio.CancelScope(shield=True):
@@ -1490,19 +1616,25 @@ class RuntimeHost:
         self._mark_started(name)
         try:
             while not self._loops_stop.is_set():
-                assert self._state_service is not None
-                try:
-                    control = await self._state_service.load(self.run_mode)
-                    self._durable_system_state = SystemState(control.system_state)
-                    self._durable_operator_state = OperatorState(control.operator_state)
-                    await self._state_service.heartbeat(self.run_mode)
-                except Exception as exc:  # DB loss is fatal by contract
-                    self._set_database_health(False)
-                    raise HostFatalError(f"database_unavailable:{type(exc).__name__}") from exc
-                self._last_heartbeat_at = self.clock.now()
-                self._last_heartbeat_monotonic = time.monotonic()
-                if not await self._singleton_connection_alive():
-                    raise HostFatalError("singleton_lock_connection_lost")
+                # One shielded unit of Host-owned DB work. `shield=True` is not a claim that the
+                # loop cannot be stopped — it still ends at this iteration's boundary. It exists
+                # because a sibling cancellation delivered inside `AsyncSession.close()` aborts
+                # the connection return, and the pool then silently loses that checkout (P2-01).
+                # The covered work is one bounded `load` + `heartbeat` + liveness round trip.
+                with anyio.CancelScope(shield=True):
+                    assert self._state_service is not None
+                    try:
+                        control = await self._state_service.load(self.run_mode)
+                        self._durable_system_state = SystemState(control.system_state)
+                        self._durable_operator_state = OperatorState(control.operator_state)
+                        await self._state_service.heartbeat(self.run_mode)
+                    except Exception as exc:  # DB loss is fatal by contract
+                        self._set_database_health(False)
+                        raise HostFatalError(f"database_unavailable:{type(exc).__name__}") from exc
+                    self._last_heartbeat_at = self.clock.now()
+                    self._last_heartbeat_monotonic = time.monotonic()
+                    if not await self._singleton_connection_alive():
+                        raise HostFatalError("singleton_lock_connection_lost")
                 await self._sleep_or_stop(self.settings.runtime_heartbeat_interval_seconds)
         finally:
             self._mark_finished(name)
@@ -1515,33 +1647,39 @@ class RuntimeHost:
                 await self._sleep_or_stop(self.settings.runtime_reconciliation_interval_seconds)
                 if self._loops_stop.is_set():
                     return
-                try:
-                    report = await self._reconcile(self.run_mode)
-                except Exception as exc:  # a detector cannot run without a DB
-                    self._set_database_health(False)
-                    raise HostFatalError(f"reconciliation_unavailable:{type(exc).__name__}") from exc
-                self._reconciliation_ok = bool(report.ok)
-                self._last_reconciliation_at = self.clock.now()
-                self._last_reconciliation_result = "OK" if report.ok else "MISMATCH"
-                self._last_reconciliation_diagnostics = list(report.diagnostics)[:8]
-                if not report.ok and not self._safe_mode_latch_applied:
-                    # Detector semantics only: latch the accepted fail-closed state once.
-                    # Never repair an economic fact, never auto-resume.
-                    self._safe_mode_latch_applied = True
-                    assert self._control is not None
+                # Shielded for the same reason as the heartbeat loop: the detector and the
+                # observation refresh both open Host-owned sessions, and a cancellation landing
+                # inside a session's exit loses the pooled checkout (P2-01). One bounded pass.
+                with anyio.CancelScope(shield=True):
                     try:
-                        await self._control.enter_safe_mode(
-                            self.run_mode,
-                            "periodic_reconciliation_mismatch",
-                            incident_type=IncidentType.ACCOUNT_INTEGRITY_ERROR,
-                        )
-                    except Exception as exc:  # incident recording must not mask the cause
+                        report = await self._reconcile(self.run_mode)
+                    except Exception as exc:  # a detector cannot run without a DB
                         self._set_database_health(False)
                         raise HostFatalError(
-                            f"safe_mode_transition_failed:{type(exc).__name__}"
+                            f"reconciliation_unavailable:{type(exc).__name__}"
                         ) from exc
-                    self._durable_system_state = SystemState.SAFE_MODE
-                await self._refresh_observation_state()
+                    self._reconciliation_ok = bool(report.ok)
+                    self._last_reconciliation_at = self.clock.now()
+                    self._last_reconciliation_result = "OK" if report.ok else "MISMATCH"
+                    self._last_reconciliation_diagnostics = list(report.diagnostics)[:8]
+                    if not report.ok and not self._safe_mode_latch_applied:
+                        # Detector semantics only: latch the accepted fail-closed state once.
+                        # Never repair an economic fact, never auto-resume.
+                        self._safe_mode_latch_applied = True
+                        assert self._control is not None
+                        try:
+                            await self._control.enter_safe_mode(
+                                self.run_mode,
+                                "periodic_reconciliation_mismatch",
+                                incident_type=IncidentType.ACCOUNT_INTEGRITY_ERROR,
+                            )
+                        except Exception as exc:  # incident recording must not mask the cause
+                            self._set_database_health(False)
+                            raise HostFatalError(
+                                f"safe_mode_transition_failed:{type(exc).__name__}"
+                            ) from exc
+                        self._durable_system_state = SystemState.SAFE_MODE
+                    await self._refresh_observation_state()
         finally:
             self._mark_finished(name)
 
@@ -1577,6 +1715,9 @@ class RuntimeHost:
             return False
         try:
             await connection.execute(text("SELECT 1"))
+            # End the autobegun transaction: the liveness probe must not leave the dedicated
+            # connection `idle in transaction` for the rest of the Host lifetime.
+            await connection.commit()
         except Exception:  # noqa: BLE001 - losing the fence is a fatal Host invariant
             self._lock_lost = True
             self._health.set("SINGLETON_LOCK", HealthStatus.UNAVAILABLE.value)
@@ -1849,7 +1990,7 @@ class RuntimeHost:
                 "scanner_processed": self._scanner_processed,
                 "scanner_rejected": self._scanner_rejections,
                 "scanner_event_errors": self._scanner_errors,
-                "scanner_event_error_samples": list(self._scanner_error_samples[:8]),
+                "scanner_event_error_samples": list(self._scanner_error_samples)[:8],
                 "eventruntime_worker_exits": self._eventruntime_worker_exits,
                 "host_invariant_violations": self._invariant_violations,
                 "telemetry_errors": self._telemetry_errors,
@@ -1958,11 +2099,29 @@ class RuntimeHost:
 
     # ------------------------------------------------------------------ shutdown
 
+    def _record_cleanup_failure(self, label: str, exc: BaseException) -> None:
+        """Record one sanitized cleanup failure. Never swallowed, never re-raised."""
+        self._shutdown_failures.append(f"{label}:{type(exc).__name__}")
+
+    async def _attempt_cleanup(self, label: str, action: Callable[[], Awaitable[None]]) -> None:
+        """Run one mandatory cleanup step; a failure is recorded and the next step still runs.
+
+        Cleanup steps are deliberately independent: one broken step must never prevent the
+        others from returning a lock, a connection or an engine. A failure is *recorded*, which
+        is what later turns the terminal state into `STOP_FAILED` instead of a false `STOPPED`.
+        """
+        try:
+            await action()
+        except Exception as exc:  # noqa: BLE001 - recorded, never swallowed
+            self._record_cleanup_failure(label, exc)
+
     async def stop(self) -> None:
         """Accepted dependency-reverse shutdown. Bounded, ordered and idempotent.
 
         A second call is cleanup, not a second shutdown: it never double-disposes a
-        resource and never reports the first stop's failures as a clean stop.
+        resource and never reports the first stop's failures as a clean stop. A cancellation
+        that arrives mid-shutdown does not escape early — it is recorded, the shielded final
+        disposal still runs, and only then is it propagated.
         """
         if self._stop_completed:
             return
@@ -1982,6 +2141,11 @@ class RuntimeHost:
             self._transition(HostLifecycleState.STOPPING)
 
         deadline = time.monotonic() + self.settings.runtime_shutdown_grace_seconds
+        # A cancellation arriving in the graceful phase is *recorded*, never propagated yet:
+        # the mandatory final disposal below must still run. Re-raising here is exactly how a
+        # cancelled shutdown used to abandon the singleton lock, its connection and the engine;
+        # the cancellation leaves only after a truthful terminal state exists.
+        cancelled: BaseException | None = None
 
         try:
             # 1 — risk-increasing admission is already closed above.
@@ -2072,37 +2236,97 @@ class RuntimeHost:
                     self._shutdown_failures.append("final_reconciliation_deadline_exceeded")
 
             # 9 — close remaining provider resources, then clear market-state references.
-            remaining_stream, self._stream = self._stream, None
-            if remaining_stream is not None:
-                await self._close_stream(remaining_stream)
+            await self._close_remaining_stream()
             self._market.clear()
-        except BaseException as exc:  # always continue to resource disposal
+        except BaseException as exc:  # noqa: BLE001 - recorded here, propagated at the end
             if isinstance(exc, anyio.get_cancelled_exc_class()):
-                raise
-            self._shutdown_failures.append(f"shutdown_sequence:{type(exc).__name__}")
+                cancelled = exc
+                self._shutdown_escalated = True
+                self._shutdown_failures.append("shutdown_cancelled")
+            else:
+                self._shutdown_failures.append(f"shutdown_sequence:{type(exc).__name__}")
 
-        # 10 — shielded escalation reserve: unlock, close and dispose. Cleanup is attempted
-        #      even when the graceful phase above exhausted its deadline, and it is itself
-        #      bounded by `runtime_shutdown_dispose_seconds` so a wedged socket or pool can
-        #      never make `stop()` return never.
+        # 10 — shielded final region. This is the one region a cancellation may not skip: the
+        #      graceful phase above may have been interrupted or have exhausted its deadline,
+        #      and what still has to happen is exactly what a "clean stop" claims — every child
+        #      collected, every owned resource returned, and a terminal state that tells the
+        #      truth. Establishing that state *inside* the shield is what keeps a cancellation
+        #      that arrives here from leaving a Host stuck in `STOPPING` while presenting
+        #      itself as stopped.
         with anyio.CancelScope(shield=True):
+            # 10a — collect whatever child the graceful phase did not manage to stop, so a
+            #       cancelled or interrupted shutdown can never return while a supervisor task
+            #       group is still running behind it.
+            await self._force_children_down(self.settings.runtime_shutdown_dispose_seconds)
+            # 10b — mandatory disposal (close, unlock, close, dispose), itself bounded by
+            #       `runtime_shutdown_dispose_seconds` so a wedged socket or pool can never
+            #       make `stop()` return never.
             with anyio.move_on_after(self.settings.runtime_shutdown_dispose_seconds) as reserve:
                 await self._dispose_resources()
             if reserve.cancel_called:
                 self._shutdown_failures.append("dispose_reserve_deadline_exceeded")
 
-        # 11 — a truthful terminal state.
-        self._stopped_at = self.clock.now()
-        self._stop_completed = True
-        escalated = self._shutdown_escalated or bool(self._shutdown_failures)
-        target = (
-            HostLifecycleState.STOP_FAILED if escalated else HostLifecycleState.STOPPED
-        )
-        if self._legal(self._state, target):
-            self._transition(target)
-        else:
-            self._state = target
-        self._telemetry = self._build_telemetry()
+            # 11 — a truthful terminal state, established before any recorded cancellation is
+            #      allowed to leave. An escalated or failure-recording stop reports
+            #      `STOP_FAILED`; it is never dressed up as a clean `STOPPED`.
+            self._stopped_at = self.clock.now()
+            self._stop_completed = True
+            escalated = self._shutdown_escalated or bool(self._shutdown_failures)
+            target = (
+                HostLifecycleState.STOP_FAILED if escalated else HostLifecycleState.STOPPED
+            )
+            if self._legal(self._state, target):
+                self._transition(target)
+            else:
+                self._state = target
+            self._telemetry = self._build_telemetry()
+
+        if cancelled is not None:
+            # Every mandatory disposal has been attempted and the terminal state is truthful;
+            # only now does the cancellation leave. It stays recorded in `shutdown_failures`,
+            # so a cancelled shutdown can never present itself as a clean `STOPPED`.
+            raise cancelled
+
+    async def _force_children_down(self, budget: float) -> None:
+        """Escalation reserve: no Host-owned child may outlive `stop()`.
+
+        The graceful phase normally collects every child through the ordered admissions, and
+        this method is then a no-op. It exists for the two paths that cannot rely on that: a
+        cancellation delivered mid-shutdown, and a graceful phase that exhausted its deadline.
+        Both would otherwise let `stop()` return while the supervisor task group — with its
+        loops and workers — is still running, which is exactly the orphan the accepted
+        forced-shutdown property forbids. Escalation is always *recorded*, never silent, and
+        bounded by `budget` so this reserve cannot become an unbounded join.
+        """
+        self._loops_stop.set()
+        self._supervisor_stop_requested.set()
+        supervisor = self._supervisor_task
+        if supervisor is None or supervisor is asyncio.current_task():
+            return
+        if not supervisor.done():
+            # Prefer graceful collection: setting the stop events already ends every loop at
+            # its next boundary. Only a group that outlives the budget is cancelled, which is
+            # escalation and is reported as such.
+            with anyio.move_on_after(budget):
+                with contextlib.suppress(BaseException):
+                    await supervisor
+            if not supervisor.done():
+                self._shutdown_escalated = True
+                if "host_children_shutdown_deadline_exceeded" not in self._shutdown_failures:
+                    self._shutdown_failures.append("host_children_shutdown_deadline_exceeded")
+                supervisor.cancel()
+                with anyio.move_on_after(budget) as join_scope:
+                    with contextlib.suppress(BaseException):
+                        await supervisor
+                if join_scope.cancel_called:
+                    entry = "supervisor_join_deadline_exceeded"
+                    if entry not in self._shutdown_failures:
+                        self._shutdown_failures.append(entry)
+        if self._children_live:
+            self._shutdown_escalated = True
+            entry = "host_children_remained:" + ",".join(sorted(self._children_live))
+            if entry not in self._shutdown_failures:
+                self._shutdown_failures.append(entry)
 
     def _remaining(self, deadline: float) -> float:
         return max(0.0, deadline - time.monotonic())
@@ -2127,10 +2351,22 @@ class RuntimeHost:
                 return predicate()
             await anyio.sleep(min(POLL_INTERVAL_SECONDS, max(0.01, remaining)))
 
+    async def _close_remaining_stream(self) -> None:
+        """Close whatever provider stream reference is still held, exactly once."""
+        remaining_stream, self._stream = self._stream, None
+        if remaining_stream is not None:
+            await self._close_stream(remaining_stream)
+
     async def _dispose_resources(self) -> None:
-        # Singleton lock first (before the engine it was opened against), then the engine.
-        with contextlib.suppress(Exception):
-            await self._release_singleton_lock()
+        """Final disposal of everything the Host owns. Every step is attempted and reported.
+
+        Order is dependency-reverse: provider, then the singleton lock (before the engine it
+        was opened against), then the owned engine. A failure in any step is recorded and never
+        prevents the remaining steps, because a Host that returns *some* resources while
+        claiming it returned all of them is the dishonesty this contract exists to prevent.
+        """
+        await self._attempt_cleanup("provider_close_failed", self._close_remaining_stream)
+        await self._attempt_cleanup("singleton_release_failed", self._release_singleton_lock)
         self._task_group = None
         db, self._db = self._db, None
         self._sessions = None
@@ -2138,10 +2374,19 @@ class RuntimeHost:
             if db.disposed:
                 self._shutdown_failures.append("engine_disposed_twice")
             else:
-                with contextlib.suppress(Exception):
+                dispose_failure: str | None = None
+                try:
                     await db.dispose()
-                if not db.disposed:
-                    self._shutdown_failures.append("engine_dispose_failed")
+                except Exception as exc:  # noqa: BLE001 - recorded, never swallowed
+                    dispose_failure = f"engine_dispose_failed:{type(exc).__name__}"
+                if dispose_failure is not None:
+                    self._shutdown_failures.append(dispose_failure)
+                elif not db.disposed:
+                    # `dispose()` returned without raising yet still reports an undisposed
+                    # engine: the truthful flag is the authority, not the call's success.
+                    self._shutdown_failures.append("engine_dispose_incomplete")
+        self._event_runtime = None
+        self._pipeline = None
         self._event_runtime = None
         self._pipeline = None
 

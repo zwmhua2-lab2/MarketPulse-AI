@@ -227,17 +227,33 @@ def _proxy_port(proxy: str | None) -> int:
 
 
 async def _session_attribution(url: str) -> dict[str, Any]:
-    """Observer: attribute every PostgreSQL session, and prove none is idle-in-transaction."""
+    """Observer: attribute every PostgreSQL session, and report how long each state has lasted.
+
+    Dwell is the decisive measure for the fence connection: a fence that holds an open transaction
+    reports `idle in transaction` for the *whole* observation window, while a fence that commits
+    after every statement parks in `idle` between heartbeat round trips and can only ever flash
+    through `idle in transaction` for the length of one round trip.
+
+    `clock_timestamp()` — not `now()` — is what measures a dwell: `now()` returns the *transaction
+    start* of the observing session, so `now() - state_change` is meaningless (and negative) for a
+    session that entered `idle in transaction` after that instant.
+    """
     rows = await _execute(
         url,
-        "SELECT application_name, state, count(*) FROM pg_stat_activity "
+        "SELECT application_name, state, count(*), "
+        "coalesce(max(extract(epoch from (clock_timestamp() - state_change))), 0) "
+        "FROM pg_stat_activity "
         "WHERE datname = current_database() AND pid <> pg_backend_pid() "
         "GROUP BY application_name, state ORDER BY application_name, state",
         application_name=OBSERVER_APPLICATION_NAME,
     )
     by_app: dict[str, dict[str, int]] = {}
-    for application_name, state, count in rows:
-        by_app.setdefault(application_name or "",{})[state or "UNKNOWN"] = count
+    dwell: dict[str, dict[str, float]] = {}
+    for application_name, state, count, max_dwell in rows:
+        app = application_name or ""
+        label = state or "UNKNOWN"
+        by_app.setdefault(app, {})[label] = count
+        dwell.setdefault(app, {})[label] = round(float(max_dwell or 0.0), 6)
     host_owned = {
         app: states
         for app, states in by_app.items()
@@ -247,6 +263,7 @@ async def _session_attribution(url: str) -> dict[str, Any]:
     non_singleton = {app: s for app, s in host_owned.items() if not app.endswith("-singleton")}
     return {
         "by_application_name": by_app,
+        "state_dwell_seconds": dwell,
         "host_owned_sessions": sum(sum(s.values()) for s in host_owned.values()),
         "host_owned_singleton_sessions": sum(sum(s.values()) for s in singleton.values()),
         "host_owned_non_singleton_sessions": sum(
@@ -259,9 +276,30 @@ async def _session_attribution(url: str) -> dict[str, Any]:
         "idle_in_transaction_host_owned": sum(
             states.get("idle in transaction", 0) for states in host_owned.values()
         ),
-        # The accepted contract gives the advisory-lock connection a lifetime equal to the
-        # Host's, so its own session is expected to sit in an open transaction. What must
-        # not happen is an *accumulating* non-singleton idle-in-transaction set.
+        # The accepted P1-01 contract gives the fence connection a lifetime equal to the Host's
+        # *without* an open transaction: every lock/liveness statement is committed immediately, so
+        # the fence must be observed parked in `idle`, never dwelling in `idle in transaction`.
+        "singleton_fence": {
+            "states": singleton,
+            "max_idle_seconds": max(
+                (dwell.get(app, {}).get("idle", 0.0) for app in singleton), default=0.0
+            ),
+            "max_idle_in_transaction_seconds": max(
+                (dwell.get(app, {}).get("idle in transaction", 0.0) for app in singleton),
+                default=0.0,
+            ),
+        },
+        # A pooled session sits `idle in transaction` between two statements of one unit. That is
+        # a transient, not a leak, and the honest discriminator is its *dwell*: a held transaction
+        # would report a dwell on the scale of the window, a between-statements gap does not.
+        "host_owned_idle_in_transaction_max_dwell": max(
+            (
+                dwell.get(app, {}).get("idle in transaction", 0.0)
+                for app, states in host_owned.items()
+                if states.get("idle in transaction")
+            ),
+            default=0.0,
+        ),
         "idle_in_transaction_host_owned_non_singleton": sum(
             states.get("idle in transaction", 0) for states in non_singleton.values()
         ),
@@ -459,6 +497,9 @@ async def run(args: argparse.Namespace, url: str, evidence: dict[str, Any]) -> N
                 "state": telemetry["state"],
                 "readiness_status": telemetry["readiness"]["status"],
                 "ready": telemetry["readiness"]["ready"],
+                # P1-01: the fence must stay held for the whole window *and* never hold a
+                # transaction open; both halves are sampled from outside the Host.
+                "singleton_lock_held": host.ownership_snapshot()["singleton_lock_held"],
                 **_counter_block(telemetry),
                 "postgres": await _session_attribution(url),
                 "sockets": _socket_probe(_proxy_port(args.proxy)),
@@ -526,6 +567,18 @@ async def run(args: argparse.Namespace, url: str, evidence: dict[str, Any]) -> N
         "max_host_owned_non_singleton_idle_in_transaction": max(
             s["postgres"]["idle_in_transaction_host_owned_non_singleton"] for s in samples
         ),
+        # P1-01: `idle` dwell proves the fence is parked between heartbeat round trips, and the
+        # `idle in transaction` dwell is bounded by one round trip instead of the whole window.
+        "singleton_fence_max_idle_seconds": max(
+            s["postgres"]["singleton_fence"]["max_idle_seconds"] for s in samples
+        ),
+        "singleton_fence_max_idle_in_transaction_seconds": max(
+            s["postgres"]["singleton_fence"]["max_idle_in_transaction_seconds"] for s in samples
+        ),
+        "singleton_lock_held_samples": sum(1 for s in samples if s["singleton_lock_held"]),
+        "max_host_owned_idle_in_transaction_seconds": max(
+            s["postgres"]["host_owned_idle_in_transaction_max_dwell"] for s in samples
+        ),
         "max_sockets_to_proxy": max(
             s["sockets"].get("established_to_proxy_port", -1) for s in samples
         ),
@@ -584,6 +637,7 @@ async def run(args: argparse.Namespace, url: str, evidence: dict[str, Any]) -> N
     # --- accepted pass conditions (§22) ----------------------------------------------
     ownership = evidence["shutdown"]["ownership"]
     counters = host.telemetry()["counters"]
+    summary = evidence["window_summary"]
     ai_raises = False
     try:
         host._safety.reevaluation.reevaluate  # noqa: B018 - deliberately exploded on
@@ -608,6 +662,25 @@ async def run(args: argparse.Namespace, url: str, evidence: dict[str, Any]) -> N
         "engine_disposed": evidence["post_stop"]["owned_engine_disposed"] is True,
         "lock_engine_disposed": evidence["post_stop"]["lock_engine_disposed"] is True,
         "no_idle_in_transaction_after_stop": postgres["idle_in_transaction_total"] == 0,
+        # P1-01: a committed fence must park in `idle` between round trips and must never dwell in
+        # `idle in transaction` for anything like the window; and it must stay held throughout.
+        "singleton_fence_parks_in_idle": summary["singleton_fence_max_idle_seconds"] > 1.0,
+        "singleton_fence_never_dwells_in_transaction": (
+            summary["singleton_fence_max_idle_in_transaction_seconds"] < 2.0
+        ),
+        # P1-01 (pooled side): a Host-owned pooled session may only *flash* through
+        # `idle in transaction` between two statements of one bounded unit; a transaction held
+        # open across the window would show a dwell on the order of the window itself.
+        "host_owned_idle_in_transaction_is_transient": (
+            summary["max_host_owned_idle_in_transaction_seconds"] < 5.0
+        ),
+        "singleton_fence_held_for_the_whole_window": (
+            summary["singleton_lock_held_samples"] == len(samples)
+        ),
+        # P2-05: the V1 activation contract covers both accepted symbols.
+        "v1_instruments_covered": (
+            "BTC-USDT" in host.instruments and "ETH-USDT" in host.instruments
+        ),
         "real_ai_never_constructed": (
             evidence["post_stop"]["ai_sentinel"]
             and ai_raises

@@ -21,13 +21,34 @@ What is proven here, on disposable PostgreSQL databases, using unmodified produc
 * graceful and forced (cancelled-startup) shutdown leaving no orphan task, connection or
   engine.
 
-Production code changed: NO.
+PRE-01B-I1-FIX-01 adds the lifecycle-closure half of the same suite:
+
+* the singleton fence connection is never left `idle in transaction` while the fence is held,
+  and the fence survives the commit that ends that transaction;
+* a fatal child failure becomes a lifespan-owned, already-*settled* terminal result that is
+  observable during the run, and the ASGI lifespan turns it into a requested process stop;
+* an engine disposal that fails — or that lies about succeeding — is reported instead of being
+  mistaken for a clean stop, and one broken cleanup step never stops the others;
+* a cancellation delivered mid-shutdown still collects every child, returns every resource and
+  establishes a truthful `STOP_FAILED` terminal state before it propagates;
+* an injected engine keeps its pool checkout baseline with no lost-checkout warning, even under
+  the sibling cancellation that used to lose one;
+* Host retention is bounded at the storage itself, not at the read path;
+* an enabled Host must cover both accepted instrument symbols (extra symbols stay allowed).
+
+Production code changed by PRE-01B-I1-FIX-01: `runtime_host.py`, `api/app.py`, `db/session.py`.
+The gates listed above are unchanged by it, and no existing assertion was weakened to make it
+pass.
 """
 
 from __future__ import annotations
 
 import asyncio
+import gc
+import re
+import signal
 import time
+import warnings
 from collections.abc import AsyncIterator, Callable, Coroutine, Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime
@@ -42,7 +63,7 @@ from alembic.config import Config
 from fastapi.testclient import TestClient
 from marketpulse.clock import SystemClock
 from marketpulse.config import Settings
-from marketpulse.db.session import create_database_resources
+from marketpulse.db.session import DatabaseResources, create_database_resources
 from marketpulse.g2.runtime import ScannerPipeline
 from marketpulse.g3.models import BestBidAsk, RunMode
 from marketpulse.g3.provider import OpenAIResponsesProvider
@@ -54,16 +75,20 @@ from marketpulse.g4.state import SystemStateService
 from marketpulse.market_data.models import Instrument, MarketType, NormalizedBookTicker
 from marketpulse.runtime import HealthRegistry, HostLifecycleState, HostReadinessStatus
 from marketpulse.runtime_host import (
+    SCANNER_ERROR_SAMPLE_MAXLEN,
+    STATE_HISTORY_MAXLEN,
     BoundedLane,
     DuplicateRuntimeHostError,
     HostConfigurationError,
     HostDependencies,
     HostInvariantError,
+    HostTerminalResult,
     RuntimeHost,
     _AIDisabledSentinel,
 )
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.exc import SAWarning
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.pool import NullPool
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
@@ -1057,3 +1082,591 @@ def test_lifespan_leaves_no_host_and_reports_not_ready_when_disabled(monkeypatch
         assert client.get("/api/v1/ready").status_code == 503
         assert client.get("/api/v1/ready").json()["reasons"] == ["HOST_DISABLED"]
     assert app_module.app.state.host is None
+
+
+# =======================================================================================
+# 9. Lifecycle closure (PRE-01B-I1-FIX-01): P1-01 … P2-05
+# =======================================================================================
+
+#: The application_name the harness gives its dedicated fence engine. Using it here makes the
+#: `pg_stat_activity` / `pg_locks` probes below attribute exactly one backend, deterministically.
+FENCE_APPLICATION_NAME = "pre-01b-i1-lock"
+
+
+async def _fence_backend_rows(engine: Any) -> list[tuple[str | None, int]]:
+    """`(backend state, advisory locks held)` for the dedicated fence connection.
+
+    Reported by PostgreSQL itself rather than asserted from inside the Host, because the whole
+    point of P1-01 is what *another* session observes: a fence connection that is idle but still
+    holds a session advisory lock.
+    """
+    async with engine.connect() as connection:
+        result = await connection.execute(
+            text(
+                "SELECT a.state, count(l.pid) FROM pg_stat_activity a "
+                "LEFT JOIN pg_locks l ON l.pid = a.pid AND l.locktype = 'advisory' "
+                "WHERE a.application_name = :name AND a.datname = current_database() "
+                "GROUP BY a.state"
+            ),
+            {"name": FENCE_APPLICATION_NAME},
+        )
+        return [(row[0], row[1]) for row in result.all()]
+
+
+def test_the_fence_connection_is_never_idle_in_transaction():
+    """P1-01: the fence holds a *session* lock without holding a transaction open."""
+
+    async def scenario(url: str) -> None:
+        harness = Harness(_settings(url), ControlledProvider(interval=0.02))
+        try:
+            await harness.seed()
+            host = harness.build()
+            await host.start()
+            try:
+                assert host.state is HostLifecycleState.READY
+                assert host.ownership_snapshot()["singleton_lock_held"] is True
+
+                rows: list[tuple[str | None, int]] = []
+                deadline = time.monotonic() + 10.0
+                while time.monotonic() < deadline:
+                    rows = await _fence_backend_rows(harness.resources.engine)
+                    if rows and all(state == "idle" for state, _ in rows):
+                        break
+                    await asyncio.sleep(0.05)
+
+                assert rows, "the dedicated fence connection must be visible in pg_stat_activity"
+                states = {state for state, _ in rows}
+                assert "idle in transaction" not in states, rows
+                assert states == {"idle"}, rows
+                # Ending the transaction must not have ended the fence: PostgreSQL still reports
+                # the session's advisory lock as held by that backend.
+                assert sum(locks for _, locks in rows) >= 1, rows
+            finally:
+                await host.stop()
+        finally:
+            await harness.dispose()
+
+    _run(scenario)
+
+
+def test_a_fatal_child_failure_publishes_a_settled_terminal_result_during_the_run():
+    """P1-02 (Host half): the fatal outcome is observable while the run is still owned."""
+
+    async def scenario(url: str) -> None:
+        harness = Harness(
+            _settings(url), ControlledProvider(interval=0.01, disconnect_after=6)
+        )
+        try:
+            await harness.seed()
+            host = harness.build()
+            await host.start()
+            # No external shutdown and no manual `stop()` happen before this resolves: the
+            # result must arrive from the Host's own failure path.
+            result = await asyncio.wait_for(host.wait_for_terminal_result(), timeout=25.0)
+            assert isinstance(result, HostTerminalResult)
+            assert result.reason.startswith("critical_child_failure"), result.reason
+            assert result.state is HostLifecycleState.STOPPED
+            assert result.shutdown_failures == ()
+            # Settled, not mid-flight: by the time the result is published, cleanup already ran.
+            assert host.state is HostLifecycleState.STOPPED
+            snapshot = host.ownership_snapshot()
+            assert snapshot["singleton_lock_held"] is False
+            assert snapshot["singleton_connection_present"] is False
+            assert snapshot["gates"] == {
+                "risk_admission": False,
+                "ingress": False,
+                "safety": False,
+                "scanner": False,
+            }
+            assert host.children_live == ()
+            assert await _settled_orphan_tasks() == []
+            # An orderly stop never publishes it: the result means "the runtime died".
+            assert host.terminal_result is result
+        finally:
+            await harness.dispose()
+
+    _run(scenario)
+
+
+def test_the_lifespan_owns_the_fatal_result_and_requests_the_process_stop(monkeypatch):
+    """P1-02 (lifespan half): the real lifespan observes the death and asks the OS to stop.
+
+    Uses the real `RuntimeHost` (real startup, real children, real failure publication) with the
+    dependency injection `RunMode.TEST` already requires; only the process-level stop is
+    recorded instead of delivered, because raising a real `SIGTERM` inside the test process is
+    exactly the external action this test asserts is *requested*.
+    """
+    import marketpulse.api.app as app_module
+
+    requested: list[int] = []
+    provider = ControlledProvider(interval=0.01, disconnect_after=6)
+
+    with _disposable_postgres_database() as (_, url):
+        settings = _settings(url)
+        harness = Harness(settings, provider)
+        captured: dict[str, Any] = {}
+
+        def build_injected_host(settings_arg: Settings) -> RuntimeHost:
+            return RuntimeHost(
+                settings_arg,
+                dependencies=HostDependencies(
+                    provider=harness.provider,
+                    database=harness.resources,
+                    lock_database=harness.lock_resources,
+                    clock=harness.clock,
+                    health=harness.health,
+                ),
+            )
+
+        monkeypatch.setattr(app_module, "settings", settings)
+        monkeypatch.setattr(app_module, "RuntimeHost", build_injected_host)
+        monkeypatch.setattr(app_module.signal, "getsignal", lambda _signal: object())
+        monkeypatch.setattr(app_module.signal, "raise_signal", requested.append)
+
+        async def scenario() -> None:
+            try:
+                await harness.seed()
+                with pytest.raises(RuntimeError, match="runtime_host_fatal"):
+                    async with app_module.lifespan(app_module.app):
+                        host = app_module.app.state.host
+                        assert host is not None
+                        captured["host"] = host
+                        # The run phase. The lifespan's own watcher ends it, so the failure must
+                        # reach this boundary without any shutdown being sent to the process.
+                        await host.wait_for_terminal_result()
+                        await anyio.sleep(5.0)
+            finally:
+                await harness.dispose()
+
+        asyncio.run(scenario())
+
+    app_module.app.state.host = None
+    failure = app_module.app.state.runtime_failure
+    app_module.app.state.runtime_failure = None
+    assert failure is not None
+    assert failure.reason.startswith("critical_child_failure"), failure.reason
+    assert failure.state is HostLifecycleState.STOPPED
+    # The external signal is requested during the run, and it is the one the accepted contract
+    # leaves to the process supervisor (SIGTERM: a nonzero exit code).
+    assert requested == [signal.SIGTERM]
+    host = captured["host"]
+    assert host.state is HostLifecycleState.STOPPED
+    assert host.ownership_snapshot()["singleton_lock_held"] is False
+    assert host.ownership_snapshot()["shutdown_failures"] == []
+    assert harness.resources.disposed is True
+
+
+def test_an_engine_dispose_failure_is_reported_and_never_called_stopped(monkeypatch):
+    """P1-03: a failed disposal is `STOP_FAILED` with the failure named, not a clean stop."""
+    original_dispose = DatabaseResources.dispose
+    calls = {"n": 0}
+
+    async def failing_dispose(self: DatabaseResources) -> None:
+        calls["n"] += 1
+        if calls["n"] == 1:  # the Host-owned engine is disposed first
+            raise RuntimeError("injected_engine_dispose_failure")
+        await original_dispose(self)
+
+    monkeypatch.setattr(DatabaseResources, "dispose", failing_dispose)
+
+    async def scenario(url: str) -> None:
+        harness = Harness(_settings(url), ControlledProvider(), inject_database=False)
+        host = harness.build()
+        owned: DatabaseResources | None = None
+        try:
+            await harness.seed()
+            await host.start()
+            owned = host._db
+            assert owned is not None and owned.disposed is False
+            await host.stop()
+            failures = host.ownership_snapshot()["shutdown_failures"]
+            assert "engine_dispose_failed:RuntimeError" in failures, failures
+            assert host.state is HostLifecycleState.STOP_FAILED
+            # Truthfulness: the flag follows the engine, not the call's optimism.
+            assert owned.disposed is False
+        finally:
+            # The injection deliberately left the Host-owned engine undisposed. Dispose it for
+            # real here, so this test cannot leak a pooled connection into a later test's GC.
+            for candidate in (host._db, owned):
+                if candidate is not None and not candidate.disposed:
+                    await original_dispose(candidate)
+            await harness.dispose()
+
+    _run(scenario)
+
+
+def test_a_disposal_that_lies_about_succeeding_is_reported(monkeypatch):
+    """P1-03: `dispose()` returning without disposing must still fail the terminal state."""
+    original_dispose = DatabaseResources.dispose
+    calls = {"n": 0}
+
+    async def lying_dispose(self: DatabaseResources) -> None:
+        calls["n"] += 1
+        if calls["n"] == 1:  # returns quietly, never sets `disposed`
+            return
+        await original_dispose(self)
+
+    monkeypatch.setattr(DatabaseResources, "dispose", lying_dispose)
+
+    async def scenario(url: str) -> None:
+        harness = Harness(_settings(url), ControlledProvider(), inject_database=False)
+        host = harness.build()
+        owned: DatabaseResources | None = None
+        try:
+            await harness.seed()
+            await host.start()
+            owned = host._db
+            assert owned is not None
+            await host.stop()
+            failures = host.ownership_snapshot()["shutdown_failures"]
+            assert "engine_dispose_incomplete" in failures, failures
+            assert host.state is HostLifecycleState.STOP_FAILED
+            assert owned.disposed is False
+        finally:
+            # Same reason as the failing-dispose test: leave no pooled connection behind.
+            for candidate in (host._db, owned):
+                if candidate is not None and not candidate.disposed:
+                    await original_dispose(candidate)
+            await harness.dispose()
+
+    _run(scenario)
+
+
+def test_one_broken_cleanup_step_never_stops_the_others(monkeypatch):
+    """P1-03: cleanup steps are independent, and a failure is recorded, never swallowed."""
+    original_release = RuntimeHost._release_singleton_lock
+
+    async def broken_release(self: RuntimeHost) -> None:
+        raise RuntimeError("injected_singleton_release_failure")
+
+    monkeypatch.setattr(RuntimeHost, "_release_singleton_lock", broken_release)
+
+    async def scenario(url: str) -> None:
+        harness = Harness(_settings(url), ControlledProvider(), inject_database=False)
+        host = harness.build()
+        owned: DatabaseResources | None = None
+        try:
+            await harness.seed()
+            await host.start()
+            owned = host._db
+            assert owned is not None and owned.disposed is False
+            await host.stop()
+            failures = host.ownership_snapshot()["shutdown_failures"]
+            assert "singleton_release_failed:RuntimeError" in failures, failures
+            assert host.state is HostLifecycleState.STOP_FAILED
+            # The broken step did not stop the step behind it: the engine was still disposed.
+            assert owned.disposed is True
+        finally:
+            # The injection left the fence connection open; close it for real so this test leaks
+            # nothing into a later test's garbage collection.
+            if host.ownership_snapshot()["singleton_connection_present"]:
+                await original_release(host)
+            await harness.dispose()
+
+    _run(scenario)
+
+
+def test_a_cancelled_stop_still_disposes_everything_and_stays_truthful():
+    """P1-04: cancellation may not escape before the shielded final disposal finished."""
+
+    async def scenario(url: str) -> None:
+        harness = Harness(_settings(url), ControlledProvider(interval=0.02))
+        try:
+            await harness.seed()
+            host = harness.build()
+            await host.start()
+            assert host.state is HostLifecycleState.READY
+
+            task = asyncio.create_task(host.stop())
+            assert await _wait_for(
+                lambda: host.state is HostLifecycleState.STOPPING, timeout=5.0, interval=0.001
+            ), host.state
+            task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await task
+
+            snapshot = host.ownership_snapshot()
+            assert "shutdown_cancelled" in snapshot["shutdown_failures"], snapshot[
+                "shutdown_failures"
+            ]
+            # Truthful, never a disguised clean stop.
+            assert host.state is HostLifecycleState.STOP_FAILED
+            assert host._stop_completed is True
+            # Mandatory disposal still ran: fence released, provider closed, children collected.
+            assert snapshot["singleton_lock_held"] is False
+            assert snapshot["singleton_connection_present"] is False
+            assert host.children_live == ()
+            assert harness.provider.stream_closed is True
+            assert await _settled_orphan_tasks() == []
+            # A second call is cleanup, not a second shutdown.
+            await host.stop()
+            assert host.state is HostLifecycleState.STOP_FAILED
+        finally:
+            await harness.dispose()
+
+    _run(scenario)
+
+
+class _SessionExitGate:
+    """Deterministically holds a Host-owned session inside its own `close()`.
+
+    Cancellation landing inside `AsyncSession.close()` is the exact seam that used to lose a
+    pooled checkout (P2-01): the connection is never returned. Holding that call makes the race
+    reproducible instead of probabilistic, so the shield can be proven rather than hoped for.
+    """
+
+    def __init__(self) -> None:
+        self.enabled = anyio.Event()
+        self.entered = anyio.Event()
+        self.released = anyio.Event()
+
+    async def hold(self) -> None:
+        if not self.enabled.is_set() or self.released.is_set():
+            return
+        self.entered.set()
+        await self.released.wait()
+
+
+def test_an_injected_engine_keeps_its_checkout_baseline_under_sibling_cancellation(monkeypatch):
+    """P2-01: a sibling cancellation must not cost the injected engine a checkout.
+
+    Attribution: only the fenced-instrument-free loops below touch the DB (the provider stream,
+    the safety lane and the scanner are all neutralised), so every checkout observed here belongs
+    to a shielded Host-owned session, and the injected engine is the one whose baseline is read.
+    """
+    gate = _SessionExitGate()
+    safety_gate = anyio.Event()
+    original_close = AsyncSession.close
+
+    async def gated_close(self: AsyncSession) -> None:
+        # Only a session that still has an open transaction is holding a pooled connection at
+        # `close()` time — that is exactly the checkout a cancelled close loses.
+        if self.in_transaction():
+            await gate.hold()
+        await original_close(self)
+
+    async def gated_safety(self, run_mode, bbo, *, force_reevaluation=False, now=None):
+        await safety_gate.wait()
+        raise RuntimeError("injected_safety_failure")
+
+    async def inert_ingest(self, market_event, auxiliary=None):
+        return []
+
+    monkeypatch.setattr(AsyncSession, "close", gated_close)
+    monkeypatch.setattr(SafetyRuntime, "on_market_data", gated_safety)
+    monkeypatch.setattr(ScannerPipeline, "ingest", inert_ingest)
+
+    async def scenario(url: str) -> None:
+        harness = Harness(
+            _settings(url, runtime_safety_queue_capacity=4096), ControlledProvider(interval=0.01)
+        )
+        try:
+            await harness.seed()
+            host = harness.build()
+            pool = harness.resources.engine.pool
+            assert pool.checkedout() == 0
+            await host.start()
+            try:
+                # From here every Host-owned session is held inside its exit.
+                gate.enabled.set()
+                assert await _wait_for(gate.entered.is_set, timeout=10.0), "no shielded session ran"
+                # Now fail a sibling. anyio cancels the rest of the group, so the cancellation is
+                # attempted against a child that is mid-session.
+                safety_gate.set()
+                assert await _wait_for(
+                    lambda: not any(name.startswith("safety:") for name in host.children_live),
+                    timeout=20.0,
+                ), host.children_live
+                assert "safety_lane_failure" in {
+                    entry.get("reason") for entry in host.health.checks.values()
+                }, host.health.snapshot()
+                await asyncio.sleep(0.5)
+                # The failing sibling is gone and the cancellation has been attempted, yet the
+                # shielded session holder is untouched and its connection is still checked out:
+                # the in-flight unit was not interrupted.
+                assert set(host.children_live) & {"heartbeat", "reconciliation"}, host.children_live
+                assert pool.checkedout() >= 1
+
+                gate.released.set()
+                assert await _wait_for(lambda: host.failed, timeout=25.0), host.failure_reason
+                assert await _wait_for(
+                    lambda: host.state in TERMINAL_STATES, timeout=25.0
+                ), host.readiness().as_payload()
+                # Baseline restored: nothing was lost, so nothing is left checked out.
+                assert pool.checkedout() == 0
+                assert host.children_live == ()
+                assert await _settled_orphan_tasks() == []
+            finally:
+                gate.released.set()
+                gate.enabled.set()
+                await host.stop()
+        finally:
+            await harness.dispose()
+
+    # Flush anything an earlier test left to the collector *before* capturing, so the assertion
+    # below is about this scenario's own objects rather than about unrelated pending garbage.
+    gc.collect()
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        _run(scenario)
+        gc.collect()
+    assert [str(item.message) for item in caught if issubclass(item.category, SAWarning)] == []
+
+
+def test_a_scanner_error_storm_cannot_grow_host_retention(monkeypatch):
+    """P2-03: the bound lives on the storage, so no uptime can grow either collection."""
+    error_types = [type(f"InjectedScannerError{n:02d}", (RuntimeError,), {}) for n in range(24)]
+    counter = {"n": 0}
+
+    async def failing_ingest(self, market_event, auxiliary=None):
+        cls = error_types[counter["n"] % len(error_types)]
+        counter["n"] += 1
+        raise cls("injected_scanner_failure")
+
+    monkeypatch.setattr(ScannerPipeline, "ingest", failing_ingest)
+
+    async def scenario(url: str) -> None:
+        harness = Harness(_settings(url), ControlledProvider(interval=0.01))
+        try:
+            await harness.seed()
+            host = harness.build()
+            await host.start()
+            try:
+                assert await _wait_for(
+                    lambda: host._scanner_errors > SCANNER_ERROR_SAMPLE_MAXLEN * 3
+                ), host._scanner_errors
+                await asyncio.sleep(FAST_TELEMETRY_SECONDS * 2)
+                assert len(host._scanner_error_samples) == SCANNER_ERROR_SAMPLE_MAXLEN
+                assert host._scanner_error_samples.maxlen == SCANNER_ERROR_SAMPLE_MAXLEN
+                assert host._state_history.maxlen == STATE_HISTORY_MAXLEN
+                samples = host.telemetry()["counters"]["scanner_event_error_samples"]
+                assert isinstance(samples, list) and len(samples) <= 8
+                # Impaired, never failed: per-event isolation is the accepted contract.
+                assert host.failed is False
+                assert host.state in {HostLifecycleState.READY, HostLifecycleState.DEGRADED}
+            finally:
+                await host.stop()
+        finally:
+            await harness.dispose()
+
+    _run(scenario)
+
+
+def test_host_retention_storage_is_bounded_by_construction():
+    """P2-03: the bound is on storage, so a telemetry slice can never be the whole guarantee."""
+    host = RuntimeHost(_settings())
+    assert host._state_history.maxlen == STATE_HISTORY_MAXLEN
+    assert host._scanner_error_samples.maxlen == SCANNER_ERROR_SAMPLE_MAXLEN
+
+    overflow = STATE_HISTORY_MAXLEN * 3
+    for index in range(overflow):
+        host._state_history.append((f"t{index}", "READY"))
+        host._scanner_error_samples.append(f"E{index}")
+
+    assert len(host._state_history) == STATE_HISTORY_MAXLEN
+    assert len(host._scanner_error_samples) == SCANNER_ERROR_SAMPLE_MAXLEN
+    assert host.ownership_snapshot()["state_history"][-1] == (f"t{overflow - 1}", "READY")
+    assert list(host._scanner_error_samples)[-1] == f"E{overflow - 1}"
+
+
+def test_database_resources_dispose_is_truthful_and_idempotent():
+    """P1-03 / P2-04: the owned-engine bundle is the only thing that can dispose its engine."""
+    engine = _StubEngine()
+    resources = DatabaseResources(engine=engine)  # type: ignore[arg-type]
+
+    asyncio.run(resources.dispose())
+    assert resources.disposed is True
+    assert engine.dispose_calls == 1
+    asyncio.run(resources.dispose())
+    assert engine.dispose_calls == 1  # a second call is a no-op, not a re-dispose
+
+    failing = DatabaseResources(engine=_StubEngine(fail=True))  # type: ignore[arg-type]
+    with pytest.raises(RuntimeError, match="injected_engine_dispose_failure"):
+        asyncio.run(failing.dispose())
+    assert failing.disposed is False  # a failed disposal is never reported as disposed
+
+
+def test_the_legacy_factory_only_helpers_are_gone_and_unreferenced():
+    """P2-04: no helper may hand out a factory whose owning engine handle is lost."""
+    import marketpulse.db.session as session_module
+
+    assert not hasattr(session_module, "create_session_factory")
+    assert not hasattr(session_module, "get_db")
+
+    offenders: list[str] = []
+    for path in sorted((REPOSITORY_ROOT / "backend" / "src").rglob("*.py")):
+        source = path.read_text(encoding="utf-8")
+        if "create_session_factory" in source or re.search(r"\bget_db\b", source):
+            offenders.append(str(path.relative_to(REPOSITORY_ROOT)))
+    assert offenders == []
+
+
+@pytest.mark.parametrize(
+    ("instruments", "missing"),
+    [
+        ("BTC-USDT", "ETH-USDT"),
+        ("ETH-USDT", "BTC-USDT"),
+        ("SOL-USDT,XRP-USDT", "BTC-USDT,ETH-USDT"),
+    ],
+)
+def test_an_enabled_host_must_cover_both_v1_instruments(instruments, missing):
+    """P2-05: the V1 activation contract is a conjunction, and it fails closed."""
+    host = RuntimeHost(
+        _settings(runtime_host_instruments=instruments),
+        dependencies=HostDependencies(provider=ControlledProvider()),
+    )
+
+    async def scenario() -> None:
+        with pytest.raises(
+            HostConfigurationError, match=f"V1_REQUIRED_INSTRUMENTS_MISSING:{missing}"
+        ):
+            await host.start()
+
+    asyncio.run(scenario())
+    assert host.state is HostLifecycleState.CREATED
+
+
+def test_additional_instruments_beyond_the_v1_pair_remain_allowed():
+    """P2-05: the contract is a floor, not a fixed list."""
+    instruments = (BTC, ETH, "SOL-USDT")
+
+    async def scenario(url: str) -> None:
+        provider = ControlledProvider(instruments)
+        harness = Harness(
+            _settings(url, runtime_host_instruments="BTC-USDT,ETH-USDT,SOL-USDT"), provider
+        )
+        try:
+            assert harness.provider.instrument_ids == instruments
+            await harness.seed()
+            host = harness.build()
+            await host.start()
+            try:
+                assert host.state is HostLifecycleState.READY, host.readiness().as_payload()
+                assert set(host.children_live) >= {
+                    "provider_stream",
+                    "scanner",
+                    f"safety:{BTC}",
+                    f"safety:{ETH}",
+                    "safety:SOL-USDT",
+                }
+            finally:
+                await host.stop()
+            assert host.ownership_snapshot()["shutdown_failures"] == []
+        finally:
+            await harness.dispose()
+
+    with _disposable_postgres_database() as (_, url):
+        asyncio.run(scenario(url))
+
+
+class _StubEngine:
+    """Minimal stand-in for `AsyncEngine`; only `dispose()` is part of this contract."""
+
+    def __init__(self, *, fail: bool = False) -> None:
+        self.fail = fail
+        self.dispose_calls = 0
+
+    async def dispose(self) -> None:
+        self.dispose_calls += 1
+        if self.fail:
+            raise RuntimeError("injected_engine_dispose_failure")
