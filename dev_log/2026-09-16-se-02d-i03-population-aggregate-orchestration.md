@@ -266,3 +266,115 @@ SE-02D-I03 = READY FOR INDEPENDENT REVIEW
 ```
 
 未 merge `main`；未启动 I04；未宣称 Human Acceptance；未宣称 SE-02D complete。
+
+---
+
+# SE-02D-I03-FIX-01｜Close Malformed Projection Identity Gap
+
+```text
+SE02D-I03-R1 = CLOSED BY FIX CANDIDATE
+SE-02D-I03-FIX-01 = READY FOR INDEPENDENT RE-REVIEW
+Human Acceptance = NOT GRANTED
+SE-02D = IN PROGRESS（未完成，未宣称 complete）
+```
+
+## Review finding（本卡响应对象）
+
+| 项 | 值 |
+| --- | --- |
+| Finding | `SE02D-I03-R1` |
+| Severity | P1 |
+| Status（修复前） | OPEN |
+| Reviewed candidate（**不可变**，未被本卡移动） | `44d0e4b14ba0037de4da8e605d7b04b9f5d721e4` |
+| FIX branch | `se-02d-i03-fix-01-projection-identity-validation`（base `44d0e4b`） |
+| FIX worktree | `E:\Documents\MarketPulse-AI-se-02d-i03-fix-01` |
+
+问题：I03 承诺对每个必需身份字段做 projection 级 fail-closed 校验，但此前直接假设
+`projection.horizon` / `fact.horizon` / `fact.population_key` 的运行时类型合法，并直接解引用
+`.value` / `.canonical_payload()`。`CanonicalScopeFacts` 与 `CurrentSnapshotProjection`
+自身均不做运行时类型校验，故畸形 / 篡改输入会以 `AttributeError` 之类偶发异常逃出
+`AggregationOrchestrationError` 边界，违反冻结的 I03 任务 §9 rule 8 / §14。
+
+## Root-cause evidence（修复前实测泄漏，非推断）
+
+同一只读探针，以 I02 真实路径（`_project` / `_fold_*`）构造的 projection 为输入，分别加载
+「已复审候选源码」与「FIX 源码」：
+
+| 篡改点 | 修复前（`44d0e4b` 源码） | 修复后（FIX-01） |
+| --- | --- | --- |
+| `projection.horizon="5m"` | **LEAK** `AttributeError: 'str' object has no attribute 'value'` | `AggregationOrchestrationError: malformed_projection_identity:horizon:str` |
+| `fact.horizon="5m"` | **LEAK** `AttributeError: 'str' object has no attribute 'value'` | `AggregationOrchestrationError: malformed_fact_logical_identity:horizon:str` |
+| `fact.population_key="not-a-key"` | **LEAK** `AttributeError: 'str' object has no attribute 'canonical_payload'` | `AggregationOrchestrationError: malformed_fact_population_key:str` |
+
+⇒ R1 为**可复现的真实缺口**（修复前该路径确实不被拦截），且新判据**确有牙齿**。
+
+## Exact code fix（最小改动）
+
+`backend/src/marketpulse/edge/aggregation_orchestration.py`：
+
+1. 新增两个**非泛化**类型证明 helper：
+   - `_require_forward_horizon(value, *, marker)` —— 非 `ForwardHorizon` 抛
+     `AggregationOrchestrationError(f"{marker}:{type(value).__name__}")`；
+   - `_require_population_key(value)` —— 非 `PopulationKey` 抛
+     `malformed_fact_population_key:<type>`。
+2. 在 `_index_facts` 内、**三处解引用之前**插入证明（该函数是 `aggregate_projection` 的首个
+   调用，亦是首个解引用 `projection.horizon` 之处）：
+   - 循环前：`_require_forward_horizon(projection.horizon, marker="malformed_projection_identity:horizon")`；
+   - 每条 fact：`_require_forward_horizon(fact.horizon, marker="malformed_fact_logical_identity:horizon")`
+     与 `_require_population_key(fact.population_key)`。
+3. 模块 docstring 增补一条边界说明；`_index_facts` docstring 同步更新（原描述未提及新判据）。
+
+放置位置在既有 `isinstance(fact, CanonicalScopeFacts)` 之后、`_require_text` 之前：既有
+`malformed_fact:not_canonical_scope_facts` 的优先级不变，`test_non_canonical_scope_fact_fails_closed`
+仍通过，未改变任何既有输入的报错路径。未引入通用校验框架；未改动 `_index_manifest`
+（其 `projection.horizon.value` 由 `_index_facts` 的先行使证明覆盖）。I01/I02 源码与其测试
+**逐字节未改**。
+
+## New tests（§4 A–E）
+
+`backend/tests/test_se_02d_aggregation_orchestration.py` 新增 7 个测试 / 18 个用例：
+
+| § | 测试 | 断言 |
+| --- | --- | --- |
+| A | `test_malformed_projection_horizon_fails_closed`（`"5m"` / `"M5"` / `None` / `5` / `[]`） | `malformed_projection_identity:horizon` |
+| A | `test_malformed_projection_horizon_fails_closed_without_any_fact` | 空 facts 时 projection 级证明仍生效 |
+| B | `test_malformed_fact_horizon_fails_closed`（5 参数） | `malformed_fact_logical_identity:horizon` |
+| C | `test_malformed_fact_population_key_fails_closed`（str / `None` / int / tuple） | `malformed_fact_population_key` |
+| — | `test_malformed_projection_identity_messages_are_exact_and_deterministic` | 三条消息**逐字符**全等 |
+| D | `test_malformed_projection_identity_never_reaches_i01` | 三种畸形输入均抛 `AggregationOrchestrationError`，且 I01 `aggregate` 调用数为 **0** |
+| E | `test_valid_projection_behavior_is_unchanged_by_the_fix` | 3 population / 3 次调用 / 规模 1·2·3 / `canonical_key` 有序 / `horizon` 保真 / 空 projection 仍返回 `()` |
+
+全部经 `dataclasses.replace` 作用于 I02 真实路径产出的 projection / fact，未手工伪造 I02 输出。
+未削弱任何既有 I01／I02／I03 测试。
+
+## Verification
+
+| 验证 | 命令 | 结果 |
+| --- | --- | --- |
+| I03 定向 | `py -3.14 -m pytest -q backend/tests/test_se_02d_aggregation_orchestration.py` | **57 passed**（39 既有 + 18 新增） |
+| I01+I02+I03 定向回归 | 三文件同批 | **209 passed in 16.13s**（108 + 44 + 57） |
+| 变更文件 ruff | 两个变更文件 | All checks passed! |
+| 项目 ruff 门 | `backend/src backend/tests scripts` | All checks passed! |
+| 空白检查 | `git diff --check` | PASS（exit 0，无输出） |
+| 修复前/后取证 | 只读探针 × 2 | 见 Root-cause evidence 表 |
+| 全量 backend suite | — | 未跑（任务 §5 明确 NOT REQUIRED；定向回归未暴露跨边界问题） |
+
+## Evidence
+
+| 证据 | 值 |
+| --- | --- |
+| Reviewed candidate（不可变，未移动） | `44d0e4b14ba0037de4da8e605d7b04b9f5d721e4` |
+| FIX branch base | `44d0e4b14ba0037de4da8e605d7b04b9f5d721e4`（单父、forward） |
+| `origin/main`（实测未动） | `44df66603e6bdba1f3f80c21be5b30c295e4a20a` |
+| FIX commit（源码 + 测试） | `1631f251eda0bcc1d0f74cd8e073ee176643f158`（2 文件 / +161 −3） |
+| 变更面 | 严格 2 个既有文件 + 本 dev_log；无新增文件、无删除 |
+
+## Remaining / Deviations
+
+- `SE02D-I03-R1 = CLOSED BY FIX CANDIDATE`；R2 / R3 未被本卡授权处理，保持原状。
+- 未 merge `main`；未 force push；未 rebase；**未移动**原候选分支
+  `se-02d-i03-population-aggregate-orchestration`；未启动 I04；未宣称 Human Acceptance；
+  未宣称 ACCEPTED；未宣称 SE-02D complete。
+- 前文 `Remaining Boundaries` 记录的 `edge/__init__.py` 包文档陈旧问题**依旧未修**
+  （不在本卡允许写入面内，CIP-05 记录不修）。
+- 无阻塞项；无 Scope 偏差。
