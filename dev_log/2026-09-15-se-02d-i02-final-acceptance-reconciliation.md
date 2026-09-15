@@ -343,3 +343,71 @@ Live = NO。
     `b197749041808b772ed237f627d89bfac28532b8b845212bf2d84007f71dfa88`）；将工作树文件
     CRLF→LF 规范化后，该 blob 为新文件内容的**前缀**；`git diff --numstat` 的删除列为 `0`
     （纯新增、零删除行）。
+
+## 15. Human Acceptance + Governance Finding Closure
+
+- 收尾任务：`SE-02D-I02-FINAL-DOC-01-CLOSEOUT`（`HUMAN-ACCEPTED FINAL CLOSEOUT` /
+  `DOCUMENTATION-ONLY` / `FAST-FORWARD INTEGRATION`）。
+- 本节**仅追加**；本文件 §1–§14 逐字节不变。**无**产品语义、代码、测试、schema、migration、
+  dependency、API、UI、runtime、设计或状态文档变更。
+
+### 15.1 验收与关闭记录
+
+| 项 | 值 |
+|---|---|
+| Task | `SE-02D-I02-FINAL-DOC-01` |
+| Independent Review | `PASS — READY FOR HUMAN ACCEPTANCE` |
+| Human Acceptance | `CONFIRMED — 2026-09-16` |
+| Human-Accepted Reviewed Candidate | `aa2232ea9898f82c6b377143787647cd5e104681` |
+| Candidate Branch | `se-02d-i02-final-doc-01` |
+| Finding | `SE02D-I02-FINAL-P2-01` |
+| Finding Severity | `P2` |
+| Finding Class | `PROCESS / AUDITABILITY` |
+| Final Finding Status | `CLOSED` |
+
+### 15.2 Closure basis
+
+- 事故披露已被**持久化**记录（本文件 §14，经 append-only 候选提交 `aa2232e` 收编）。
+- 独立复核已验证该候选为**单文件、append-only** 变更。
+- Human Acceptance 已被**显式确认**（2026-09-16）。
+- **无**生产语义变更。
+- **无**代码 / 测试 / schema / runtime / 产品行为修改。
+
+### 15.3 集成方式
+
+- closeout 分支 `se-02d-i02-final-doc-01-closeout` 从**不可变候选**
+  `aa2232ea9898f82c6b377143787647cd5e104681` 建立（**未**在候选分支上追加提交）。
+- 集成前重读 live `origin/main`，仍等于 `d1e5534dcd8eb63fe71f0e3c06ab80dfc1a6f0e6`（无漂移）。
+- ancestry 实测 = `d1e5534 → aa2232e → <closeout commit>`。
+- 集成方法 = **`FAST-FORWARD ONLY`**；**无** merge commit / squash / rebase / cherry-pick
+  重建 / force push。
+- closeout commit 的字面 SHA 无法由本文件自指，见该分支 `git log` 实测。
+
+### 15.4 显式保留（Preserve，未改写）
+
+- `SE-02D-I02 = ACCEPTED / COMPLETE`
+- `SE-02D = IN PROGRESS`
+- `Gate C = NOT PASSED`
+- `Live = NOT AUTHORIZED`
+- `I03 = NOT STARTED`
+
+### 15.5 关闭边界声明
+
+关闭本治理 finding（`SE02D-I02-FINAL-P2-01 = CLOSED`）**不**等于实现或接受 `I03`；
+**不**解锁 `I03`；**不**改变 `SE-02D = IN PROGRESS`、`Gate C = NOT PASSED`、
+`Live = NOT AUTHORIZED`。本收尾**不**发起任何新任务。
+
+### 15.6 本节证据边界
+
+- 权威来源：live `origin/main`（集成后 = closeout commit）中的本文件。
+- 写入方式 = **append-only**，双层面已证明（`core.autocrlf = true`：工作树 CRLF、
+  repository blob 为 LF）：
+  - worktree 层：追加前文件 = **20445** 字节（sha256
+    `221e7245484d5152adebaed3c6ba962e068c97860505e8f0d3f7c410b1fe67b4`）；追加后该前缀
+    逐字节不变。
+  - repository 层：blob = **20100** 字节、0 个 CRLF（sha256
+    `c2a87d40aeea71a69fd64d4fafd89f75c6c7a4cdcb5562a4cd76275d64564223`）；将工作树文件
+    CRLF→LF 规范化后，该 blob 为新文件内容的**前缀**；`git diff --numstat` 的删除列为 `0`
+    （纯新增、零删除行）。
+- 显式标注 `NOT VERIFIED`：任何超出上述 live 实测项（Git ref / 文件字节 / changed-file 集合）
+  的推断；§14.3 的 `Agent-local memory / skill mutation = NOT VERIFIED` 结论本节**不**改变。
