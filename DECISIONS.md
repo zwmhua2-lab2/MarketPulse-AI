@@ -163,7 +163,31 @@
     Accepted D01 design artifact 逐字**未**改。
   - **边界**：`SE-02D-I01 = ACCEPTED / COMPLETE` **≠** `SE-02D` complete ——
     `SE-02D Production Implementation = IN PROGRESS`；PostgreSQL loading / revision-chain
-    folding / canonical-head loading / current-snapshot orchestration / service wiring /
-    historical revision-as-of 仍 `NOT IMPLEMENTED`；`Gate C = NOT PASSED`；
-    `Live = NOT AUTHORIZED`。详见
+    folding / canonical-head loading / current-snapshot orchestration 已于 `SE-02D-I02`
+    实现并验收（见下方 `SE-02D-I02` 条目）；population grouping + 调用 I01 `aggregate()`、
+    aggregate / API / product integration、historical revision-as-of 仍 `NOT IMPLEMENTED`；
+    `Gate C = NOT PASSED`；`Live = NOT AUTHORIZED`。详见
     `dev_log/2026-09-15-se-02d-i01-final-acceptance-closeout.md`。
+
+- SE-02D-I02（已批准 / 已验收，2026-09-15 Human Acceptance = `CONFIRMED`）：
+  Current-Snapshot Revision Folding = `ACCEPTED / COMPLETE`；Human-Accepted reviewed
+  candidate = `9b860437b14f64192d3298d30c0204bed1b118f8`（branch
+  `se-02d-i02-current-snapshot-folding`，immutable）；Independent Initial Review =
+  `FAIL — FIX REQUIRED`；FIX-01 Independent Re-Review = `PASS`；`SE02D-I02-R1` / `R2` /
+  `R3` = `CLOSED`；集成方法 = `FAST-FORWARD ONLY`（latest-main content-level
+  carry-forward）。本节仅为**实现验收指针 + 已接受边界**，权威细节以 Accepted `D01` /
+  `I01` 行为与 `dev_log` 为准，**不**新增设计决策：
+  - **Accepted implementation boundary**：`CURRENT_STABLE_SNAPSHOT` only —— 一个
+    PostgreSQL `REPEATABLE READ` + `READ ONLY` 快照拥有整个 projection；`as_of` 权威 =
+    数据库 `statement_timestamp()`；**无** historical caller-supplied `as_of`。
+  - **无新统计语义**：`I01` 仍为 canonical manifest base fields、fingerprint、bootstrap、
+    statistics、uncertainty、sufficiency 的权威；I02 只在该 base 上附加修订链身份字段。
+  - **已实现**：全量可见 Evidence revision-chain 校验 / 折叠、canonical Evidence head
+    selection、精确 horizon Outcome revision-chain 校验 / 折叠、canonical Outcome head /
+    `NO_OUTCOME`、canonical Evidence ↔ Outcome cross-integrity、`CanonicalScopeFacts`
+    projection、revision-aware canonical manifest。
+  - **边界**：`SE-02D-I02 = ACCEPTED / COMPLETE` **≠** `SE-02D` complete ——
+    population grouping + orchestration that invokes I01 `aggregate()`、aggregate / API /
+    product integration、historical arbitrary revision-as-of 仍 `NOT IMPLEMENTED`；
+    `Gate C = NOT PASSED`；`Live = NOT AUTHORIZED`。详见
+    `dev_log/2026-09-15-se-02d-i02-final-acceptance-reconciliation.md`。

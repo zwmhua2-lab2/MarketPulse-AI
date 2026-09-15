@@ -15,15 +15,25 @@ FINDINGS — READY FOR HUMAN ACCEPTANCE`；Human-Accepted reviewed candidate =
 遗留 `SE02C-R7` = P3 / NON-BLOCKING / NOT FIXED）
 
 SE-02D — Family Aggregation / Expectancy — IN PROGRESS（`SE-02D-I01` = `ACCEPTED / COMPLETE`；
-remaining production implementation = `NOT COMPLETE`）
+`SE-02D-I02` = `ACCEPTED / COMPLETE`；remaining production implementation = `NOT COMPLETE`）
 
 SE-02D-I01 — Deterministic Aggregation Core — ACCEPTED / COMPLETE（2026-09-15 Human Acceptance =
 `CONFIRMED`；Independent Initial Review = `FAIL — FIX REQUIRED`；FIX-01 Independent Re-Review =
 `PASS`；`SE02D-I01-R1` / `SE02D-I01-R2` / `SE02D-I01-R3` = `CLOSED`；Human-Accepted reviewed
 candidate = `13b37dff4b8150dea869ba6257ae9f3df24cc1e5`，branch
 `se-02d-i01-aggregation-core`，immutable；集成方法 = `FAST-FORWARD ONLY`。**`I01 Accepted`
-≠ `SE-02D Complete`**：PostgreSQL 加载 / revision-chain folding / canonical head selection /
-current-snapshot orchestration / service wiring 仍未实现；详见「SE-02D-I01 Result」）
+≠ `SE-02D Complete`**：PostgreSQL current-snapshot 加载 / revision-chain folding / canonical
+Evidence-head 与 Outcome-head selection / `REPEATABLE READ` snapshot orchestration 已于
+`SE-02D-I02` 实现并验收；仍未实现 = population grouping + 调用 I01 `aggregate()`、
+aggregate / API / product integration；详见「SE-02D-I01 Result」与「SE-02D-I02 Result」）
+
+SE-02D-I02 — Current-Snapshot Revision Folding — ACCEPTED / COMPLETE（2026-09-15 Human
+Acceptance = `CONFIRMED`；Independent Initial Review = `FAIL — FIX REQUIRED`；FIX-01
+Independent Re-Review = `PASS`；`SE02D-I02-R1` / `R2` / `R3` = `CLOSED`；Human-Accepted
+reviewed candidate = `9b860437b14f64192d3298d30c0204bed1b118f8`，branch
+`se-02d-i02-current-snapshot-folding`，immutable；集成方法 = `FAST-FORWARD ONLY`
+（latest-main content-level carry-forward）。**`I02 Accepted` ≠ `SE-02D Complete`**：
+population grouping + 调用 I01 `aggregate()` 仍未实现；详见「SE-02D-I02 Result」）
 
 SE-02D-D01 — Family Aggregation / Expectancy Contract（设计契约）— ACCEPTED / COMPLETE（2026-09-15 Human
 Acceptance = `CONFIRMED` + Final Acceptance Closeout；Independent Initial Review = `FAIL — FIX
@@ -144,9 +154,10 @@ PRE-01B-I1 — Integrated Runtime Host Core V1 Implementation — ACCEPTED / COM
   Fix-02 implementation `6b084595` 均保持 immutable；`SE-02C-FIX-01` / `SE-02C-FIX-02` =
   `ACCEPTED / CLOSED`；已 fast-forward only 收编 `main`；`SE02C-R7` = P3 / NON-BLOCKING /
   NOT FIXED；`Schema Changed = NO`、`Migration Added = NO`，单 head 仍 `20260913_0009`）；
-  **`SE-02D = IN PROGRESS`**（`SE-02D-I01` = `ACCEPTED / COMPLETE`，2026-09-15 Human Acceptance =
-  `CONFIRMED` + Final Acceptance Closeout；parent production implementation 的剩余部分 =
-  `NOT COMPLETE`；**`SE-02D-D01` 设计契约 = `ACCEPTED / COMPLETE`**，2026-09-15 Human
+  **`SE-02D = IN PROGRESS`**（`SE-02D-I01` = `ACCEPTED / COMPLETE`、`SE-02D-I02` =
+  `ACCEPTED / COMPLETE`，均于 2026-09-15 Human Acceptance = `CONFIRMED` + Final Acceptance
+  Closeout；parent production implementation 的剩余部分 = `NOT COMPLETE`；
+  **`SE-02D-D01` 设计契约 = `ACCEPTED / COMPLETE`**，2026-09-15 Human
   Acceptance = `CONFIRMED` + Final Acceptance Closeout）
 
 ## Branch / Source
@@ -532,13 +543,24 @@ PRE-01B-I1 — Integrated Runtime Host Core V1 Implementation — ACCEPTED / COM
   - **I01 own 的范围**：pure deterministic aggregation / statistics core
     （`marketpulse.edge.aggregation`；**不** fold revision chain，只消费已 canonicalize 的
     scope facts）。
-  - **NOT YET IMPLEMENTED（parent `SE-02D` 剩余部分）**：PostgreSQL loading、full Evidence
-    revision-chain discovery、canonical Evidence-head selection from DB、full Outcome
-    revision-chain discovery、canonical Outcome-head selection from DB、`REPEATABLE READ` /
-    current-snapshot orchestration、final revision manifest construction from DB、
-    service / repository integration、historical revision-as-of support。
-  - ⚠️ **`I01 Accepted` ≠ `SE-02D Complete`**；`SE-02D = IN PROGRESS` **不**构成
-    family aggregation 全量实现 / KEEP / DOWNWEIGHT / KILL / `Gate C = PASS` / `Live` 授权。
+  **`SE-02D-I02｜Current-Snapshot Revision Folding` = `ACCEPTED / COMPLETE`**（2026-09-15
+  Human Acceptance = `CONFIRMED`；Independent Initial Review = `FAIL — FIX REQUIRED`；
+  FIX-01 Independent Re-Review = `PASS`；`SE02D-I02-R1` / `R2` / `R3` = `CLOSED`；
+  Human-Accepted reviewed candidate = `9b86043…`（branch
+  `se-02d-i02-current-snapshot-folding`，immutable）；latest-main content-level
+  carry-forward + `FAST-FORWARD ONLY`）。
+  - **I02 own 的范围（已实现 / 已验收）**：`marketpulse.edge.aggregation_snapshot` ——
+    单个 PostgreSQL `REPEATABLE READ` / `READ ONLY` 快照；数据库 `statement_timestamp()`
+    作 `as_of`；全量可见 Evidence revision-chain 校验 / 折叠；canonical Evidence head
+    selection；精确 horizon Outcome revision-chain 校验 / 折叠；canonical Outcome head /
+    `NO_OUTCOME`；canonical Evidence ↔ Outcome cross-integrity；`CanonicalScopeFacts`
+    projection；扩展 I01 canonical manifest 的 revision-aware manifest。
+  - **NOT YET IMPLEMENTED（parent `SE-02D` 剩余部分）**：population grouping +
+    orchestration that invokes I01 `aggregate()`；aggregate / API / product integration；
+    historical arbitrary revision-as-of support。
+  - ⚠️ **`I01 Accepted` ≠ `SE-02D Complete`**；**`I02 Accepted` ≠ `SE-02D Complete`**；
+    `SE-02D = IN PROGRESS` **不**构成 family aggregation 全量实现 / KEEP / DOWNWEIGHT /
+    KILL / `Gate C = PASS` / `Live` 授权。
 - **`SE-02D-D01`（Family Aggregation / Expectancy Contract，设计层）= `ACCEPTED / COMPLETE`**
   （2026-09-15 Human Acceptance = `CONFIRMED` + Final Acceptance Closeout；Human-Accepted
   candidate = `245b068…`，immutable；Accepted Design artifact =
@@ -1571,13 +1593,56 @@ PRE-01B-I1 — Integrated Runtime Host Core V1 Implementation — ACCEPTED / COM
   After Review = NO` / `Schema Changed = NO` / `Migration Added = NO` / `Production
   Dependency Changed = NO` / `Runtime Impact of Closeout = ZERO`；`alembic heads` 单 head 仍
   `20260913_0009`。
-- 剩余 `SE-02D` 工作（I01 **未** own、仍未实现）：PostgreSQL loading、full Evidence
-  revision-chain discovery、canonical Evidence-head selection from DB、full Outcome
-  revision-chain discovery、canonical Outcome-head selection from DB、`REPEATABLE READ` /
-  current-snapshot orchestration、final revision manifest construction from DB、
-  service / repository integration、historical revision-as-of support。
+- 剩余 `SE-02D` 工作（I01 **未** own）：PostgreSQL loading、full Evidence / Outcome
+  revision-chain discovery、canonical Evidence-head / Outcome-head selection from DB、
+  `REPEATABLE READ` current-snapshot orchestration、final revision manifest construction
+  from DB —— 以上已于 `SE-02D-I02` 实现并验收（见「SE-02D-I02 Result」）；**仍未实现** =
+  population grouping + 调用 I01 `aggregate()`、aggregate / API / product integration、
+  historical revision-as-of support。
   **`I01 Accepted` ≠ `SE-02D Complete`**；`SE-02D Production Implementation = IN PROGRESS`。
 - 边界：`Gate C = NOT PASSED`；`Live = NOT AUTHORIZED`；Real AI = `NOT ACTIVATED`；
   `Integrated Runtime Host = NOT STARTED`；三项 prerequisite（historical revision-as-of /
   experiment/pair/arm identity / durable regime）仍 `OPEN`。本收尾**不**解锁 `I02`。
 - 详见 `dev_log/2026-09-15-se-02d-i01-final-acceptance-closeout.md`。
+## SE-02D-I02 Result
+
+- 任务：`SE-02D-I02`｜Current-Snapshot Revision Folding → `SE-02D-I02-FINAL`｜Latest-Main
+  Acceptance Reconciliation / State Sync / Main Integration（docs/state-only；**非**新实现、
+  **非**新 Review、**非** I03、**非** Gate C、**非** Live）。
+- 状态 = `SE-02D-I02 = ACCEPTED / COMPLETE`（2026-09-15 Human Acceptance = `CONFIRMED`）。
+- Accepted 能力：**CURRENT-SNAPSHOT REVISION FOLDING = IMPLEMENTED / ACCEPTED**：
+  单个 PostgreSQL `REPEATABLE READ` / `READ ONLY` 快照；数据库 `statement_timestamp()` 作
+  `as_of`；全量可见 Evidence revision-chain 校验 / 折叠；canonical Evidence head selection；
+  精确 horizon Outcome revision-chain 校验 / 折叠；canonical Outcome head / `NO_OUTCOME`；
+  canonical Evidence ↔ Outcome cross-integrity；`CanonicalScopeFacts` projection；
+  扩展 I01 canonical manifest 的 revision-aware manifest。
+- Review 历史：Independent Initial Review = `FAIL — FIX REQUIRED`；FIX-01 Independent
+  Re-Review = `PASS`；`SE02D-I02-R1` / `R2` / `R3` = `CLOSED`；Human Acceptance =
+  `CONFIRMED — 2026-09-15`（Worker 不自行宣告 `CLOSED`）。
+- Human-Accepted reviewed candidate（**immutable、远端未移动**）=
+  `9b860437b14f64192d3298d30c0204bed1b118f8`（branch
+  `se-02d-i02-current-snapshot-folding`）。
+- 集成：Original I02 Base = `0ae5b0b44e28db4c8c81c1a64057467d199954cb`；Latest Accepted
+  Main before reconciliation = `664207a9caba0c3f5c2589cfca2a10af24f89108`；reconciliation
+  branch = `se-02d-i02-final-acceptance-reconciliation`（base = latest `main`）；集成方法 =
+  `FAST-FORWARD ONLY`（单 parent、无 merge commit / squash / rebase / cherry-pick /
+  force push / candidate branch movement）。production source 与 tests 以 byte-identical
+  blob 搬运（git blob identity 验证）。
+- 最终回归（closeout 窗口实测，cwd = reconciliation worktree、未导出 `DATABASE_URL`）：
+  I02 focused `44 passed`；I01 `108 passed`；SE-02A / SE-02C `155 passed`；
+  `ruff check backend/src backend/tests scripts` = `All checks passed!`；
+  `git diff --check` rc=0。DB-backed 测试使用 disposable PostgreSQL（`marketpulse_se02d_*`
+  现场建 / 删），未触碰 accepted / shared 应用库。`FULL BACKEND SUITE = NOT REQUIRED FOR
+  I02 CLOSEOUT / NOT VERIFIED`。
+- 本收尾为 docs/state-only：`Production Code Changed After Review = NO` / `Tests Changed
+  After Review = NO` / `Schema Changed = NO` / `Migration Added = NO` / `Production
+  Dependency Changed = NO` / `API / UI = NO` / `Runtime Activation = NO`；单 head
+  `20260913_0009`。
+- ⚠️ **`I02 Accepted` ≠ `SE-02D Complete`**：仍未实现 = population grouping +
+  orchestration that invokes I01 `aggregate()`、aggregate / API / product integration、
+  historical arbitrary revision-as-of。`SE-02D Production Implementation = IN PROGRESS`。
+- 边界：`Gate C = NOT PASSED`；`Live = NOT AUTHORIZED`；Real AI = `NOT ACTIVATED`；
+  三项 prerequisite（historical revision-as-of / experiment-pair-arm identity / durable
+  regime）仍 `OPEN`。本收尾**不**解锁 `I03`。
+- 详见 `dev_log/2026-09-15-se-02d-i02-final-acceptance-reconciliation.md` 与
+  `dev_log/2026-09-15-se-02d-i02-current-snapshot-folding.md`。
