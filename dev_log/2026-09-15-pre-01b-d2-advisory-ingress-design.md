@@ -4,7 +4,7 @@
 任务：`PRE-01B-D2-BASE-01`｜Latest-Main Re-Audit + D2 Candidate Rebuild
 分支：`design/pre-01b-d2-advisory-ingress-contract-r1`（base = `d1e5534`，新 worktree
 `E:\Documents\MarketPulse-AI-pre-01b-d2-r1`）
-Artifact status：**CANDIDATE DESIGN / PENDING INDEPENDENT REVIEW**（不代表 Accepted）
+Parent artifact status：**CANDIDATE DESIGN / INDEPENDENT REVIEW = FAIL — FIX REQUIRED**
 
 ## 1. 旧 Blocked Draft 的定位
 
@@ -142,3 +142,97 @@ DB `statement_timestamp()`）。对 D2 的设计影响（全部落入新合同�
 - I2 Implementation（另行授权批次）。
 - SE-02D 后续批次、Gate A/B activation、Real AI —— 均未启动。
 - STOP。
+
+## 10. PRE-01B-D2-FIX-01 — Independent Review P1/P2 Design Fix
+
+日期：2026-09-16
+任务：`PRE-01B-D2-FIX-01`｜Close Independent Review P1 Findings
+角色：FORMAL DESIGN FIX AUTHOR
+分支：`design/pre-01b-d2-fix-01-advisory-ingress-contract`
+固定 parent：`c0bd0e8145a82372a6322f63369e6467cae9022f`
+当前 artifact status：**FIX CANDIDATE DESIGN / READY FOR INDEPENDENT RE-REVIEW**
+Human Acceptance：**NOT PERFORMED**
+
+### 10.1 Five-Part Task Preflight
+
+- Current Task：仅修复 Independent Review 的 5 个 P1 设计阻塞与 1 个 P2
+  durable queue ordering 歧义。
+- Scope：design/documentation semantics only。
+- Allowed Changes：仅本 dev_log 与
+  `docs/design/PRE-01B/PRE-01B-D2-AdvisoryIngress-G2-G3-Activation-Contract.md`。
+- Explicitly Forbidden：implementation/test/migration/schema/runtime/provider/Production/
+  state-doc 变更；不触及其他 dev_log/design doc、`.workbuddy`、memory、skills、
+  daily logs；不移动 parent candidate；不 merge/reconcile `main`。
+- Acceptance Criteria：5 个 P1 均由明确 durable/transaction/failure/state 语义处置；
+  P2-01 去除 ordering 歧义；仅 2 个 changed paths；通过 diff/check/conflict-marker/
+  exact-base 核验；push FIX branch；不自宣 Human Acceptance。
+
+### 10.2 Repository / Protocol / Git Truth
+
+- Global Protocol：`zwmhua2-lab2/ai-dev-protocol`，远程 `main =
+  07e2df83266d4ecdea46caff5c61f000937b8913`；`AI_BOOTSTRAP.md` 实读
+  `1.1.0 / ACCEPTED`，并按入口要求重读 `AI_DEVELOPMENT_PROTOCOL.md` /
+  `PROJECT_REGISTRY.md`。
+- Parent candidate：local branch/ref 与 realtime remote ref 均为 `c0bd0e8...`，
+  未移动。
+- Realtime `main`：local / `origin/main` / `git ls-remote` 均为
+  `44df66603e6bdba1f3f80c21be5b30c295e4a20a`。
+- Main drift from parent base `d1e5534`：`aa2232e` + `44df666`，只修改
+  `dev_log/2026-09-15-se-02d-i02-final-acceptance-reconciliation.md`（事故披露/
+  Human-accepted closure）。零 G2/G3/RuntimeHost/Opportunity/Evidence/DB/schema/
+  PRE-01A/PRE-01B/SE-02D identity 语义变更；分类 = **ORTHOGONAL**。
+- 会话根工作树存在大量先前未提交修改，故本 FIX 从 exact parent
+  创建仓库外隔离 worktree；未 reset/stash/clean/checkout/覆盖任何既有内容。
+
+### 10.3 Finding Dispositions（Worker Design Claim）
+
+| Finding | Disposition | Design fix |
+|---|---|---|
+| `PRE01B-D2-RR-P1-01` | **CLAIMED CLOSED** | `edge_opportunity_evidence` minimal accounting extension 在 SAVEPOINT 外持久 `RECOVERY_REQUIRED` + immutable `AdvisoryAdmissionSeed`；snapshot/Invocation/accounting flip 在 SAVEPOINT 内原子。重复失败不后绑新 config；原 deadline 前可恢复，过期后收口为 `ADMISSION_FAILED_FINAL / NO_LONG` |
+| `PRE01B-D2-RR-P1-02` | **CLAIMED CLOSED** | supersede writer 与 finalizer 共享 bound/predecessor Evidence N `FOR UPDATE`；锁顺序 `Evidence -> Invocation -> Attempt`；持锁重读；final-first 后 N+1 durable chain 使旧 final 对未来经济消费 non-actionable |
+| `PRE01B-D2-RR-P1-03` | **CLAIMED CLOSED** | Invocation 五个 terminal fields 是唯一 logical final-result authority；Attempt/AIDecision 同 Invocation/origin 由 composite/deferred FK 约束；终态化原子 |
+| `PRE01B-D2-RR-P1-04` | **CLAIMED CLOSED** | PostgreSQL `statement_timestamp()` 单次 CTE；`TIMESTAMPTZ(6)`/UTC/固定 canonical serialization；positive integer-ms duration + version 持久；restart/config reload/queue delay 语义冻结 |
+| `PRE01B-D2-RR-P1-05` | **CLAIMED CLOSED** | Protection-reserved budget + Advisory subdeadline；到点无条件停 Advisory DB cleanup；无 per-Invocation cancellation-final 前置；全部允许留存状态均定义 restart interpretation |
+| `PRE01B-D2-RR-P2-01` | **CLAIMED CLOSED** | 删除 durable `QUEUED`；process queue 只 wake-up；consumer 先原子 `ADMITTED -> ACTIVE` + Attempt；crash/DB-failure/duplicate-ref 语义冻结 |
+
+`CLOSED` 仅是 Fix Candidate 的 design disposition claim。Independent Reviewer 拥有最终
+closure verdict；Worker 未执行 Independent Re-Review 或 Human Acceptance。
+
+### 10.4 Queue Full / Experiment Accounting / Schema / Human Decisions
+
+- Queue Full：继续 `REJECT NEWEST`；durable Invocation 正常路径以
+  `CAPACITY_BLOCKED / ADVISORY_QUEUE_REJECTED` 及 NULL final Attempt/Decision 终态化。
+  若该 DB commit 失败，诚实保持 `ADMITTED` 并 fail closed，restart 不伪造
+  历史 rejection。
+- Experiment accounting：Gate A active + qualifying 时，baseline/treatment arm 在
+  Evidence seed 中 pre-assign；`ALL_ELIGIBLE_LONG_SHADOW_V1` baseline =
+  `PARTICIPATE_LONG`；admission failure 在原 deadline 前是 durable unresolved，恢复成功后按
+  Invocation 结果记账，过期后 `ADMISSION_FAILED_FINAL / NO_LONG`；capacity/
+  deadline/supersede/provider failure = treatment `NO_LONG + exact reason`；valid provider result 按 direction 记
+  `PARTICIPATE_LONG/NO_LONG`；不从 outcome/profitability 事后配 arm。SE-02D Gate C
+  denominator 规则未被设计。
+- Schema：`edge_opportunity_evidence`、`decision_snapshots`、`ai_decisions` =
+  **MINIMAL EXTENSION**；`advisory_decision_invocations` /
+  `advisory_decision_attempts` = **NEW MINIMAL TABLE**；Evidence revision chain/row 锁、
+  attribution/G2 facts = **REUSE AS-IS**。本任务 migration/schema implementation = zero。
+- Human Decision Pack：A = **NONE**；B = 原有 provider/attempt/timeout/deadline/cost/
+  queue/worker/retention 数值与 policy + 新的 Protection reserve/Advisory cleanup budget
+  数值；C = Shadow observation window / sufficiency/pass thresholds。I2 仍可在 activation OFF、
+  required production config unset、fake/injected provider 下实现。
+
+### 10.5 Process P2 / Scope Disclosure
+
+Memory / Skills compliance contradiction 只记为 `PROCESS P2 / NOT PRODUCT DESIGN BLOCKER`。
+本 FIX 未修改 `.workbuddy`、memory、skills 或 daily logs，不以产品设计更改修复它。
+
+### 10.6 Verification / Remaining
+
+- Pre-commit verification 实际执行：`git diff --check c0bd0e8...` = rc 0
+  （只有 Windows checkout LF→CRLF warning，无 whitespace error）；exact-base changed paths = 2
+  且等于唯一 allow-list；conflict markers = 0；6 个 required finding disposition
+  每个恰好 1 条；required semantic-token checks 通过。
+- Pre-commit remote recheck 已执行并通过：`main = 44df666...`、parent candidate =
+  `c0bd0e8...`、remote FIX branch absent。
+- Production / Tests / Migration / Runtime / State docs = **ZERO**。
+- Remaining：Independent Re-Review + Human Acceptance。不实现 I2，不激活 Gate A/B，
+  不 merge/reconcile `main`。
