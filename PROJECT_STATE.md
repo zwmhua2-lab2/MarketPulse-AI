@@ -183,10 +183,15 @@ provider / model / retry / timeout / deadline / pool / concurrency / shutdown / 
 retention 数值）与 Pack C（Gate-A observation / sufficiency / acceptance thresholds）仍
 `UNRESOLVED`（本收尾**不**发明数值、**不**静默授权 production defaults）。详见「PRE-01B-D2 Result」）
 
-UI-V1-D01 — MarketPulse UI V1 Formal Design — HUMAN-ACCEPTED / FROZEN（2026-09-17 Human
-Acceptance = `CONFIRMED`；included closure `UI-V1-D01-FIX-01` = `INCLUDED / CLOSED`；
-Independent Final Review = `PASS — READY FOR FORMAL FREEZE`；P0 = `NONE` / P1 = `NONE` /
-P2 = `NONE` / P3 = `NONE`；Accepted Design artifact =
+UI-V1-D01 — MarketPulse UI V1 Formal Design — ACCEPTED / FROZEN / REPOSITORY-INTEGRATED
+（2026-09-17 Human Acceptance = `CONFIRMED` + Final Acceptance / Main Integration Closeout；
+included closure `UI-V1-D01-FIX-01` = `INCLUDED / CLOSED`；Independent Final Review =
+`PASS — READY FOR FORMAL FREEZE`；Independent Final Repository Review = `PASS`；P0 = `NONE` /
+P1 = `NONE` / P2 = `NONE` / P3 = `NONE`；repository persistence `UI-V1-D01-FINAL-DOC-01` =
+`COMPLETE`（documentation fixes `FIX-01` / `FIX-02` = `COMPLETE`）；Human-Accepted /
+Reviewer-approved final candidate = `b2d1af0c7388fe2bbfe52fb85a1c78ee269d10e4`（branch
+`design/ui-v1-d01-final-doc-fix-02`，immutable；远端同 SHA、未被移动）；closeout branch =
+`ui-v1-d01-final-acceptance-closeout`；集成方法 = `FAST-FORWARD ONLY`；Accepted Design artifact =
 `docs/design/UI-V1/UI-V1-D01-MarketPulse-UI-V1-Formal-Design.md`，Artifact status =
 `ACCEPTED / FROZEN`）。产品定位 = **Read-Only Paper Trading Operations & Evidence Terminal**
 （只读纸面交易运维与证据终端）；顶层信息架构 = 恰好五页（总览 / 市场与机会 / 策略研究 /
@@ -195,7 +200,7 @@ P2 = `NONE` / P3 = `NONE`；Accepted Design artifact =
 尚无 `/api` proxy）；**不**授权 `UI-F01` / `UI-RD01` 或任何后续实现、**不**激活
 `PRE-01B-I2`、**不**激活 Real AI、**不**接通 live `G2→G3`、**不**接通 Forward Outcome
 运行时调度、**不**改变任何 schema / migration / config / runtime。前端基础库选型 =
-`DEFERRED` 至 `UI-F01`（本 D01 只冻结「需要」，不选库）。详见「UI-V1-D01 Result」）
+`DEFERRED` 至 `UI-F01`（本 D01 只冻结「需要」，不选库）。详见「UI-V1-D01 Result」与「UI-V1-D01 Final Acceptance Closeout Result」）
 
 ## GitHub Repository
 
@@ -718,6 +723,7 @@ P2 = `NONE` / P3 = `NONE`；Accepted Design artifact =
 - **`PRE-01B-I1｜Integrated Runtime Host Core V1 Implementation = ACCEPTED / COMPLETE`**（2026-09-15 Human Acceptance = `CONFIRMED` + Final Acceptance Closeout & Latest-Main Reconciliation；Human-Accepted reviewed candidate = `68dd7e9`，branch `pre-01b-i1-fix-01-runtime-host-lifecycle`，immutable；Original Candidate = `b66e17d…`；Independent Initial Review = `FAIL — FIX REQUIRED`；FIX-01 Independent Re-Review = `PASS WITH NON-BLOCKING FINDINGS`；已 content-level carry-forward 收编 latest `main` `0ae5b0b…`（drift 正交 = `SE-02D-I01`，未触碰任何 PRE-01B 路径）；见 Current Group 与本文「PRE-01B-I1 Result」）。该 Acceptance 接受 **Implementation Core V1**，**不** 构成 OS/service deployment / Real AI activation / G2→G3 activation / `SE-02D` Production complete / Live Trading 的任何进度。
 - **`Integrated Runtime Host Core V1 Implementation = ACCEPTED / COMPLETE`**（PRE-01B-I1，2026-09-15 Human Acceptance = `CONFIRMED`；content-level carry-forward 收编 latest `main` `0ae5b0b…`；集成方法 = `FAST-FORWARD ONLY`）。**不** 构成 OS/service / WinSW process supervision / Real AI activation / G2→G3 live handoff / `SE-02D` Production complete / Live Trading 的任何进度（这些仍 `NOT COMPLETE / DISABLED / NOT AUTHORIZED`）。
 - **`PRE-01B-D2｜AdvisoryIngress / durable G2→G3 Activation Contract Formal Design = ACCEPTED / COMPLETE`**（2026-09-17 Human Acceptance = `CONFIRMED` + Final Acceptance Closeout；Human-Accepted reviewed candidate = `cce1ae7`，branch `design/pre-01b-d2-fix-05-return-completion-authority`，immutable；Independent Re-Review = `PASS`；P0 = `NONE` / P1 = `NONE` / P2 = `NONE` / P3 = `NONE`；已 fast-forward only 收编 `main`；见 Current Group 与本文「PRE-01B-D2 Result」）。该 Acceptance 接受 **AdvisoryIngress / durable G2→G3 Activation Contract 的 Formal Design**，**不** 构成 `PRE-01B-I2` implementation / live G2→G3 activation / Real AI activation / Gate A / Gate B / Gate C / Live 的任何进度。
+- **`UI-V1-D01｜MarketPulse UI V1 Formal Design = ACCEPTED / FROZEN / REPOSITORY-INTEGRATED`**（2026-09-17 Human Acceptance = `CONFIRMED` + Final Acceptance / Main Integration Closeout；Independent Final Repository Review = `PASS`，P0 = `NONE` / P1 = `NONE` / P2 = `NONE` / P3 = `NONE`；Human-Accepted / Reviewer-approved final candidate = `b2d1af0c7388fe2bbfe52fb85a1c78ee269d10e4`，branch `design/ui-v1-d01-final-doc-fix-02`，immutable；已 fast-forward only 收编 `main`；见 Current Group 与本文「UI-V1-D01 Result」/「UI-V1-D01 Final Acceptance Closeout Result」）。该 Acceptance 接受 **MarketPulse UI V1 Formal Design**，**不** 构成 UI implementation（仍 `NOT STARTED`）/ Product Read API implementation / `UI-F01` / `UI-RD01` / `PRE-01B-I2` implementation / live G2→G3 activation / Real AI activation / Gate A / Gate B / Gate C / Live 的任何进度。
 - **N01-A / N01-B / N01-C / N01-6 / N01-7-F01 / N01-7（N01-7-R01）/ N01-8 均已
   `ACCEPTED / COMPLETE`**（见 Completed）；`N01 overall` 亦已于 2026-09-14 经 N01 Overall
   Final Acceptance Closeout 转 `ACCEPTED / COMPLETE`（该总体结论由独立的 Overall Final
@@ -1938,8 +1944,11 @@ P2 = `NONE` / P3 = `NONE`；Accepted Design artifact =
 - 任务：`UI-V1-D01-FINAL-DOC-01`｜MarketPulse UI V1 Formal Design — Repository Persistence
   （DOCS / STATE ONLY、`NO PRODUCTION IMPLEMENTATION`；**非** New Design、**非** 实现、
   **非** `UI-F01`、**非** `UI-RD01`、**非** `PRE-01B-I2`、**非** Real AI activation）。
-- 状态 = `UI-V1-D01 = HUMAN-ACCEPTED / FROZEN`（2026-09-17 Human Acceptance = `CONFIRMED`）；
-  **`Implementation = NOT STARTED`**。
+- 状态（Repository Persistence 完成时）= `UI-V1-D01 = HUMAN-ACCEPTED / FROZEN`（2026-09-17
+  Human Acceptance = `CONFIRMED`）；**`Implementation = NOT STARTED`**。该状态其后已于
+  2026-09-17 经 UI-V1-D01 Final Acceptance Closeout 转 `ACCEPTED / FROZEN /
+  REPOSITORY-INTEGRATED` 并以 `FAST-FORWARD ONLY` 收编 `main`（见文末「UI-V1-D01 Final
+  Acceptance Closeout Result」）。
 - Included closure：`UI-V1-D01-FIX-01｜Formal Contract Closure` = `INCLUDED / CLOSED`
   （其语义已并入正式设计 artifact；FIX-01 不产生独立 artifact）。
 - Independent Final Review = `PASS — READY FOR FORMAL FREEZE`；P0 = `NONE`；P1 = `NONE`；
@@ -1978,3 +1987,38 @@ P2 = `NONE` / P3 = `NONE`；Accepted Design artifact =
   `Migration = ZERO CHANGE` / `Config = ZERO CHANGE` / `Runtime = ZERO` /
   `PRODUCT_REQUIREMENTS.md = ZERO CHANGE`。
 - 详见 `dev_log/2026-09-17-ui-v1-d01-formal-design-freeze.md`。
+
+## UI-V1-D01 Final Acceptance Closeout Result
+
+- 任务：`UI-V1-D01-FINAL-ACCEPTANCE-CLOSEOUT`｜MarketPulse UI V1 Formal Design — Final
+  Acceptance / Main Integration Closeout（DOCS / STATE / GIT INTEGRATION ONLY；
+  `NO PRODUCT IMPLEMENTATION`；**非** New Design、**非** 实现、**非** `UI-F01` / `UI-RD01`、
+  **非** `PRE-01B-I2`、**非** Real AI activation）。
+- Human Acceptance = `CONFIRMED — 2026-09-17`；Independent Final Repository Review = `PASS`
+  （P0 = `NONE`；P1 = `NONE`；P2 = `NONE`；P3 = `NONE`）。
+- 最终状态 = `UI-V1-D01 = ACCEPTED / FROZEN / REPOSITORY-INTEGRATED`；`UI-V1-D01-FIX-01` =
+  `CLOSED`；`UI-V1-D01-FINAL-DOC-01` = `COMPLETE`；documentation fixes `FIX-01` = `COMPLETE` /
+  `FIX-02` = `COMPLETE`。
+- Human-Accepted / Reviewer-approved final candidate =
+  `b2d1af0c7388fe2bbfe52fb85a1c78ee269d10e4`（branch `design/ui-v1-d01-final-doc-fix-02`，
+  远端同 SHA、immutable、未被移动）。
+- Accepted lineage（线性单 parent，`FAST-FORWARD ONLY` 收编 `main`）= `547095f6705ce651272363676e2a2b51a66bb8b6`
+  → `1919832a5d9ddbcbec6ea535d178e3d21795b539` → `e7d69ae38f8a24bdecb4780661342d5cfda734f7`
+  → `b2d1af0c7388fe2bbfe52fb85a1c78ee269d10e4` → 本次 docs/state-only closeout commit。
+- closeout branch = `ui-v1-d01-final-acceptance-closeout`；集成方法 = `FAST-FORWARD ONLY`
+  （无 merge commit / 无 squash / 无 rebase / 无 cherry-pick / 无 force push）。
+- Accepted Design artifact（现已在 `main`）=
+  `docs/design/UI-V1/UI-V1-D01-MarketPulse-UI-V1-Formal-Design.md`（Artifact status =
+  `ACCEPTED / FROZEN`）；本收尾**未**修改该 artifact —— 实读未发现需要修改的真实矛盾。
+- **`Implementation = NOT STARTED`**；Product Read API implementation = `NOT STARTED`。
+  下一计划任务 = `UI-F01`（Frontend Foundation），**但本收尾既不实现、也不自动授权** `UI-F01`；
+  任何后续设计 / 实现均需另开独立获批窗口。
+- 明确非声称（本收尾**仅**完成设计的接受与仓库集成）：`PRE-01B-I2` =
+  `NOT STARTED / NOT ACTIVATED`；Real AI = `NOT ACTIVATED`；live `G2→G3` = `NOT ACTIVE`；
+  Forward Outcome runtime integration = `NOT INTEGRATED`；`Gate C` = `NOT PASSED`；`Live` =
+  `NOT AUTHORIZED`；Trading Edge = `NOT PROVEN`。
+- 本收尾为 docs/state-only：`Production Code = ZERO CHANGE` / `Frontend Code = ZERO CHANGE` /
+  `Backend Code = ZERO CHANGE` / `Tests = ZERO CHANGE` / `Schema = ZERO CHANGE` /
+  `Migration = ZERO CHANGE` / `Config = ZERO CHANGE` / `Runtime = ZERO` /
+  `PRODUCT_REQUIREMENTS.md = ZERO CHANGE`。
+- 详见 `dev_log/2026-09-17-ui-v1-d01-final-acceptance-closeout.md`。

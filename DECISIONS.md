@@ -333,16 +333,23 @@
     `SE-02D Expectancy capability != Trading Edge Proof`；下一 Acceptance Group =
     `NOT STARTED / REQUIRES SEPARATE HUMAN-AUTHORIZED DECISION`（本收尾**不**选择、**不**启动）。
 
-- UI-V1-D01 V1 = **HUMAN-ACCEPTED / FROZEN**（2026-09-17 Human Acceptance =
+- UI-V1-D01 V1 = **ACCEPTED / FROZEN / REPOSITORY-INTEGRATED**（2026-09-17 Human Acceptance =
   `CONFIRMED`）：MarketPulse UI V1 Formal Design。Accepted Design artifact =
   `docs/design/UI-V1/UI-V1-D01-MarketPulse-UI-V1-Formal-Design.md`（Artifact status =
   `ACCEPTED / FROZEN`；included closure `UI-V1-D01-FIX-01` = `INCLUDED / CLOSED`；
-  Independent Final Review = `PASS — READY FOR FORMAL FREEZE`；P0 / P1 / P2 / P3 = `NONE`；
-  task branch = `design/ui-v1-d01-formal-freeze`，**不** merge `main`）。
+  Independent Final Review = `PASS — READY FOR FORMAL FREEZE`；Independent Final Repository
+  Review = `PASS`；P0 / P1 / P2 / P3 = `NONE`；task branch = `design/ui-v1-d01-formal-freeze`
+  （该窗口自身**不** merge `main`，其后由 Final Acceptance Closeout 收编）；repository
+  persistence `UI-V1-D01-FINAL-DOC-01` = `COMPLETE`（`FIX-01` / `FIX-02` = `COMPLETE`）；
+  Human-Accepted / Reviewer-approved final candidate =
+  `b2d1af0c7388fe2bbfe52fb85a1c78ee269d10e4`（branch `design/ui-v1-d01-final-doc-fix-02`，
+  immutable；远端同 SHA、未被移动）；closeout branch = `ui-v1-d01-final-acceptance-closeout`；
+  集成方法 = `FAST-FORWARD ONLY`，已收编 `main`）。
   本条为**决策摘要**：全部细节（逐条契约、指标与状态表、API / 传输边界、Out of Scope 清单、
   未来验收边界）以该 artifact 为唯一权威，本条目**不**复制；设计持久化见
   `dev_log/2026-09-17-ui-v1-d01-formal-design-freeze.md`，本条压缩见
-  `dev_log/2026-09-17-ui-v1-d01-final-doc-fix-01.md`。冻结的决策层要点：
+  `dev_log/2026-09-17-ui-v1-d01-final-doc-fix-01.md`，本收尾见
+  `dev_log/2026-09-17-ui-v1-d01-final-acceptance-closeout.md`。冻结的决策层要点：
   - **产品定位**：**Read-Only Paper Trading Operations & Evidence Terminal**（只读纸面交易运维
     与证据终端）；**不**是手工交易终端 / 运行时控制面板 / Live Trading UI / AI 自主控制界面。
   - **五页 IA（恰好五个）**：总览 / 市场与机会 / 策略研究 / 交易与仓位 / 系统；

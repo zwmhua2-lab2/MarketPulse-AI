@@ -53,6 +53,16 @@
   live `G2→G3` activation / Real AI activation / Gate A / Gate B / Gate C / Live 的任何进度。
   Human Decision Pack：Pack A = `NONE`；Pack B（numeric activation settings）/ Pack C（Gate-A
   observation / sufficiency / acceptance thresholds）仍 `UNRESOLVED`。
+- **`UI-V1-D01` = `ACCEPTED / FROZEN / REPOSITORY-INTEGRATED`**（2026-09-17 Human Acceptance =
+  `CONFIRMED` + Final Acceptance / Main Integration Closeout；Independent Final Repository
+  Review = `PASS`；P0 = `NONE` / P1 = `NONE` / P2 = `NONE` / P3 = `NONE`；Human-Accepted /
+  Reviewer-approved final candidate = `b2d1af0c7388fe2bbfe52fb85a1c78ee269d10e4`（branch
+  `design/ui-v1-d01-final-doc-fix-02`，immutable；远端同 SHA、未被移动）；Accepted Design
+  artifact = `docs/design/UI-V1/UI-V1-D01-MarketPulse-UI-V1-Formal-Design.md`，Artifact
+  status = `ACCEPTED / FROZEN`）。**本 Acceptance 仅接受 MarketPulse UI V1 Formal Design**，
+  **不**构成 UI implementation（仍 `NOT STARTED`）/ Product Read API implementation /
+  `UI-F01` / `UI-RD01` / `PRE-01B-I2` implementation / live `G2→G3` activation / Real AI
+  activation / Gate A / Gate B / Gate C / Live 的任何进度（见 §6）。
 - **SE-02D-D01 = `ACCEPTED / COMPLETE`**（2026-09-15 Human Acceptance = `CONFIRMED` + Final
   Acceptance Closeout；Independent Initial Review = `FAIL — FIX REQUIRED`；FIX-01 Independent
   Re-Review = `PASS`；`D01-R1` / `D01-R2` = `CLOSED`；`D01-R3` = `CLARIFIED / NON-BLOCKING`；
@@ -298,15 +308,21 @@ disposable 库保持空表（症状 `relation "edge_opportunity_evidence" does n
 
 ## 6. Next Step Entry（下一步工作入口）
 
-### UI-V1-D01 MarketPulse UI V1 Formal Design — HUMAN-ACCEPTED / FROZEN
+### UI-V1-D01 MarketPulse UI V1 Formal Design — ACCEPTED / FROZEN / REPOSITORY-INTEGRATED
 
 - 任务：`UI-V1-D01-FINAL-DOC-01`｜MarketPulse UI V1 Formal Design — Repository Persistence
   （DOCS / STATE ONLY；**非** New Design、**非** 实现、**非** `UI-F01` / `UI-RD01`、
   **非** `PRE-01B-I2`、**非** Real AI activation）。
-- 状态：**`UI-V1-D01 = HUMAN-ACCEPTED / FROZEN`**（2026-09-17 Human Acceptance =
-  `CONFIRMED`；`UI-V1-D01-FIX-01｜Formal Contract Closure` = `INCLUDED / CLOSED`）。
-  Independent Final Review = `PASS — READY FOR FORMAL FREEZE`；P0 = `NONE`、P1 = `NONE`、
-  P2 = `NONE`、P3 = `NONE`。
+- 状态：**`UI-V1-D01 = ACCEPTED / FROZEN / REPOSITORY-INTEGRATED`**（2026-09-17 Human
+  Acceptance = `CONFIRMED` + Final Acceptance / Main Integration Closeout；
+  `UI-V1-D01-FIX-01｜Formal Contract Closure` = `INCLUDED / CLOSED`）。
+  Independent Final Review = `PASS — READY FOR FORMAL FREEZE`；Independent Final Repository
+  Review = `PASS`；P0 = `NONE`、P1 = `NONE`、P2 = `NONE`、P3 = `NONE`。repository persistence
+  `UI-V1-D01-FINAL-DOC-01` = `COMPLETE`（documentation fixes `FIX-01` / `FIX-02` = `COMPLETE`）；
+  Human-Accepted / Reviewer-approved final candidate =
+  `b2d1af0c7388fe2bbfe52fb85a1c78ee269d10e4`（branch `design/ui-v1-d01-final-doc-fix-02`，
+  immutable；远端同 SHA、未被移动）；closeout branch = `ui-v1-d01-final-acceptance-closeout`；
+  集成方法 = `FAST-FORWARD ONLY`。
 - **Formal artifact**：`docs/design/UI-V1/UI-V1-D01-MarketPulse-UI-V1-Formal-Design.md`
   （Artifact status = `ACCEPTED / FROZEN`）。
 - **Implementation = `NOT STARTED`**（前端仅 Group 1 占位脚手架；`frontend/vite.config.ts`
@@ -317,7 +333,8 @@ disposable 库保持空表（症状 `relation "edge_opportunity_evidence" does n
   自主控制界面）；顶层 IA = **恰好五页**（总览 / 市场与机会 / 策略研究 / 交易与仓位 / 系统），
   **AI 无独立顶层页**。
 - 下一计划设计任务：`UI-F01`（Frontend Foundation）→ `UI-RD01`（Product Read API Formal
-  Design）序列，**但本 docs 任务不授权它**；任何后续设计 / 实现均需另开独立获批窗口。
+  Design）序列，**但本 docs 任务与本 Final Acceptance Closeout 均不授权它、也不实现它**；
+  任何后续设计 / 实现均需另开独立获批窗口。
 - ⚠️ 本 Acceptance **只**接受 Formal Design，**不**证明 / 不授权：UI 实现、`PRE-01B-I2`
   implementation、live `G2→G3` activation、Real AI activation、Gate A / Gate B activation、
   `Gate C`（`NOT PASSED`）、`Live`（`NOT AUTHORIZED`）、profitability / edge。
@@ -325,7 +342,10 @@ disposable 库保持空表（症状 `relation "edge_opportunity_evidence" does n
   `N01-7-R01-RR-P2-01` = `REMAINS / NON-BLOCKING`（**禁止**写 `memory resolved` /
   `memory is fine` / `no memory concern`）；Real AI = `NOT ACTIVATED`；live G2→G3 =
   `NOT ACTIVE`；Live Trading = `DISABLED`。
-- 详见 `dev_log/2026-09-17-ui-v1-d01-formal-design-freeze.md`。
+- 详见 `dev_log/2026-09-17-ui-v1-d01-formal-design-freeze.md`（Repository Persistence）、
+  `dev_log/2026-09-17-ui-v1-d01-final-doc-fix-01.md`（FIX-01）、
+  `dev_log/2026-09-17-ui-v1-d01-final-doc-fix-02.md`（FIX-02）与
+  `dev_log/2026-09-17-ui-v1-d01-final-acceptance-closeout.md`（Final Acceptance Closeout）。
 
 ### SE-02D-I01 Deterministic Aggregation Core — ACCEPTED / COMPLETE
 
