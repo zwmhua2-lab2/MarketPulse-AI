@@ -148,3 +148,33 @@ SE-02D-CLOSE-D01 =
 DESIGN CANDIDATE — READY FOR INDEPENDENT REVIEW
 Candidate Verdict = SE-02D V1 CAPABILITY COMPLETE AFTER I03
 ```
+
+## Human Acceptance + Final Acceptance Record（2026-09-16）
+
+本节为 **append-only** 收口记录：上方候选时点的 Requirement / Preflight / Evidence /
+Reconciliation / Verification / Candidate Verdict 内容**未**改写。
+
+```text
+SE-02D-CLOSE-D01 = ACCEPTED / COMPLETE
+Human Acceptance = CONFIRMED — 2026-09-16
+Human-Accepted Candidate = a9e615726ee964c02a72ea6cbff490d3d74e08f7
+Accepted Candidate Verdict = SE-02D V1 CAPABILITY COMPLETE AFTER I03
+I04 = NOT REQUIRED FOR SE-02D V1
+Overall SE-02D Acceptance = NOT YET GRANTED / PENDING OVERALL FINAL REVIEW
+```
+
+| Field | Value |
+|---|---|
+| Task | `SE-02D-CLOSE-D01` |
+| Independent Review | `PASS — READY FOR HUMAN ACCEPTANCE` |
+| Human Acceptance | `CONFIRMED — 2026-09-16` |
+| Human-Accepted Candidate | `a9e615726ee964c02a72ea6cbff490d3d74e08f7` |
+| Candidate Branch（immutable；未追加任何 commit） | `design/se-02d-close-d01-v1-completion-boundary` |
+| Accepted Candidate Verdict | `SE-02D V1 CAPABILITY COMPLETE AFTER I03` |
+| I04 | `NOT REQUIRED FOR SE-02D V1` |
+| Overall SE-02D Acceptance | `NOT YET GRANTED / PENDING OVERALL FINAL REVIEW` |
+| Closeout Branch | `se-02d-close-d01-final-acceptance`（base = Human-Accepted candidate） |
+| Integration Method | `FAST-FORWARD ONLY` |
+
+Human 接受 §15 全部六项结论；其形式化状态同步、stale 措辞调和与 main 集成记录见
+`dev_log/2026-09-16-se-02d-close-d01-final-acceptance.md`。

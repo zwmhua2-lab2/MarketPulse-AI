@@ -161,13 +161,16 @@
     **不修改任何统计语义**（bootstrap 语义、RNG 语义、95% 双侧区间、10,000 replicates、
     clustering、LOCO、coverage、sufficiency、tail evidence、Gate C 边界均不变）；
     Accepted D01 design artifact 逐字**未**改。
-  - **边界**：`SE-02D-I01 = ACCEPTED / COMPLETE` **≠** `SE-02D` complete ——
-    `SE-02D Production Implementation = IN PROGRESS`；PostgreSQL loading / revision-chain
-    folding / canonical-head loading / current-snapshot orchestration 已于 `SE-02D-I02`
-    实现并验收（见下方 `SE-02D-I02` 条目）；population grouping + 调用 I01 `aggregate()`
-    已于 `SE-02D-I03` 实现并验收（见下方 `SE-02D-I03` 条目）；aggregate / API / product
-    integration、historical revision-as-of 仍 `NOT IMPLEMENTED`；`Gate C = NOT PASSED`；
-    `Live = NOT AUTHORIZED`。详见
+  - **边界**：`SE-02D-I01 = ACCEPTED / COMPLETE` **≠** `SE-02D` Overall complete ——
+    PostgreSQL loading / revision-chain folding / canonical-head loading / current-snapshot
+    orchestration 已于 `SE-02D-I02` 实现并验收（见下方 `SE-02D-I02` 条目）；population
+    grouping + 调用 I01 `aggregate()` 已于 `SE-02D-I03` 实现并验收（见下方 `SE-02D-I03`
+    条目）；`SE-02D V1` capability 完成边界其后已由 `SE-02D-CLOSE-D01`（2026-09-16 Human
+    Acceptance = `CONFIRMED`）接受为 `COMPLETE AFTER I03`（见下方 `SE-02D-CLOSE-D01` 条目）；
+    aggregate capability = `IMPLEMENTED / ACCEPTED via I01 + I02 + I03`；API / frontend /
+    runtime product consumer = `NOT REQUIRED FOR SE-02D V1 COMPLETION`；historical
+    revision-as-of 仍 `OPEN`；`SE-02D Overall = IN PROGRESS / PENDING OVERALL FINAL REVIEW`；
+    `Gate C = NOT PASSED`；`Live = NOT AUTHORIZED`。详见
     `dev_log/2026-09-15-se-02d-i01-final-acceptance-closeout.md`。
 
 - SE-02D-I02（已批准 / 已验收，2026-09-15 Human Acceptance = `CONFIRMED`）：
@@ -187,11 +190,14 @@
     selection、精确 horizon Outcome revision-chain 校验 / 折叠、canonical Outcome head /
     `NO_OUTCOME`、canonical Evidence ↔ Outcome cross-integrity、`CanonicalScopeFacts`
     projection、revision-aware canonical manifest。
-  - **边界**：`SE-02D-I02 = ACCEPTED / COMPLETE` **≠** `SE-02D` complete ——
+  - **边界**：`SE-02D-I02 = ACCEPTED / COMPLETE` **≠** `SE-02D` Overall complete ——
     population grouping + orchestration that invokes I01 `aggregate()` 已于 `SE-02D-I03`
-    实现并验收（见下方 `SE-02D-I03` 条目）；aggregate / API / product integration、
-    historical arbitrary revision-as-of 仍 `NOT IMPLEMENTED`；`Gate C = NOT PASSED`；
-    `Live = NOT AUTHORIZED`。详见
+    实现并验收（见下方 `SE-02D-I03` 条目）；`SE-02D V1` capability 完成边界其后已由
+    `SE-02D-CLOSE-D01`（2026-09-16 Human Acceptance = `CONFIRMED`）接受为
+    `COMPLETE AFTER I03`：aggregate capability = `IMPLEMENTED / ACCEPTED via I01 + I02 + I03`；
+    API / frontend / runtime product consumer = `NOT REQUIRED FOR SE-02D V1 COMPLETION`；
+    historical arbitrary revision-as-of 仍 `OPEN`；`SE-02D Overall = IN PROGRESS / PENDING
+    OVERALL FINAL REVIEW`；`Gate C = NOT PASSED`；`Live = NOT AUTHORIZED`。详见
     `dev_log/2026-09-15-se-02d-i02-final-acceptance-reconciliation.md`。
 
 - SE-02D-I03（已批准 / 已验收，2026-09-16 Human Acceptance = `CONFIRMED`）：
@@ -212,7 +218,41 @@
   - **无新统计 / 身份语义**：`I01` 仍为 statistics / uncertainty / sufficiency /
     fingerprint 的权威；`I02` 仍为 revision folding / snapshot / canonical head 的权威；
     I03 未新增 Population Key、Measurement Signature、horizon 语义，也未做二次审判。
-  - **边界**：`SE-02D-I03 = ACCEPTED / COMPLETE` **≠** `SE-02D` complete ——
-    aggregate / API / product integration、historical arbitrary revision-as-of 仍
-    `NOT IMPLEMENTED`；`Gate C = NOT PASSED`；`Live = NOT AUTHORIZED`。详见
+  - **边界**：`SE-02D-I03 = ACCEPTED / COMPLETE` **≠** `SE-02D` Overall complete ——
+    其完成边界其后已由 `SE-02D-CLOSE-D01`（2026-09-16 Human Acceptance = `CONFIRMED`）
+    接受为 `SE-02D V1 CAPABILITY COMPLETE AFTER I03`：aggregate capability =
+    `IMPLEMENTED / ACCEPTED via I01 + I02 + I03`；API / frontend / runtime product consumer =
+    `NOT REQUIRED FOR SE-02D V1 COMPLETION`；historical arbitrary revision-as-of 仍 `OPEN`；
+    `SE-02D Overall = IN PROGRESS / PENDING OVERALL FINAL REVIEW`；`Gate C = NOT PASSED`；
+    `Live = NOT AUTHORIZED`。详见
     `dev_log/2026-09-16-se-02d-i03-final-acceptance-closeout.md`。
+
+- SE-02D-CLOSE-D01（已批准 / 已验收，2026-09-16 Human Acceptance = `CONFIRMED`）：V1 Completion
+  Boundary Reconciliation = `ACCEPTED / COMPLETE`；Independent Review = `PASS — READY FOR HUMAN
+  ACCEPTANCE`；Human-Accepted candidate = `a9e615726ee964c02a72ea6cbff490d3d74e08f7`（branch
+  `design/se-02d-close-d01-v1-completion-boundary`，immutable）；Accepted Design artifact =
+  `docs/design/SE-02D/SE-02D-CLOSE-D01-V1-Completion-Boundary-Reconciliation.md`
+  （status = `ACCEPTED DESIGN`）；Accepted Main before =
+  `779eaf1ca781d64733c8264b0a06c7601deacdba`；集成方法 = `FAST-FORWARD ONLY`。
+  本条目**不**新增设计决策，只记录被 Human 接受的完成边界与措辞调和：
+  - **Accepted completion conclusion**：`SE-02D V1 CAPABILITY COMPLETE AFTER I03` —— Accepted
+    D01 current-snapshot V1 责任已由 I01 + I02 + I03 完整实现（该 reconciliation 的 coverage
+    verdict = `ACTUAL GAP = NONE FOUND`）。
+  - **Accepted callable 边界**：`CurrentSnapshotRevisionReader.read(horizon)` →
+    `CurrentSnapshotProjection` → `aggregate_projection(projection)` →
+    `tuple[AggregationResult, ...]`；`aggregate_current_snapshot(reader, horizon)` = 恰好一次读 +
+    同一纯编排。SE-02D V1 **不** own production consumer；RuntimeHost session-factory ownership
+    **未**改变（属未来 consumer composition question，非 V1 blocker）。
+  - **consumer 分类（已接受）**：HTTP API / FastAPI router / frontend / dashboard / operator
+    panel / RuntimeHost child / scheduler / worker-daemon / aggregate persistence / materialized
+    view / automatic consumer = `NOT REQUIRED BY ACCEPTED SE-02D V1 CONTRACT`（`DEFERRED TO
+    FUTURE CONSUMER / PRODUCT / GATE C TASK AS APPLICABLE`，**不**写“已完成”）。
+  - **措辞调和（已接受）**：aggregate capability = `IMPLEMENTED / ACCEPTED via I01 + I02 +
+    I03`；historical arbitrary revision-as-of = `OPEN / NOT SUPPORTED / FUTURE PREREQUISITE`；
+    `I04 = NOT REQUIRED FOR SE-02D V1`。
+  - **边界**：本 Acceptance **不**构成 `SE-02D` Overall Acceptance / COMPLETE
+    （`SE-02D Overall = IN PROGRESS / PENDING OVERALL FINAL REVIEW`）；`Gate C prerequisites =
+    OPEN`；`Gate C = NOT PASSED`；`Live = NOT AUTHORIZED`；Real AI = `NOT ACTIVATED`；
+    `KEEP / DOWNWEIGHT / KILL = NOT OWNED BY SE-02D V1`；`SE-02D V1 capability complete !=
+    Gate C PASS`、`Gate C PASS != Live authorization`。详见
+    `dev_log/2026-09-16-se-02d-close-d01-final-acceptance.md`。

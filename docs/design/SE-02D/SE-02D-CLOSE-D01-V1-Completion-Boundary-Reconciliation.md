@@ -1,6 +1,6 @@
 # SE-02D-CLOSE-D01｜V1 Completion Boundary Reconciliation
 
-> **STATUS: DESIGN CANDIDATE — NOT HUMAN ACCEPTED**
+> **STATUS: ACCEPTED DESIGN**
 >
 > Task: `SE-02D-CLOSE-D01`
 >
@@ -11,6 +11,10 @@
 > Branch: `design/se-02d-close-d01-v1-completion-boundary`
 >
 > Verified Task Base: `779eaf1ca781d64733c8264b0a06c7601deacdba`
+>
+> Human-Accepted Candidate: `a9e615726ee964c02a72ea6cbff490d3d74e08f7`
+>
+> Acceptance Record: §16
 
 ## 1. Baseline / Repository Truth
 
@@ -271,4 +275,55 @@ DESIGN CANDIDATE — READY FOR INDEPENDENT REVIEW
 Candidate Verdict = SE-02D V1 CAPABILITY COMPLETE AFTER I03
 ```
 
-**STATUS: DESIGN CANDIDATE — NOT HUMAN ACCEPTED**
+> 上表为 reviewed candidate 时点的 Candidate Verdict；其后收口记录见 §16 Acceptance Record。
+
+**STATUS: ACCEPTED DESIGN**
+
+## 16. Acceptance Record
+
+**ACCEPTED DESIGN** — 本文件已由 Human Acceptance 收口为 Accepted Design。实质候选内容
+（含 §4 的 A–AD 覆盖矩阵与 §5–§11 的分类结论）与 Human-Accepted candidate 逐字一致；
+本记录只变更 acceptance-state / closeout metadata，**不**新增或改写任何设计语义。
+
+| Field | Value |
+|---|---|
+| Artifact Status | `ACCEPTED DESIGN` |
+| Task | `SE-02D-CLOSE-D01` |
+| Independent Review | `PASS — READY FOR HUMAN ACCEPTANCE` |
+| Human Acceptance | `CONFIRMED — 2026-09-16` |
+| Human-Accepted Candidate | `a9e615726ee964c02a72ea6cbff490d3d74e08f7` |
+| Human-Accepted Candidate Branch | `design/se-02d-close-d01-v1-completion-boundary`（immutable evidence pointer） |
+| Accepted Candidate Verdict | `SE-02D V1 CAPABILITY COMPLETE AFTER I03` |
+| Verified Task Base | `779eaf1ca781d64733c8264b0a06c7601deacdba`（= candidate parent = Human Acceptance 时的 `main`） |
+| Closeout Branch | `se-02d-close-d01-final-acceptance`（base = Human-Accepted candidate） |
+| Integration Method | `FAST-FORWARD ONLY` |
+
+Accepted boundary —— §15 的六项结论全部被 Human 接受：
+
+1. `SE-02D V1` capability is complete after I03.
+2. API / frontend / runtime consumer are **not** SE-02D V1 completion requirements.
+3. 既有 “aggregate / API / product integration = NOT YET IMPLEMENTED” 措辞被调和为诚实的
+   future-consumer 边界（aggregate capability = 由 I01 + I02 + I03 已实现 / 已验收；
+   API / frontend / runtime product consumer = 非 SE-02D V1 完成要求、defer 至未来 consumer /
+   product / Gate C 任务）。
+4. Historical revision-as-of remains `OPEN` but does not block current-snapshot V1 completion.
+5. Gate C prerequisites remain `OPEN`.
+6. No I04 implementation batch is required for SE-02D V1；next phase =
+   `SE-02D Overall Final Review`。
+
+收口后仍保持（**未**被本 Acceptance 改变）：
+
+```text
+no I04 required for SE-02D V1
+API / frontend / runtime consumer = not V1 completion requirements
+historical revision-as-of = OPEN
+Gate C prerequisites = OPEN
+Overall SE-02D Acceptance = still pending separate Overall Final Review
+SE-02D capability complete != Gate C PASS
+Gate C PASS != Live authorization
+Live = NOT AUTHORIZED
+```
+
+> 本 Acceptance **不**构成 `SE-02D` Overall Acceptance / COMPLETE；**不**定义或启动 I04；
+> **不**授权 Gate C / Live / Real AI activation；**不**修复
+> `backend/src/marketpulse/edge/__init__.py` 的陈旧包文档（不在本批允许写入面内）。
