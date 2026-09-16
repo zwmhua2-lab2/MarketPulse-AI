@@ -316,13 +316,33 @@ Risk 为什么允许 / 拒绝？
 - Drawdown
 - Equity Curve
 - Win Rate
-- Expectancy
 - R-Multiple
 - Sharpe
 - Sortino
 - Profit Factor
 
 这些未来只有在 Evidence 足够且单独批准设计之后才能进入产品能力。
+
+**例外（已接受能力，2026-09-16 Human Acceptance = `CONFIRMED`）**：
+
+> **Family-level current-snapshot Forward Outcome Expectancy = SUPPORTED / ACCEPTED
+> via SE-02D V1。**
+
+即 family 级 current-snapshot 聚合口径的 Forward Outcome Expectancy 已由 `SE-02D`
+（`SE-02D-D01` 设计 + `SE-02D-I01` / `SE-02D-I02` / `SE-02D-I03` 实现与验收）接受为
+**当前已支持能力**。这是 capability-status 调和，**不是**新增产品需求。
+
+该能力**不**声称：
+
+- Trading Edge 已被证明；
+- executed-trade edge 已被证明；
+- Real AI edge 已被证明；
+- `Gate C` 已通过；
+- generic strategy profitability 已被证明。
+
+本文件其余部分不变：**Deterministic Replay ≠ Trading Edge Proof** 仍然成立；上列其余
+指标（MFE / MAE、Drawdown、Equity Curve、Win Rate、R-Multiple、Sharpe、Sortino、
+Profit Factor）仍然**未支持**，未被本次调和提升为产品能力。
 
 ---
 

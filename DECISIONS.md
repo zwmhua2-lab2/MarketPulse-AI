@@ -169,7 +169,8 @@
     Acceptance = `CONFIRMED`）接受为 `COMPLETE AFTER I03`（见下方 `SE-02D-CLOSE-D01` 条目）；
     aggregate capability = `IMPLEMENTED / ACCEPTED via I01 + I02 + I03`；API / frontend /
     runtime product consumer = `NOT REQUIRED FOR SE-02D V1 COMPLETION`；historical
-    revision-as-of 仍 `OPEN`；`SE-02D Overall = IN PROGRESS / PENDING OVERALL FINAL REVIEW`；
+    revision-as-of 仍 `OPEN`；`SE-02D Overall` 其后已于 2026-09-16 经 SE-02D Overall Final
+    Acceptance Closeout 转 `ACCEPTED / COMPLETE`；
     `Gate C = NOT PASSED`；`Live = NOT AUTHORIZED`。详见
     `dev_log/2026-09-15-se-02d-i01-final-acceptance-closeout.md`。
 
@@ -196,8 +197,9 @@
     `SE-02D-CLOSE-D01`（2026-09-16 Human Acceptance = `CONFIRMED`）接受为
     `COMPLETE AFTER I03`：aggregate capability = `IMPLEMENTED / ACCEPTED via I01 + I02 + I03`；
     API / frontend / runtime product consumer = `NOT REQUIRED FOR SE-02D V1 COMPLETION`；
-    historical arbitrary revision-as-of 仍 `OPEN`；`SE-02D Overall = IN PROGRESS / PENDING
-    OVERALL FINAL REVIEW`；`Gate C = NOT PASSED`；`Live = NOT AUTHORIZED`。详见
+    historical arbitrary revision-as-of 仍 `OPEN`；`SE-02D Overall` 其后已于 2026-09-16 经
+    SE-02D Overall Final Acceptance Closeout 转 `ACCEPTED / COMPLETE`；`Gate C = NOT PASSED`；
+    `Live = NOT AUTHORIZED`。详见
     `dev_log/2026-09-15-se-02d-i02-final-acceptance-reconciliation.md`。
 
 - SE-02D-I03（已批准 / 已验收，2026-09-16 Human Acceptance = `CONFIRMED`）：
@@ -223,7 +225,8 @@
     接受为 `SE-02D V1 CAPABILITY COMPLETE AFTER I03`：aggregate capability =
     `IMPLEMENTED / ACCEPTED via I01 + I02 + I03`；API / frontend / runtime product consumer =
     `NOT REQUIRED FOR SE-02D V1 COMPLETION`；historical arbitrary revision-as-of 仍 `OPEN`；
-    `SE-02D Overall = IN PROGRESS / PENDING OVERALL FINAL REVIEW`；`Gate C = NOT PASSED`；
+    `SE-02D Overall` 其后已于 2026-09-16 经 SE-02D Overall Final Acceptance Closeout 转
+    `ACCEPTED / COMPLETE`；`Gate C = NOT PASSED`；
     `Live = NOT AUTHORIZED`。详见
     `dev_log/2026-09-16-se-02d-i03-final-acceptance-closeout.md`。
 
@@ -250,9 +253,39 @@
   - **措辞调和（已接受）**：aggregate capability = `IMPLEMENTED / ACCEPTED via I01 + I02 +
     I03`；historical arbitrary revision-as-of = `OPEN / NOT SUPPORTED / FUTURE PREREQUISITE`；
     `I04 = NOT REQUIRED FOR SE-02D V1`。
-  - **边界**：本 Acceptance **不**构成 `SE-02D` Overall Acceptance / COMPLETE
-    （`SE-02D Overall = IN PROGRESS / PENDING OVERALL FINAL REVIEW`）；`Gate C prerequisites =
+  - **边界**：本 Acceptance 当时**不**构成 `SE-02D` Overall Acceptance / COMPLETE
+    （该句为 CLOSE-D01 收尾时；`SE-02D Overall` 其后已于 2026-09-16 经 SE-02D Overall Final
+    Acceptance Closeout 转 `ACCEPTED / COMPLETE`）；`Gate C prerequisites =
     OPEN`；`Gate C = NOT PASSED`；`Live = NOT AUTHORIZED`；Real AI = `NOT ACTIVATED`；
     `KEEP / DOWNWEIGHT / KILL = NOT OWNED BY SE-02D V1`；`SE-02D V1 capability complete !=
     Gate C PASS`、`Gate C PASS != Live authorization`。详见
     `dev_log/2026-09-16-se-02d-close-d01-final-acceptance.md`。
+
+- SE-02D Overall（已批准 / 已验收，2026-09-16 Human Acceptance = `CONFIRMED`）：Family
+  Aggregation / Forward-Outcome Expectancy = `ACCEPTED / COMPLETE`；Overall Final Review =
+  `PASS WITH NON-BLOCKING FINDINGS — READY FOR HUMAN ACCEPTANCE`（P0 = `NONE` / P1 = `NONE` /
+  P2 = `NONE`）；Human-Accepted reviewed baseline =
+  `55db91ad4c92ef5456b87f9810cf9ec73353d7b2`（immutable）；集成方法 = `FAST-FORWARD ONLY`。
+  本条目**不**新增产品语义，只记录被 Human 接受的总体验收与完成边界：
+  - **Overall 状态**：`SE-02D Overall = ACCEPTED / COMPLETE`；`SE-02D = ACCEPTED / COMPLETE`。
+  - **Completion boundary**：`SE-02D V1 CAPABILITY COMPLETE AFTER I03`；accepted lineage（`SE-02D-D01` /
+    `I01` / `I02` / `I03` / `CLOSE-D01`）均 `ACCEPTED / COMPLETE`；aggregate capability =
+    `IMPLEMENTED / ACCEPTED via I01 + I02 + I03`。
+  - **`I04 = NOT REQUIRED`**；**不存在**属于 SE-02D V1 的 accepted API / frontend /
+    runtime consumer requirement（= `NOT REQUIRED FOR SE-02D V1 COMPLETION`）。
+  - **Capability 状态调和**：Family-level current-snapshot Forward Outcome Expectancy =
+    `SUPPORTED / ACCEPTED via SE-02D V1`（`PRODUCT_REQUIREMENTS.md` §10 已作最小真值修正）。
+    **不**声称 Trading Edge / executed-trade edge / Real AI edge / `Gate C PASS` / generic
+    strategy profitability 已证明；**Deterministic Replay != Trading Edge Proof** 保持不变。
+  - **P3 closure**：`SE02D-OVERALL-R01-P3-01`（陈旧 `marketpulse.edge` package docstring）与
+    `SE02D-OVERALL-R01-P3-02`（陈旧 capability / group metadata）= `CLOSED`；两者均为
+    documentation / metadata finding，Human Acceptance 时为 `NON-BLOCKING`。
+  - **边界**：historical arbitrary revision-as-of = `OPEN / NOT SUPPORTED / FUTURE
+    PREREQUISITE`；experiment / pair / arm identity = `OPEN GATE C PREREQUISITE`；arm-level
+    selection Expectancy / delta = `FUTURE CONSUMER`；durable regime identity / criteria =
+    `OPEN GATE C PREREQUISITE`；Gate C immutable evidence artifact retention = `FUTURE GATE C
+    EVIDENCE TASK`；`Gate C = NOT PASSED`；`Live = NOT AUTHORIZED`；Real AI = `NOT AUTHORIZED /
+    NOT ACTIVATED`；`KEEP / DOWNWEIGHT / KILL = NOT OWNED BY SE-02D V1`；
+    `SE-02D ACCEPTED / COMPLETE != Gate C PASS`、`Gate C PASS != Live authorization`、
+    `SE-02D Expectancy capability != Trading Edge Proof`；下一 Acceptance Group =
+    `NOT STARTED / REQUIRES SEPARATE HUMAN-AUTHORIZED DECISION`（本收尾**不**选择、**不**启动）。

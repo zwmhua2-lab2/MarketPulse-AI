@@ -9,8 +9,12 @@
 * :mod:`marketpulse.edge.forward_service` -- SE-02C Forward BBO path capture,
   durable due discovery and the bounded evaluation API;
 * :mod:`marketpulse.edge.aggregation` -- SE-02D-I01 pure deterministic Family
-  Aggregation / Forward-Outcome Expectancy core.
+  Aggregation / Forward-Outcome Expectancy core;
+* :mod:`marketpulse.edge.aggregation_snapshot` -- SE-02D-I02 current PostgreSQL
+  stable-snapshot revision-chain folding / canonical projection;
+* :mod:`marketpulse.edge.aggregation_orchestration` -- SE-02D-I03 population
+  grouping + deterministic aggregate orchestration.
 
-Still absent by design: the durable SE-02D revision-folding snapshot layer, and
-KEEP / DOWNWEIGHT / KILL.
+Still absent by design: historical arbitrary revision-as-of (open / not
+supported), and KEEP / DOWNWEIGHT / KILL (not owned by SE-02D V1).
 """

@@ -14,26 +14,30 @@ FINDINGS — READY FOR HUMAN ACCEPTANCE`；Human-Accepted reviewed candidate =
 `ACCEPTED / CLOSED`（implementation `6b084595`）；集成方法 = `FAST-FORWARD ONLY`；
 遗留 `SE02C-R7` = P3 / NON-BLOCKING / NOT FIXED）
 
-SE-02D — Family Aggregation / Expectancy — IN PROGRESS（`SE-02D-I01` = `ACCEPTED / COMPLETE`；
+SE-02D — Family Aggregation / Expectancy — ACCEPTED / COMPLETE（2026-09-16 Human Acceptance =
+`CONFIRMED` + SE-02D Overall Final Acceptance Closeout；Overall Final Review = `PASS WITH
+NON-BLOCKING FINDINGS — READY FOR HUMAN ACCEPTANCE`；Human-Accepted reviewed baseline =
+`55db91ad4c92ef5456b87f9810cf9ec73353d7b2`；`SE-02D-I01` = `ACCEPTED / COMPLETE`；
 `SE-02D-I02` = `ACCEPTED / COMPLETE`；`SE-02D-I03` = `ACCEPTED / COMPLETE`；
 `SE-02D-CLOSE-D01` = `ACCEPTED / COMPLETE`（2026-09-16）；**`SE-02D V1` capability
 implementation = `COMPLETE AFTER I03`**；`I04 = NOT REQUIRED FOR SE-02D V1`；
-Overall = `PENDING OVERALL FINAL REVIEW`；K/D/K 与 `Gate C` / `Live` 仍
+`SE02D-OVERALL-R01-P3-01` / `P3-02` = `CLOSED`；K/D/K 与 `Gate C` / `Live` 仍
 `NOT OWNED BY V1` / `NOT PASSED` / `NOT AUTHORIZED`）
 
 SE-02D-I01 — Deterministic Aggregation Core — ACCEPTED / COMPLETE（2026-09-15 Human Acceptance =
 `CONFIRMED`；Independent Initial Review = `FAIL — FIX REQUIRED`；FIX-01 Independent Re-Review =
 `PASS`；`SE02D-I01-R1` / `SE02D-I01-R2` / `SE02D-I01-R3` = `CLOSED`；Human-Accepted reviewed
 candidate = `13b37dff4b8150dea869ba6257ae9f3df24cc1e5`，branch
-`se-02d-i01-aggregation-core`，immutable；集成方法 = `FAST-FORWARD ONLY`。**`I01 Accepted`
-≠ `SE-02D Overall Complete`**：PostgreSQL current-snapshot 加载 / revision-chain folding /
+`se-02d-i01-aggregation-core`，immutable；集成方法 = `FAST-FORWARD ONLY`。**`I01 Accepted` 当时
+≠ `SE-02D Overall Complete`**（该句为 I01 收尾时）：PostgreSQL current-snapshot 加载 / revision-chain folding /
 canonical
 Evidence-head 与 Outcome-head selection / `REPEATABLE READ` snapshot orchestration 已于
 `SE-02D-I02` 实现并验收；population grouping + 调用 I01 `aggregate()` 已于 `SE-02D-I03`
 实现并验收；`SE-02D V1` capability 完成边界其后已由 `SE-02D-CLOSE-D01`（2026-09-16 Human
 Acceptance = `CONFIRMED`）接受为 `COMPLETE AFTER I03`（aggregate capability =
 `IMPLEMENTED / ACCEPTED via I01 + I02 + I03`；API / frontend / runtime product consumer =
-`NOT REQUIRED FOR SE-02D V1 COMPLETION`；`SE-02D Overall = PENDING OVERALL FINAL REVIEW`）；
+`NOT REQUIRED FOR SE-02D V1 COMPLETION`；`SE-02D Overall` 其后已于 2026-09-16 经
+SE-02D Overall Final Acceptance Closeout 转 `ACCEPTED / COMPLETE`）；
 详见「SE-02D-I01 Result」、「SE-02D-I02 Result」、「SE-02D-I03 Result」与
 「SE-02D-CLOSE-D01 Result」）
 
@@ -42,11 +46,12 @@ Acceptance = `CONFIRMED`；Independent Initial Review = `FAIL — FIX REQUIRED`�
 Independent Re-Review = `PASS`；`SE02D-I02-R1` / `R2` / `R3` = `CLOSED`；Human-Accepted
 reviewed candidate = `9b860437b14f64192d3298d30c0204bed1b118f8`，branch
 `se-02d-i02-current-snapshot-folding`，immutable；集成方法 = `FAST-FORWARD ONLY`
-（latest-main content-level carry-forward）。**`I02 Accepted` ≠ `SE-02D Overall Complete`**：
+（latest-main content-level carry-forward）。**`I02 Accepted` 当时 ≠ `SE-02D Overall Complete`**（该句为 I02 收尾时）：
 population grouping + 调用 I01 `aggregate()` 已于 `SE-02D-I03` 实现并验收；`SE-02D V1`
 capability 完成边界其后已由 `SE-02D-CLOSE-D01`（2026-09-16 Human Acceptance = `CONFIRMED`）
-接受为 `COMPLETE AFTER I03`，`SE-02D Overall` 仍 `PENDING OVERALL FINAL REVIEW`；详见
-「SE-02D-I02 Result」、「SE-02D-I03 Result」与「SE-02D-CLOSE-D01 Result」）
+接受为 `COMPLETE AFTER I03`，`SE-02D Overall` 其后已于 2026-09-16 经 SE-02D Overall
+Final Acceptance Closeout 转 `ACCEPTED / COMPLETE`；详见「SE-02D-I02 Result」、
+「SE-02D-I03 Result」与「SE-02D-CLOSE-D01 Result」）
 
 SE-02D-I03 — Population Grouping + Aggregate Orchestration — ACCEPTED / COMPLETE（2026-09-16
 Human Acceptance = `CONFIRMED`；Initial Independent Review = `FAIL — FIX REQUIRED`；
@@ -55,11 +60,12 @@ ACCEPTANCE`；Human-Accepted reviewed HEAD = `20a7c333abf81077c409811302331119df
 `se-02d-i03-fix-01-projection-identity-validation`；Original Reviewed Candidate =
 `44d0e4b14ba0037de4da8e605d7b04b9f5d721e4`，branch
 `se-02d-i03-population-aggregate-orchestration`，immutable；集成方法 = `FAST-FORWARD ONLY`。
-**`I03 Accepted` ≠ `SE-02D Overall Complete`**：aggregate capability 已由 I01 + I02 + I03 实现，
+**`I03 Accepted` 当时 ≠ `SE-02D Overall Complete`**（该句为 I03 收尾时）：aggregate capability 已由 I01 + I02 + I03 实现，
 并经 `SE-02D-CLOSE-D01`（2026-09-16 Human Acceptance = `CONFIRMED`）确认为
 `IMPLEMENTED / ACCEPTED`；API / frontend / runtime product consumer =
 `NOT REQUIRED FOR SE-02D V1 COMPLETION`（defer 至未来 consumer / Gate C 任务）；
-historical revision-as-of 仍 `OPEN`；详见「SE-02D-I03 Result」与「SE-02D-CLOSE-D01 Result」）
+historical revision-as-of 仍 `OPEN`；`SE-02D Overall` 其后已于 2026-09-16 转 `ACCEPTED /
+COMPLETE`；详见「SE-02D-I03 Result」与「SE-02D-CLOSE-D01 Result」）
 
 SE-02D-CLOSE-D01 — V1 Completion Boundary Reconciliation — ACCEPTED / COMPLETE（2026-09-16 Human
 Acceptance = `CONFIRMED`；Independent Review = `PASS — READY FOR HUMAN ACCEPTANCE`；
@@ -70,8 +76,8 @@ Human-Accepted candidate = `a9e615726ee964c02a72ea6cbff490d3d74e08f7`，branch
 `FAST-FORWARD ONLY`。**Accepted completion boundary** = `SE-02D V1 CAPABILITY COMPLETE AFTER I03`；
 `I04 = NOT REQUIRED FOR SE-02D V1`；API / frontend / runtime consumer =
 `NOT REQUIRED FOR SE-02D V1 COMPLETION`；historical revision-as-of 仍 `OPEN`；Gate C
-prerequisites 仍 `OPEN`；`SE-02D Overall` 仍 `PENDING OVERALL FINAL REVIEW`；详见
-「SE-02D-CLOSE-D01 Result」）
+prerequisites 仍 `OPEN`；`SE-02D Overall` 其后已于 2026-09-16 经 SE-02D Overall
+Final Acceptance Closeout 转 `ACCEPTED / COMPLETE`；详见「SE-02D-CLOSE-D01 Result」）
 
 SE-02D-D01 — Family Aggregation / Expectancy Contract（设计契约）— ACCEPTED / COMPLETE（2026-09-15 Human
 Acceptance = `CONFIRMED` + Final Acceptance Closeout；Independent Initial Review = `FAIL — FIX
@@ -84,10 +90,10 @@ REQUIRED`；FIX-01 Independent Re-Review = `PASS`；`D01-R1` / `D01-R2` = `CLOSE
 ancestor，内容以 latest-main content-level carry-forward 搬运后 `FAST-FORWARD ONLY`
 集成。**`SE-02D` production implementation 当时仍 `NOT STARTED`**（SE-02D-D01 收尾时；其后
 `SE-02D-I01` 已于 2026-09-15 经 Human Acceptance 转为 `ACCEPTED / COMPLETE`，父状态
-= `IN PROGRESS`，剩余实现仍 `NOT COMPLETE`；其后 `SE-02D-CLOSE-D01` 已于 2026-09-16 经 Human
-Acceptance 接受 `SE-02D V1` capability 完成边界 = `COMPLETE AFTER I03`，`SE-02D Overall` 仍
-`PENDING OVERALL FINAL REVIEW`；详见「SE-02D-D01 Result」、「SE-02D-I01 Result」与
-「SE-02D-CLOSE-D01 Result」）
+当时 = `IN PROGRESS`，剩余实现当时仍 `NOT COMPLETE`；其后 `SE-02D-CLOSE-D01` 已于 2026-09-16 经 Human
+Acceptance 接受 `SE-02D V1` capability 完成边界 = `COMPLETE AFTER I03`，且 `SE-02D Overall`
+其后已于 2026-09-16 经 SE-02D Overall Final Acceptance Closeout 转 `ACCEPTED / COMPLETE`；
+详见「SE-02D-D01 Result」、「SE-02D-I01 Result」与「SE-02D-CLOSE-D01 Result」）
 
 SE-ARCH-FIX-01 — Stable Evidence Anchor — ACCEPTED / COMPLETE
 
@@ -195,21 +201,29 @@ PRE-01B-I1 — Integrated Runtime Host Core V1 Implementation — ACCEPTED / COM
   Fix-02 implementation `6b084595` 均保持 immutable；`SE-02C-FIX-01` / `SE-02C-FIX-02` =
   `ACCEPTED / CLOSED`；已 fast-forward only 收编 `main`；`SE02C-R7` = P3 / NON-BLOCKING /
   NOT FIXED；`Schema Changed = NO`、`Migration Added = NO`，单 head 仍 `20260913_0009`）；
-  **`SE-02D = IN PROGRESS`**（`SE-02D-I01` = `ACCEPTED / COMPLETE`、`SE-02D-I02` =
+  **`SE-02D = ACCEPTED / COMPLETE`；`SE-02D Overall = ACCEPTED / COMPLETE`**（2026-09-16 Human
+  Acceptance = `CONFIRMED` + SE-02D Overall Final Acceptance Closeout；Overall Final Review =
+  `PASS WITH NON-BLOCKING FINDINGS — READY FOR HUMAN ACCEPTANCE`；Human-Accepted reviewed
+  baseline = `55db91ad4c92ef5456b87f9810cf9ec73353d7b2`；`SE02D-OVERALL-R01-P3-01` / `P3-02` =
+  `CLOSED`；`SE-02D-I01` = `ACCEPTED / COMPLETE`、`SE-02D-I02` =
   `ACCEPTED / COMPLETE`，均于 2026-09-15 Human Acceptance = `CONFIRMED` + Final Acceptance
   Closeout；`SE-02D-I03` = `ACCEPTED / COMPLETE`，2026-09-16 Human Acceptance = `CONFIRMED`
   + Final Acceptance Closeout；**`SE-02D-CLOSE-D01` = `ACCEPTED / COMPLETE`**，2026-09-16
   Human Acceptance = `CONFIRMED`，Accepted completion conclusion = `SE-02D V1 CAPABILITY
   COMPLETE AFTER I03`，`I04 = NOT REQUIRED`，API / frontend / runtime product consumer =
   `NOT REQUIRED FOR SE-02D V1 COMPLETION`；**`SE-02D V1` capability implementation =
-  `COMPLETE AFTER I03`**，Overall 仍 `PENDING OVERALL FINAL REVIEW`（**未** ACCEPTED /
-  COMPLETE）；**`SE-02D-D01` 设计契约 = `ACCEPTED / COMPLETE`**，2026-09-15 Human
+  `COMPLETE AFTER I03`**；**`SE-02D-D01` 设计契约 = `ACCEPTED / COMPLETE`**，2026-09-15 Human
   Acceptance = `CONFIRMED` + Final Acceptance Closeout）
 
 ## Branch / Source
 
 - Current Accepted Branch: `main`
-- Current Group Branch: `se-02c-final-acceptance-closeout`（SE-02C-FINAL｜Acceptance Closeout &
+- Current Group Branch: `se-02d-overall-final-acceptance-closeout`（SE-02D-OVERALL-FINAL｜Overall
+  Final Acceptance Closeout + P3 Documentation Reconciliation + Fast-Forward Main Integration；
+  base = Human-Accepted reviewed baseline `55db91ad4c92ef5456b87f9810cf9ec73353d7b2`；
+  docs/state-only closeout commit，已 fast-forward only 收编 `main`）；更早
+  `se-02d-close-d01-final-acceptance`（SE-02D-CLOSE-D01-FINAL；base = Human-Accepted candidate
+  `a9e615726ee964c02a72ea6cbff490d3d74e08f7`）；更早 `se-02c-final-acceptance-closeout`（SE-02C-FINAL｜Acceptance Closeout &
   Main Integration；base = immutable reviewed candidate
   `7bb3835d6b14a3fc86becff1881c7f53f1acd567`；docs/state-only closeout commit，已 fast-forward
   only 收编 `main`）；reviewed candidate branch `se-02c-fix-02-stable-read-snapshot` @ `7bb3835`
@@ -579,8 +593,11 @@ PRE-01B-I1 — Integrated Runtime Host Core V1 Implementation — ACCEPTED / COM
   full backend 417 passed、`ruff check` 全绿。
   见 `dev_log/2026-09-13-se-02c-forward-outcome-calculator.md` 与
   `dev_log/2026-09-14-se-02c-final-acceptance-closeout.md`。
-- **SE-02D｜Family Aggregation / Expectancy = `IN PROGRESS`**（parent production
-  implementation 剩余部分 = `NOT COMPLETE`）。**`SE-02D-I01｜Deterministic Aggregation
+- **SE-02D｜Family Aggregation / Expectancy = `ACCEPTED / COMPLETE`**（2026-09-16 Human
+  Acceptance = `CONFIRMED` + SE-02D Overall Final Acceptance Closeout；Overall Final Review =
+  `PASS WITH NON-BLOCKING FINDINGS — READY FOR HUMAN ACCEPTANCE`；Human-Accepted reviewed
+  baseline = `55db91ad4c92ef5456b87f9810cf9ec73353d7b2`；`SE-02D Overall = ACCEPTED / COMPLETE`；
+  `SE02D-OVERALL-R01-P3-01` / `P3-02` = `CLOSED`）。**`SE-02D-I01｜Deterministic Aggregation
   Core`（纯确定性聚合 / 统计内核）= `ACCEPTED / COMPLETE`**（2026-09-15 Human Acceptance =
   `CONFIRMED` + Final Acceptance Closeout；Independent Initial Review = `FAIL — FIX
   REQUIRED`；FIX-01 Independent Re-Review = `PASS`；`SE02D-I01-R1` / `R2` / `R3` =
@@ -620,9 +637,10 @@ PRE-01B-I1 — Integrated Runtime Host Core V1 Implementation — ACCEPTED / COM
     （`DEFERRED` 至未来 consumer / product / Gate C 任务；**不存在**且**有意**在 V1 完成范围之外）；
     historical arbitrary revision-as-of support = `OPEN`；`I04 = NOT REQUIRED FOR SE-02D V1`；
     `SE-02D V1` capability implementation = `COMPLETE AFTER I03`。
-  - ⚠️ **`I01 / I02 / I03 Accepted` ≠ `SE-02D Overall Complete`**，**`SE-02D-CLOSE-D01
-    Accepted` 亦 ≠ `SE-02D Overall Complete`**：`SE-02D Overall = IN PROGRESS / PENDING
-    OVERALL FINAL REVIEW`；`SE-02D` **不**构成 KEEP / DOWNWEIGHT / KILL（V1 不输出任何 label）
+  - ✅ **`SE-02D Overall = ACCEPTED / COMPLETE`**（2026-09-16 Human Acceptance = `CONFIRMED` +
+    SE-02D Overall Final Acceptance Closeout）：**`I01 / I02 / I03 / CLOSE-D01 Accepted` 当时
+    ≠ `SE-02D Overall Complete`**（各批收尾时；其后整体验收已于 2026-09-16 完成）；
+    `SE-02D` **不**构成 KEEP / DOWNWEIGHT / KILL（V1 不输出任何 label）
     / `Gate C = PASS` / `Live` 授权。
 - **`SE-02D-D01`（Family Aggregation / Expectancy Contract，设计层）= `ACCEPTED / COMPLETE`**
   （2026-09-15 Human Acceptance = `CONFIRMED` + Final Acceptance Closeout；Human-Accepted
@@ -631,7 +649,8 @@ PRE-01B-I1 — Integrated Runtime Host Core V1 Implementation — ACCEPTED / COM
   **仅**接受设计契约）。
 - SE-02C 的**验收**（`ACCEPTED / COMPLETE`）**不**构成 SE-02D 的启动授权；SE-02D /
   Integrated Runtime Host 仍须另开窗口并经批准的门执行（该句写于 SE-02C 收尾时；N01-8 其后
-  已另行获批并执行完毕，见 Completed 与「N01-8 Result」）。
+  已另行获批并执行完毕，见 Completed 与「N01-8 Result」；SE-02D 亦已于 2026-09-16 经 SE-02D
+  Overall Final Acceptance Closeout 转 `ACCEPTED / COMPLETE`）。
 - **SE-02B 已关闭**：`ACCEPTED / COMPLETE` 并已 fast-forward only 收编 `main`（见 Completed、
   Acceptance Record 与「SE-02B Result」）；其 3 个历史状态项
   （`IMPLEMENTED / WAITING HUMAN ACCEPTANCE`、SE-02B-FIX-01 / FIX-02
@@ -1664,8 +1683,9 @@ PRE-01B-I1 — Integrated Runtime Host Core V1 Implementation — ACCEPTED / COM
   **剩余工作措辞已于 2026-09-16 经 `SE-02D-CLOSE-D01` 调和**：aggregate capability =
   `IMPLEMENTED / ACCEPTED via I01 + I02 + I03`；API / frontend / runtime product consumer =
   `NOT REQUIRED FOR SE-02D V1 COMPLETION`；historical revision-as-of support = `OPEN`。
-  **`I01 Accepted` ≠ `SE-02D Overall Complete`**：`SE-02D V1` capability implementation =
-  `COMPLETE AFTER I03`；`SE-02D Overall = IN PROGRESS / PENDING OVERALL FINAL REVIEW`。
+  **`I01 Accepted` 当时 ≠ `SE-02D Overall Complete`**（该句为 I01 收尾时）：`SE-02D V1`
+  capability implementation = `COMPLETE AFTER I03`；`SE-02D Overall` 其后已于 2026-09-16 经
+  SE-02D Overall Final Acceptance Closeout 转 `ACCEPTED / COMPLETE`。
 - 边界：`Gate C = NOT PASSED`；`Live = NOT AUTHORIZED`；Real AI = `NOT ACTIVATED`；
   `Integrated Runtime Host = NOT STARTED`；三项 prerequisite（historical revision-as-of /
   experiment/pair/arm identity / durable regime）仍 `OPEN`。本收尾**不**解锁 `I02`。
@@ -1704,13 +1724,14 @@ PRE-01B-I1 — Integrated Runtime Host Core V1 Implementation — ACCEPTED / COM
   After Review = NO` / `Schema Changed = NO` / `Migration Added = NO` / `Production
   Dependency Changed = NO` / `API / UI = NO` / `Runtime Activation = NO`；单 head
   `20260913_0009`。
-- ⚠️ **`I02 Accepted` ≠ `SE-02D Overall Complete`**：population grouping + orchestration that
-  invokes I01 `aggregate()` 已于 `SE-02D-I03` 实现并验收（见「SE-02D-I03 Result」）；
-  剩余工作措辞已于 2026-09-16 经 `SE-02D-CLOSE-D01` 调和：aggregate capability =
-  `IMPLEMENTED / ACCEPTED via I01 + I02 + I03`；API / frontend / runtime product consumer =
-  `NOT REQUIRED FOR SE-02D V1 COMPLETION`；historical arbitrary revision-as-of = `OPEN`。
-  `SE-02D V1` capability implementation = `COMPLETE AFTER I03`；
-  `SE-02D Overall = IN PROGRESS / PENDING OVERALL FINAL REVIEW`。
+- ⚠️ **`I02 Accepted` 当时 ≠ `SE-02D Overall Complete`**（该句为 I02 收尾时）：population
+  grouping + orchestration that invokes I01 `aggregate()` 已于 `SE-02D-I03` 实现并验收
+  （见「SE-02D-I03 Result」）；剩余工作措辞已于 2026-09-16 经 `SE-02D-CLOSE-D01` 调和：
+  aggregate capability = `IMPLEMENTED / ACCEPTED via I01 + I02 + I03`；API / frontend /
+  runtime product consumer = `NOT REQUIRED FOR SE-02D V1 COMPLETION`；historical arbitrary
+  revision-as-of = `OPEN`。`SE-02D V1` capability implementation = `COMPLETE AFTER I03`；
+  `SE-02D Overall` 其后已于 2026-09-16 经 SE-02D Overall Final Acceptance Closeout 转
+  `ACCEPTED / COMPLETE`。
 - 边界：`Gate C = NOT PASSED`；`Live = NOT AUTHORIZED`；Real AI = `NOT ACTIVATED`；
   三项 prerequisite（historical revision-as-of / experiment-pair-arm identity / durable
   regime）仍 `OPEN`。本收尾**不**解锁 `I03`。
@@ -1752,12 +1773,12 @@ PRE-01B-I1 — Integrated Runtime Host Core V1 Implementation — ACCEPTED / COM
   `Tests Changed After Human Review = NO` / `Schema Changed = NO` / `Migration Added = NO` /
   `Production Dependency Changed = NO` / `Runtime Behavior Changed By Closeout = NO`；
   单 head `20260913_0009`。
-- ⚠️ **`I03 Accepted` ≠ `SE-02D Overall Complete`**：aggregate capability 其后已由
-  `SE-02D-CLOSE-D01`（2026-09-16 Human Acceptance = `CONFIRMED`）确认为
+- ⚠️ **`I03 Accepted` 当时 ≠ `SE-02D Overall Complete`**（该句为 I03 收尾时）：aggregate
+  capability 其后已由 `SE-02D-CLOSE-D01`（2026-09-16 Human Acceptance = `CONFIRMED`）确认为
   `IMPLEMENTED / ACCEPTED via I01 + I02 + I03`；API / frontend / runtime product consumer =
   `NOT REQUIRED FOR SE-02D V1 COMPLETION`；historical arbitrary revision-as-of 仍 `OPEN`。
-  `SE-02D V1` capability implementation = `COMPLETE AFTER I03`；
-  `SE-02D Overall = IN PROGRESS / PENDING OVERALL FINAL REVIEW`。
+  `SE-02D V1` capability implementation = `COMPLETE AFTER I03`；`SE-02D Overall` 其后已于
+  2026-09-16 转 `ACCEPTED / COMPLETE`。
 - 边界：`Gate C = NOT PASSED`；`Live = NOT AUTHORIZED`；Real AI = `NOT ACTIVATED`；
   三项 prerequisite（historical revision-as-of / experiment-pair-arm identity / durable
   regime）仍 `OPEN`。本收尾**不**解锁 `I04`（也未定义 I04）。
@@ -1781,7 +1802,8 @@ PRE-01B-I1 — Integrated Runtime Host Core V1 Implementation — ACCEPTED / COM
   §15 全部六项结论：V1 capability 于 I03 后完成；API / frontend / runtime consumer **不是**
   V1 完成要求；陈旧 “aggregate / API / product integration = NOT YET IMPLEMENTED” 措辞须调和；
   historical revision-as-of 仍 `OPEN` 但不阻塞 current-snapshot V1 完成；Gate C prerequisites
-  仍 `OPEN`；**不需要** I04 implementation batch，下一阶段 = `SE-02D Overall Final Review`。
+  仍 `OPEN`；**不需要** I04 implementation batch，下一阶段 = `SE-02D Overall Final Review`
+  （已于 2026-09-16 经 SE-02D Overall Final Acceptance Closeout 完成并转 `ACCEPTED / COMPLETE`）。
 - Accepted callable 边界（`docs/design` §6）：
   `CurrentSnapshotRevisionReader.read(horizon)` → `CurrentSnapshotProjection` →
   `aggregate_projection(projection)` → `tuple[AggregationResult, ...]`；
@@ -1801,10 +1823,10 @@ PRE-01B-I1 — Integrated Runtime Host Core V1 Implementation — ACCEPTED / COM
   `Schema Changed = NO` / `Migration Added = NO` / `Production Dependency Changed = NO` /
   `Runtime Behavior Changed By Closeout = NO`；`pytest` / `ruff = NOT REQUIRED / NOT RUN`；
   单 head 仍 `20260913_0009`。
-- ⚠️ **`SE-02D-CLOSE-D01 Accepted` ≠ `SE-02D Overall Acceptance`**：
-  `SE-02D V1` capability implementation = `COMPLETE AFTER I03`，但
-  `SE-02D Overall = IN PROGRESS / PENDING OVERALL FINAL REVIEW`；**禁止**写
-  `SE-02D = ACCEPTED / COMPLETE`。
+- ⚠️ **`SE-02D-CLOSE-D01 Accepted` 当时 ≠ `SE-02D Overall Acceptance`**（该句为 CLOSE-D01
+  收尾时）：`SE-02D V1` capability implementation = `COMPLETE AFTER I03`，`SE-02D Overall` 其后
+  已于 2026-09-16 经 SE-02D Overall Final Acceptance Closeout 转 `ACCEPTED / COMPLETE`；
+  `SE-02D = ACCEPTED / COMPLETE` **≠** `Gate C PASS`，`Gate C PASS` **≠** `Live` 授权。
 - 边界：`I04 = NOT REQUIRED FOR SE-02D V1`（未定义、未启动）；`Gate C = NOT PASSED`；
   `Live = NOT AUTHORIZED`；Real AI = `NOT ACTIVATED`；KEEP / DOWNWEIGHT / KILL =
   `NOT OWNED BY SE-02D V1`；四个未来边界（historical revision-as-of / experiment-pair-arm
@@ -1813,3 +1835,35 @@ PRE-01B-I1 — Integrated Runtime Host Core V1 Implementation — ACCEPTED / COM
   `SE-02D V1 capability complete != Gate C PASS`。
 - 详见 `dev_log/2026-09-16-se-02d-close-d01-final-acceptance.md` 与
   `dev_log/2026-09-16-se-02d-close-d01-v1-completion-boundary-reconciliation.md`。
+
+## SE-02D Overall Final Acceptance Closeout Result
+
+- 任务：`SE-02D-OVERALL-FINAL`｜SE-02D Overall Final Acceptance Closeout + P3 Documentation
+  Reconciliation + Fast-Forward Main Integration（docs/state-only + package docstring；**非**新实现、
+  **非**新 Design、**非**新 Review、**非** I04、**非** Gate C、**非** Live）。
+- 状态 = `SE-02D = ACCEPTED / COMPLETE`；`SE-02D Overall = ACCEPTED / COMPLETE`
+  （2026-09-16 Human Acceptance = `CONFIRMED`）。
+- Overall Final Review = `PASS WITH NON-BLOCKING FINDINGS — READY FOR HUMAN ACCEPTANCE`
+  （P0 = `NONE` / P1 = `NONE` / P2 = `NONE`；P3 = `SE02D-OVERALL-R01-P3-01` /
+  `SE02D-OVERALL-R01-P3-02`）。
+- Human-Accepted reviewed baseline = `55db91ad4c92ef5456b87f9810cf9ec73353d7b2`（immutable
+  Git evidence，**未**重建 / **未**改写）；closeout branch =
+  `se-02d-overall-final-acceptance-closeout`；集成方法 = `FAST-FORWARD ONLY`。
+- accepted lineage（均 `ACCEPTED / COMPLETE`）：`SE-02D-D01` / `SE-02D-I01` / `SE-02D-I02` /
+  `SE-02D-I03` / `SE-02D-CLOSE-D01`。
+- Review 继承证据（来自 Human-Accepted baseline，**非**本收尾实测）：I01 `108 passed`、
+  I02 `44 passed`、I03 `57 passed`、合并 `209 passed`；本收尾另行实测复跑，两组证据分列。
+- P3 closure：`SE02D-OVERALL-R01-P3-01` = `CLOSED`（`marketpulse.edge` package docstring 仅
+  文档级修正）；`SE02D-OVERALL-R01-P3-02` = `CLOSED`（`PRODUCT_REQUIREMENTS.md` /
+  `AI_CONTEXT.md` / `PROJECT_STATE.md` capability / group metadata 调和）。两者均为
+  documentation / metadata finding，在 Human Acceptance 时为 `NON-BLOCKING`；**未**发现
+  P0 / P1 / P2 finding。
+- 本收尾为 docs/state-only + 一个 package docstring 修正：`Aggregation / Snapshot /
+  Orchestration Implementation Changed = NO` / `Tests Changed = NO` / `Schema Changed = NO` /
+  `Migration Added = NO` / `Runtime Behavior Changed = NO` / `Dependency Changed = NO`；
+  单 head 仍 `20260913_0009`。
+- 边界：historical arbitrary revision-as-of = `OPEN`；Gate C prerequisites = `OPEN`；
+  `Gate C = NOT PASSED`；`Live = NOT AUTHORIZED`；Real AI = `NOT AUTHORIZED / NOT ACTIVATED`；
+  `KEEP / DOWNWEIGHT / KILL = NOT OWNED BY SE-02D V1`；下一 Acceptance Group =
+  `NOT STARTED`。
+- 详见 `dev_log/2026-09-16-se-02d-overall-final-acceptance-closeout.md`。
