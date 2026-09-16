@@ -1,5 +1,110 @@
 # PRE-01B-D2-FIX-05｜Connection Return Completion Authority Fix
 
+## PRE-01B-D2-CLAR-01｜I2 Foundation Contract Clarification Candidate
+
+```text
+Clarification: PRE-01B-D2-CLAR-01
+Status: DESIGN CLARIFICATION CANDIDATE / READY FOR INDEPENDENT REVIEW
+Task type: ACCEPTED-CONTRACT CLARIFICATION / DOCS ONLY
+Independent Review: NOT PERFORMED
+Human Acceptance: NOT PERFORMED
+Implementation / Migration / Runtime change authorized: NO
+```
+
+本候选只澄清 I2 Foundation Integrity Gate 发现的两个歧义：B-01 no-provider
+Attempt 终态约束与 F-01/F-02 arm identity domain / exact test contract。除下列明确
+替换的句子外，PRE-01B-D2 的架构、业务语义、Gate、SAVEPOINT、deadline、DB fence、
+shutdown 与 provider 边界均不重开。原 PRE-01B-D2 仍是最后一份 Human-Accepted
+design；本候选通过 Independent Review 与 Human Acceptance 前不得称为 accepted amendment，
+也不授权继续 I2 implementation。
+
+### CLAR-01-B-01｜No-Attempt terminal authority
+
+`final_status` 是既有 `DecisionStatus` 终态类别；`final_reason_code` 是该终态的精确诊断原因。
+两者是不同字段、不同 vocabulary，任何 status token 都不得因为名称相近而充当 reason code。
+
+当且仅当 Invocation 的精确 `(final_status, final_reason_code)` 属于以下闭世界集合时，
+`final_attempt_id = NULL` 合法且必须成立；这些 pair 同时要求
+`final_decision_id = NULL`：
+
+| No-provider terminal | `final_status` | `final_reason_code` |
+|---|---|---|
+| deadline expired before provider | `STALE_DECISION` | `DEADLINE_EXPIRED_BEFORE_PROVIDER` |
+| queue rejected before provider | `CAPACITY_BLOCKED` | `ADVISORY_QUEUE_REJECTED` |
+| Advisory DB capacity unavailable before provider | `CAPACITY_BLOCKED` | `ADVISORY_DB_CAPACITY_UNAVAILABLE` |
+| Evidence superseded before provider | `STALE_DECISION` | `EVIDENCE_SUPERSEDED_BEFORE_PROVIDER` |
+| Opportunity no longer eligible/fresh before provider | `STALE_DECISION` | `OPPORTUNITY_STALE_BEFORE_PROVIDER` |
+| activation disabled before provider | `STALE_DECISION` | `ACTIVATION_DISABLED_BEFORE_PROVIDER` |
+| shutdown before provider | `INVALID_SCHEMA` | `SHUTDOWN_BEFORE_PROVIDER` |
+
+因此允许 `final_attempt_id = NULL` 的 exact `final_reason_code` whitelist 只有：
+
+```text
+DEADLINE_EXPIRED_BEFORE_PROVIDER
+ADVISORY_QUEUE_REJECTED
+ADVISORY_DB_CAPACITY_UNAVAILABLE
+EVIDENCE_SUPERSEDED_BEFORE_PROVIDER
+OPPORTUNITY_STALE_BEFORE_PROVIDER
+ACTIVATION_DISABLED_BEFORE_PROVIDER
+SHUTDOWN_BEFORE_PROVIDER
+```
+
+`CAPACITY_BLOCKED` 只保留为 `final_status`，从 no-Attempt reason whitelist **移除**；
+它不是合法的 generic `final_reason_code`，也不得解释成 wildcard capacity reason。
+queue 与 DB capacity 必须分别使用上表两个精确 reason。已有 Attempt 的终态仍必须持有
+同 Invocation 的 `final_attempt_id`，不得用上述 reason 绕过 Attempt origin constraint；
+不得为任何 no-provider terminal 伪造 Attempt。
+
+未来 I2 最终候选的 DB CHECK 必须直接验证上述精确 pair，而不是只检查 reason 字符串；
+queue full 与 DB capacity unavailable 两条路径必须分别证明能以 NULL Attempt/Decision
+持久化。I2 尚未合并，故 continuation 可在最终 descendant candidate 中直接修正未接受的
+`20260917_0010_advisory_ingress_core.py` CHECK；不得仅为保留该 unaccepted candidate mistake
+而新增第二条 Alembic revision。本 clarification 不修改 migration。
+
+### CLAR-01-F-01｜Canonical arm identity domain
+
+三个选项的裁定如下：
+
+| Option | Verdict | Reason |
+|---|---|---|
+| A. `pair_id` 作为动态 hash domain | REJECTED | 没有固定、可审计、可版本化的 arm domain literal；把实例 identity 混入 domain 角色 |
+| B. 专用固定/versioned arm domain | **SELECTED** | 保持 canonical serialization，同时提供 pair 与 arm 的语义域隔离、独立版本边界和 replay 可审计性 |
+| C. 复用 `pre01a-pair-v1` | REJECTED | 虽可确定性计算，但把 pair/arm 两种 identity 置于同一语义 domain，且 arm derivation 没有独立 version authority |
+
+唯一 canonical derivation 为：
+
+```text
+arm_id = H("pre01a-arm-v1", pair_id, arm_label)
+
+baseline_arm_id = H("pre01a-arm-v1", pair_id, "WITHOUT_AI_BASELINE")
+treatment_arm_id = H("pre01a-arm-v1", pair_id, "REAL_AI_TREATMENT")
+```
+
+其中 `H(domain, *parts)` 使用项目 versioned canonical JSON digest；精确 canonical preimage
+分别为：
+
+```json
+["pre01a-arm-v1", "<pair_id>", "WITHOUT_AI_BASELINE"]
+["pre01a-arm-v1", "<pair_id>", "REAL_AI_TREATMENT"]
+```
+
+`pre01a-arm-v1` 是冻结的 arm hash domain/version literal。canonical JSON 必须保持类型、
+顺序与边界，不得用 delimiter join、`repr()`、process hash 或 provider output。collision
+语义仍依赖所选 cryptographic digest 的 collision resistance；专用 domain 防止相同 canonical
+parts 在 pair/arm 等不同 identity class 间发生 accidental aliasing，并允许未来 arm contract
+变化通过新 domain version 建立新 lineage，而不重解释 `pre01a-arm-v1` row。
+
+该澄清不改变 `pair_id`、两条 arm label、baseline/treatment separation、treatment
+participation、experiment definition 或 `decision_invocation_id` semantic ownership。I2 未合并且
+不存在 Production Advisory row，故 correction 不需要兼容 foundation candidate 派生出的 arm ID。
+
+### CLAR-01-F-02｜Future I2 exact-derivation test
+
+未来 I2 tests 必须独立构造 canonical JSON preimage/digest，并逐字断言
+`pre01a-arm-v1`、`pair_id` 与 exact arm label 的输入顺序。只断言
+`baseline_arm_id != treatment_arm_id` 不充分；调用被测实现自身来生成 expected digest 的
+self-referential test 也不充分。
+
 ## Artifact Status
 
 ```text
@@ -609,8 +714,9 @@ schema/SE-02A 契约与 I02 折叠语义使该场景成为必须显式设计的�
 2. **旧 Invocation 的命运 = stale / non-actionable**：在任一检查点（pre-enqueue /
    dequeue / pre-provider / during-provider→finalizer / pre-finalization）检测到
    「同 `opportunity_id` 存在 revision > N 的 durable Evidence row（或等价的
-   supersedes 链事实）」⇒ 该 Invocation terminalize 为
-   `STALE_DECISION / EVIDENCE_SUPERSEDED`，zero provider call（若尚未调用），
+   supersedes 链事实）」⇒ 尚无 Attempt 时该 Invocation terminalize 为
+   `STALE_DECISION / EVIDENCE_SUPERSEDED_BEFORE_PROVIDER`，已有 Attempt 时使用
+   `STALE_DECISION / EVIDENCE_SUPERSEDED`；zero provider call（若尚未调用），
    valid response 只留 attempt audit、不能赢 final（若已调用）。检测方式 = 直接
    durable 查询 `edge_opportunity_evidence`（按 `opportunity_id` 取 max
    `evidence_revision`），**不**调用 `aggregation_snapshot.py`。用于终态胜者或
@@ -661,9 +767,12 @@ schema/SE-02A 契约与 I02 折叠语义使该场景成为必须显式设计的�
    即 `NON_ACTIONABLE_FOR_FUTURE_ECONOMIC_USE`。Gate A 仍 non-economic，D2 不实现
    Gate B。
 7. **生命周期覆盖（任务 §10 清单）**：
-   - before queue publication：offer 前置检查 ⇒ 不入 queue，terminalize；
-   - while queued：dequeue durable re-read ⇒ terminalize，zero provider；
-   - before provider call：attempt-start transaction 拒绝，zero provider；
+   - before queue publication：offer 前置检查 ⇒ 不入 queue，以
+     `EVIDENCE_SUPERSEDED_BEFORE_PROVIDER` terminalize；
+   - while queued：dequeue durable re-read 后以
+     `EVIDENCE_SUPERSEDED_BEFORE_PROVIDER` terminalize，zero provider；
+   - before provider call：attempt-start transaction 拒绝，以
+     `EVIDENCE_SUPERSEDED_BEFORE_PROVIDER` terminalize，zero provider；
    - during provider call：best-effort cancel（非 authority）；response 后 finalizer
      durable re-read ⇒ `STALE_DECISION / EVIDENCE_SUPERSEDED`；
    - after provider result / before finalization：finalizer transaction 判 stale，
@@ -722,8 +831,8 @@ policy）；禁止 Python `repr()`、process hash、provider response 参与iden
    §17.1 的 canonical UTC serialization。
 4. `experiment_id = H(experiment_definition_version, canonical_experiment_definition)`。
 5. `pair_id = H("pre01a-pair-v1", experiment_id, input_binding_digest)`。
-6. `baseline_arm_id = H(pair_id, "WITHOUT_AI_BASELINE")`。
-7. `treatment_arm_id = H(pair_id, "REAL_AI_TREATMENT")`。
+6. `baseline_arm_id = H("pre01a-arm-v1", pair_id, "WITHOUT_AI_BASELINE")`。
+7. `treatment_arm_id = H("pre01a-arm-v1", pair_id, "REAL_AI_TREATMENT")`。
 8. `decision_invocation_id = H("advisory-invocation-v1", experiment_id, pair_id,
    treatment_arm_id, input_binding_digest, prompt_version, schema_version,
    treatment_version, configured_provider_id, configured_model_id)`。
@@ -745,7 +854,9 @@ policy）；禁止 Python `repr()`、process hash、provider response 参与iden
 - retry 只增加 attempt row，绝不增加 invocation / final identity。
 - provider request/response ID（若有）记录在 attempt；不存在时为 `NULL/UNKNOWN`，
   不得伪造。
-- 每个 hash 的 version literal 属 I2 实现契约，须在实现窗口逐字冻结（教训：
+- 每个 hash 的 version literal 属 I2 实现契约，须在实现窗口逐字冻结；arm identity 的
+  domain/version literal 已由 CLAR-01 冻结为 `pre01a-arm-v1`，不得复用
+  `pre01a-pair-v1` 或把 `pair_id` 当动态 domain（教训：
   SE-02D-D01 `uncertainty_method_version` 曾缺失 literal ⇒ Human Design Clarification
   补齐；D2 把该项列入 I2 实现前置核对清单）。
 
@@ -829,10 +940,13 @@ DB constraints 冻结：
    non-FINAL 时全部 final fields 必须为 NULL。
 2. `final_attempt_id` 含义是「产生终态结果的 Attempt」（失败终态也可有）；
    必须通过 composite FK `(decision_invocation_id, final_attempt_id)` 指向同
-   Invocation 的 Attempt。它仅可在预先枚举的 no-provider-Attempt 终态为 NULL：
-   `DEADLINE_EXPIRED_BEFORE_PROVIDER`、`CAPACITY_BLOCKED`、
-   `EVIDENCE_SUPERSEDED_BEFORE_PROVIDER`、`OPPORTUNITY_STALE_BEFORE_PROVIDER`、
-   `ACTIVATION_DISABLED_BEFORE_PROVIDER`、`SHUTDOWN_BEFORE_PROVIDER`。
+   Invocation 的 Attempt。它仅可在 CLAR-01-B-01 预先枚举的 exact
+   `(final_status, final_reason_code)` no-provider pair 为 NULL。reason whitelist 为：
+   `DEADLINE_EXPIRED_BEFORE_PROVIDER`、`ADVISORY_QUEUE_REJECTED`、
+   `ADVISORY_DB_CAPACITY_UNAVAILABLE`、`EVIDENCE_SUPERSEDED_BEFORE_PROVIDER`、
+   `OPPORTUNITY_STALE_BEFORE_PROVIDER`、`ACTIVATION_DISABLED_BEFORE_PROVIDER`、
+   `SHUTDOWN_BEFORE_PROVIDER`。`CAPACITY_BLOCKED` 是 status，不是 reason；DB CHECK
+   必须验证 exact pair，不能把任一 status token 当作 wildcard reason。
 3. 新 Advisory `AIDecision` row 必须同时持有
    `decision_invocation_id` 与 `attempt_id`；composite FK 证明 Attempt 属于同一
    Invocation。`AIDecision` 只表示已成功 normalized 的 provider result；
@@ -860,7 +974,10 @@ Named terminal mapping：
 | retry exhaustion | required（last terminal-producing Attempt） | 仅当该 Attempt 产生可持久 normalized result 时 required，否则 NULL | exact last failure + `RETRY_EXHAUSTED` |
 | deadline before provider | NULL | NULL | `STALE_DECISION / DEADLINE_EXPIRED_BEFORE_PROVIDER` |
 | queue capacity blocked | NULL | NULL | `CAPACITY_BLOCKED / ADVISORY_QUEUE_REJECTED` |
-| Evidence stale/superseded before provider | NULL | NULL | `STALE_DECISION / exact *_BEFORE_PROVIDER` |
+| Advisory DB capacity unavailable before provider | NULL | NULL | `CAPACITY_BLOCKED / ADVISORY_DB_CAPACITY_UNAVAILABLE` |
+| Evidence superseded before provider | NULL | NULL | `STALE_DECISION / EVIDENCE_SUPERSEDED_BEFORE_PROVIDER` |
+| Opportunity stale before provider | NULL | NULL | `STALE_DECISION / OPPORTUNITY_STALE_BEFORE_PROVIDER` |
+| activation disabled before provider | NULL | NULL | `STALE_DECISION / ACTIVATION_DISABLED_BEFORE_PROVIDER` |
 | shutdown before provider | NULL | NULL | `INVALID_SCHEMA / SHUTDOWN_BEFORE_PROVIDER` |
 | shutdown cancellation with ACTIVE provider Attempt | required | NULL | `INVALID_SCHEMA / SHUTDOWN_CANCELLED_ACTIVE_ATTEMPT` |
 
@@ -1048,14 +1165,17 @@ deadline/attempt/cost、失败不得增加风险）。Gate A 落地：
 | refusal | NO | `INVALID_SCHEMA / REFUSAL` | yes | zero |
 | auth/permission | NO；subsystem Gate A fail closed | `INVALID_SCHEMA / AUTH_PERMISSION` | yes | zero |
 | invalid request/schema capability/model | NO；activation config invalid | `INVALID_SCHEMA / INVALID_REQUEST` | yes | zero |
-| deadline expiry | NO | `STALE_DECISION / DEADLINE_EXPIRED` | yes | zero |
-| Evidence superseded | NO | `STALE_DECISION / EVIDENCE_SUPERSEDED` | yes | zero |
+| deadline expiry | NO | no Attempt: `STALE_DECISION / DEADLINE_EXPIRED_BEFORE_PROVIDER`；已有 Attempt: `STALE_DECISION / DEADLINE_EXPIRED` | yes | zero |
+| Evidence superseded | NO | no Attempt: `STALE_DECISION / EVIDENCE_SUPERSEDED_BEFORE_PROVIDER`；已有 Attempt: `STALE_DECISION / EVIDENCE_SUPERSEDED` | yes | zero |
+| Opportunity stale before provider | NO | `STALE_DECISION / OPPORTUNITY_STALE_BEFORE_PROVIDER` | invocation/final yes | zero |
+| activation disabled before provider | NO | `STALE_DECISION / ACTIVATION_DISABLED_BEFORE_PROVIDER` | invocation/final yes | zero |
 | retry exhaustion | NO | 最后 failure status + `RETRY_EXHAUSTED` | all attempts | zero |
 | cancellation | NO（restart 另按原 invocation/budget 裁决） | 按 §14.2 区分 `SHUTDOWN_BEFORE_PROVIDER` / `SHUTDOWN_CANCELLED_ACTIVE_ATTEMPT`，或 process-loss attempt audit | yes | zero |
 | late result | NO | `STALE_DECISION / LATE_RESULT` 或 loser audit | yes | zero |
 | duplicate completion | NO | winner 不变；`DUPLICATE_SUPPRESSED` | loser attempt yes | zero |
 | internal invariant/hash/fence failure | NO；Advisory subsystem fail closed | 无 provider 或 terminal invariant failure；不得伪造 valid | sanitized durable evidence where possible | zero |
 | queue rejected | NO | `CAPACITY_BLOCKED / ADVISORY_QUEUE_REJECTED` | invocation/final yes | zero |
+| Advisory DB capacity unavailable before provider | NO | `CAPACITY_BLOCKED / ADVISORY_DB_CAPACITY_UNAVAILABLE` | invocation/final yes | zero |
 | admission preparation/canonicalization/digest/config-binding/optional persistence failure | NO retry to Invocation；只重试 constant terminal write | `UNSTAGED`，或 `ADMISSION_FAILED_FINAL / ADMISSION_STAGING_FAILED_UNBOUND / NO_LONG_UNBOUND`；subsystem `FAIL_CLOSED` | valid G2/Evidence durable；无 seed/Invocation/Attempt/AIDecision；unbound completeness-hole counter durable/queryable | zero |
 
 无任何 failure 触发 baseline BUY、自动 participate、TradePlan fallback 或 deterministic
@@ -1674,7 +1794,9 @@ Real provider adapter selection / contract validation 与 Gate A activation 为�
 6. queue bounded；无 durable `QUEUED`；full = durable REJECT NEWEST
    （`CAPACITY_BLOCKED / ADVISORY_QUEUE_REJECTED`）；
    no block/drop/coalesce；queue rejection 与 durable admission rejection 在 durable
-   state/telemetry 上可区分。
+   state/telemetry 上可区分。queue 与 DB capacity no-provider terminal 必须分别以
+   `ADVISORY_QUEUE_REJECTED` / `ADVISORY_DB_CAPACITY_UNAVAILABLE` 持久化，且
+   `final_attempt_id=NULL`、`final_decision_id=NULL`；§14.2 exact pair CHECK 必须真实验证。
 7. Protection lane 在 queue full、slow provider、provider timeout、admission staging
    failure、Advisory critical failure、Advisory pool wait/statement/lock timeout 下持续工作；
    real PostgreSQL adverse test 证明 `A + R <= C` 且 A 个 wedged Advisory holders 时
@@ -1686,7 +1808,9 @@ Real provider adapter selection / contract validation 与 Gate A activation 为�
    `G3Workflow`、`TradePlanManager`、`persist_trade_plan` 在 Gate A call count = 0。
 10. one invocation identity collision-free 绑定 exact
     opportunity/evidence(revision/hash/feature_snapshot_hash)/snapshot/experiment/
-    pair/arm/versions/model。
+    pair/arm/versions/model。baseline/treatment arm tests 必须使用独立构造的 canonical
+    digest/preimage，逐字证明 `H("pre01a-arm-v1", pair_id, exact arm label)`；只比较两 arm
+    不相等或调用同一被测 helper 生成 expected value 均不构成证据。
 11. Invocation 的 Evidence binding immutable：supersede 场景下旧 invocation 只能
     terminalize（`EVIDENCE_SUPERSEDED`），任何改写/换绑/digest 重写测试必须失败；
     N+1 qualifying 时另立新 invocation。
