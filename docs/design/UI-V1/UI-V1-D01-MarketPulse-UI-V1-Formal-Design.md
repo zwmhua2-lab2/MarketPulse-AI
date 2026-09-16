@@ -426,7 +426,7 @@ NOT_ACTIVATED
 | Trading durable facts | `B` | `ACTIVE` |
 | Incident durable facts | `B` | `ACTIVE` |
 | Real AI | `C` | `NOT_ACTIVATED` |
-| live `G2→G3` Advisory | future | `NOT_ACTIVATED` |
+| live `G2→G3` Advisory | `C` | `NOT_ACTIVATED` |
 | Gate A / B / C runtime activation | `C` | `NOT_ACTIVATED` |
 | Live Trading | `C` | `NOT_ACTIVATED` |
 
