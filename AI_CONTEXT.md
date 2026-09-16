@@ -298,6 +298,35 @@ disposable 库保持空表（症状 `relation "edge_opportunity_evidence" does n
 
 ## 6. Next Step Entry（下一步工作入口）
 
+### UI-V1-D01 MarketPulse UI V1 Formal Design — HUMAN-ACCEPTED / FROZEN
+
+- 任务：`UI-V1-D01-FINAL-DOC-01`｜MarketPulse UI V1 Formal Design — Repository Persistence
+  （DOCS / STATE ONLY；**非** New Design、**非** 实现、**非** `UI-F01` / `UI-RD01`、
+  **非** `PRE-01B-I2`、**非** Real AI activation）。
+- 状态：**`UI-V1-D01 = HUMAN-ACCEPTED / FROZEN`**（2026-09-17 Human Acceptance =
+  `CONFIRMED`；`UI-V1-D01-FIX-01｜Formal Contract Closure` = `INCLUDED / CLOSED`）。
+  Independent Final Review = `PASS — READY FOR FORMAL FREEZE`；P0 = `NONE`、P1 = `NONE`、
+  P2 = `NONE`、P3 = `NONE`。
+- **Formal artifact**：`docs/design/UI-V1/UI-V1-D01-MarketPulse-UI-V1-Formal-Design.md`
+  （Artifact status = `ACCEPTED / FROZEN`）。
+- **Implementation = `NOT STARTED`**（前端仅 Group 1 占位脚手架；`frontend/vite.config.ts`
+  尚无 `/api` proxy）；Product Read API implementation = `NOT STARTED`；前端库选型 =
+  `DEFERRED` 至 `UI-F01`。
+- 产品定位 = **Read-Only Paper Trading Operations & Evidence Terminal**（只读纸面交易运维与
+  证据终端，**非**手工交易终端 / **非**运行时控制面板 / **非** Live Trading UI / **非** AI
+  自主控制界面）；顶层 IA = **恰好五页**（总览 / 市场与机会 / 策略研究 / 交易与仓位 / 系统），
+  **AI 无独立顶层页**。
+- 下一计划设计任务：`UI-F01`（Frontend Foundation）→ `UI-RD01`（Product Read API Formal
+  Design）序列，**但本 docs 任务不授权它**；任何后续设计 / 实现均需另开独立获批窗口。
+- ⚠️ 本 Acceptance **只**接受 Formal Design，**不**证明 / 不授权：UI 实现、`PRE-01B-I2`
+  implementation、live `G2→G3` activation、Real AI activation、Gate A / Gate B activation、
+  `Gate C`（`NOT PASSED`）、`Live`（`NOT AUTHORIZED`）、profitability / edge。
+- 边界保持：`N01 overall = ACCEPTED / COMPLETE`；Memory P2
+  `N01-7-R01-RR-P2-01` = `REMAINS / NON-BLOCKING`（**禁止**写 `memory resolved` /
+  `memory is fine` / `no memory concern`）；Real AI = `NOT ACTIVATED`；live G2→G3 =
+  `NOT ACTIVE`；Live Trading = `DISABLED`。
+- 详见 `dev_log/2026-09-17-ui-v1-d01-formal-design-freeze.md`。
+
 ### SE-02D-I01 Deterministic Aggregation Core — ACCEPTED / COMPLETE
 
 ### SE-02D Overall Final Acceptance Closeout — ACCEPTED / COMPLETE

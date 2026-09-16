@@ -183,6 +183,20 @@ provider / model / retry / timeout / deadline / pool / concurrency / shutdown / 
 retention 数值）与 Pack C（Gate-A observation / sufficiency / acceptance thresholds）仍
 `UNRESOLVED`（本收尾**不**发明数值、**不**静默授权 production defaults）。详见「PRE-01B-D2 Result」）
 
+UI-V1-D01 — MarketPulse UI V1 Formal Design — HUMAN-ACCEPTED / FROZEN（2026-09-17 Human
+Acceptance = `CONFIRMED`；included closure `UI-V1-D01-FIX-01` = `INCLUDED / CLOSED`；
+Independent Final Review = `PASS — READY FOR FORMAL FREEZE`；P0 = `NONE` / P1 = `NONE` /
+P2 = `NONE` / P3 = `NONE`；Accepted Design artifact =
+`docs/design/UI-V1/UI-V1-D01-MarketPulse-UI-V1-Formal-Design.md`，Artifact status =
+`ACCEPTED / FROZEN`）。产品定位 = **Read-Only Paper Trading Operations & Evidence Terminal**
+（只读纸面交易运维与证据终端）；顶层信息架构 = 恰好五页（总览 / 市场与机会 / 策略研究 /
+交易与仓位 / 系统），**AI 无独立顶层页**。**本 Acceptance 仅接受 Formal Design；
+`UI implementation = NOT STARTED`**（前端仅 Group 1 占位脚手架，`frontend/vite.config.ts`
+尚无 `/api` proxy）；**不**授权 `UI-F01` / `UI-RD01` 或任何后续实现、**不**激活
+`PRE-01B-I2`、**不**激活 Real AI、**不**接通 live `G2→G3`、**不**接通 Forward Outcome
+运行时调度、**不**改变任何 schema / migration / config / runtime。前端基础库选型 =
+`DEFERRED` 至 `UI-F01`（本 D01 只冻结「需要」，不选库）。详见「UI-V1-D01 Result」）
+
 ## GitHub Repository
 
 - GitHub Repository Full Name: `zwmhua2-lab2/MarketPulse-AI`
@@ -1918,3 +1932,49 @@ retention 数值）与 Pack C（Gate-A observation / sufficiency / acceptance th
   `Product Requirements = ZERO CHANGE`。
 - 集成方法 = `FAST-FORWARD ONLY`；closeout branch = `pre-01b-d2-final-acceptance-closeout`。
 - 详见 `dev_log/2026-09-17-pre-01b-d2-final-acceptance-closeout.md`。
+
+## UI-V1-D01 Result
+
+- 任务：`UI-V1-D01-FINAL-DOC-01`｜MarketPulse UI V1 Formal Design — Repository Persistence
+  （DOCS / STATE ONLY、`NO PRODUCTION IMPLEMENTATION`；**非** New Design、**非** 实现、
+  **非** `UI-F01`、**非** `UI-RD01`、**非** `PRE-01B-I2`、**非** Real AI activation）。
+- 状态 = `UI-V1-D01 = HUMAN-ACCEPTED / FROZEN`（2026-09-17 Human Acceptance = `CONFIRMED`）；
+  **`Implementation = NOT STARTED`**。
+- Included closure：`UI-V1-D01-FIX-01｜Formal Contract Closure` = `INCLUDED / CLOSED`
+  （其语义已并入正式设计 artifact；FIX-01 不产生独立 artifact）。
+- Independent Final Review = `PASS — READY FOR FORMAL FREEZE`；P0 = `NONE`；P1 = `NONE`；
+  P2 = `NONE`；P3 = `NONE`。
+- Accepted Design artifact =
+  `docs/design/UI-V1/UI-V1-D01-MarketPulse-UI-V1-Formal-Design.md`（Artifact status =
+  `ACCEPTED / FROZEN`）。
+- Task Base SHA = `547095f6705ce651272363676e2a2b51a66bb8b6`（= 实测 `origin/main`，
+  无 baseline drift）；task branch = `design/ui-v1-d01-formal-freeze`；**不** merge `main`。
+- Human Acceptance 时点实读：`docs/design/UI-V1/` 此前不存在；全仓库 `UI-V1` 与五个
+  Product Read Projection 名称此前均为零命中，属首次写入。
+- 冻结要点（摘要；完整契约见 Accepted Design artifact，本条目**不**复制全文）：
+  产品定位 = 只读纸面交易运维与证据终端（**非**手工交易终端 / **非**运行时控制面板 /
+  **非** Live Trading UI / **非** AI 自主控制界面）；顶层 IA = 恰好五页且 **AI 无独立顶层页**；
+  主语言简体中文、desktop-first；业务行为 read-only 且**无** mutation 控制项；
+  `LOADING` / `EMPTY` / `FRESH` / `STALE` / `UNAVAILABLE` / `CAPABILITY_NOT_INTEGRATED`
+  互不相同且 unavailable **不**渲染为 zero / empty；Scanner Event **不**成为 BUY/SELL
+  Trading Signal；Opportunity trace 使用双分支模型且 **Forward Outcome ≠ Economic Result**；
+  Edge Primary horizon = `5m` 且使用 **Exact Population identity**（前端不池化人口）；
+  不展示未支持的策略指标与未接受的账户指标；Account 现金语义正确
+  （`cash_balance` / `reserved_cash` / `available_cash` / `realized_pnl`）；
+  支持多标的 / 多经济对象同时存在；**Fill 是交易已发生的必要条件**；
+  Position Protection 仅来自 durable Position authority 且 Plan 过期不使其失效；
+  `Live` / `Ready` / `Health` 互不相同且 `/ready` 503 解析为合法权威状态；
+  Real AI disabled 渲染为 `U0 未激活`；Product boundary 与 Runtime Mode 分离；
+  historical / replay 数据**不**伪装成 live operational truth；认证后的 Product Read 边界；
+  Edge aggregation 的 CPU 工作不阻塞主 event loop；`1440×900` 与 `1280×720` 布局验收；
+  状态**不**单靠颜色传达。
+- 明确非声称（本 Acceptance **仅**接受 Formal Design）：**不**证明 / **不**授权
+  UI 实现、前端实现、Product Read API 实现、`PRE-01B-I2` implementation、live `G2→G3`
+  activation、Real AI activation、provider configuration、Gate A / Gate B activation、
+  Gate C PASS、Live authorization、profitability / trading edge。设计层实施顺序
+  （`UI-F01 → UI-RD01 → UI-I01..UI-I06`）**仅**为排序，**不**自动授权实现。
+- 本任务为 docs/state-only：`Production Code = ZERO CHANGE` / `Frontend Code = ZERO CHANGE` /
+  `Backend Code = ZERO CHANGE` / `Tests = ZERO CHANGE` / `Schema = ZERO CHANGE` /
+  `Migration = ZERO CHANGE` / `Config = ZERO CHANGE` / `Runtime = ZERO` /
+  `PRODUCT_REQUIREMENTS.md = ZERO CHANGE`。
+- 详见 `dev_log/2026-09-17-ui-v1-d01-formal-design-freeze.md`。

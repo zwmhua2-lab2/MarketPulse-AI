@@ -332,3 +332,149 @@
     `SE-02D ACCEPTED / COMPLETE != Gate C PASS`、`Gate C PASS != Live authorization`、
     `SE-02D Expectancy capability != Trading Edge Proof`；下一 Acceptance Group =
     `NOT STARTED / REQUIRES SEPARATE HUMAN-AUTHORIZED DECISION`（本收尾**不**选择、**不**启动）。
+
+- UI-V1-D01 V1（已批准 / 已冻结，2026-09-17 Human Acceptance = `CONFIRMED`）：MarketPulse UI V1
+  Formal Design（Accepted Design artifact =
+  `docs/design/UI-V1/UI-V1-D01-MarketPulse-UI-V1-Formal-Design.md`，Artifact status =
+  `ACCEPTED / FROZEN`；included closure `UI-V1-D01-FIX-01` = `INCLUDED / CLOSED`；
+  Independent Final Review = `PASS — READY FOR FORMAL FREEZE`；P0 / P1 / P2 / P3 = `NONE`；
+  task branch = `design/ui-v1-d01-formal-freeze`；集成方法不适用 —— 本任务**不** merge `main`）。
+  冻结以下设计层决策（**仅** Design 层；**不**授权任何实现；权威细节以 Accepted Design artifact
+  为准，本条目不复制全文）：
+  - **产品定位**：MarketPulse UI V1 = **Read-Only Paper Trading Operations & Evidence
+    Terminal**（只读纸面交易运维与证据终端）；**不**是手工交易终端、**不**是运行时控制面板、
+    **不**是 Live Trading UI、**不**是 AI 自主控制界面。主语言 = 简体中文；目标 = desktop-first；
+    视觉方向 = 深色专业量化终端；视觉参考图仅为方向性参考，**Repository Truth 始终优先**。
+  - **五页 IA**：顶层产品页**恰好五个**——总览 / 市场与机会 / 策略研究 / 交易与仓位 / 系统；
+    **AI 不获得独立顶层页**（AI 仅上下文性出现在 Opportunity / Trading Trace、decision lineage、
+    System activation status）。
+  - **Read-Only 业务行为**：Read-Only 指 **Read-Only Business UI**；UI V1 **无**任何 mutation
+    控制（下单 / 平仓 / 撤单 / SL-TP 修改 / 计划修改 / 暂停 / 恢复 / 急停 / 封禁 / 解除 /
+    事件处置 / 对账修复均不提供）。Authentication Session Establishment via Login POST 准许。
+  - **Authority 边界**：前端只做 presentation（格式化 / 枚举翻译 / display-only spread /
+    按权威观测时间戳渲染 age）；**不得**判定 Risk Admission、Position 生命周期、Canonical
+    Evidence、Aggregate Population、Edge Verdict、Causal Trace、Protection Authority，
+    **不得**发明 account / economic 指标，**不得**推断 Real AI 激活。
+  - **双轴数据能力模型**：Axis A 读面（`A` = 当前正式 HTTP Read Contract 存在 / `B` = 已接受
+    backend truth 存在但需要 Product Read API / `C` = 无当前可消费正式 Read Truth）；
+    Axis B 运行可用性（`ACTIVE` / `ACCEPTED_NOT_INTEGRATED` / `NOT_ACTIVATED`）。两轴**相互独立**；
+    UI 按 backend 显式能力状态渲染，**不得**由一轴推断另一轴。
+  - **Exact Edge Population**：Exact Population Key = `family_id + family_version +
+    instrument_id + market_type + source_type + source_identity +
+    evidence_contract_version`；Aggregate identity = `Population Key + Horizon`；
+    **前端不得池化 populations**；backend 必须暴露 `available_populations[]` /
+    `selected_population_key`；唯一 exact population 匹配时允许自动选择，多个匹配时必须显示
+    「研究人口」选择器。
+  - **Edge 指标与充分性边界**：headline = 「平均成本调整后后续收益」（= Family-level Forward
+    Outcome Expectancy，**不**得称 strategy return / PnL / trading profit）；headline 组同层
+    展示 Expectancy / 95% uncertainty interval / Evidence Sufficiency / Coverage；Coverage
+    分母 = mature population 且 `NOT_YET_DUE` 不算 missing；Positive Rate 不在 V1 主 UI 展示；
+    **不**展示 Win Rate / Sharpe / Sortino / Profit Factor / MFE / MAE / Drawdown /
+    Equity Curve / R-Multiple；**不**引入 Edge Score / 0–100 分 / A-B-C 评级；充分性由 backend
+    的 `evidence_sufficient` / `sufficiency_reasons` 给出，前端**不**重算、**不**评分；
+    Tail evidence V1 = `Worst Observation` + `Worst Decile Mean` 且**不**设 pass/fail 阈值；
+    仅 Current Snapshot，无任意历史 as-of UI。
+  - **Edge 聚合执行安全**：CPU 重负载的确定性 bootstrap 必须离主 async event loop，以 bounded
+    execution（bounded thread offload 可接受）执行；**不得**仅为该 UI 需求引入 Celery / Redis /
+    Kafka / worker service / scheduler；Edge Lab 刷新为低频 / 手动 / 变更通知，**禁止高频轮询**。
+  - **durable Position Protection 权威**：protection-lifetime 唯一权威 = OPEN Position 上的
+    durable protection snapshot；原子权威组 = `protection_plan_id` /
+    `protection_plan_version` / `protection_stop_loss` / `protection_take_profit` /
+    `protection_updated_at`（全 null 或全完整）；Current Protection **绝不**从最新 Active Plan
+    推断；`Plan Expired` **不**蕴含 `Position Protection Expired`；展示四态 `NOT_REQUIRED` /
+    `PROTECTED` / `UNPROTECTED` / `UNKNOWN` 且 `UNPROTECTED != UNKNOWN`。
+  - **执行与账户语义**：`Risk Accepted != Execution Intent != Order Open != Fill !=
+    Position`，只有实际 Fill 才证明 Paper 经济动作已发生，Order Open 仅表示「等待成交」，
+    **不得**在无 durable Position 事实时显示「已建仓」；Risk rejection 与 execution rejection
+    分离，Risk rejection 保留 authority + 精确 reason。`cash_balance` = 现金余额（**不得**标注为
+    「可用资金」）、`reserved_cash` = 预留资金、`available_cash` = `cash_balance -
+    reserved_cash`（**优先**由 backend Read Projection 显式返回）、`realized_pnl` = 账户累计
+    已实现盈亏；**不**引入 Account Equity / Unrealized PnL；V1 **不**要求「整笔 Trade 总盈亏」
+    （需另行接受的 `TradeEconomicSummary` 契约）。
+  - **经济集合模型**：**绝不**假设全局单例经济对象；Current Economic State 建模为
+    `positions[]` / `active_plans[]` / `open_orders[]` / `pending_intents[]`，BTC 与 ETH 可
+    同时持有经济状态；Overview 使用计数 / 摘要；Position Protection 始终 per Position。
+  - **数据状态与「无 / 未」语义**：`LOADING` / `EMPTY` / `FRESH` / `STALE` / `UNAVAILABLE` /
+    `CAPABILITY_NOT_INTEGRATED` 互不相同；**unavailable ≠ zero**（Unavailable Position ≠ 无
+    仓位、Unavailable Account ≠ 零余额、Unavailable Outcome ≠ 0%）；STALE 的 last-known 可继续
+    可见但必须显式标记并显示数据年龄；`CAPABILITY_NOT_INTEGRATED != EMPTY`。`NONE` 语义五分为
+    未激活 / 未发生 / 未到达 / 暂无可证明记录 / 暂不可用，**不得**合并。全局状态 = `S0` 正常 /
+    `S1` 提示 / `S2` 注意 / `S3` 警告 / `S4` 严重 / `U0` 未激活 / `U1` 不可用-未知，并按冻结的
+    最小权威严重度映射（`HostReadinessStatus.DEGRADED` / lane / telemetry degradation /
+    non-blocking Incident = `S2`；Position-Protection truth `UNKNOWN` = `S3`；
+    `FAIL_CLOSED` / blocking Incident / `POSITION_UNPROTECTED` = `S4`；ordinary unavailable
+    read source = `U1`）；**状态绝不单靠颜色传达**。
+  - **Trace 与来源隔离**：Opportunity 因果链为**双分支**（`Opportunity + Evidence` 分别通向
+    Forward Outcome 分支与 Trading Decision 分支）；**Forward Outcome 绝不可展示为
+    AI / Decision / Trading 的前置**，且 **Forward Outcome ≠ Economic Result**；Operational
+    Market & Opportunity 必须使用 `FORWARD_PAPER` 语义，当前 Forward Paper 数据不可用时
+    **绝不**静默替换为 `HISTORICAL_REPLAY`；Historical Replay **绝不**作为当前 live
+    operational truth 呈现。域来源隔离**不**套用统一 `run_mode`（Trading 按 `run_mode`；
+    Edge/Opportunity 按 `source_type` + `source_identity` + exact Population identity；
+    Operational Market/Scanner 必须来自当前 operational Runtime / database context）。
+  - **Runtime producer 局限（当前真值）**：当前 `RuntimeHost` / Scanner runtime **尚未**提供完整
+    接通的 `live G2 → Formal Opportunity Evidence → Forward Outcome scheduling →
+    live Advisory / G3`；`PRE-01B-D2` Formal Design 已 `ACCEPTED` 但 `PRE-01B-I2` **未**实现 /
+    **未**激活；UI 实现**绝不**允许静默接通这些能力，必须暴露相应 capability 状态。
+    Real AI 的预期内 disabled 状态渲染为 `U0 未激活`（**不**是 warning / error），且**不**发明
+    durable「AI 排队中」——当前已接受设计明确**不存在** durable `QUEUED` 状态。
+  - **读接口与传输边界**：Public = `POST /api/v1/auth/login` / `GET /api/v1/live` /
+    `GET /api/v1/ready` / `GET /api/v1/health`；Authenticated = `/api/v1/runtime` / 既有
+    instruments / universe / 全部未来 Product Read API；任何 secret **不得**暴露于前端或 API
+    响应。前端应用代码使用相对 `/api/...` + 开发期 Vite `/api` proxy → `127.0.0.1:8000`，
+    **不得**仅为本地 V1 引入宽泛 CORS；每个新 Product Read endpoint **必须**使用显式 typed
+    Pydantic Response DTO 并重新生成前端 OpenAPI types，**不得**以 `any` /
+    `unknown-as-business-model` / 手写重复权威 DTO 作为常规业务边界。`GET /api/v1/ready` 的
+    503 是**权威 NOT READY payload**，**不是**通用 transport / network failure，UI 必须解析并
+    展示 body（标签「运行就绪」），且 Readiness **不**等于 Risk Admission（前端**不得**从 ready
+    推断 `risk_admission_open`，如需展示须由 backend Product Read Projection 显式暴露）。
+    前端**不得**仅由时间戳推断「Recovery Complete」，恢复状态须由 System Product Read Projection
+    显式暴露 `recovery.status` / `recovery.ready_at` / `recovery.reason`。
+  - **System 页边界**：严格分离 Live / Ready / Health / Runtime telemetry / Market data 与
+    provider / Queues 与 lanes / DB / Singleton fence / Recovery / Reconciliation /
+    Operator Intent 与 System Derived State / Incidents / AI 与 Advisory activation；
+    **Reconciliation = detector only，绝不作为 repair engine**；UI V1 **不**提供 Pause /
+    Resume / Emergency Stop / Block / Unblock / Resolve Incident / Repair。
+  - **Product Read Projections**：冻结五个逻辑读模型——`MarketScannerRead` /
+    `OpportunityTraceRead` / `EdgeAggregateRead` / `TradingAuditRead` /
+    `SystemIncidentRead`；它们是 **read projections**，**不是**新的业务权威，且**不得**为每个
+    视觉组件创建 endpoint。
+  - **部分可用性与性能边界**：必须支持跨域部分可用（单域失败**不得**整页置空）；强耦合经济域内
+    backend 须提供合理快照一致性（`Position + Protection` / `Order + Fill` /
+    `Account + Reservation`），前端**不得**用不相关读取自行拼装一致状态。
+    Market & Opportunity 范围 = `15m / 30m / 1h / 4h / 6h / 24h / 7d / 30d / custom`
+    （默认 `1h`，list 语义 `detected_at ∈ [start, end)`，Scanner timeline 用 Scanner Event
+    `event_time`，Forward Outcome 从 `evidence_at` 起算且独立于 record-range 过滤）；大规模历史
+    使用稳定 cursor / keyset 风格分页；**不得**因这些范围存在就授权 schema / index 变更，
+    任何新 index / migration 需独立证据与批准。
+  - **呈现限额与优先级**：Top-level 页**恰好五个**；Overview Needs Attention 最多约 3 条
+    （System 页为完整活动问题 / 事件视图），优先级 = blocking system safety → position /
+    protection safety → other warnings → informational；**不得**把正常状态变成警报墙，
+    **不得**推断 backend 未返回的因果关系。
+  - **时区与布局**：主 UI 用浏览器本地时区并带时区指示；Technical trace 用 UTC ISO 8601；
+    自定义范围 `[start, end)`，前端将本地边界转 UTC 后再查询。Desktop-first；主验收视口
+    `1440 × 900`、最低支持 `1280 × 720`（更低时允许滚动但**不得**关键状态重叠 / 裁切）。
+  - **实现顺序（仅排序，不授权）**：`UI-F01`（Frontend Foundation）→ `UI-RD01`（Product
+    Read API Formal Design）→ `UI-I01`（Global Shell + System）→ `UI-I02`（Market/Scanner +
+    Market & Opportunity）→ `UI-I03`（Trading & Position）→ `UI-I04`（Edge Lab）→
+    `UI-I05`（Overview）→ `UI-I06`（Cross-Page Integration / Final Acceptance）。
+  - **前端基础决策**：本 D01 冻结对 Router / Server Query-Cache / API Client / Auth Session
+    Boundary / OpenAPI generation / Frontend test harness / Global Data State Boundary 的
+    **需要**，但**不**选择具体库；库选型属 `UI-F01` Formal Task Design，优先复用成熟库、
+    **不得**构建不必要的自定义框架。
+  - **Explicit Out of Scope**：Live Trading、Short Execution、手工 Buy/Sell、手工 Close、
+    Cancel Order、SL/TP mutation、Trade Plan mutation、Pause/Resume、Emergency Stop、Symbol
+    Block/Unblock、Incident Resolve、Reconciliation Repair、Scanner configuration、Strategy
+    configuration、Strategy ranking、KEEP/DOWNWEIGHT/KILL、parameter optimization、Real AI
+    activation、`PRE-01B-I2` implementation、Forward Outcome runtime wiring、Gate A/B/C
+    control、multi-model voting/fallback、Win Rate、MFE/MAE product metrics、Sharpe、Sortino、
+    Profit Factor、Drawdown、Equity Curve、R-Multiple、Account Equity、Unrealized PnL、
+    无新接受契约的 per-Trade lifetime total PnL、historical arbitrary Edge as-of browser、
+    Replay Dashboard、raw DB browser、desktop wrapper architecture、3D / GPU-heavy
+    visualization。
+  - **边界**：本 Acceptance **仅**接受 Formal Design 本身，**不**构成 UI implementation
+    （`NOT STARTED`）/ 前端或后端实现 / Product Read API implementation / `PRE-01B-I2`
+    implementation / live `G2→G3` activation / Real AI activation / provider configuration /
+    Gate A activation / Gate B activation / `Gate C PASS` / Live authorization /
+    profitability / edge 的任何进度；`Gate C = NOT PASSED`；`Live = NOT AUTHORIZED`。
+    详见 `dev_log/2026-09-17-ui-v1-d01-formal-design-freeze.md`。
