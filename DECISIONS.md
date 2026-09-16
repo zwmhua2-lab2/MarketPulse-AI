@@ -99,6 +99,49 @@
   - **`F-01`** durable `state_version` authority 保留（Host 不造并行 authority）；**`F-02`** safety queue capacity `64` 仍 configurable / evidence-based（非永久架构常量）。
   - **边界**：本 Acceptance **仅**接受 Implementation Core V1，不构成 OS/service deployment / Real AI activation / G2→G3 activation / `SE-02D` Production complete / Live Trading / profitability / edge 的任何进度。详见 `dev_log/2026-09-15-pre-01b-i1-final-acceptance-reconciliation.md`。
 
+- PRE-01B-D2 V1（已批准，2026-09-17 Human Acceptance = `CONFIRMED`）：AdvisoryIngress /
+  durable G2→G3 Activation Contract Formal Design（Accepted Design artifact =
+  `docs/design/PRE-01B/PRE-01B-D2-AdvisoryIngress-G2-G3-Activation-Contract.md`；Human-Accepted
+  reviewed candidate = `cce1ae7b862b038a99976c802c0985df01b35285`，branch
+  `design/pre-01b-d2-fix-05-return-completion-authority`，immutable；Independent Re-Review =
+  `PRE-01B-D2-FIX-05 = PASS`；P0 / P1 / P2 / P3 = `NONE`；closeout branch =
+  `pre-01b-d2-final-acceptance-closeout`；集成方法 = `FAST-FORWARD ONLY`）。冻结以下架构决策
+  （**仅** Design 层；`PRE-01B-I2` Implementation 未开始、本 Acceptance 未授权）：
+  - **Host-owned AdvisoryIngress boundary**：未来 `AdvisoryIngress` 由 `RuntimeHost` 拥有；
+    producer 只在已接受的 G2 formal transaction 内产出 exact qualifying record。
+  - **Exact admission Evidence revision binding**：admission 绑定同 transaction 内 staged 的
+    exact Evidence revision（opportunity / evidence_id / revision / evidence_hash /
+    feature_snapshot_hash），**不是** SE-02D canonical head；Admission Evidence 与
+    Canonical Evidence Head 是两个必须区分的概念。
+  - **Immutable decision invocation identity**：one `decision_invocation_id` → exactly one
+    collision-free logical durable final decision（沿用 PRE-01A-D1 已接受语义，retry 共享
+    invocation 但拥有独立 attempt identity）。
+  - **Bounded in-process advisory dispatch**：bounded / non-blocking queue；无 durable `QUEUED`
+    状态；`REJECT NEWEST`；queue full 的 durable 终态 = `CAPACITY_BLOCKED / ADVISORY_QUEUE_REJECTED`。
+  - **PostgreSQL durable correctness authority**：admission Evidence / Invocation / terminal
+    result 的 durable 正确性权威在 PostgreSQL，不在进程内状态；process death 不 fabricate release。
+  - **Shadow-safe Gate A boundary**：Gate A consumer = shadow advisory decision path，
+    provenance-only write allow-list；`G3Workflow` **不**在 Gate A 使用。
+  - **Provider / DB separation**：provider I/O 持有 zero DB resource。
+  - **Protection isolation**：Advisory 不得消费 Protection-reserved 容量；shared-pool 声明
+    仅为 attribution-only（`H_o + H_g + U <= A`、`A + R <= C`）。
+  - **Accepted DB timeout / SAVEPOINT semantics**：caller-owned timeout capture / restore、
+    no idle/client cancel、rollback / connection-validity 规则不变；core flush → immediate
+    token try → `begin_nested()`；token failure = zero Advisory SQL + zero SAVEPOINT。
+  - **Accepted connection-return completion authority**：容量释放需要完整 positive predicate
+    （同 generation pool observation + owner cleanup 成功 + 同 epoch / lease / cleanup attempt
+    authoritative）；**no callback-only capacity release** —— 单一 callback、单次
+    `invalidate()` return 或 checkin observation 均**不**增加容量；unknown / cancelled cleanup
+    退化为 `RETURN_UNCERTAIN_RETIRED` 并 fail closed。
+  - **Gate A / Gate B separation**：显式 activation level；Gate B startup fail-closed 直至获批。
+  - **边界**：本 Acceptance **仅**接受 Formal Design，**不**构成 `PRE-01B-I2` implementation /
+    live G2→G3 activation / Real AI activation / provider configuration / Gate A activation /
+    Gate B activation / Gate C PASS / Live authorization / profitability / edge 的任何进度。
+    Human Decision Pack：Pack A = `NONE`；Pack B（numeric provider / model / retry / timeout /
+    deadline / pool / concurrency / shutdown / queue / cost / retention 数值）与 Pack C（Gate-A
+    observation / sufficiency / acceptance thresholds）仍 `UNRESOLVED`。详见
+    `dev_log/2026-09-17-pre-01b-d2-final-acceptance-closeout.md`。
+
 - SE-02D-D01 V1（已批准，2026-09-15 Human Acceptance = `CONFIRMED`）：Family Aggregation /
   Forward-Outcome Expectancy Contract V1（Accepted Design artifact =
   `docs/design/SE-02D/SE-02D-D01-Family-Aggregation-Expectancy-Contract.md`；Human-Accepted

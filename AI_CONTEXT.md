@@ -41,6 +41,18 @@
   activation / live Opportunity → G3 handoff / `SE-02D` / Live Trading 的任何进度。
   Implementation carry-ins：`F-01`（`state_version_for` 必须绑定已接受的 durable
   state/version authority）/ `F-02`（safety queue capacity `64` 仅为初始可配置默认值）。
+- **PRE-01B-D2 = `ACCEPTED / COMPLETE`**（2026-09-17 Human Acceptance = `CONFIRMED` + Final
+  Acceptance Closeout；Independent Re-Review = `PRE-01B-D2-FIX-05 = PASS`；P0 = `NONE` /
+  P1 = `NONE` / P2 = `NONE` / P3 = `NONE`；Human-Accepted reviewed candidate =
+  `cce1ae7b862b038a99976c802c0985df01b35285`（branch
+  `design/pre-01b-d2-fix-05-return-completion-authority`，immutable；远端同 SHA、未被移动）；
+  Accepted Design artifact =
+  `docs/design/PRE-01B/PRE-01B-D2-AdvisoryIngress-G2-G3-Activation-Contract.md`）。
+  **本 Acceptance 仅接受 AdvisoryIngress / durable G2→G3 Activation Contract 的 Formal Design**，
+  **不** 构成 `PRE-01B-I2` implementation（仍 `NOT STARTED / NOT AUTHORIZED BY THIS CLOSEOUT`）/
+  live `G2→G3` activation / Real AI activation / Gate A / Gate B / Gate C / Live 的任何进度。
+  Human Decision Pack：Pack A = `NONE`；Pack B（numeric activation settings）/ Pack C（Gate-A
+  observation / sufficiency / acceptance thresholds）仍 `UNRESOLVED`。
 - **SE-02D-D01 = `ACCEPTED / COMPLETE`**（2026-09-15 Human Acceptance = `CONFIRMED` + Final
   Acceptance Closeout；Independent Initial Review = `FAIL — FIX REQUIRED`；FIX-01 Independent
   Re-Review = `PASS`；`D01-R1` / `D01-R2` = `CLOSED`；`D01-R3` = `CLARIFIED / NON-BLOCKING`；
@@ -539,6 +551,38 @@ disposable 库保持空表（症状 `relation "edge_opportunity_evidence" does n
   `SE-02D-I01` 已于 2026-09-15 经 Human Acceptance 转为 `ACCEPTED / COMPLETE`）；Real AI =
   `NOT ACTIVATED`；live Opportunity → G3 = `NOT ACTIVE`；Live Trading = `DISABLED`。
 - 详见 `dev_log/2026-09-15-pre-01b-d1-final-acceptance-closeout.md`。
+
+### PRE-01B-D2 AdvisoryIngress / G2→G3 Activation Contract — ACCEPTED / COMPLETE
+
+- 任务：`PRE-01B-D2`｜AdvisoryIngress / G2→G3 Activation Contract Formal Design →
+  `PRE-01B-D2-CLOSE`｜Final Acceptance Closeout & Fast-Forward Main Integration（docs/state-only；
+  **非** Implementation、**非** New Design、**非** New Review、**非** Runtime activation、
+  **非** `PRE-01B-I2`）。
+- 状态：**`PRE-01B-D2 = ACCEPTED / COMPLETE`**（2026-09-17 Human Acceptance = `CONFIRMED`）。
+  Independent Re-Review = `PRE-01B-D2-FIX-05 = PASS`；P0 = `NONE`、P1 = `NONE`、P2 = `NONE`、
+  P3 = `NONE`。
+- **Human-Accepted reviewed candidate = `cce1ae7b862b038a99976c802c0985df01b35285`**
+  （branch `design/pre-01b-d2-fix-05-return-completion-authority`，远端同 SHA、immutable、
+  未被移动）。accepted lineage（线性单 parent）=
+  `a90c5968… → b5767d1… → 4548920… → d3922dd… → cce1ae7…`（`FIX-02` / `FIX-03` / `FIX-04`
+  为 historical failed reviewed candidates，保持 immutable、**不**改写为 PASS）。
+- Accepted Design artifact =
+  `docs/design/PRE-01B/PRE-01B-D2-AdvisoryIngress-G2-G3-Activation-Contract.md`；closeout branch =
+  `pre-01b-d2-final-acceptance-closeout`；集成方法 = `FAST-FORWARD ONLY`。
+- 已接受架构决策摘要见 `DECISIONS.md`「PRE-01B-D2 V1」条目；完整契约见 Accepted Design artifact
+  （本文件**不**复制契约全文）。
+- Human Decision Pack carry-forward（**不**表示设计有缺陷或未被接受）：Pack A = `NONE`；
+  Pack B = numeric production activation settings 仍 `UNRESOLVED`；Pack C = Gate-A observation /
+  sufficiency / acceptance thresholds 仍 `UNRESOLVED`。
+- ⚠️ 本 Acceptance **只**接受 Formal Design，**不**证明 / 不授权：`PRE-01B-I2` implementation、
+  live `G2→G3` activation、Real AI activation、provider configuration、真实 provider 调用、
+  Gate A activation、Gate B activation、`Gate C`（`NOT PASSED`）、`Live`（`NOT AUTHORIZED`）、
+  profitability / edge。Design Acceptance 是前置条件，**不是** runtime activation。
+- 边界保持：`N01 overall = ACCEPTED / COMPLETE`；Memory P2
+  `N01-7-R01-RR-P2-01` = `REMAINS / NON-BLOCKING`（**禁止**写 `memory resolved` /
+  `memory is fine` / `no memory concern`）；Real AI = `NOT ACTIVATED`；live G2→G3 =
+  `NOT ACTIVE`；Live Trading = `DISABLED`。
+- 详见 `dev_log/2026-09-17-pre-01b-d2-final-acceptance-closeout.md`。
 
 ### N01-8 12-hour Extended Runtime Soak — ACCEPTED / COMPLETE
 

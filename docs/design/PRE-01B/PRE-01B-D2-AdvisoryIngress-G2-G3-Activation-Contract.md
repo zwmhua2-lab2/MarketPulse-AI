@@ -4,9 +4,11 @@
 
 ```text
 Artifact: PRE-01B-D2 AdvisoryIngress / G2→G3 Activation Contract
-Status: FIX CANDIDATE DESIGN
-Review: READY FOR INDEPENDENT RE-REVIEW
-Human Acceptance: NOT PERFORMED
+Status: ACCEPTED / COMPLETE
+Human Acceptance: CONFIRMED — 2026-09-17
+Human-Accepted reviewed candidate: cce1ae7b862b038a99976c802c0985df01b35285
+Independent Re-Review: PRE-01B-D2-FIX-05 = PASS
+Review severity: P0 = NONE / P1 = NONE / P2 = NONE / P3 = NONE
 Task type: DESIGN FIX ONLY / DOCS ONLY
 Implementation authorized by this artifact: NO
 Runtime or provider activation authorized by this artifact: NO
@@ -1834,8 +1836,8 @@ SE-02D-I02/I03 Runtime Reuse = NONE（仅概念性复用 accepted canonicalizati
 Schema = reuse Evidence chain/attribution + minimal Evidence/Snapshot/AIDecision
          extensions + two new minimal tables；无 migration（属 I2）
 I2 Numeric Blockers = NONE when activation remains disabled and config explicit/unset
-Artifact Status = PRE-01B-D2-FIX-05 / FIX CANDIDATE DESIGN /
-                  READY FOR INDEPENDENT RE-REVIEW / HUMAN ACCEPTANCE NOT PERFORMED
+Artifact Status = PRE-01B-D2 / ACCEPTED / COMPLETE
+Task Status = ACCEPTED / COMPLETE（Human Acceptance 2026-09-17）
 ```
 
 ## 31. Independent Review Finding Dispositions
@@ -2430,11 +2432,11 @@ FIX-04 historical title/status/proof 可保留其时间点事实，但不得重�
 
 ```text
 PRE-01B-D2-RR04 = FAIL — FIX REQUIRED
-PRE01B-D2-RR04-P1-01 = FIX-05 CLAIMED CLOSED / AWAITING INDEPENDENT RE-REVIEW
+PRE01B-D2-RR04-P1-01 = CLOSED（Independent Re-Review PRE-01B-D2-FIX-05 = PASS）
 RR03-P1-01 Timeout Semantics = PRESERVED CLOSED
 RR03-P2-01 Token/SAVEPOINT Ordering = PRESERVED CLOSED
 RR01 / RR02 closed findings = PRESERVED
-Human Acceptance = NOT PERFORMED
+Human Acceptance = CONFIRMED — 2026-09-17（见文末「Acceptance Record」）
 ```
 
 本轮只修 connection-return completion authority 及其直接依赖的 capacity/shutdown wording。
@@ -2636,12 +2638,108 @@ cross-process token persistence。
 - **Pack C**：仅 observation window / sufficiency thresholds；不在 D2 发明 PASS threshold。
 
 ```text
-PRE-01B-D2-FIX-05 = FIX CANDIDATE DESIGN
-STATUS = READY FOR INDEPENDENT RE-REVIEW
+PRE-01B-D2 = ACCEPTED / COMPLETE
+STATUS = ACCEPTED / COMPLETE
+REVIEWED CANDIDATE PRE-01B-D2-FIX-05 = cce1ae7b862b038a99976c802c0985df01b35285
 SOURCE FIX-04 = d3922dd35ba83312194d124e17fa8645dead6e4d
-FINDING PRE01B-D2-RR04-P1-01 = CLAIMED CLOSED / AWAITING INDEPENDENT RE-REVIEW
-HUMAN ACCEPTANCE = NOT PERFORMED
+FINDING PRE01B-D2-RR04-P1-01 = CLOSED（Independent Re-Review PRE-01B-D2-FIX-05 = PASS）
+HUMAN ACCEPTANCE = CONFIRMED — 2026-09-17
 I2 IMPLEMENTATION = NOT AUTHORIZED
 MIGRATION / SCHEMA / RUNTIME / TEST / CONFIG CHANGE = NO
 PROJECT DATABASE / SERVICE / PROVIDER / GATE / REAL AI / LIVE MUTATION = NO
 ```
+
+
+## Acceptance Record
+
+```text
+Artifact: PRE-01B-D2 AdvisoryIngress / G2→G3 Activation Contract
+Status: ACCEPTED / COMPLETE
+Task type: FORMAL DESIGN / ARCHITECTURE CONTRACT / DOCS ONLY
+Human Acceptance: CONFIRMED — 2026-09-17
+Human-Accepted reviewed candidate: cce1ae7b862b038a99976c802c0985df01b35285
+Reviewed candidate branch: design/pre-01b-d2-fix-05-return-completion-authority
+Independent Re-Review: PRE-01B-D2-FIX-05 = PASS
+P0: NONE
+P1: NONE
+P2: NONE
+P3: NONE
+Closeout branch: pre-01b-d2-final-acceptance-closeout
+Main integration: FAST-FORWARD ONLY
+PRE-01B-I2 Implementation: NOT STARTED / NOT AUTHORIZED BY THIS CLOSEOUT
+Real AI: NOT ACTIVATED
+live G2→G3: NOT ACTIVE
+Gate A: NOT ACTIVATED
+Gate B: NOT ACTIVATED
+Gate C: NOT PASSED
+Live: NOT AUTHORIZED
+```
+
+本 Acceptance **仅** 接受本文件所冻结的
+`PRE-01B-D2 AdvisoryIngress / durable G2→G3 Activation Contract` Formal Design。
+
+它 **不** 证明、**不** 授权：`PRE-01B-I2` implementation、live `G2→G3` activation、
+Real AI activation、provider configuration、真实 provider 调用、Gate A activation、
+Gate B activation、Gate C PASS、Live authorization、profitability / trading edge。
+Design Acceptance 是前置条件，**不是** runtime activation。
+
+### Accepted Reviewed Lineage（evidence pointers）
+
+```text
+a90c5968be4b456aabde814eb35d4757380761f7   Accepted Main before closeout
+b5767d147adfeb885dd285243a32041a6731918c   failed reviewed FIX-02 candidate — historical evidence
+4548920fddc7e4f84b0edab8a7e5d72fc35d54ff   failed reviewed FIX-03 candidate — historical evidence
+d3922dd35ba83312194d124e17fa8645dead6e4d   failed reviewed FIX-04 candidate — historical evidence
+cce1ae7b862b038a99976c802c0985df01b35285   Human-Accepted reviewed FIX-05 candidate — immutable
+```
+
+### Independent Re-Review Result Persistence
+
+`PRE-01B-D2-FIX-05 Independent Re-Review = PASS`。
+
+本 Acceptance 关闭的 finding（最终 resource-lifecycle 链）：
+
+- `RR03-P1-01` timeout semantics — `CLOSED`
+- `RR03-P2-01` token / SAVEPOINT ordering — `CLOSED`
+- `RR03-P1-02` connection return authority — `CLOSED`（由 RR04 `P1-01` disposition 取代）
+- `RR04-P1-01` return completion authority — `CLOSED`
+- `RR01 P1-05` resource fence — `CLOSED`
+- `RR02 P1-01` caller-owned lease / Protection capacity — `CLOSED`
+
+Final review severity：`P0 = NONE` / `P1 = NONE` / `P2 = NONE` / `P3 = NONE`。
+
+历史 failed candidate / failed review 记录（§32.10 / §33.9 / §34.8，以及
+`design/pre-01b-d2-fix-01` ～ `design/pre-01b-d2-fix-04` 各分支）保持其 review 时点事实，
+**不** 被改写为 PASS；这些历史 verdict block 中残留的 `HUMAN ACCEPTANCE = NOT PERFORMED`
+属历史快照。本 artifact 的**当前** acceptance 状态**只**由顶部 `Artifact Status`、
+§30、§35.8 与本「Acceptance Record」表达。
+
+### Implementation Carry-Forward（Human Decision Pack）
+
+本 Acceptance 冻结架构，但 **不** 填充 numeric activation policy：
+
+- **Pack A = NONE**（connection-return completion authority 已由 §35 唯一冻结，
+  不是 numeric Human Decision）。
+- **Pack B** = numeric production activation settings 仍 `UNRESOLVED`：适用的
+  provider / model / retry / timeout / deadline / pool / concurrency / shutdown /
+  queue / cost / retention 数值均未在本收尾中发明，也未静默授权 production defaults
+  （`DISABLED` 下可 unset；Gate A active 前必须显式有效）。
+- **Pack C** = Gate-A observation window / sufficiency / acceptance thresholds 仍 `UNRESOLVED`。
+
+### 协议版本说明
+
+本文件 §1 `Repository Truth` 记录的是**设计 / review 时点**的 Global Protocol 快照
+（v1.1.0 / `07e2df8…`）。本次 Human Acceptance 执行时点的 protocol remote `main` =
+`2acef8fe802ce280f3e041925dd047d456ed6d54`，其 `AI_DEVELOPMENT_PROTOCOL.md` 仍为
+`Protocol Version: 1.1.0` / `Status: ACCEPTED`。该差异属协议仓库自身的版本推进，
+**不** 改变、**不** 影响本设计任何架构语义。
+
+### 收口编辑边界
+
+本次 closeout 对本文件只做状态级最小同步：顶部 `Artifact Status` 块、§30
+`Design Verification / Candidate Verdict` 的 `Artifact Status` / `Task Status` 两行、
+§35.1 RR04 verdict block 中两条已失效的 current-state 行、§35.8 candidate verdict block，
+以及本「Acceptance Record」章节。**设计正文（normative architecture semantics）逐字未改**，
+与 reviewed FIX-05 candidate（`cce1ae7b…`）保持语义一致；未新增任何 architecture decision。
+文首 H1 保留 reviewed candidate 的迭代标题
+（`# PRE-01B-D2-FIX-05｜Connection Return Completion Authority Fix`），未改写。

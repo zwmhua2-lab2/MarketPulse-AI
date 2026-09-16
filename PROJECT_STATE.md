@@ -168,6 +168,21 @@ state/version authority）/ `F-02`（safety queue capacity `64` 仅为初始可�
 
 PRE-01B-I1 — Integrated Runtime Host Core V1 Implementation — ACCEPTED / COMPLETE（2026-09-15 Human Acceptance = `CONFIRMED` + Final Acceptance Closeout & Latest-Main Reconciliation；Independent Initial Review = `FAIL — FIX REQUIRED`；FIX-01 Independent Re-Review = `PASS WITH NON-BLOCKING FINDINGS`；P0 = `NONE` / P1 = `NONE`；Human-Accepted reviewed candidate = `68dd7e96cc8547433794b045fa99e1e9dc5b7892`，branch `pre-01b-i1-fix-01-runtime-host-lifecycle`，immutable；Original Candidate = `b66e17d34173156b3797b664dbe09625511a0a11`；集成方法 = `FAST-FORWARD ONLY`（content-level carry-forward onto latest `main` `0ae5b0b…`；drift 正交 = `SE-02D-I01`，未触碰任何 PRE-01B 路径）；Runtime Host Core V1 = `ACCEPTED / COMPLETE`。**本 Acceptance 仅接受 Implementation Core V1 本身**：Real AI runtime activation 仍 `NOT STARTED / NOT ACTIVATED`；live G2→G3 integrated handoff 仍 `NOT ACCEPTED / NOT ACTIVE`；`SE-02D` Production = `IN PROGRESS`（SE-02D-I01 = `ACCEPTED / COMPLETE`）；OS/service / WinSW / Live Trading 仍 `NOT COMPLETE / DISABLED / NOT AUTHORIZED`；Memory P2 `N01-7-R01-RR-P2-01` 仍 `REMAINS / NON-BLOCKING`；RR-P2-01（Alembic URL 优先级 / `DATABASE_URL` 交互）= `NON-BLOCKING TEST-INFRASTRUCTURE DEBT`（本任务不修）；P2-02（历史 process-scope violation）= `REMAINS AS AUDIT FINDING`。详见「PRE-01B-I1 Result」）
 
+PRE-01B-D2 — AdvisoryIngress / durable G2→G3 Activation Contract — ACCEPTED / COMPLETE（2026-09-17 Human
+Acceptance = `CONFIRMED` + Final Acceptance Closeout；Independent Re-Review = `PASS`；P0 = `NONE` /
+P1 = `NONE` / P2 = `NONE` / P3 = `NONE`；Human-Accepted reviewed candidate =
+`cce1ae7b862b038a99976c802c0985df01b35285`，branch
+`design/pre-01b-d2-fix-05-return-completion-authority`，immutable；Accepted Design artifact =
+`docs/design/PRE-01B/PRE-01B-D2-AdvisoryIngress-G2-G3-Activation-Contract.md`；集成方法 =
+`FAST-FORWARD ONLY`。**本 Acceptance 仅接受 Formal Design 本身**：`PRE-01B-I2` 仍
+`NOT STARTED / NOT AUTHORIZED BY THIS CLOSEOUT`；live `G2→G3` 仍 `NOT ACTIVE`；Real AI 仍
+`NOT ACTIVATED`；Gate A 仍 `NOT ACTIVATED`；Gate B 仍 `NOT ACTIVATED`；Gate C 仍 `NOT PASSED`；
+Live 仍 `NOT AUTHORIZED`；Live Trading 仍 `DISABLED`；Memory P2 `N01-7-R01-RR-P2-01` 仍
+`REMAINS / NON-BLOCKING`。Human Decision Pack 未解决项保持：Pack A = `NONE`；Pack B（numeric
+provider / model / retry / timeout / deadline / pool / concurrency / shutdown / queue / cost /
+retention 数值）与 Pack C（Gate-A observation / sufficiency / acceptance thresholds）仍
+`UNRESOLVED`（本收尾**不**发明数值、**不**静默授权 production defaults）。详见「PRE-01B-D2 Result」）
+
 ## GitHub Repository
 
 - GitHub Repository Full Name: `zwmhua2-lab2/MarketPulse-AI`
@@ -688,6 +703,7 @@ PRE-01B-I1 — Integrated Runtime Host Core V1 Implementation — ACCEPTED / COM
   的任何进度。
 - **`PRE-01B-I1｜Integrated Runtime Host Core V1 Implementation = ACCEPTED / COMPLETE`**（2026-09-15 Human Acceptance = `CONFIRMED` + Final Acceptance Closeout & Latest-Main Reconciliation；Human-Accepted reviewed candidate = `68dd7e9`，branch `pre-01b-i1-fix-01-runtime-host-lifecycle`，immutable；Original Candidate = `b66e17d…`；Independent Initial Review = `FAIL — FIX REQUIRED`；FIX-01 Independent Re-Review = `PASS WITH NON-BLOCKING FINDINGS`；已 content-level carry-forward 收编 latest `main` `0ae5b0b…`（drift 正交 = `SE-02D-I01`，未触碰任何 PRE-01B 路径）；见 Current Group 与本文「PRE-01B-I1 Result」）。该 Acceptance 接受 **Implementation Core V1**，**不** 构成 OS/service deployment / Real AI activation / G2→G3 activation / `SE-02D` Production complete / Live Trading 的任何进度。
 - **`Integrated Runtime Host Core V1 Implementation = ACCEPTED / COMPLETE`**（PRE-01B-I1，2026-09-15 Human Acceptance = `CONFIRMED`；content-level carry-forward 收编 latest `main` `0ae5b0b…`；集成方法 = `FAST-FORWARD ONLY`）。**不** 构成 OS/service / WinSW process supervision / Real AI activation / G2→G3 live handoff / `SE-02D` Production complete / Live Trading 的任何进度（这些仍 `NOT COMPLETE / DISABLED / NOT AUTHORIZED`）。
+- **`PRE-01B-D2｜AdvisoryIngress / durable G2→G3 Activation Contract Formal Design = ACCEPTED / COMPLETE`**（2026-09-17 Human Acceptance = `CONFIRMED` + Final Acceptance Closeout；Human-Accepted reviewed candidate = `cce1ae7`，branch `design/pre-01b-d2-fix-05-return-completion-authority`，immutable；Independent Re-Review = `PASS`；P0 = `NONE` / P1 = `NONE` / P2 = `NONE` / P3 = `NONE`；已 fast-forward only 收编 `main`；见 Current Group 与本文「PRE-01B-D2 Result」）。该 Acceptance 接受 **AdvisoryIngress / durable G2→G3 Activation Contract 的 Formal Design**，**不** 构成 `PRE-01B-I2` implementation / live G2→G3 activation / Real AI activation / Gate A / Gate B / Gate C / Live 的任何进度。
 - **N01-A / N01-B / N01-C / N01-6 / N01-7-F01 / N01-7（N01-7-R01）/ N01-8 均已
   `ACCEPTED / COMPLETE`**（见 Completed）；`N01 overall` 亦已于 2026-09-14 经 N01 Overall
   Final Acceptance Closeout 转 `ACCEPTED / COMPLETE`（该总体结论由独立的 Overall Final
@@ -1867,3 +1883,38 @@ PRE-01B-I1 — Integrated Runtime Host Core V1 Implementation — ACCEPTED / COM
   `KEEP / DOWNWEIGHT / KILL = NOT OWNED BY SE-02D V1`；下一 Acceptance Group =
   `NOT STARTED`。
 - 详见 `dev_log/2026-09-16-se-02d-overall-final-acceptance-closeout.md`。
+
+## PRE-01B-D2 Result
+
+- 任务：`PRE-01B-D2`｜AdvisoryIngress / G2→G3 Activation Contract Formal Design →
+  `PRE-01B-D2-CLOSE`｜Final Acceptance Closeout & Fast-Forward Main Integration（docs/state-only、
+  **非** Implementation、**非** New Design、**非** New Review、**非** Runtime validation、
+  **非** Real AI activation、**非** `PRE-01B-I2`）。
+- 状态 = `PRE-01B-D2 = ACCEPTED / COMPLETE`（2026-09-17 Human Acceptance = `CONFIRMED`）。
+- Independent Re-Review = `PRE-01B-D2-FIX-05 = PASS`；P0 = `NONE`；P1 = `NONE`；P2 = `NONE`；P3 = `NONE`。
+- Human-Accepted reviewed candidate（**immutable、远端未移动**）=
+  `cce1ae7b862b038a99976c802c0985df01b35285`（branch
+  `design/pre-01b-d2-fix-05-return-completion-authority`）；accepted lineage 为线性单 parent：
+  `a90c5968… → b5767d1… → 4548920… → d3922dd… → cce1ae7…`（`FIX-02` / `FIX-03` / `FIX-04` 为
+  historical failed reviewed candidates，保持 immutable 且**不**改写为 PASS）。
+- Accepted Design artifact =
+  `docs/design/PRE-01B/PRE-01B-D2-AdvisoryIngress-G2-G3-Activation-Contract.md`（Artifact status =
+  `ACCEPTED / COMPLETE`；normative design 正文逐字未改，仅状态级最小同步）。
+- 已接受架构决策（摘要；完整决策见 `DECISIONS.md`「PRE-01B-D2 V1」条目，完整契约见 Accepted
+  Design artifact）：host-owned `AdvisoryIngress` boundary；exact admission Evidence revision
+  binding；immutable decision invocation identity；bounded in-process advisory dispatch；
+  PostgreSQL durable correctness authority；shadow-safe Gate A boundary；provider / DB separation；
+  Protection isolation；已接受 DB timeout / SAVEPOINT 语义；已接受 connection-return completion
+  authority（完整 positive predicate；callback-only **不**释放容量）；Gate A / Gate B 分离。
+- 明确非声称（本 Acceptance **仅**接受 Formal Design）：**不**证明 / **不**授权 `PRE-01B-I2`
+  implementation、live `G2→G3` activation、Real AI activation、provider configuration、真实
+  provider 调用、Gate A activation、Gate B activation、Gate C PASS、Live authorization、
+  profitability / trading edge。Design Acceptance 是前置条件，**不是** runtime activation。
+- Human Decision Pack carry-forward：Pack A = `NONE`；Pack B = numeric production activation
+  settings 仍 `UNRESOLVED`（本收尾**未**发明数值、**未**静默授权 production defaults）；
+  Pack C = Gate-A observation / sufficiency / acceptance thresholds 仍 `UNRESOLVED`。
+- 本收尾为 docs/state-only：`Production Code = ZERO CHANGE` / `Tests = ZERO CHANGE` /
+  `Schema = ZERO CHANGE` / `Migration = ZERO CHANGE` / `Runtime = ZERO` / `Config = ZERO CHANGE` /
+  `Product Requirements = ZERO CHANGE`。
+- 集成方法 = `FAST-FORWARD ONLY`；closeout branch = `pre-01b-d2-final-acceptance-closeout`。
+- 详见 `dev_log/2026-09-17-pre-01b-d2-final-acceptance-closeout.md`。
