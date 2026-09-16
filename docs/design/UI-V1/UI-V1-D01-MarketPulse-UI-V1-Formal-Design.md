@@ -422,13 +422,16 @@ NOT_ACTIVATED
 | Strategy Candidate | `B` | `ACTIVE` |
 | Formal live Opportunity Evidence | `B` | `ACCEPTED_NOT_INTEGRATED` |
 | Forward Outcome automatic production | `B` | `ACCEPTED_NOT_INTEGRATED` |
-| SE-02D Aggregate | `B` | accepted callable core, **no Product consumer** |
+| SE-02D Aggregate | `B` | `ACCEPTED_NOT_INTEGRATED` |
 | Trading durable facts | `B` | `ACTIVE` |
 | Incident durable facts | `B` | `ACTIVE` |
 | Real AI | `C` | `NOT_ACTIVATED` |
 | live `G2→G3` Advisory | `C` | `NOT_ACTIVATED` |
 | Gate A / B / C runtime activation | `C` | `NOT_ACTIVATED` |
 | Live Trading | `C` | `NOT_ACTIVATED` |
+
+SE-02D aggregation core is Accepted / callable, but currently has no Product consumer;
+therefore its Operational Availability classification is `ACCEPTED_NOT_INTEGRATED`.
 
 > Axis A / Axis B 相互独立：`A + NOT_ACTIVATED` 与 `C + ACTIVE` 都是合法组合形态。
 > UI 必须按后端返回的显式能力状态渲染，不得由任一轴推断另一轴。
