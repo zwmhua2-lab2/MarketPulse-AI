@@ -183,6 +183,32 @@ provider / model / retry / timeout / deadline / pool / concurrency / shutdown / 
 retention 数值）与 Pack C（Gate-A observation / sufficiency / acceptance thresholds）仍
 `UNRESOLVED`（本收尾**不**发明数值、**不**静默授权 production defaults）。详见「PRE-01B-D2 Result」）
 
+PRE-01B-I2 — AdvisoryIngress Core / Shadow-Safe Durable Path — **PARTIAL / BLOCKED / NOT READY
+FOR INDEPENDENT REVIEW**（2026-09-17 candidate execution；Task Base = Accepted Main
+`547095f6705ce651272363676e2a2b51a66bb8b6`，realtime baseline drift = `NONE`；candidate branch =
+`pre-01b-i2-advisory-ingress-core`）。**本批次只完成该 vertical slice 的基础两层**：（1）唯一一个
+新增 migration `20260917_0010`（`advisory_decision_invocations` + `advisory_decision_attempts`
+两张最小新表；`edge_opportunity_evidence` durable admission accounting；`decision_snapshots`
+Shadow binding facts；`ai_decisions` Attempt origin；单 head）；（2）`marketpulse.advisory` 的
+identity / vocabulary 层（D2 §12.1 十步确定性派生 + §12.2 冻结 version literal 集合 +
+§8.3/§14/§18/§19/§22 冻结词表 + 包级 import/code 隔离守卫）。真实验证：disposable
+PostgreSQL 16.15 schema 门 `60/60 PASS`；identity/vocabulary `47/47 PASS`；完整后端回归
+`732 passed / 0 failed`；`ruff` / `compileall` / `git diff --check` / conflict-marker scan /
+single-head audit 全 `PASS`。**运行时路径全部 `NOT STARTED`**（`AdvisoryAdmissionWriter` /
+`AdvisoryDbFence` + lease registry / bounded `AdvisoryIngress` / provider boundary /
+shadow-safe consumer / attempt-start / finalizer / supersede 共享锁 / six-dimension stale
+matrix / restart recovery / telemetry / RuntimeHost 集成 / G2 `persist()` typed result /
+Pack-B config），因此任务 §30 的 **21 项 real-PG adverse tests** 与 §31 的功能/并发矩阵
+`NOT EXECUTED`，D2 §27 运行时 AC `NOT MET`。⇒ 本候选**不**满足
+`IMPLEMENTED / READY FOR INDEPENDENT REVIEW`，**不得**进入 Independent Review。状态文档按
+**真实候选态**记录（**不**写成 ACCEPTED / COMPLETE；本批次**未**执行 Human Acceptance、
+**未** merge / fast-forward `main`）。Gate A 仍 `NOT ACTIVATED`；Gate B 仍 `NOT ACTIVATED`；
+Gate C 仍 `NOT PASSED`；Real AI 仍 `NOT ACTIVATED`；Live 仍 `NOT AUTHORIZED`；Gate A
+economic mutation = `ZERO`；`marketpulse-postgres` / production DB = `ZERO TOUCH`；
+`.workbuddy` / memory / skills / daily logs = `ZERO CHANGE`；Pack A 仍 `NONE`、Pack B 与
+Pack C 仍 `UNRESOLVED`（**未**发明任何 production 数值、**未**把测试夹具值转成 production
+默认值）。详见 `dev_log/2026-09-17-pre-01b-i2-advisory-ingress-core.md`）
+
 ## GitHub Repository
 
 - GitHub Repository Full Name: `zwmhua2-lab2/MarketPulse-AI`

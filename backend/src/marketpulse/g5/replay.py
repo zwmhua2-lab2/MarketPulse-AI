@@ -447,10 +447,12 @@ class ReplayTradingRunner:
     # Alembic head and is empty. The linear chain is SE-02A Edge evidence
     # (20260911_0005), N01-7 position protection (20260912_0006), the
     # pre-acceptance FIX-01 capture-anchor and review-fix revisions
-    # (20260913_0007 -> 20260913_0008), then FIX-02 outcome revision scope
-    # (20260913_0009). Its separate + migrated + clean workspace behaviour is
-    # unchanged.
-    schema_head = "20260913_0009"
+    # (20260913_0007 -> 20260913_0008), FIX-02 outcome revision scope
+    # (20260913_0009), then PRE-01B-I2 Advisory ingress core (20260917_0010,
+    # additive: two new Advisory tables plus three extension column-sets on
+    # already-accepted tables). Its separate + migrated + clean workspace
+    # behaviour is unchanged.
+    schema_head = "20260917_0010"
 
     def __init__(
         self,

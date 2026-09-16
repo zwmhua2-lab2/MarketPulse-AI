@@ -53,7 +53,7 @@ from marketpulse.edge.repository import (
     record_bbo_observation,
 )
 from marketpulse.market_data.models import DataQuality, MarketType
-from sqlalchemy import func, select, text
+from sqlalchemy import func, insert, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
@@ -65,10 +65,11 @@ PREVIOUS_REVISION = "20260905_0004"
 # The head moves with the schema, exactly like `ReplayTradingRunner.schema_head`.
 # The final integrated chain contains N01-7 position protection at `20260912_0006`,
 # the two pre-acceptance FIX-01 revisions at `20260913_0007` and `20260913_0008`,
-# then FIX-02 outcome revision scope at `20260913_0009`. SE-02A's four evidence
+# FIX-02 outcome revision scope at `20260913_0009`, then the additive PRE-01B-I2
+# Advisory ingress core at `20260917_0010`. SE-02A's four evidence
 # tables are unchanged: this cycle still walks head -> 0004 -> head and requires
 # those tables at head and their absence at 0004.
-HEAD_REVISION = "20260913_0009"
+HEAD_REVISION = "20260917_0010"
 EDGE_TABLES = frozenset(
     {
         "edge_opportunity_evidence",
@@ -1365,11 +1366,51 @@ async def _constraint_definition(url: str, name: str) -> str:
         )
 
 
+#: The Evidence column set as it exists *before* `20260917_0010`. The FIX-02 tests stage
+#: durable Evidence rows at the historical revision `20260913_0008` and then walk the
+#: migration forward, so they cannot insert through the current ORM model: from
+#: `20260917_0010` that model carries the PRE-01B-I2 Advisory accounting columns, and an
+#: ORM insert can only target a migrated schema. Staging a historical row therefore names
+#: the frozen pre-0010 column set explicitly. The column *values* are unchanged, so these
+#: tests still prove exactly what they proved before.
+_LEGACY_EVIDENCE_COLUMNS = (
+    "evidence_id",
+    "opportunity_id",
+    "candidate_id",
+    "family_id",
+    "family_version",
+    "instrument_id",
+    "market_type",
+    "evidence_revision",
+    "evidence_contract_version",
+    "evidence_hash",
+    "feature_snapshot_hash",
+    "feature_snapshot_hash_version",
+    "supersedes_evidence_id",
+    "detected_at",
+    "evidence_at",
+    "expires_at",
+    "source_type",
+    "source_identity",
+    "source_manifest_id",
+    "reference_bid",
+    "reference_ask",
+    "reference_received_at",
+    "reference_data_status",
+    "evidence_payload",
+    "feature_snapshot_payload",
+    "created_at",
+)
+
+
 async def _stage_evidence(url: str, rows: list[EdgeOpportunityEvidenceRecord]) -> None:
     async with _session(url) as session:
         for row in rows:
-            session.add(row)
-            await session.flush()
+            await session.execute(
+                insert(EdgeOpportunityEvidenceRecord.__table__).values(
+                    **{column: getattr(row, column) for column in _LEGACY_EVIDENCE_COLUMNS}
+                )
+            )
         await session.commit()
 
 
@@ -1742,7 +1783,7 @@ def test_fix02_valid_legacy_outcome_chain_survives_and_the_scoped_fk_is_enforced
 
 
 def test_fix02_clean_migration_chain_reaches_0009_and_round_trips():
-    """§19: 0005 -> 0006 -> 0007 -> 0008 -> 0009, plus downgrade and re-upgrade."""
+    """§19: 0005 -> 0006 -> 0007 -> 0008 -> 0009, plus downgrade and re-upgrade to head."""
 
     with _edge_database("fix02_clean_chain", revision="20260911_0005") as (_, url):
         assert asyncio.run(_alembic_version(url)) == "20260911_0005"
@@ -1758,6 +1799,8 @@ def test_fix02_clean_migration_chain_reaches_0009_and_round_trips():
         assert "horizon" not in asyncio.run(_constraint_definition(url, _SUPERSEDES_FK))
         assert _ID_ONLY_UNIQUE in asyncio.run(_constraint_names(url, _OUTCOME_TABLE))
 
+        # Re-upgrading reaches the *current* head, which since PRE-01B-I2 is
+        # `20260917_0010` and not `20260913_0009`.
         _upgrade(url, "head")
-        assert asyncio.run(_alembic_version(url)) == _FIX02_HEAD
+        assert asyncio.run(_alembic_version(url)) == HEAD_REVISION
         assert EDGE_TABLES <= asyncio.run(_table_names(url))

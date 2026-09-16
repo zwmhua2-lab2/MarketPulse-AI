@@ -10,10 +10,13 @@ from sqlalchemy import (
     ForeignKeyConstraint,
     Index,
     Integer,
+    Numeric,
     String,
     Text,
     UniqueConstraint,
+    text,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .base import Base
@@ -138,6 +141,29 @@ class DerivedObservationRecord(Base):
 
 class DecisionSnapshotRecord(Base):
     __tablename__ = "decision_snapshots"
+    __table_args__ = (
+        CheckConstraint(
+            "(decision_invocation_id IS NULL AND evidence_id IS NULL "
+            "AND input_binding_digest IS NULL AND decision_requested_at IS NULL "
+            "AND decision_deadline_at IS NULL) "
+            "OR (decision_invocation_id IS NOT NULL AND evidence_id IS NOT NULL "
+            "AND input_binding_digest IS NOT NULL AND decision_requested_at IS NOT NULL "
+            "AND decision_deadline_at IS NOT NULL)",
+            name="ck_decision_snapshots_advisory_binding_atomic",
+        ),
+        CheckConstraint(
+            "evidence_revision IS NULL OR evidence_revision >= 1",
+            name="ck_decision_snapshots_advisory_evidence_revision",
+        ),
+        CheckConstraint(
+            "deadline_duration_ms IS NULL OR deadline_duration_ms > 0",
+            name="ck_decision_snapshots_advisory_deadline_positive",
+        ),
+        CheckConstraint(
+            "decision_deadline_at IS NULL OR decision_deadline_at > decision_requested_at",
+            name="ck_decision_snapshots_advisory_deadline_order",
+        ),
+    )
     snapshot_id: Mapped[str] = mapped_column(String(64), primary_key=True)
     instrument_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     symbol: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -147,10 +173,70 @@ class DecisionSnapshotRecord(Base):
     snapshot_version: Mapped[str] = mapped_column(String(64), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     payload: Mapped[dict] = mapped_column(JSON, nullable=False)
+    # --- PRE-01B-I2 Shadow binding facts (D2 §24.2). Additive and nullable so every
+    # legacy non-Advisory snapshot stays valid; a Shadow snapshot carries the complete
+    # binding or none of it (`ck_decision_snapshots_advisory_binding_atomic`).
+    decision_invocation_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    opportunity_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    evidence_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    evidence_revision: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    evidence_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    feature_snapshot_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    market_type: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    snapshot_payload_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    input_binding_digest: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    advisory_config_epoch_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    decision_requested_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    deadline_duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    deadline_policy_version: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    decision_deadline_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
 
 class AIDecisionRecord(Base):
+    """Normalized provider-result artifact.
+
+    Still the accepted G3 normalized-result row for the legacy decision path. Under
+    PRE-01B-I2 it is additionally the *optional* normalized provider artifact of one
+    Advisory Attempt, and it is explicitly **not** the no-provider terminal authority:
+    the Invocation row owns that. `ck_ai_decisions_advisory_origin_pair` forces a new
+    Advisory row to carry both `decision_invocation_id` and `attempt_id`, so a provider
+    result can never exist without durable Attempt provenance (D2 §14.2 item 3).
+    """
+
     __tablename__ = "ai_decisions"
+    __table_args__ = (
+        CheckConstraint(
+            "(decision_invocation_id IS NULL AND attempt_id IS NULL) "
+            "OR (decision_invocation_id IS NOT NULL AND attempt_id IS NOT NULL)",
+            name="ck_ai_decisions_advisory_origin_pair",
+        ),
+        UniqueConstraint(
+            "decision_invocation_id",
+            "decision_id",
+            "attempt_id",
+            name="uq_ai_decisions_advisory_origin",
+        ),
+        Index(
+            "uq_ai_decisions_advisory_invocation",
+            "decision_invocation_id",
+            unique=True,
+            postgresql_where=text("decision_invocation_id IS NOT NULL"),
+        ),
+        ForeignKeyConstraint(
+            ["decision_invocation_id", "attempt_id"],
+            [
+                "advisory_decision_attempts.decision_invocation_id",
+                "advisory_decision_attempts.attempt_id",
+            ],
+            name="fk_ai_decisions_advisory_attempt",
+            deferrable=True,
+            initially="DEFERRED",
+        ),
+    )
     decision_id: Mapped[str] = mapped_column(String(64), primary_key=True)
     snapshot_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     run_mode: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
@@ -164,6 +250,19 @@ class AIDecisionRecord(Base):
     raw_response: Mapped[dict] = mapped_column(JSON, nullable=False)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    # --- PRE-01B-I2 Attempt-origin linkage (D2 §24.2). Additive and nullable.
+    decision_invocation_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    attempt_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    input_binding_digest: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    experiment_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    pair_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    arm_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    provider_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    configured_model_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    provider_reported_model_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    output_digest: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    error_category: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    finalized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class TradePlanRecord(Base):
@@ -450,6 +549,79 @@ class EdgeOpportunityEvidenceRecord(Base):
             "supersedes_evidence_id IS NOT NULL OR evidence_revision = 1",
             name="ck_edge_evidence_supersedes_required",
         ),
+        CheckConstraint(
+            "advisory_admission_state IN ('LEGACY_PRE_I2', 'UNSTAGED', 'GATE_A_DISABLED', "
+            "'INVOCATION_CREATED', 'ADMISSION_FAILED_FINAL')",
+            name="ck_advisory_evidence_state",
+        ),
+        CheckConstraint(
+            "advisory_treatment_participation IS NULL OR advisory_treatment_participation IN "
+            "('PARTICIPATE_LONG', 'NO_LONG', 'NO_LONG_UNBOUND')",
+            name="ck_advisory_evidence_participation",
+        ),
+        CheckConstraint(
+            "advisory_admission_state <> 'UNSTAGED' OR (advisory_admission_reason_code IS NULL "
+            "AND advisory_treatment_participation IS NULL "
+            "AND advisory_admission_seed_version IS NULL "
+            "AND advisory_admission_seed_digest IS NULL AND advisory_admission_seed IS NULL "
+            "AND advisory_decision_invocation_id IS NULL)",
+            name="ck_advisory_evidence_unstaged_bare",
+        ),
+        CheckConstraint(
+            "advisory_admission_state NOT IN ('LEGACY_PRE_I2', 'GATE_A_DISABLED') "
+            "OR (advisory_admission_reason_code IS NULL "
+            "AND advisory_treatment_participation IS NULL "
+            "AND advisory_admission_seed_version IS NULL "
+            "AND advisory_admission_seed_digest IS NULL AND advisory_admission_seed IS NULL "
+            "AND advisory_decision_invocation_id IS NULL)",
+            name="ck_advisory_evidence_classification_bare",
+        ),
+        CheckConstraint(
+            "(advisory_admission_seed_version IS NULL AND advisory_admission_seed_digest IS NULL "
+            "AND advisory_admission_seed IS NULL) "
+            "OR (advisory_admission_seed_version IS NOT NULL "
+            "AND advisory_admission_seed_digest IS NOT NULL "
+            "AND advisory_admission_seed IS NOT NULL)",
+            name="ck_advisory_evidence_seed_atomic",
+        ),
+        CheckConstraint(
+            "advisory_admission_state <> 'ADMISSION_FAILED_FINAL' "
+            "OR advisory_admission_reason_code <> 'ADMISSION_STAGING_FAILED_UNBOUND' "
+            "OR (advisory_admission_seed_version IS NULL "
+            "AND advisory_admission_seed_digest IS NULL AND advisory_admission_seed IS NULL "
+            "AND advisory_decision_invocation_id IS NULL "
+            "AND advisory_treatment_participation = 'NO_LONG_UNBOUND')",
+            name="ck_advisory_evidence_unbound_terminal",
+        ),
+        CheckConstraint(
+            "advisory_admission_state <> 'ADMISSION_FAILED_FINAL' "
+            "OR advisory_admission_reason_code = 'ADMISSION_STAGING_FAILED_UNBOUND' "
+            "OR (advisory_admission_seed_version IS NOT NULL "
+            "AND advisory_admission_seed_digest IS NOT NULL "
+            "AND advisory_admission_seed IS NOT NULL)",
+            name="ck_advisory_evidence_terminal_requires_seed",
+        ),
+        CheckConstraint(
+            "advisory_admission_state <> 'INVOCATION_CREATED' "
+            "OR (advisory_admission_seed_version IS NOT NULL "
+            "AND advisory_admission_seed_digest IS NOT NULL "
+            "AND advisory_admission_seed IS NOT NULL "
+            "AND advisory_decision_invocation_id IS NOT NULL)",
+            name="ck_advisory_evidence_invocation_created",
+        ),
+        CheckConstraint(
+            "advisory_decision_invocation_id IS NULL "
+            "OR advisory_admission_state = 'INVOCATION_CREATED'",
+            name="ck_advisory_evidence_invocation_only_created",
+        ),
+        ForeignKeyConstraint(
+            ["advisory_decision_invocation_id"],
+            ["advisory_decision_invocations.decision_invocation_id"],
+            name="fk_advisory_evidence_invocation",
+            deferrable=True,
+            initially="DEFERRED",
+        ),
+        Index("ix_edge_opportunity_evidence_advisory_state", "advisory_admission_state"),
     )
 
     evidence_id: Mapped[str] = mapped_column(String(64), primary_key=True)
@@ -480,6 +652,258 @@ class EdgeOpportunityEvidenceRecord(Base):
     evidence_payload: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     feature_snapshot_payload: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    # --- PRE-01B-I2 durable Advisory admission accounting (D2 §24.2) ------------------
+    # These columns are deliberately outside `evidence_hash`, the Evidence immutable
+    # payload and the revision identity: the accepted SE-02A Evidence contract is
+    # unchanged. Rows that existed before the upgrade are fixed to `LEGACY_PRE_I2` and
+    # every new row's PostgreSQL default is the bare marker `UNSTAGED`; neither is ever
+    # retroactively rebound to an experiment/pair/arm. A valid frozen-`DISABLED` startup
+    # epoch lets the original formal Evidence INSERT write the literal
+    # `GATE_A_DISABLED` in the same statement, which is the only classification that may
+    # bypass the admission SAVEPOINT.
+    advisory_admission_state: Mapped[str] = mapped_column(
+        String(32), nullable=False, server_default=text("'UNSTAGED'")
+    )
+    advisory_admission_reason_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    advisory_treatment_participation: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    advisory_admission_seed_version: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    advisory_admission_seed_digest: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    advisory_admission_seed: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    advisory_decision_invocation_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
+
+class AdvisoryDecisionInvocationRecord(Base):
+    """PRE-01B-I2: one row per logical Advisory decision invocation.
+
+    This row — and only this row — is the logical final-result authority. A reader must
+    never infer the result by ordering Attempt or `ai_decisions` timestamps: the five
+    final fields (`final_status`, `final_reason_code`, `finalized_at`, `final_attempt_id`,
+    `final_decision_id`) are written once, in one transaction, under the Invocation row
+    lock, and the completeness / named-nullability CHECKs below make a half-written or
+    doubly-written terminal state unrepresentable (D2 §14.2).
+
+    Both cycle-closing foreign keys into this table are `DEFERRABLE INITIALLY DEFERRED`
+    so the admission SAVEPOINT (Evidence <-> Invocation) and the finalizer transaction
+    (Invocation <-> Attempt <-> AIDecision) can each commit atomically.
+    """
+
+    __tablename__ = "advisory_decision_invocations"
+    __table_args__ = (
+        UniqueConstraint(
+            "experiment_id", "pair_id", "arm_id", name="uq_advisory_invocation_experiment_pair_arm"
+        ),
+        CheckConstraint(
+            "state IN ('ADMITTED', 'ACTIVE', 'RETRY_PENDING', 'FINAL')",
+            name="ck_advisory_invocation_state",
+        ),
+        CheckConstraint("evidence_revision >= 1", name="ck_advisory_invocation_revision_positive"),
+        CheckConstraint(
+            "decision_deadline_at > decision_requested_at",
+            name="ck_advisory_invocation_deadline_order",
+        ),
+        CheckConstraint("updated_at >= created_at", name="ck_advisory_invocation_updated_order"),
+        CheckConstraint(
+            "(state = 'FINAL' AND final_status IS NOT NULL AND final_reason_code IS NOT NULL "
+            "AND finalized_at IS NOT NULL) "
+            "OR (state <> 'FINAL' AND final_status IS NULL AND final_reason_code IS NULL "
+            "AND finalized_at IS NULL AND final_attempt_id IS NULL AND final_decision_id IS NULL)",
+            name="ck_advisory_invocation_final_completeness",
+        ),
+        CheckConstraint(
+            "final_attempt_id IS NOT NULL OR final_reason_code IS NULL OR final_reason_code IN "
+            "('DEADLINE_EXPIRED_BEFORE_PROVIDER', 'CAPACITY_BLOCKED', "
+            "'EVIDENCE_SUPERSEDED_BEFORE_PROVIDER', 'OPPORTUNITY_STALE_BEFORE_PROVIDER', "
+            "'ACTIVATION_DISABLED_BEFORE_PROVIDER', 'SHUTDOWN_BEFORE_PROVIDER')",
+            name="ck_advisory_invocation_no_attempt_reason",
+        ),
+        CheckConstraint(
+            "final_decision_id IS NULL OR final_attempt_id IS NOT NULL",
+            name="ck_advisory_invocation_final_decision_requires_attempt",
+        ),
+        ForeignKeyConstraint(
+            ["snapshot_id"],
+            ["decision_snapshots.snapshot_id"],
+            name="fk_advisory_invocation_snapshot",
+        ),
+        ForeignKeyConstraint(
+            ["evidence_id", "opportunity_id"],
+            [
+                "edge_opportunity_evidence.evidence_id",
+                "edge_opportunity_evidence.opportunity_id",
+            ],
+            name="fk_advisory_invocation_evidence",
+            deferrable=True,
+            initially="DEFERRED",
+        ),
+        ForeignKeyConstraint(
+            ["decision_invocation_id", "final_attempt_id"],
+            [
+                "advisory_decision_attempts.decision_invocation_id",
+                "advisory_decision_attempts.attempt_id",
+            ],
+            name="fk_advisory_invocation_final_attempt",
+            deferrable=True,
+            initially="DEFERRED",
+        ),
+        ForeignKeyConstraint(
+            ["decision_invocation_id", "final_decision_id", "final_attempt_id"],
+            [
+                "ai_decisions.decision_invocation_id",
+                "ai_decisions.decision_id",
+                "ai_decisions.attempt_id",
+            ],
+            name="fk_advisory_invocation_final_decision",
+            deferrable=True,
+            initially="DEFERRED",
+        ),
+        Index("ix_advisory_decision_invocations_state", "state", "decision_deadline_at"),
+        Index("ix_advisory_decision_invocations_opportunity", "opportunity_id"),
+    )
+
+    decision_invocation_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    snapshot_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    opportunity_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    evidence_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    evidence_revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    evidence_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    feature_snapshot_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    experiment_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    experiment_definition_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    pair_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    baseline_arm_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    treatment_arm_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    arm_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    baseline_policy_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    baseline_participation: Mapped[str] = mapped_column(String(32), nullable=False)
+    input_binding_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    prompt_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    schema_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    treatment_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    configured_provider_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    configured_model_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    decision_requested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    decision_deadline_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    state: Mapped[str] = mapped_column(String(16), nullable=False)
+    final_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    final_reason_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    finalized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    final_attempt_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    final_decision_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class AdvisoryDecisionAttemptRecord(Base):
+    """PRE-01B-I2: one row per provider attempt; durable *before* the provider call.
+
+    A real provider call always has a preceding durable Attempt row (D2 §14.3), so no
+    provider outcome can exist without provenance. Retry adds a row here and never a new
+    Invocation or final identity; `fk_advisory_attempt_prior` keeps the retry lineage
+    inside one Invocation, matching the frozen "same invocation / same input binding /
+    same original deadline" rule.
+
+    Its lifecycle literal set is the union of the tokens the accepted contract names
+    verbatim: `STARTED` (§14.3), the terminal audit markers `DUPLICATE_SUPPRESSED` /
+    `LATE_RESULT` (§14.4) and the process-loss markers `PROCESS_LOST` / `ABANDONED`
+    (§15, §20.2). `COMPLETED` marks an attempt whose normalized outcome was persisted.
+
+    Token/cost provenance is explicitly three-state: either a usage/cost fact is present,
+    or `usage_unavailable_reason` records *why* it is unknown. A silent NULL is what the
+    contract forbids, and the CHECKs make that unrepresentable.
+    """
+
+    __tablename__ = "advisory_decision_attempts"
+    __table_args__ = (
+        UniqueConstraint(
+            "decision_invocation_id",
+            "attempt_number",
+            name="uq_advisory_attempt_invocation_number",
+        ),
+        UniqueConstraint(
+            "decision_invocation_id", "attempt_id", name="uq_advisory_attempt_invocation_attempt"
+        ),
+        CheckConstraint("attempt_number >= 1", name="ck_advisory_attempt_number_positive"),
+        CheckConstraint(
+            "attempt_state IN ('STARTED', 'COMPLETED', 'PROCESS_LOST', 'ABANDONED', "
+            "'DUPLICATE_SUPPRESSED', 'LATE_RESULT')",
+            name="ck_advisory_attempt_state",
+        ),
+        CheckConstraint(
+            "prior_attempt_id IS NULL OR attempt_number > 1",
+            name="ck_advisory_attempt_prior_number",
+        ),
+        CheckConstraint(
+            "retry_reason IS NULL OR retry_class IS NOT NULL", name="ck_advisory_attempt_retry_pair"
+        ),
+        CheckConstraint("latency_ms IS NULL OR latency_ms >= 0", name="ck_advisory_attempt_latency"),
+        CheckConstraint(
+            "(input_tokens IS NULL AND output_tokens IS NULL AND total_tokens IS NULL) "
+            "OR usage_unavailable_reason IS NULL",
+            name="ck_advisory_attempt_usage_exclusive",
+        ),
+        CheckConstraint(
+            "(input_tokens IS NULL OR input_tokens >= 0) "
+            "AND (output_tokens IS NULL OR output_tokens >= 0) "
+            "AND (total_tokens IS NULL OR total_tokens >= 0)",
+            name="ck_advisory_attempt_usage_non_negative",
+        ),
+        CheckConstraint(
+            "(monetary_cost IS NULL AND pricing_version IS NULL) "
+            "OR (monetary_cost IS NOT NULL AND pricing_version IS NOT NULL)",
+            name="ck_advisory_attempt_cost_pair",
+        ),
+        CheckConstraint(
+            "monetary_cost IS NULL OR monetary_cost >= 0",
+            name="ck_advisory_attempt_cost_non_negative",
+        ),
+        ForeignKeyConstraint(
+            ["decision_invocation_id"],
+            ["advisory_decision_invocations.decision_invocation_id"],
+            name="fk_advisory_attempt_invocation",
+        ),
+        ForeignKeyConstraint(
+            ["decision_invocation_id", "prior_attempt_id"],
+            [
+                "advisory_decision_attempts.decision_invocation_id",
+                "advisory_decision_attempts.attempt_id",
+            ],
+            name="fk_advisory_attempt_prior",
+        ),
+    )
+
+    attempt_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    decision_invocation_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    attempt_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    attempt_state: Mapped[str] = mapped_column(String(32), nullable=False)
+    retry_class: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    retry_reason: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    prior_attempt_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    provider_request_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    provider_response_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    configured_provider_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    configured_model_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    provider_reported_model_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    input_binding_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    response_received_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    latency_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    provider_outcome: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    normalized_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    error_category: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    input_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    output_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    total_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    usage_unavailable_reason: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    monetary_cost: Mapped[float | None] = mapped_column(Numeric(18, 8), nullable=True)
+    pricing_version: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    output_digest: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    validation_result: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    validation_errors: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    redacted_request_envelope: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    redacted_response_envelope: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
 
 class EdgeBboObservationRecord(Base):
