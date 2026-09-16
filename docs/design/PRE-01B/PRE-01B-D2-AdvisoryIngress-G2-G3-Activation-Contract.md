@@ -1,4 +1,4 @@
-# PRE-01B-D2-FIX-04｜AdvisoryIngress / G2→G3 DB Semantics Proof + Minimal Contract Fix
+# PRE-01B-D2-FIX-05｜Connection Return Completion Authority Fix
 
 ## Artifact Status
 
@@ -12,8 +12,10 @@ Implementation authorized by this artifact: NO
 Runtime or provider activation authorized by this artifact: NO
 
 Latest Accepted Main: a90c5968be4b456aabde814eb35d4757380761f7
+FIX-05 Base / failed reviewed FIX-04 candidate: d3922dd35ba83312194d124e17fa8645dead6e4d
+FIX-05 branch: design/pre-01b-d2-fix-05-return-completion-authority
+Preserved FIX-04 branch: design/pre-01b-d2-fix-04-db-semantics
 FIX-04 Base / failed reviewed FIX-03 candidate: 4548920fddc7e4f84b0edab8a7e5d72fc35d54ff
-FIX-04 branch: design/pre-01b-d2-fix-04-db-semantics
 Preserved FIX-03 branch: design/pre-01b-d2-fix-03-lease-disabled
 FIX-03 Base / failed reviewed FIX-02 candidate: b5767d147adfeb885dd285243a32041a6731918c
 Preserved FIX-02 branch: design/pre-01b-d2-fix-02-latest-main
@@ -35,9 +37,11 @@ Reviewed parent candidate: c0bd0e8145a82372a6322f63369e6467cae9022f
 Fix branch: design/pre-01b-d2-fix-01-advisory-ingress-contract
 ```
 
-本文件从 immutable failed reviewed FIX-03 candidate `4548920…` carry forward 已关闭语义，
-并只修复 RR03 `P1-01`（Advisory timeout 泄漏）、`P1-02`（connection return/cancellation
-release authority）与 `P2-01`（token acquisition / SAVEPOINT ordering）。
+本文件从 immutable failed reviewed FIX-04 candidate `d3922dd…` carry forward 已关闭语义，
+并只修复 RR04 `P1-01`（connection return completion authority）。FIX-04 对 RR03
+`P1-01`（Advisory timeout 泄漏）与 `P2-01`（token acquisition / SAVEPOINT ordering）的
+处置保持关闭；RR03 `P1-02` 的“exact checkin callback 即可释放”规则已被 RR04 反例推翻，
+由 §35 的 two-factor completion authority 完整取代。
 它只冻结未来独立获批的
 `PRE-01B-I2` 所需设计边界；不实现、不迁移、不接通
 live `G2→G3`、不构造真实 provider，也不授权 Gate A / Gate B / Live。本次重建以
@@ -130,6 +134,23 @@ Phase A 在独立 PostgreSQL 16.15、SQLAlchemy 2.0.52、asyncpg 0.31.0 环境�
 未连接项目数据库。官方与实测证据、八类 failure matrix 和最终 normative disposition 见 §34。
 RR01/RR02 已关闭语义全部保留；不实施 I2、不修改 Runtime/schema/migration/test/config、不激活
 任何 Gate/Real AI/Live。
+
+### 0.8 FIX-05 授权、唯一修正与状态
+
+Independent Re-Review `PRE-01B-D2-RR04` 对 immutable FIX-04 candidate `d3922dd…`
+的结论为 `FAIL — FIX REQUIRED`（P0 = NONE；P1 = 1）：
+
+- `PRE01B-D2-RR04-P1-01`：SQLAlchemy 2.0.52 的 exact `PoolEvents.checkin`
+  callback 在 pool return sequence 完成前执行；callback 被观察后，后续 listener/return step
+  仍可抛错并让 physical pool slot 保持 checked out。因此 callback observation 不等于 owner
+  lifecycle/disposition 已成功完成，不能单独恢复 Advisory capacity。
+
+FIX-05 只冻结 normal return、caller-owned G2 owner-completion、explicit invalidation、exact
+generation correlation、uncertain retirement、late/duplicate、capacity 与 shutdown 的直接依赖语义。
+§35 是最终 normative disposition；§34 仅保留 FIX-04 historical evidence。RR03-P1-01 与
+RR03-P2-01 保持 `PRESERVED CLOSED`；RR01/RR02 其余 closed findings、DISABLED、Gate/Real
+AI/Live 边界不变。I2 implementation、Runtime/schema/migration/test/config/project DB/service/provider
+mutation 均未授权、未执行。
 
 ## 1. Repository Truth
 
@@ -374,7 +395,7 @@ G2/G3/RuntimeHost/Edge capture/schema/attribution 任何路径，旧 facts 在 l
 | existing AI decision persistence（`decision_snapshots` / `ai_decisions`） | `REUSE WITH MINIMAL EXTENSION` | snapshots 继续存 frozen input；`ai_decisions` 只存 normalized provider artifact 并强制 Attempt origin；Invocation 五个 final fields 是唯一 terminal authority（§14/§24） |
 | `RuntimeHost` TaskGroup / lifecycle | `ADAPT` | Host 构造/启动/停止 Advisory（D1 shutdown step 2 预留槽位）；一个受控 wrapper child 拥有内部 finite workers；Advisory 异常在 wrapper 内分类，不得取消 safety siblings；沿用 I1 fatal matrix，不自建 restart loop |
 | existing attribution identity（`EdgeAttributionRecorder`） | `REUSE` | exact `opportunity_id/evidence_id` lineage、append-only、caller-transaction pattern 保持；payload 可增 invocation/experiment facts；attribution 不是 winner authority |
-| `PostgresG2Repository` formal transaction | `ADAPT` | 复用 G2+Evidence 原子提交；startup epoch 明确 `DISABLED` 时，existing formal Evidence INSERT 直接携带 frozen literal `GATE_A_DISABLED`，不构造 writer/fence/SAVEPOINT；Gate A active ordering = explicit core flush → immediate non-blocking token try → nested SAVEPOINT；全部 Advisory preparation/persistence 在 SAVEPOINT 内；caller-owned timeout 只用 captured/restored statement/lock；token 覆盖 outer result 到 §20.3 authoritative disposition；任何 Advisory-only failure 只在 connection valid + rollback confirmed 时隔离；queue 只在 commit 成功且 Invocation 已 durable 后触达；`persist()` 返回 typed result |
+| `PostgresG2Repository` formal transaction | `ADAPT` | 复用 G2+Evidence 原子提交；startup epoch 明确 `DISABLED` 时，existing formal Evidence INSERT 直接携带 frozen literal `GATE_A_DISABLED`，不构造 writer/fence/SAVEPOINT；Gate A active ordering = explicit core flush → immediate non-blocking token try → nested SAVEPOINT；全部 Advisory preparation/persistence 在 SAVEPOINT 内；caller-owned timeout 只用 captured/restored statement/lock；token 覆盖 outer result、pool-return observation 与 owner lifecycle completion，直到 §20.3/§35 full positive predicate；任何 Advisory-only failure 只在 connection valid + rollback confirmed 时隔离；queue 只在 commit 成功且 Invocation 已 durable 后触达；`persist()` 返回 typed result |
 | SE-02D-I02 `aggregation_snapshot`（`CurrentSnapshotRevisionReader` / `CurrentSnapshotProjection` / `CanonicalScopeFacts`） | `DO NOT USE IN GATE A`（runtime reuse = NONE） | I02 是 Edge/Expectancy 的 REPEATABLE READ READ ONLY、aggregation-oriented 投影；live advisory decision-ingress 不得与之耦合。概念性复用见 §23.2 |
 
 ## 8. Producer Boundary
@@ -434,7 +455,7 @@ G2/G3/RuntimeHost/Edge capture/schema/attribution 任何路径，旧 facts 在 l
    `advisory_db_transaction_timeout` 只能作为 cooperative monotonic budget：在下一条 statement
    前拒绝继续；已开始的 SQL 由 server statement/lock timeout 收束。
 6. token 在全部 SAVEPOINT work、outer commit/rollback 以及 caller-owned connection
-   **confirmed checkin 或 completed explicit invalidation/discard** 期间始终持有；SAVEPOINT
+   **exact-generation pool observation 与 caller-owned cleanup success 的 full predicate** 期间始终持有；SAVEPOINT
    release、outer transaction completion、进入 `finally`、开始 `close()` 或 ref publication
    均不得释放。两种 activation 路径都不在 DB resource 下调用 provider，不写
    TradePlan/economic table。
@@ -1123,7 +1144,7 @@ A + R <= C
    SQL，Evidence 保持 `UNSTAGED` 并走 deterministic unbound-failure accounting，外层 G2
    继续；需要 completeness 的 Gate A fail closed。成功后 token 从 try-acquire 起持续覆盖
    全部 nested SAVEPOINT work、outer transaction commit/rollback，以及 caller-owned
-   connection confirmed checkin / completed explicit invalidation-discard；SAVEPOINT completion、
+   exact-generation pool observation + owner lifecycle completion 的 full positive predicate；SAVEPOINT completion、
    `finally` entry 或 close-start 绝不释放 token。
    G2 caller 仍独占 outer transaction/session/final connection return ownership；writer/fence
    只拥有 bounded token/capability 与 Advisory-specific operations。try-acquire 不执行 SQL/
@@ -1165,17 +1186,21 @@ A + R <= C
    Gate A fail closed、zero provider，并由 restart 在原 deadline 下重裁。不得 unbounded wait、
    不得借用 `R`、不得 fallback 到 raw session factory。`DISABLED` path 不构造 fence、
    不取得 token，也不要求本节 Pack-B 数值。
-9. **Release authority**：每个 lease 必须绑定 exact SQLAlchemy `ConnectionPoolEntry`/checkout
-   identity。normal return 的唯一 positive authority 是该 entry 的 `PoolEvents.checkin`；
-   invalidation path 只有在 awaited explicit invalidate/discard 已返回且该 checkout 已观察到
-   invalidation + `checkin(None)`（或 I2 证明等价的 completed discard fact）后才可 disposition。
-   `PoolEvents.invalidate`/`close` 本身发生在最终 close attempt **之前**，不能单独释放。
-   cleanup started/close raised/cancellation during cleanup/no terminal pool event =
-   `RETURN_UNCERTAIN`；token 从 reusable limiter 永久 retire 于本 process epoch、计入
-   `advisory_db_uncertain_resources`，Gate A fail closed。后续若 exact entry 观察到 authoritative
-   completion，可幂等转 `RELEASE_CONFIRMED`；重复/迟到事件不得双增 capacity。process death
-   没有 in-process release；新 epoch 只在 singleton ownership、fresh pool capacity validation
-   成功后建立自己的 limiter，旧 epoch uncertainty 保留为历史 shutdown/restart evidence。
+9. **Release authority**：每个 lease 必须绑定 RuntimeHost epoch + application-assigned pool-entry
+   identity + monotonically increasing checkout generation + lease/token identity。`checkout` listener
+   只用 public `ConnectionPoolEntry.record_info` / `PoolProxiedConnection.info` 写入 correlation；
+   caller 在 connection 已 checkout 后通过 public `AsyncSession.connection()` →
+   `AsyncConnection.info` 取得 exact key。normal return 只有 exact-generation `checkin`
+   observation（Fact A）与 owning caller 的 awaited `AsyncSession.close()` / session context-exit
+   成功返回（Fact B）**同时存在**才可 once-only `RELEASE_CONFIRMED`；callback observation 单独
+   只是 `RETURN_PENDING`。explicit invalidation 还必须有同代 hard-invalidation observation、
+   `checkin(None)` 与 owning caller awaited invalidate/close-context success；任一 callback-entry
+   或 `invalidate()` return 单独都不释放。cleanup raised/cancelled/unknown/missing notification =
+   `RETURN_UNCERTAIN_RETIRED`；token 在本 process epoch 保持 unavailable、计入
+   `advisory_db_uncertain_resources`，Gate A fail closed。只有迟到的完整 exact-correlated predicate
+   可幂等恢复一次；duplicate/旧 generation 事件不改变 capacity。process death 不制造 release；
+   新 epoch 只在 singleton ownership、fresh pool capacity validation 成功后建立自己的 limiter，
+   旧 epoch uncertainty 仅作历史 shutdown/restart evidence。完整状态机与矩阵见 §20.3/§35。
 
 ### 20.2 Shutdown subdeadline / deterministic handoff
 
@@ -1197,7 +1222,8 @@ A + R <= C
    caller-owned G2 connection、强制 rollback otherwise-valid G2 truth，或取得 outer
    transaction ownership**；该 outer G2 operation 按 accepted core RuntimeHost lifecycle
    完成 commit/rollback 和 connection return。其 token 必须如实保持 held/counting，直到
-   §20.3 authoritative disposition；pending/uncertain 必须 counted/retired，Host 不得提前报告
+   §20.3/§35 two-factor/full invalidation predicate；pool-observed、owner-completed-only、pending/
+   uncertain 均必须 counted/retired，Host 不得提前报告
    released。丢弃 process-local
    queue refs 后进入 Protection/Safety phase；Protection 不等待这些最多 `A` 个 holders，
    直接使用其余 `R` capacity。Advisory 不得开启新事务、等待 provider、或以日志/metrics
@@ -1222,34 +1248,57 @@ A + R <= C
 | provider cancellation completed、但 DB terminalization 未在 budget 内 commit | yes（仍 ACTIVE/STARTED） | 本 process 已关闭 finalizer，zero economic use | 按 process-lost 规则，不伪造 cancellation final |
 | `RETRY_PENDING` | yes | 不启动新 Attempt | 原 identity/provider/model/deadline 继续或 terminalize |
 
-### 20.3 Connection disposition / token state machine（FIX-04）
+### 20.3 Connection disposition / token state machine（FIX-05）
+
+每个 lease 的 registry key 至少为 `(runtime_epoch, pool_entry_id, checkout_generation,
+lease_id)`；owner cleanup attempt 另有 application-owned correlation id，以防一次失败 callback
+的 observation 被错误复用于另一次 cleanup。generation 在每次 checkout reuse 时单调递增。
+状态保存 `pool_return_observed`、`owner_completed` 与 disposition kind（normal / invalidation）
+事实位，顺序不构成权威：
 
 ```text
 HELD
-  -> RETURN_PENDING                  # outer result known; close/return started
-  -> RELEASE_CONFIRMED               # exact PoolEvents.checkin observed
-  -> INVALIDATE_PENDING              # explicit discard started
-  -> INVALIDATION_CONFIRMED          # awaited invalidate returned + exact checkin(None)
-  -> RETURN_UNCERTAIN_RETIRED        # cleanup cancelled/raised/no terminal fact
+  -- exact-generation normal checkin observed --> RETURN_PENDING
+  -- owner cleanup returns successfully ------> OWNER_COMPLETED_PENDING_POOL_CONFIRMATION
+  -- explicit hard invalidation starts --------> INVALIDATE_PENDING
+
+RETURN_PENDING + matching owner-success
+  -- same lease/generation/cleanup attempt ----> RELEASE_CONFIRMED
+
+OWNER_COMPLETED_PENDING_POOL_CONFIRMATION + matching pool observation
+  -- same lease/generation/cleanup attempt ----> RELEASE_CONFIRMED
+
+any non-confirmed state
+  -- cleanup raise/cancel/unknown/missing notice --> RETURN_UNCERTAIN_RETIRED
 ```
 
-- `RELEASE_CONFIRMED` 与 `INVALIDATION_CONFIRMED` 是本 epoch 内仅有的 reusable-capacity
-  dispositions；同一 lease 以 CAS/idempotency key 只能增加 available token 一次。
-- `RETURN_PENDING`、`INVALIDATE_PENDING`、`RETURN_UNCERTAIN_RETIRED` 都不增加 available
-  token。若迟到的 exact terminal pool event 到达，只有同一 entry/checkout generation 可幂等
-  完成 disposition；旧 generation 事件不得释放新 checkout 的 token。
-- SQLAlchemy `PoolEvents.invalidate` 与 `PoolEvents.close` 都在最终 close attempt **之前**；
-  它们是诊断事件，不是单独的 completion authority。`checkin(None)` + awaited invalidate return
-  表示 pool 已 discard 该 checkout；不声称不可观察的 OS socket close 必然成功。
-- `available_advisory_tokens = A - HELD - RETURN_PENDING - INVALIDATE_PENDING -
-  RETURN_UNCERTAIN_RETIRED`（下限 0）。uncertain 资源使 Gate A readiness `FAIL_CLOSED`，但仍
-  占用 Advisory 的 A attribution，不能借用 R；Protection reserve 是 primary-pool checkout
-  capacity attribution guarantee，不是 PostgreSQL/global `max_connections` 可用性保证。
-- shutdown 必须输出 held/pending/uncertain/confirmed counters、oldest age、exact entry generation、
-  cleanup error/cancellation、over-subdeadline 与 `STOP_FAILED` reason。真实 invalidation failure
-  或永久不可观察 cleanup 不要求“最终成功”；其 token retire 到 process exit。process death
-  不产生 release event；restart 取得 singleton、构造 fresh pool 并重新验证 `A + R <= C` 后，
-  新 epoch 才建立新 limiter，旧 epoch uncertainty 仅作历史 evidence。
+- normal return 的 Fact A = exact-generation `PoolEvents.checkin` observation；Fact B = owning
+  caller awaited `AsyncSession.close()` / `Session.close()` / session context-exit **成功返回之后**
+  发出的 owner-completion signal；若 direct `AsyncConnection` / `Connection` 才是 owning boundary，
+  则以其 awaited close/context-exit 成功返回为 Fact B，session-owned connection 不得绕过 Session
+  boundary。只在 A + B 均存在时 once-only `RELEASE_CONFIRMED`；A 单独
+  是 `RETURN_PENDING`，B 单独是 `OWNER_COMPLETED_PENDING_POOL_CONFIRMATION`，两者均不增容。
+- owner observer 属于 G2/core lifecycle wrapper。它在 owner cleanup API 成功返回后，把已捕获的
+  exact key/attempt id 报告给 Host-owned registry；Advisory 只能观察，不能 close/commit/rollback/
+  cancel/invalidate 健康的 caller-owned resource。notification 缺失即 fail closed，绝不推测成功。
+- explicit invalidation 的 full predicate 更严格：same-generation hard `invalidate` observation +
+  same-generation `checkin(None)` + owning caller awaited `AsyncSession.invalidate()`（它本身是 owner
+  session cleanup boundary）成功返回；若 owner 使用 explicit connection invalidation，则还必须在
+  subsequent connection/session close-context 成功返回后才发送 Fact B。`invalidate`、`close`、
+  `checkin(None)` 或 `invalidate()` return 任一个单独都不释放。
+- callback/listener/后续 return step 抛错时，即使 registry 已记录 checkin observation，owner cleanup
+  也不会产生 success Fact B；该 cleanup attempt 进入 `RETURN_UNCERTAIN_RETIRED`，capacity 不增加。
+  迟到恢复只允许在同一 authoritative epoch 内取得一个新的、完整且 exact-correlated positive
+  predicate；旧/失败 attempt 的单一 fact 不得复用。重复 fact 与 `RELEASE_CONFIRMED` 后所有事件 no-op。
+- `available_advisory_tokens = A - HELD - RETURN_PENDING -
+  OWNER_COMPLETED_PENDING_POOL_CONFIRMATION - INVALIDATE_PENDING - RETURN_UNCERTAIN_RETIRED`
+  （下限 0）。上述所有未确认状态均属于 `U`，仍占 Advisory 的 A attribution、不借 R、使 Gate A
+  readiness `FAIL_CLOSED`。只有 `RELEASE_CONFIRMED` 从 `H_o / H_g / U` 移除 holder。
+- shutdown 输出 held/return-pending/owner-pending/invalidate-pending/uncertain/release-confirmed、
+  oldest age、exact key/attempt、cleanup error/cancel、over-subdeadline 与 `STOP_FAILED` reason。
+  subdeadline 不改变 predicate；late confirmation 可更新 telemetry/state，但 close-new 后不得重开
+  Gate A 或 admit work。process death 不制造 release；new epoch 在 singleton + fresh pool/capacity
+  validation 后建立新 limiter，旧 uncertainty 只作历史 evidence，不跨进程持久化 token。
 
 single RuntimeHost singleton fence + `advisory_admission_open=false` + stopped claim path 是关闭期间
 的执行 fence；durable non-terminal 行本身不授权任何经济行为。Protection reserve 不以
@@ -1608,8 +1657,9 @@ Real provider adapter selection / contract validation 与 Gate A activation 为�
    transaction；ordering 必须为 explicit G2/Evidence core flush → immediate non-blocking
    token try → `begin_nested()`；token failure = zero Advisory SQL + zero SAVEPOINT。全部
    Advisory-specific work 在 nested SAVEPOINT 原子；caller-owned timeout 只用 captured/restored
-   statement/lock，且 restore 在 release 前确认；token 直到 §20.3 authoritative connection
-   disposition 后才释放。外层 core failure ⇒ queue/provider/Advisory rows 全为零。
+   statement/lock，且 restore 在 release 前确认；token 直到 §20.3/§35 exact-generation pool
+   observation + owner cleanup success 的 full positive predicate 后才释放。callback-entry、outer
+   result、finally、close-start 均不得释放。外层 core failure ⇒ queue/provider/Advisory rows 全为零。
 2. **Admission preparation/canonicalization/digest/config-binding/optional persistence 任一失败
    ⇒ nested SAVEPOINT 回滚，G2 facts + formal Evidence (`UNSTAGED`) 仍 commit**；无 partial
    seed/invocation/phantom。第二 SAVEPOINT 或 restart 只能写 constant
@@ -1679,10 +1729,12 @@ Real provider adapter selection / contract validation 与 Gate A activation 为�
 25. `DISABLED + Pack B unset`、ordinary Evidence INSERT、Evidence INSERT failure，以及
     restart `UNSTAGED/GATE_A_DISABLED` 必须逐案证明 §33.7 的 durable/owner/provider/
     Protection/restart outcome；DISABLED Evidence 永不 retroactive 绑定 experiment/pair/arm。
-26. connection release adverse tests 必须覆盖 normal checkin、close started but result unknown、
-    cleanup cancellation、explicit invalidation success/failure、late/duplicate terminal event 与
-    process death/restart。任何无 authoritative terminal fact 的 lease 不得增加 available token；
-    uncertain count > 0 时 Gate A fail closed，Host shutdown 不得报告 clean STOPPED。
+26. connection release adverse tests 必须覆盖：normal checkin 时 callback 内 checkedout 仍 active、
+    awaited owner close/context-exit 成功后才 release；checkin 被观察但后续 listener/return step
+    抛错；checkin-only；owner-success-only；cleanup cancellation/unknown；duplicate/late 两类 signal；
+    successful hard invalidation + checkin(None) + successful owner cleanup；invalidation/close unknown；
+    process death/restart。任何不满足 exact-correlated full predicate 的 lease 不得增加 available
+    token；uncertain count > 0 时 Gate A fail closed，Host shutdown 不得报告 clean STOPPED。
 
 ## 28. Risk Register
 
@@ -1705,8 +1757,8 @@ Real provider adapter selection / contract validation 与 Gate A activation 为�
 | restart 用新 config 重配旧 decision | invocation self-contained；old row 不读新 experiment/model 重建 identity |
 | provider alias/model drift | configured + provider-reported exact identity 分别保存；unknown != configured |
 | Advisory failure/backlog 耗尽 Protection shutdown window | Host 预留 Protection budget + Advisory subdeadline；到点立即停 DB cleanup，无 per-row final 前置 |
-| Advisory 耗尽 shared pool 或在 provider I/O 中长期持 connection | Host-owned `AdvisoryDbFence`；`A + R <= C`；Advisory 无 raw session capability；token 覆盖 checkout→close；provider await 持 DB = 0 |
-| G2 持 caller-owned connection 等待 token，或 SAVEPOINT 后提前 release | explicit core flush 后、begin_nested 前 immediate non-blocking try-acquire；失败 zero-wait/zero SQL/zero SAVEPOINT；成功 token 覆盖 SAVEPOINT + outer result + authoritative checkin/invalidation，unknown retires capacity |
+| Advisory 耗尽 shared pool 或在 provider I/O 中长期持 connection | Host-owned `AdvisoryDbFence`；`A + R <= C`；Advisory 无 raw session capability；token 覆盖 checkout→matching pool observation + owner cleanup success；provider await 持 DB = 0 |
+| G2 持 caller-owned connection 等待 token，或 SAVEPOINT/callback 后提前 release | explicit core flush 后、begin_nested 前 immediate non-blocking try-acquire；失败 zero-wait/zero SQL/zero SAVEPOINT；成功 token 覆盖 SAVEPOINT + outer result + exact pool observation + owner cleanup completion；checkin/invalidate/close callback 单独不释放，unknown retires capacity |
 | Advisory statement/lock/rollback 越过 Protection handoff | fence-owned path 可用 server statement/lock/idle + owned client cancellation；caller-owned 只用 captured/restored statement/lock + cooperative budget，禁用 idle/client cancel；pending/uncertain 仍计入 A 并留 R reserve |
 | shutdown 为停止 Advisory 破坏 valid G2 truth | caller-owned connection 始终由 G2/core owner 管理；subdeadline 只拒绝新 work 并尽可能取消 nested work，不得 solely-for-Advisory invalidate/force outer rollback；token 如实计数到 return |
 | DISABLED 仍要求 writer/fence/Pack-B，或事后补绑 | startup epoch 冻结 literal；original Evidence INSERT 直接写 `GATE_A_DISABLED`；无 writer/fence/extra SQL；Pack-B capacity/timeouts 可 unset；激活须新授权 epoch，历史 Evidence 永不补绑 |
@@ -1771,7 +1823,8 @@ Shutdown / Restart = Protection-reserved budget + Advisory subdeadline；到点�
 DB Resource Fence = one Host-owned primary engine；A + R <= C；Advisory capability-only
                     session access；ordinary path bounded acquire/transaction/statement/lock/idle；
                     caller-owned captured/restored statement+lock only，no idle/client cancel；
-                    core flush -> token -> SAVEPOINT；token held through authoritative disposition；
+                    core flush -> token -> SAVEPOINT；token held through exact pool observation +
+                    owner cleanup success full predicate；callback-entry alone never releases；
                     unknown cleanup retires capacity and Gate A fails closed；
                     provider I/O holds zero DB resource
 DISABLED Authority = frozen startup-epoch literal；no ingress/provider/worker/fence/full writer；
@@ -1781,7 +1834,8 @@ SE-02D-I02/I03 Runtime Reuse = NONE（仅概念性复用 accepted canonicalizati
 Schema = reuse Evidence chain/attribution + minimal Evidence/Snapshot/AIDecision
          extensions + two new minimal tables；无 migration（属 I2）
 I2 Numeric Blockers = NONE when activation remains disabled and config explicit/unset
-Artifact Status = FIX-04 CANDIDATE DESIGN / READY FOR INDEPENDENT RE-REVIEW
+Artifact Status = PRE-01B-D2-FIX-05 / FIX CANDIDATE DESIGN /
+                  READY FOR INDEPENDENT RE-REVIEW / HUMAN ACCEPTANCE NOT PERFORMED
 ```
 
 ## 31. Independent Review Finding Dispositions
@@ -1803,16 +1857,16 @@ RR02 incremental dispositions：
 
 | Finding | Severity | FIX-03 disposition | Design change | Residual implementation proof |
 |---|---|---|---|---|
-| `PRE01B-D2-RR02-P1-01` | P1 | **FIX-03 CLAIMED CLOSED / PRESERVED AND TIGHTENED BY FIX-04** | caller-owned G2 connection 只允许 core flush 后 immediate non-blocking token try；成功 token 覆盖 SAVEPOINT、outer result 与 authoritative connection disposition；shutdown 不夺取 outer ownership | I2 需真实 PostgreSQL/pool test 覆盖 delayed commit、server timeout、return/invalidation uncertainty 与 truthful token metrics；caller-owned client cancellation 已禁止 |
+| `PRE01B-D2-RR02-P1-01` | P1 | **FIX-03 CLAIMED CLOSED / PRESERVED AND TIGHTENED BY FIX-05** | caller-owned G2 connection 只允许 core flush 后 immediate non-blocking token try；成功 token 覆盖 SAVEPOINT、outer result 与 exact pool observation + owner cleanup success；shutdown 不夺取 outer ownership | I2 需真实 PostgreSQL/pool test 覆盖 delayed commit、server timeout、return/invalidation uncertainty 与 truthful token metrics；caller-owned client cancellation 已禁止 |
 | `PRE01B-D2-RR02-P1-02` | P1 | **FIX-03 CLAIMED CLOSED / AWAITING INDEPENDENT RE-REVIEW** | DISABLED 使用 frozen startup literal 随 original Evidence INSERT 写 `GATE_A_DISABLED`；无 ingress/provider/worker/fence/full writer/extra SQL；Pack-B capacity/timeouts 可 unset | I2 需证明 DB-default fallback、insert failure、restart immutability 与 no retroactive binding |
 
-RR03 incremental dispositions（FIX-04 current）：
+RR03 incremental dispositions（FIX-04 historical；FIX-05 current disposition in §35）：
 
 | Finding | Severity | FIX-04 disposition | Design change | Residual implementation proof |
 |---|---|---|---|---|
-| `PRE01B-D2-RR03-P1-01` | P1 | **FIX-04 CLAIMED CLOSED / AWAITING INDEPENDENT RE-REVIEW** | caller-owned timeout 仅 SAVEPOINT 内 captured/restored `statement_timeout` + `lock_timeout`；release 前恢复；restore failure rollback；禁用 idle timeout/client cancellation | I2 需把实测 probe 变成 production-call-chain PostgreSQL adverse tests，并证明全部 caller-owned SQL 受 server bound |
-| `PRE01B-D2-RR03-P1-02` | P1 | **FIX-04 CLAIMED CLOSED / AWAITING INDEPENDENT RE-REVIEW** | exact pool-entry/generation terminal event 为 release authority；pending/cancel/failure 进入 uncertain-retired，capacity 不回补，Gate A/Host stop fail closed | I2 需证明 event correlation、late/duplicate idempotency、real driver cleanup failure 与 restart telemetry |
-| `PRE01B-D2-RR03-P2-01` | P2 | **FIX-04 CLAIMED CLOSED / AWAITING INDEPENDENT RE-REVIEW** | explicit core flush → immediate token try → `begin_nested()`；token failure zero Advisory SQL/zero SAVEPOINT | I2 需 SQL trace/spy + real PostgreSQL 证明 core flush failure/token failure/implicit preflush adverse ordering |
+| `PRE01B-D2-RR03-P1-01` | P1 | **FIX-04 CLAIMED CLOSED / RR04 PRESERVED CLOSED** | caller-owned timeout 仅 SAVEPOINT 内 captured/restored `statement_timeout` + `lock_timeout`；release 前恢复；restore failure rollback；禁用 idle timeout/client cancellation | I2 需把实测 probe 变成 production-call-chain PostgreSQL adverse tests，并证明全部 caller-owned SQL 受 server bound |
+| `PRE01B-D2-RR03-P1-02` | P1 | **FIX-04 CLAIM REJECTED BY RR04 / FIX-05 CLAIMED CLOSED** | checkin callback 只记录 pool observation；exact-generation pool observation + owner cleanup success two-factor predicate 才释放；failure/unknown retains capacity | I2 需证明 public-surface correlation、owner wrapper、late/duplicate once-only、real driver cleanup failure 与 restart telemetry |
+| `PRE01B-D2-RR03-P2-01` | P2 | **FIX-04 CLAIMED CLOSED / RR04 PRESERVED CLOSED** | explicit core flush → immediate token try → `begin_nested()`；token failure zero Advisory SQL/zero SAVEPOINT | I2 需 SQL trace/spy + real PostgreSQL 证明 core flush failure/token failure/implicit preflush adverse ordering |
 
 ## 32. FIX-02｜RR01 P1-01 + P1-05 Latest-Main Closure Contract
 
@@ -1880,7 +1934,8 @@ OUTER G2 TRANSACTION (core authority)
     if #2 also fails: keep UNSTAGED
 
 COMMIT OUTER G2 TRANSACTION unless a genuine core PostgreSQL/G2/Evidence failure occurred
-G2/core owner dispositions token only after exact pool checkin or completed explicit invalidation;
+G2/core owner dispositions token only after exact-generation pool observation + successful owner
+cleanup full predicate (explicit invalidation additionally requires hard-invalidate + checkin(None));
 unknown cleanup retires capacity and never increments availability
 ```
 
@@ -1939,7 +1994,7 @@ A + R <= C
 Advisory code receives only AdvisoryDbFence
 Protection keeps primary session factory and never takes Advisory tokens
 token before Advisory SQL/session checkout
-token release only after transaction rollback/commit + authoritative checkin/invalidation completion
+token release only after transaction rollback/commit + exact pool observation + owner cleanup success
 caller-owned G2 path uses zero-wait try after explicit core flush and before begin_nested
 caller-owned timeout = captured/restored statement+lock only; no idle timeout/client cancellation
 provider I/O holds zero token/session/transaction
@@ -1953,12 +2008,12 @@ proven, makes Gate A non-ACTIVE。This task does not authorize a second engine/p
 | Condition | Mechanical action | Protection guarantee | Durable/restart result |
 |---|---|---|---|
 | `A` tokens held | ordinary no-connection Advisory waits only to bounded acquire deadline；caller-owned G2 zero-wait skips | at least `R` capacity not consumable by Advisory | no new provider；state unchanged/terminalized if possible |
-| primary pool checkout timeout after token | attempt bounded close/invalidate；only authoritative completion releases，unknown retires token | no false capacity increase；reserve equation counts pending/uncertain within A | exact DB-capacity/cleanup reason；restart under original deadline |
-| Advisory statement/row-lock timeout | PostgreSQL aborts statement；wrapper rollback/close then releases token | no indefinite Advisory statement/lock | Attempt/Invocation failure when writable；otherwise durable prior state |
+| primary pool checkout timeout after token | attempt bounded close/invalidate；only the matching pool-observation + owner-success full predicate releases，unknown retires token | no false capacity increase；reserve equation counts pending/uncertain within A | exact DB-capacity/cleanup reason；restart under original deadline |
+| Advisory statement/row-lock timeout | PostgreSQL aborts statement；wrapper rollback/close；token 仅在 matching pool observation + owner cleanup success 后释放 | no indefinite Advisory statement/lock | Attempt/Invocation failure when writable；otherwise durable prior state |
 | provider network I/O | DB token/session count must equal zero | provider latency cannot hold pool/locks | response later uses a new bounded finalizer transaction |
 | shutdown begins | close admission + close fence to new leases + cancel provider | no new Advisory checkout | ADMITTED/ACTIVE/RETRY_PENDING remain interpretable |
 | cleanup reaches subdeadline | fence-owned session cancel/rollback/close/invalidate；caller-owned G2 禁用 client cancel，只允许 server timeout 后 rollback SAVEPOINT 或 pre-statement cooperative stop；never solely-for-Advisory invalidate/force outer rollback；never dispose shared engine | at most `A` held/pending/uncertain dispositions remain truthfully counted，Protection uses `R` without waiting | incomplete terminal writes stay in prior durable state；G2 follows core lifecycle；uncertain cleanup ⇒ STOP_FAILED |
-| Advisory rollback/driver close itself delays/fails | report pending/uncertain/invalidation/over-subdeadline；no terminal event ⇒ token retired，wrapper不得伪报 release | capacity arithmetic仍把 pending/uncertain 算入 A，保留 `R`；Advisory lock allow-list excludes Protection rows | restart treats nonterminal rows honestly；Host stop is not clean |
+| Advisory rollback/driver close itself delays/fails | report pool-pending/owner-pending/uncertain/invalidation/over-subdeadline；无 full two-factor predicate ⇒ token retained/retired，wrapper不得伪报 release | capacity arithmetic仍把所有未确认状态算入 A，保留 `R`；Advisory lock allow-list excludes Protection rows | restart treats nonterminal rows honestly；Host stop is not clean |
 | Protection needs DB during/after handoff | bypasses Advisory limiter, uses primary factory | Advisory cannot borrow reserve or queue ahead through raw factory | Protection semantics unchanged |
 
 ### 32.7 Pack A / B / C update
@@ -2066,14 +2121,17 @@ durable `QUEUED`、provider/DB separation、Gate A/B/C 边界均不重开。
    unbound-failure/restart accounting；需要 completeness 的 Gate A fail closed。
 4. try-acquire 成功：该 caller-owned connection 立即成为一个 counted Advisory holder。
    token 覆盖所有 Advisory SAVEPOINT work、outer commit/rollback，并持续到 connection
-   exact pool checkin 或 completed explicit invalidation/discard。SAVEPOINT release、outer
+   exact-generation pool observation + owner cleanup success full predicate；explicit invalidation
+   还要求 hard-invalidate observation + `checkin(None)`。SAVEPOINT release、outer
    transaction completion 回调、进入 `finally`、close-start 或 process-local ref publication
    都不得提前 release。
-5. only the G2/core owner 启动 session return/cleanup；lease registry 以绑定 exact pool entry +
-   checkout generation 的 `checkin`，或 awaited invalidate 返回 + `checkin(None)`，作为
-   authoritative terminal disposition。cleanup started/raised/cancelled/unknown 时 token 必须
-   `RETURN_UNCERTAIN_RETIRED`，writer/G2 `finally` 均不得释放；late terminal event 幂等且不得
-   double-release。完整状态机与 metrics 见 §20.3。
+5. only the G2/core owner 启动 session return/cleanup；owner lifecycle wrapper 只在 awaited
+   `AsyncSession.close()` / context-exit / `AsyncSession.invalidate()` 成功返回后报告 exact
+   owner-completion fact。lease registry 将该 fact 与 same epoch/entry/generation/lease/cleanup-attempt
+   的 checkin/invalidation observations 合取；任何 callback 单独都只是 pending observation。
+   cleanup started/raised/cancelled/unknown 或 owner notification missing 时 token 必须
+   `RETURN_UNCERTAIN_RETIRED`，writer/G2 `finally` 均不得释放；late full predicate once-only，
+   duplicate/old-generation signal no-op。完整状态机与 metrics 见 §20.3/§35。
 
 ### 33.3 Acquisition failure matrix
 
@@ -2094,7 +2152,8 @@ cleanup contract。caller-owned G2 work only receives cooperative stop-before-ne
 server statement/lock timeout；Host 不以 task cancellation 打断其 in-flight SQL。A caller-owned G2 connection must
 **never** be invalidated solely to stop Advisory, and otherwise-valid G2 truth must not be forcibly
 rolled back. Its outer transaction follows accepted core RuntimeHost lifecycle; its token remains
-held/counting until §20.3 authoritative disposition；cleanup unknown 时 retire、不得回补。
+held/counting until §20.3/§35 full pool-observation + owner-completion predicate；cleanup unknown
+时 retire、不得回补。
 
 If that core G2 operation remains active after Advisory subdeadline, it is still one of at most
 `A` counted Advisory-induced holders（含 return/invalidation pending 与 uncertain-retired）。Host health/metrics must expose it as held/over-subdeadline，
@@ -2105,7 +2164,9 @@ shutdown step。
 ### 33.5 Capacity proof
 
 Let `H_o` be ordinary fence-owned Advisory sessions，`H_g` caller-owned G2 connections whose
-Advisory try-acquire succeeded，`U` pending/uncertain-retired lease dispositions。The single limiter enforces：
+Advisory try-acquire succeeded，`U` all not-yet-confirmed dispositions（checkin observed but owner
+not complete、owner complete but no pool confirmation、cleanup error/cancel/unknown、uncertain
+invalidation）。The single limiter enforces：
 
 ```text
 H_o + H_g + U <= A
@@ -2124,7 +2185,7 @@ connection。
 - token unavailable while G2 holds connection：zero wait means Advisory does not extend that
   uncounted connection lifetime；G2 continues core work without Advisory SQL。
 - outer commit / driver return delayed，或 cleanup/invalidation failure：token remains counted or retired
-  until authoritative completion；caller-owned client cancellation is forbidden，
+  until exact pool observation + owner cleanup success full predicate；caller-owned client cancellation is forbidden，
   so the inequality stays true and the Host cannot falsely increase headroom。
 - Protection new checkout：uses primary factory without Advisory token；even with `A` counted
   holders wedged, Advisory itself cannot consume `R`。
@@ -2132,6 +2193,9 @@ connection。
 This is an attribution proof only：it does not promise Protection success under unrelated core
 overload、all connections consumed by non-Advisory callers、PostgreSQL outage or shared engine
 failure。
+
+Only `RELEASE_CONFIRMED` removes one holder from `H_o / H_g / U` once。Pool callback entry、
+owner-success-only、invalidation event 或 cleanup start 均不改变 available capacity。
 
 ### 33.6 DISABLED single authority
 
@@ -2161,12 +2225,12 @@ failure。
 | 2. DISABLED + ordinary Evidence insert | G2 caller owns outer session/connection | none | same INSERT writes `GATE_A_DISABLED` | commit if all core G2/Evidence writes valid | no | unaffected；Advisory consumes 0 | terminal classification；no writer/reclassification/provider |
 | 3. DISABLED + Evidence insert failure | G2 caller | none | no new durable Evidence row | outer core transaction rolls back；this is a core write failure | no | unaffected by Advisory | no Advisory recovery row/work；normal core recovery only |
 | 4. Gate A + no Advisory token available | G2 caller | explicit core flush 已成功；try 在 begin_nested 前立即失败；none acquired；zero wait | `UNSTAGED` after valid outer commit | valid G2/Evidence commits | no | existing counted holders ≤ A；R remains unavailable to Advisory and available to Protection | only constant unbound terminalization under a later bounded lease；no seed/config/deadline/Invocation；otherwise remain `UNSTAGED` / fail closed |
-| 5. Gate A + token acquired + SAVEPOINT success | G2 caller owns outer；writer owns only nested ops | core flush → token → SAVEPOINT；captured statement/lock timeout 在 release 前已恢复；token held through outer result + authoritative connection disposition | commit yields `INVOCATION_CREATED` + `ADMITTED` atomically | commit if core valid | none before commit；only post-commit eligible ref may cause provider under original deadline | holder counts within A；R remains | recover same Invocation/ref/deadline；never create new logical identity |
-| 6. Gate A + SAVEPOINT SQL/timeout/restore failure | G2 caller | same token remains through rollback-to-savepoint、optional constant-terminal SAVEPOINT、outer result and authoritative disposition | `UNSTAGED` or constant `ADMISSION_FAILED_FINAL/...UNBOUND` if best-effort write succeeds | valid core G2/Evidence commits when connection remains valid；connection-level termination is core failure，not claimed isolated | no | counted within A until confirmed/retired disposition；R remains | retry only same constant terminal write；never bind mutable config/arm |
-| 7. Gate A + outer G2 commit failure | G2 caller | held through rollback and authoritative checkin/invalidation；unknown cleanup retires token | no new Evidence/Invocation survives | whole outer transaction rolls back | no | counted within A until terminal/retired disposition；only confirmed disposition restores headroom | no Advisory work for rolled-back row/ref |
-| 8. Token acquired + outer commit delayed | G2 caller | remains held/counting for entire delay and connection disposition；never released at SAVEPOINT | uncommitted facts are not durable/visible；eventual result follows case 5 or 7 | pending，then exact commit/rollback branch | no while outer unresolved | Protection does not wait；R remains by equation | crash/DB rollback ⇒ no phantom；commit ⇒ recover same Invocation |
+| 5. Gate A + token acquired + SAVEPOINT success | G2 caller owns outer；writer owns only nested ops | core flush → token → SAVEPOINT；captured statement/lock timeout 在 release 前已恢复；token held through outer result + exact pool observation + owner cleanup success | commit yields `INVOCATION_CREATED` + `ADMITTED` atomically | commit if core valid | none before commit；only post-commit eligible ref may cause provider under original deadline | holder counts within A；R remains | recover same Invocation/ref/deadline；never create new logical identity |
+| 6. Gate A + SAVEPOINT SQL/timeout/restore failure | G2 caller | same token remains through rollback-to-savepoint、optional constant-terminal SAVEPOINT、outer result and full two-factor disposition | `UNSTAGED` or constant `ADMISSION_FAILED_FINAL/...UNBOUND` if best-effort write succeeds | valid core G2/Evidence commits when connection remains valid；connection-level termination is core failure，not claimed isolated | no | counted within A until confirmed/retired disposition；R remains | retry only same constant terminal write；never bind mutable config/arm |
+| 7. Gate A + outer G2 commit failure | G2 caller | held through rollback、exact pool observation and owner cleanup completion；callback-only/unknown cleanup retains token | no new Evidence/Invocation survives | whole outer transaction rolls back | no | counted within A until full predicate/retired disposition；only `RELEASE_CONFIRMED` restores headroom | no Advisory work for rolled-back row/ref |
+| 8. Token acquired + outer commit delayed | G2 caller | remains held/counting for entire delay and through matching pool observation + owner cleanup success；never released at SAVEPOINT/callback-only | uncommitted facts are not durable/visible；eventual result follows case 5 or 7 | pending，then exact commit/rollback branch | no while outer unresolved | Protection does not wait；R remains by equation | crash/DB rollback ⇒ no phantom；commit ⇒ recover same Invocation |
 | 9. Shutdown while G2 owns session | G2/core caller | reject new tokens；existing token stays counted；no client-cancel of caller SQL，no forced outer ownership transfer | nested success + outer commit ⇒ case 5；server timeout/SQL error rollback + outer commit ⇒ case 6；outer rollback ⇒ case 7 | core lifecycle decides only | no new call；active provider scope cancelled separately | Protection proceeds on R without waiting | interpret only committed resulting state under cases 5–7 |
-| 10. Advisory subdeadline reached before G2 returns | G2/core caller | token remains held/over-subdeadline until authoritative disposition；cleanup pending/failed ⇒ uncertain-retired，must not report released | no new durability claim before outer result | do not solely-for-Advisory cancel/invalidate or force rollback；core lifecycle completes | no new call | R remains and Protection proceeds；uncertain counts inside A | after actual result，same committed-state rules；no synthetic cancellation final；STOP_FAILED if cleanup uncertain |
+| 10. Advisory subdeadline reached before G2 returns | G2/core caller | token remains held/over-subdeadline until full two-factor disposition；pool-only/owner-only/failed cleanup ⇒ pending or uncertain-retired，must not report released | no new durability claim before outer result | do not solely-for-Advisory cancel/invalidate or force rollback；core lifecycle completes | no new call | R remains and Protection proceeds；all unconfirmed states count inside A | after actual result，same committed-state rules；no synthetic cancellation final；STOP_FAILED if cleanup uncertain |
 | 11. A holders/pending/uncertain dispositions + Protection needs DB | holders may be ordinary fence-owned and/or caller-owned G2；Protection owns its new session | `H_o + H_g + U = A`；no new Advisory lease；caller G2 zero-wait skips | existing states unchanged until their owners resolve | unrelated core transactions keep their own outcome | no new provider requiring DB；in-flight provider holds zero DB | conservative equation leaves at least R outside Advisory reach；Protection bypasses limiter | prior nonterminal states recover honestly；no false release/headroom |
 | 12. Restart with `UNSTAGED` | bounded recovery session only when active-capable config/fence is valid；otherwise none | recovery must acquire an ordinary bounded token before SQL；no caller-owned lease | constant `...UNBOUND / NO_LONG_UNBOUND` terminal if write commits；else stays `UNSTAGED` | no historical G2 rewrite | no | recovery consumes at most one of A；R remains；DISABLED with no fence leaves row unchanged/fail closed | never read current experiment/provider config，never create seed/deadline/Invocation，retry only constant terminalization |
 | 13. Restart with `GATE_A_DISABLED` | none | none | remains exactly `GATE_A_DISABLED` | no historical G2 rewrite | no | unaffected | no reclassification、seed、arm、Invocation or provider even if new epoch is active |
@@ -2215,11 +2279,12 @@ I2 IMPLEMENTATION = NOT AUTHORIZED
 MIGRATION / RUNTIME CHANGE / ACTIVATION = NO
 ```
 
-## 34. FIX-04｜DB Semantics Proof + Minimal Contract Fix（CURRENT）
+## 34. FIX-04｜DB Semantics Proof + Minimal Contract Fix（HISTORICAL / SUPERSEDED IN PART BY §35）
 
-本节是 FIX-04 最终 normative disposition。若 §8、§20、§27、§30～§33 的 current wording
-与本节冲突，以本节为准；上述 current sections 已同步修正。历史 candidate/status 文字仅保留
-其时间点事实，不允许 future I2 重新选择 timeout ownership、release authority 或 ordering。
+本节保留 FIX-04 当时的 proof 与 candidate disposition。RR04 已拒绝 §34.4 原“checkin callback
+单独足以释放”的结论；connection-return completion authority 只以 §20.3/§35 的 FIX-05 规则为准。
+§34.3 timeout 与 §34.5 ordering 保持 current/preserved closed。若本节任何 release wording 与
+§35 冲突，以 §35 为唯一 normative authority。
 
 ### 34.1 RR03 verdict / exact scope
 
@@ -2281,21 +2346,18 @@ cancellation 收束自己的 whole transaction；caller-owned path 只能 cooper
 server statement/lock fence。client cancellation 实测产生 invalidate + `checkin(None)`，随后 outer
 query 为 `PendingRollbackError`，故不能作为 preserving-G2 mechanism。
 
-### 34.4 Connection release decision（frozen observable authority）
+### 34.4 Connection release decision（RR04 REJECTED / HISTORICAL）
 
-| Class | Observable fact | Token disposition | Gate / shutdown consequence |
-|---|---|---|---|
-| A. confirmed returned/closed/invalidate-complete | exact checkout generation 的 `PoolEvents.checkin`；或 awaited explicit invalidate returned + exact invalidation/`checkin(None)` | once-only `RELEASE_CONFIRMED` / `INVALIDATION_CONFIRMED`；available +1 at most once | ordinary accounting；late duplicate no-op |
-| B. return/close started, result unknown | no exact terminal pool event；close raised/timeout | `RETURN_UNCERTAIN_RETIRED`；available unchanged | Gate A fail closed；holder/age/error metric；shutdown not clean |
-| C. cancellation during cleanup | cleanup task cancelled before terminal fact | same as B；shield may continue, but no optimistic release | bounded wait only；late exact event may idempotently complete；otherwise retire to process exit |
-| D. actual invalidation failure | awaited invalidate raises or no completed discard fact | `RETURN_UNCERTAIN_RETIRED`；available unchanged | Gate A fail closed；`STOP_FAILED`；不得声称 cleanup eventually succeeds |
-| E. process death | no in-process terminal event | old process never releases token | OS/DB cleanup is external；new epoch only after singleton + fresh pool/capacity validation；old uncertainty stays historical |
+FIX-04 曾把 exact-generation `PoolEvents.checkin` callback 视为 normal return 的 sufficient
+positive authority；RR04 的 SQLAlchemy 2.0.52 source/运行反例证明 callback 在
+`ConnectionPoolEntry.checkin()` 调用 `pool._return_conn()` **之前**执行。后续 listener 抛错时，
+callback 已发生但 close/context-exit 抛错、pool slot 仍 checked out，故该 sufficient-authority
+结论被撤销。
 
-`PoolEvents.invalidate`/`close` are pre-close diagnostic events，not completion authority。`checkin(None)`
-alone must correlate to the same explicit invalidation attempt/generation；normal `checkin` similarly must bind exact
-lease。Metrics：`held`、`return_pending`、`invalidate_pending`、`uncertain_retired`、
-`release_confirmed`、`invalidation_confirmed`、oldest age、late/duplicate event、cleanup error/cancel、
-over-subdeadline、epoch。Protection reserve 只承诺 Advisory 不超 A；uncertain 仍吃掉 A，不回补。
+保留仍正确的 historical 部分：`PoolEvents.invalidate`/`close` 是 pre-close observation；
+close-start/finally/cancel/unknown 不可释放；process death 不制造 release；duplicate/late 必须
+once-only。normal return、explicit invalidation、owner completion、capacity 与 shutdown 的 current
+完整规则见 §20.3/§35；本节不得被 future I2 当作实现选择。
 
 ### 34.5 Token / SAVEPOINT ordering（frozen）
 
@@ -2311,8 +2373,8 @@ G2 / Evidence core writes
 -> SQL/timeout/restore failure: ROLLBACK TO SAVEPOINT
 -> optional second constant-terminal SAVEPOINT
 -> outer commit/rollback
--> caller-owned connection authoritative disposition
--> confirmed release/invalidation, or uncertain-retired token
+-> exact-generation pool observation + owner cleanup success full predicate
+-> once-only RELEASE_CONFIRMED, or pending/uncertain-retired token
 ```
 
 SQLAlchemy pre-SAVEPOINT flush 实测 SQL trace = `INSERT core` index 0、`SAVEPOINT` index 1。
@@ -2323,14 +2385,14 @@ SQLAlchemy pre-SAVEPOINT flush 实测 SQL trace = `INSERT core` index 0、`SAVEP
 
 | Required case | Disposable PostgreSQL result | Frozen interpretation |
 |---|---|---|
-| 1. Normal completion | capture/apply/restore/release 后 values = original；normal session exit `checkedout 1 -> 0` + exact `checkin` | safe；then once-only token release |
+| 1. Normal completion | capture/apply/restore/release 后 values = original；normal session exit `checkedout 1 -> 0` + exact `checkin` | FIX-04 observed success，but checkin callback alone is insufficient；FIX-05 requires matching owner cleanup success |
 | 2. SQL error | division-by-zero、100ms `statement_timeout`、100ms `lock_timeout` 均在 SAVEPOINT 内报错；rollback 后 outer `SELECT` = 42/43/430 | rollback confirmed 时 outer remains valid |
 | 3. SAVEPOINT rollback | rollback 后 statement/lock values 回到 `0`；restore-command invalid-value error 也 rollback，outer `SELECT 431` succeeds | failure path 自动撤销 SAVEPOINT-local values；restore failure 不得 release SAVEPOINT |
 | 4. SAVEPOINT release | 未 restore 时 release 后仍为 `1111ms/222ms/3333ms`，不是原值 | proves leakage；success path must explicit restore before release |
 | 5. Outer commit delay | former 100ms statement timeout restore 后，outer `pg_sleep(0.25)` = 0.254s success | Advisory timeout 不再影响 completed Advisory 之后的 valid outer work |
 | 6. Cancellation | client cancel emits invalidate/close/`checkin(None)`；nested rollback call returns，但 outer query = `PendingRollbackError` | caller-owned client cancellation forbidden；connection termination不能靠 restore挽救 |
-| 7. Connection close/return failure | injected rollback-on-close raises；only checkout，checkedout remains 1；explicit connection invalidate later emits invalidate/close/`checkin(None)` and returns to 0；injected invalidate failure leaves checkedout 1/no terminal event | finally/close-start不可 release；completed invalidation可 disposition；failure/unknown retires token |
-| 8. Shutdown while G2 active | `C=3,A=1,R=2`：close-new 后新 Advisory try=false；G2 holder + 2 distinct Protection connections all checked out；G2 outer `SELECT 49` valid；confirmed return 后 held=0 | Host 不夺 G2 owner；Protection 使用 R；token through actual disposition |
+| 7. Connection close/return failure | injected rollback-on-close raises；only checkout，checkedout remains 1；explicit connection invalidate later emits invalidate/close/`checkin(None)` and returns to 0；injected invalidate failure leaves checkedout 1/no terminal event | finally/close-start不可 release；explicit invalidation 仍须 matching owner cleanup success；failure/unknown retires token |
+| 8. Shutdown while G2 active | `C=3,A=1,R=2`：close-new 后新 Advisory try=false；G2 holder + 2 distinct Protection connections all checked out；G2 outer `SELECT 49` valid；owner cleanup + pool return full predicate 后 held=0 | Host 不夺 G2 owner；Protection 使用 R；token through actual disposition |
 
 ### 34.7 Cross-contract / closed-finding non-regression
 
@@ -2338,7 +2400,8 @@ SQLAlchemy pre-SAVEPOINT flush 实测 SQL trace = `INSERT core` index 0、`SAVEP
   server SQL/lock error与 restore failure rollback 后 outer 可继续；connection termination 不伪称 isolated。
 - RR01 P1-02/P1-03/P1-04/P2-01：Evidence lock order、Invocation terminal authority、single
   PostgreSQL admission clock/original deadline、no durable `QUEUED` 均未改变。
-- RR01 P1-05 + RR02 P1-01：`H_o + H_g + U <= A` 保守计数；pending/uncertain 不回补，
+- RR01 P1-05 + RR02 P1-01：`H_o + H_g + U <= A` 保守计数；checkin-only、owner-only、
+  cleanup-error/cancel/unknown 与 uncertain invalidation 全部进入 U 且不回补，
   `A + R <= C` 不被虚假 headroom 破坏；caller-owned zero-wait 保留。
 - RR02 P1-02：DISABLED 仍为 frozen literal + original Evidence INSERT；no fence/writer/SAVEPOINT，
   Pack-B timeout/capacity 可 unset。
@@ -2351,6 +2414,232 @@ SQLAlchemy pre-SAVEPOINT flush 实测 SQL trace = `INSERT core` index 0、`SAVEP
 
 ```text
 PRE-01B-D2-FIX-04 = FIX CANDIDATE DESIGN — READY FOR INDEPENDENT RE-REVIEW
+HUMAN ACCEPTANCE = NOT PERFORMED
+I2 IMPLEMENTATION = NOT AUTHORIZED
+MIGRATION / SCHEMA / RUNTIME / TEST / CONFIG CHANGE = NO
+PROJECT DATABASE / SERVICE / PROVIDER / GATE / REAL AI / LIVE MUTATION = NO
+```
+
+## 35. FIX-05｜Connection Return Completion Authority（CURRENT）
+
+本节是 FIX-05 唯一最终 normative disposition。若 §8、§20、§27、§30～§34 的
+connection-return、invalidation、capacity 或 shutdown wording 与本节冲突，以本节为准。
+FIX-04 historical title/status/proof 可保留其时间点事实，但不得重新授权 callback-only release。
+
+### 35.1 RR04 verdict / exact scope
+
+```text
+PRE-01B-D2-RR04 = FAIL — FIX REQUIRED
+PRE01B-D2-RR04-P1-01 = FIX-05 CLAIMED CLOSED / AWAITING INDEPENDENT RE-REVIEW
+RR03-P1-01 Timeout Semantics = PRESERVED CLOSED
+RR03-P2-01 Token/SAVEPOINT Ordering = PRESERVED CLOSED
+RR01 / RR02 closed findings = PRESERVED
+Human Acceptance = NOT PERFORMED
+```
+
+本轮只修 connection-return completion authority 及其直接依赖的 capacity/shutdown wording。
+zero Runtime/schema/migration/test/config/state-doc/service/provider/project-DB mutation；I2、Gate A/B/C、
+Real AI、Live 均未实现、未授权、未激活。
+
+### 35.2 SQLAlchemy 2.0.52 proof and public-surface implementability
+
+Installed source 的 exact sequence 是：
+
+```text
+ConnectionPoolEntry.checkin()
+  -> clear fairy_ref
+  -> dispatch.checkin(connection, entry)
+  -> pool._return_conn(entry)
+```
+
+故 `checkin` 是 return-path observation，不是“pool return sequence 已成功完成”的 postcondition。
+FIX-05 standalone `QueuePool` + ORM/AsyncSession proof（仓库外、无 project DB）得到：
+
+1. normal `Session.close()` / awaited `AsyncSession.close()`：checkin callback 内
+   `pool.checkedout() == 1`；owner close 返回后才为 0；
+2. registry listener 先观察同代 checkin，后续 checkin listener 注入异常：owner close 抛错、
+   `pool.checkedout() == 1`、下一 checkout timeout；callback observation 不可释放；
+3. owner-first 与 pool-first 的 application state machine 都只在两事实齐全后 release；
+4. duplicate signal release count = 1；generation N late signal 不释放 generation N+1；
+5. owner `Session.invalidate()` 真实顺序为 hard invalidate → close → `checkin(None)`，两 callback
+   内 checkedout 仍为 1，owner invalidate 返回后为 0；仍只在 owner-success signal 合取后 release；
+6. async path 可经 public `AsyncSession.connection()` → `AsyncConnection.info` 读回 checkout key。
+
+Official public surfaces 足以实现，不依赖 monkeypatch/private `_return_conn()`/pool subclass/fork：
+
+- official `PoolEvents` docs（checkin/checkout/invalidate/close）：
+  <https://docs.sqlalchemy.org/en/20/core/events.html#connection-pool-events>；
+- official `ManagesConnection.info` / `record_info` 与 public `ConnectionPoolEntry`：
+  <https://docs.sqlalchemy.org/en/20/core/pooling.html#sqlalchemy.pool.ManagesConnection.record_info>；
+- official async public `AsyncConnection.info` / `AsyncSession.connection()` / `AsyncSession.close()`：
+  <https://docs.sqlalchemy.org/en/20/orm/extensions/asyncio.html>；
+
+- Host 在 `AsyncEngine.sync_engine` 注册 public `PoolEvents.checkout/checkin/invalidate/close` listeners；
+- checkout listener 为 `ConnectionPoolEntry.record_info` 建立 application-assigned `pool_entry_id`
+  并单调增加 `checkout_generation`，同时把 `(runtime_epoch, pool_entry_id, generation)` 写入
+  public `PoolProxiedConnection.info`；`record_info` 跨同 entry 的 invalidation/reconnect 保留，
+  `info` 只服务当前 DBAPI connection；
+- explicit G2/Evidence core flush 成功后、immediate token try 之前，由已 checkout 的
+  `await session.connection()` 返回 public `AsyncConnection`，从 `.info` 捕获 exact key；
+  该 accessor 复用当前 transaction connection，不执行 Advisory SQL，也不引入第二次 checkout；
+  不按 DBAPI address、Session identity、timestamp 或 callback order 猜关联；
+- token 成功后 registry 绑定 exact key + `lease_id`；owner lifecycle wrapper 在 cleanup 开始前
+  注册 application-owned `cleanup_attempt_id`，使 callback fact 与 owner result 属于同一次 cleanup；
+- 所有 callback 只做 bounded process-local fact recording；owner wrapper 在 awaited cleanup API
+  返回后同步报告 success/failure。无 background workflow engine、无 private SQLAlchemy dependency。
+
+若 I2 无法只用上述 public surfaces 建立/读回 exact key 或观察 owner boundary，必须
+`STOP / BLOCKED`，不得降级为 DBAPI address、timestamp 或 callback-only heuristic。
+
+### 35.3 Normal return two-factor authority and owner boundary
+
+normal return 的唯一 positive predicate：
+
+```text
+Fact A = POOL_RETURN_OBSERVED:
+  exact epoch + pool_entry_id + checkout_generation + lease_id + cleanup_attempt_id
+  的 PoolEvents.checkin observation
+
+Fact B = OWNER_COMPLETED:
+  owning G2/core caller 的 awaited AsyncSession.close() / Session.close() /
+  session context-exit 已成功返回之后，owner wrapper 报告同一 exact key/attempt；
+  只有 direct Connection 是 owner 时，才使用其 awaited close/context-exit successful return
+
+RELEASE_CONFIRMED = Fact A AND Fact B
+```
+
+顺序不重要：A-first ⇒ `RETURN_PENDING`；B-first ⇒
+`OWNER_COMPLETED_PENDING_POOL_CONFIRMATION`；只有 A+B ⇒ once-only `RELEASE_CONFIRMED`。
+以下均不是 Fact B：进入 `finally`、close started、`__aexit__` entered、outer commit returned、
+SAVEPOINT completed、checkin callback entered。owner success notification 缺失等同 unknown，
+容量保持 unavailable。
+
+G2/core caller 继续独占 outer transaction、Session lifecycle、commit/rollback、context-exit 与
+connection disposition。Advisory registry 只观察 owner-completion；不得 close G2 Session、commit/
+rollback outer transaction、cancel owner task、invalidate healthy G2 connection或夺取 cleanup ownership。
+
+### 35.4 Normal return / owner cleanup matrix
+
+| Case | Lease state | Capacity effect | Gate A | Shutdown consequence |
+|---|---|---|---|---|
+| owner close succeeds + same-attempt exact checkin observed | `RELEASE_CONFIRMED` once | +1 at most once | no new degradation | holder removed；may be clean if no other failure |
+| owner close succeeds + no checkin observed | `OWNER_COMPLETED_PENDING_POOL_CONFIRMATION` | no increase | fail closed | pending/over-subdeadline；not clean |
+| checkin observed + owner close raises | `RETURN_UNCERTAIN_RETIRED` | no increase | fail closed | `STOP_FAILED`/uncertain；do not report released |
+| checkin observed + owner cleanup cancelled | `RETURN_UNCERTAIN_RETIRED` unless same shielded attempt later proves full predicate | no increase | fail closed | bounded wait only；otherwise `STOP_FAILED` |
+| owner cleanup result unknown | `RETURN_UNCERTAIN_RETIRED` | no increase | fail closed | no indefinite wait；not clean |
+| checkin observed, owner notification missing | `RETURN_PENDING` then uncertain at bounded owner deadline | no increase | fail closed | pending/uncertain；not clean |
+| duplicate checkin | state unchanged；if A-only remains `RETURN_PENDING` | no increase | unchanged | duplicate counter only |
+| late checkin after matching owner success | same epoch/key/attempt may transition once to `RELEASE_CONFIRMED` | +1 once | may clear this resource fault only before shutdown close-new; never auto-activate | telemetry update；shutdown admission stays closed |
+| duplicate owner-completion | state unchanged | no increase | unchanged | duplicate counter only |
+| late owner-success after matching pool observation | same epoch/key/attempt may transition once to `RELEASE_CONFIRMED` | +1 once | same rule as late checkin | telemetry update；shutdown admission stays closed |
+| generation N callback while lease is N+1 | N+1 unchanged | no increase | invariant/late metric as applicable | never releases N+1 |
+
+若一个 cleanup attempt 已明确 raised/failed，其先前 callback fact 被标记为该失败 attempt 的
+historical observation，不得与另一 attempt 的 owner-success 拼接。late recovery 只有一个新的、
+完整、同 key 且同 cleanup-attempt 的 positive predicate 才可 once-only 完成；无法产生该证据则
+retire 到 process exit。
+
+### 35.5 Explicit invalidation authority and matrix
+
+hard invalidation 独立审计；soft invalidation 不构成 terminal disposition。caller-owned G2 只有
+core owner 因 connection 已不安全而选择 invalidation，Advisory 不得为自身 shutdown/timeout
+invalidate healthy G2 connection。
+
+owner 使用 `AsyncSession.invalidate()` 时，它是“invalidate all in-use connections + close Session”
+的 awaited owner cleanup boundary。owner 使用 explicit `AsyncConnection.invalidate()` 时，该 call
+返回仍不等于 owning session/context lifecycle 已完成；必须继续由 owner 完成 connection/session
+close-context。两类路径的 positive predicate 均要求：
+
+```text
+same-generation hard PoolEvents.invalidate observation
+AND same-generation PoolEvents.checkin(None) observation
+AND owning caller's full invalidate/close cleanup boundary returned successfully
+AND same RuntimeHost epoch + lease + cleanup attempt remains authoritative
+```
+
+`PoolEvents.invalidate`、`PoolEvents.close`、`checkin(None)`、awaited `invalidate()` return 任一
+单独都不增加 capacity；OS socket close 是否成功不是本 design 可观察/声称的事实。
+
+| Invalidation case | Lease state | Capacity effect | Gate / shutdown |
+|---|---|---|---|
+| hard invalidate observed + `checkin(None)` + owner `Session.invalidate()`/full cleanup succeeds | `RELEASE_CONFIRMED` once，disposition=`INVALIDATED` | +1 once | ordinary completion；duplicate no-op |
+| invalidate returns but owner session/connection close-context not complete | `INVALIDATE_PENDING` / `RETURN_PENDING` | no increase | fail closed；not clean |
+| invalidate observation exists but `checkin(None)` absent | `INVALIDATE_PENDING` then uncertain at deadline | no increase | fail closed；`STOP_FAILED` if unresolved |
+| invalidate raises | `RETURN_UNCERTAIN_RETIRED` | no increase | fail closed；`STOP_FAILED` |
+| owner close raises after invalidation | `RETURN_UNCERTAIN_RETIRED` | no increase | fail closed；`STOP_FAILED` |
+| `checkin(None)` observed but same cleanup later raises | `RETURN_UNCERTAIN_RETIRED` | no increase | fail closed；never callback-only release |
+| cleanup cancelled | uncertain unless same shielded attempt later proves the entire predicate | no increase before full predicate | bounded wait；otherwise `STOP_FAILED` |
+| completion unknown/missing owner signal | `RETURN_UNCERTAIN_RETIRED` | no increase | fail closed；no optimistic recovery |
+
+### 35.6 Once-only token lifetime and Protection capacity proof
+
+Registry transition uses CAS/idempotency on `(epoch, pool_entry_id, checkout_generation, lease_id)`；
+`RELEASE_CONFIRMED` is reachable at most once。After it, every pool/owner/invalidation/late/duplicate
+signal is telemetry-only and cannot increment/decrement capacity again。
+
+`U` explicitly includes：
+
+- checkin observed but owner not complete；
+- owner complete but no checkin；
+- cleanup error/cancel/unknown/missing notification；
+- invalidation observation/return/checkin(None) without the full invalidation predicate。
+
+```text
+H_o + H_g + U <= A
+A + R <= C
+C - (H_o + H_g + U) >= C - A >= R
+```
+
+Only `RELEASE_CONFIRMED` removes a holder from `H_o / H_g / U`。Pool callback entry alone does
+not change available capacity。`RETURN_UNCERTAIN_RETIRED` remains observable、consumes Advisory-
+attributed capacity、does not borrow R、can degrade/fail-close Gate A、and cannot release twice。
+
+该 proof 只保证 Advisory 不能消费 Protection-reserved capacity；不保证抵抗 all core load、
+PostgreSQL outage、all Execution/Recovery traffic 或 shared-engine failure。
+
+### 35.7 Shutdown, late confirmation and process restart
+
+shutdown 首先原子关闭 new Advisory acquisition/admission；existing caller-owned G2 lifecycle
+继续 core-owned。达到 Advisory subdeadline 时：
+
+- `RETURN_PENDING`、`OWNER_COMPLETED_PENDING_POOL_CONFIRMATION`、`INVALIDATE_PENDING`、
+  `RETURN_UNCERTAIN_RETIRED` 均不报告 released，也不无限等待；
+- Host 不 seize/cancel/invalidate caller-owned G2，只记录 holder/age/error/attempt 与
+  `STOP_FAILED` where applicable；Protection/Safety 按既有 R reserve 继续；
+- late full predicate 可 once-only 更新 registry/telemetry；late checkin-only 或 owner-only 不足；
+- close-new 已发生后，任何 late completion 都不得 reopen Gate A、admit new Advisory work 或
+  启动 provider/finalizer；shared engine 仍在 accepted final Host step dispose。
+
+process death 不fabricate release。process-local registry/token 随进程消失；new RuntimeHost epoch
+必须先验证 singleton ownership、构造 fresh pool/capacity state 并重新证明 `A + R <= C`，再建立
+新 limiter。旧 epoch uncertain token 是 historical evidence，不是新进程 active capacity；不引入
+cross-process token persistence。
+
+### 35.8 Non-regression, Human Decision Pack and candidate verdict
+
+- **DISABLED unchanged**：`GATE_A_DISABLED`；no AdvisoryIngress/provider/worker/fence/token/
+  SAVEPOINT/full writer；Pack-B 可 unset；Evidence 不 retroactive bind。
+- **RR03-P1-01 preserved closed**：caller-owned timeout capture/restore、no idle/client cancel、
+  rollback/connection-validity rules不变。
+- **RR03-P2-01 preserved closed**：explicit core flush → immediate token try → `begin_nested()`；
+  token failure = zero Advisory SQL + zero SAVEPOINT。
+- **RR01 P1-01/P1-02/P1-03/P1-04/P2-01 preserved**：G2 truth isolation、supersede lock、
+  Invocation final authority、deadline 与 no durable QUEUED 不变。
+- **RR01 P1-05 / RR02 P1-01 corrected dependency**：two-factor/full invalidation predicate
+  修复 false headroom；shared-pool claim remains attribution-only。
+- **RR02 P1-02 preserved**：DISABLED single authority 不变。
+
+- **Pack A = NONE**：connection-return completion authority 由本节唯一冻结，不是 numeric Human
+  Decision；public-surface mechanism 已证明可实现，无 unresolved architecture choice。
+- **Pack B**：仅保留 numeric pool/concurrency/timeout/shutdown/queue/retry/provider configuration；
+  DISABLED 可 unset，Gate A active 前必须显式有效。
+- **Pack C**：仅 observation window / sufficiency thresholds；不在 D2 发明 PASS threshold。
+
+```text
+PRE-01B-D2-FIX-05 = FIX CANDIDATE DESIGN
+STATUS = READY FOR INDEPENDENT RE-REVIEW
+SOURCE FIX-04 = d3922dd35ba83312194d124e17fa8645dead6e4d
+FINDING PRE01B-D2-RR04-P1-01 = CLAIMED CLOSED / AWAITING INDEPENDENT RE-REVIEW
 HUMAN ACCEPTANCE = NOT PERFORMED
 I2 IMPLEMENTATION = NOT AUTHORIZED
 MIGRATION / SCHEMA / RUNTIME / TEST / CONFIG CHANGE = NO
