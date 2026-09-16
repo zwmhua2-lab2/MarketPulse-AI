@@ -209,6 +209,49 @@ economic mutation = `ZERO`；`marketpulse-postgres` / production DB = `ZERO TOUC
 Pack C 仍 `UNRESOLVED`（**未**发明任何 production 数值、**未**把测试夹具值转成 production
 默认值）。详见 `dev_log/2026-09-17-pre-01b-i2-advisory-ingress-core.md`）
 
+PRE-01B-I2-CONT-01 — Runtime Completion from Foundation Checkpoint — **`BLOCKED`**（2026-09-17
+continuation execution；Continuation Base = Foundation Checkpoint `b0b89a8919303bbbd34b4e7c685282e95e0c73ed`；
+Task Base = Accepted Main `547095f6705ce651272363676e2a2b51a66bb8b6`，realtime baseline drift = `NONE`；
+continuation branch = `pre-01b-i2-runtime-completion`；migration head 仍 `20260917_0010`）。
+**§4 Baseline Gate = `PASS`**（remote/local `main`、foundation branch、`b0b89a8^` 三项实时复读一致；
+`main` 自上一已接受基线 `a90c596…` 起的 5 个 commit 经 `git diff --name-status` 实测**全为文档**
+⇒ 零代码 / 零 migration / 零 frontend ⇒ **无 material drift**）；Global Protocol =
+`v1.1.0 / ACCEPTED`（remote main `a80c55b7451f77883d8b0713a228f0d9bebf7d22`）。
+**§6 Foundation Integrity Gate = `FAIL`（1 项 P1 级契约冲突）**：L1 / L2 两层本身经本批次独立复核
+**可用**——migration `20260917_0010` 在**本任务新建的一次性** disposable PostgreSQL 16.15 上
+single-head / 恰好两张新表 / 仅三处既有表扩展 / `LEGACY_PRE_I2` 真实回填（`bound_columns = 0`，
+零 fabricated binding）/ 新行 `UNSTAGED` server default / 五条 `DEFERRABLE INITIALLY DEFERRED`
+循环与 origin FK / Invocation final-field 与 Attempt 唯一性约束 / `0010 → 0009 → 0010` 及
+`base → head` 往返**全部通过**，foundation 自带真 PG schema 门 `60/60 PASS`；identity / vocabulary
+`47/47 PASS`；既有 schema 后果经 `test_se_02a_edge_persistence.py` `40/40 PASS` 证明**未**弱化
+（`_stage_evidence` 的显式 26 列清单与「模型列集合减 7 个新 advisory 列」**集合相等**，且新列无
+Python 侧默认值 ⇒ 无列被静默省略、无值退化为 DB 默认）。
+**BLOCKER B-01（P1，真实 PostgreSQL 逐案实证）**：Accepted D2 §14.2 item 2 的 NULL-`final_attempt_id`
+reason 枚举**不含** `ADVISORY_QUEUE_REJECTED` 与 `ADVISORY_DB_CAPACITY_UNAVAILABLE`，而 D2 §0.3 决策表 /
+§14.2 named-terminal 表 / §16 / §18 / §27 AC-6 / §20.1 item 8 在**同一** NULL-Attempt 形态上恰恰要求
+这两个 reason code；由 §14.2 item 2 逐字派生出的 `ck_advisory_invocation_no_attempt_reason` 因此在
+PostgreSQL 上**拒绝**这两类终态 ⇒ D2 §27 **AC-6** 与 §20.1 item 8 所要求的 durable 终态**不可持久化**。
+该冲突位于 Accepted D2 **自身内部**（foundation 实现忠实于 §14.2 item 2），其解决方向属设计裁定，
+**不得**由执行 AI 自行改写已接受契约（CIP-06）⇒ 依任务 §6 / §7 停机：**`BLOCKED`**（最小解锁条件 =
+一次 Human / Design 对「§14.2 item 2 枚举是否完整」的裁定；见 dev_log §8.4）。另附 2 项**未修改**的
+非阻塞观察：F-01（P2：`baseline_arm_id` / `treatment_arm_id` 复用 pair domain，canonical 数组为 3 元素，
+与 §12.1 步 6/7 的 2 元素公式字面不符，无实际碰撞）、F-02（P3：`test_domains_are_separated` 的断言
+并不能证明 pair / arm 的 domain separation）。**Runtime 路径全部 `NOT STARTED`**
+（`AdvisoryAdmissionWriter` / SAVEPOINT 隔离 / caller-owned timeout capture-restore / PostgreSQL
+admission clock / `AdvisoryDbFence` / lease + disposition registry / Protection DB reserve / bounded
+`AdvisoryIngress` / provider boundary / shadow-safe consumer / durable attempt-start / final winner /
+supersede 共享锁 / six-dimension stale matrix / restart recovery / telemetry / RuntimeHost 集成 /
+G2 typed result / Pack-B config surface）；§29 的 22 项 real-PG adverse、§30 功能/并发矩阵、
+§31 完整后端回归均 `NOT EXECUTED`（依 §6 停在该门之前）。**本批次代码 / migration / 测试 / scripts
+零改动**（`Files Changed` 仅本段与 `dev_log/2026-09-17-pre-01b-i2-runtime-completion.md`）；
+本批次**未** amend / repoint / rebase / merge `main` / force push，**未**执行 Independent Review、
+**未** Human Accept。Gate A 仍 `NOT ACTIVATED`；Gate B 仍 `NOT ACTIVATED`；Gate C 仍 `NOT PASSED`；
+Real AI 仍 `NOT ACTIVATED`；Live 仍 `NOT AUTHORIZED`；Gate A economic mutation = `ZERO`；
+`marketpulse-postgres` / production DB = `ZERO TOUCH`；上一执行者保留容器 = `ZERO TOUCH`；
+本任务自建一次性容器与卷已于取证后移除；`.workbuddy` / memory / skills / daily logs = `ZERO CHANGE`；
+Pack A 仍 `NONE`、Pack B 与 Pack C 仍 `UNRESOLVED`（**未**发明任何 production 数值）。详见
+`dev_log/2026-09-17-pre-01b-i2-runtime-completion.md`
+
 ## GitHub Repository
 
 - GitHub Repository Full Name: `zwmhua2-lab2/MarketPulse-AI`
