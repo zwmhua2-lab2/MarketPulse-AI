@@ -1,4 +1,4 @@
-# PRE-01B-D2-FIX-02｜AdvisoryIngress / G2→G3 Activation Contract Latest-Main Review Fix
+# PRE-01B-D2-FIX-03｜AdvisoryIngress / G2→G3 Activation Contract Lease / Disabled Review Fix
 
 ## Artifact Status
 
@@ -11,8 +11,10 @@ Task type: DESIGN FIX ONLY / DOCS ONLY
 Implementation authorized by this artifact: NO
 Runtime or provider activation authorized by this artifact: NO
 
-Latest Accepted Main / FIX-02 Base: a90c5968be4b456aabde814eb35d4757380761f7
-FIX-02 branch: design/pre-01b-d2-fix-02-latest-main
+Latest Accepted Main: a90c5968be4b456aabde814eb35d4757380761f7
+FIX-03 Base / failed reviewed FIX-02 candidate: b5767d147adfeb885dd285243a32041a6731918c
+FIX-03 branch: design/pre-01b-d2-fix-03-lease-disabled
+Preserved FIX-02 branch: design/pre-01b-d2-fix-02-latest-main
 Failed reviewed FIX-01 candidate (immutable evidence):
   design/pre-01b-d2-fix-01-advisory-ingress-contract
   @ adb1364218d29faba55626c68b9c1a07cc7f2cee
@@ -31,13 +33,14 @@ Reviewed parent candidate: c0bd0e8145a82372a6322f63369e6467cae9022f
 Fix branch: design/pre-01b-d2-fix-01-advisory-ingress-contract
 ```
 
-本文件从 immutable failed candidate `adb1364…` carry forward 已通过语义，并只修复
-RR01 `P1-01` / `P1-05` 与当前 SE-02D 描述。它只冻结未来独立获批的
+本文件从 immutable failed reviewed FIX-02 candidate `b5767d1…` carry forward 已关闭语义，
+并只修复 RR02 `P1-01`（caller-owned G2 connection lease）与 `P1-02`（DISABLED path）。
+它只冻结未来独立获批的
 `PRE-01B-I2` 所需设计边界；不实现、不迁移、不接通
 live `G2→G3`、不构造真实 provider，也不授权 Gate A / Gate B / Live。本次重建以
 blocked draft 为起草输入，但**每一个重要决策都对照 latest Accepted Repository Truth
 （当前含已接受的 SE-02D-I01/I02/I03 与 Overall closeout）重新审计**；与旧 draft 的差异
-在 §0.3、§32 与 dev_log 中显式列出。
+在 §0.3、§32、§33 与 dev_log 中显式列出。
 
 ## 0. Rebuild 说明
 
@@ -91,6 +94,21 @@ Independent Re-Review `PRE-01B-D2-RR01` 对 immutable failed candidate `adb1364�
 本文件早期带日期的 historical baseline 叙述保留为历史记录，不覆盖 §32 的 latest-main
 结论。
 
+### 0.6 FIX-03 授权与边界
+
+Independent Re-Review `PRE-01B-D2-RR02` 对 immutable FIX-02 candidate `b5767d1…`
+的结论为 `FAIL — FIX REQUIRED`（P0 = NONE；P1 = 2）。本轮仅关闭：
+
+- `PRE01B-D2-RR02-P1-01`：caller-owned G2 connection 在持连接等待 token、token
+  lifetime 与 shutdown ownership 上未被一致计数；
+- `PRE01B-D2-RR02-P1-02`：`DISABLED` 同时要求 classification writer / DB fence，
+  又允许 Pack-B unset，无法实现。
+
+RR01 `P1-01`～`P1-05` 与 `P2-01` 的已关闭语义全部保留；不重做 Evidence supersede、
+Invocation final authority、deadline、fake `QUEUED` 或原 resource-fence 方向。§33 是
+FIX-03 的集中 normative disposition；§7、§8、§20、§21、§24、§25、§27、§28、§30～§32
+已同步删除与之冲突的 current normative wording。历史带日期事实仍保留为历史证据。
+
 ## 1. Repository Truth
 
 ### 1.1 Reviewed candidate historical baseline（2026-09-15 / 2026-09-16）
@@ -131,6 +149,17 @@ clean、rebase、覆盖或归因根工作区内容。
 | FIX-02 branch/base | `design/pre-01b-d2-fix-02-latest-main` from exact `a90c5968…` in isolated clean worktree |
 | Reviewed-candidate merge base | `d1e5534dcd8eb63fe71f0e3c06ab80dfc1a6f0e6` |
 | Relevant source drift | G2/G3/G4/RuntimeHost/DB/session/schema/PRE-01A/PRE-01B-D1 source semantics unchanged；新增 SE-02D-I03 aggregation orchestration 与状态收尾，正交于 live Advisory ingress |
+
+#### 1.1.2 FIX-03 incremental baseline（2026-09-16 实时核验）
+
+| FIX-03 项 | 实测事实 |
+|---|---|
+| Global Protocol | live `main` = tag `protocol-v1.1.0` = `07e2df83266d4ecdea46caff5c61f000937b8913`; `AI_BOOTSTRAP.md` = `1.1.0 / ACCEPTED` |
+| Accepted Main | `origin/main = main = a90c5968be4b456aabde814eb35d4757380761f7` |
+| Failed reviewed FIX-02 candidate | local/remote `design/pre-01b-d2-fix-02-latest-main = b5767d147adfeb885dd285243a32041a6731918c`，保持 immutable |
+| Candidate parent | `b5767d1^ = a90c5968be4b456aabde814eb35d4757380761f7` |
+| FIX-03 branch/base | `design/pre-01b-d2-fix-03-lease-disabled` from exact `b5767d1…` in isolated clean worktree |
+| Root checkout | unrelated dirty state preserved；未 reset/stash/clean/rebase/覆盖/归因 |
 
 ### 1.2 Accepted inputs
 
@@ -323,7 +352,7 @@ G2/G3/RuntimeHost/Edge capture/schema/attribution 任何路径，旧 facts 在 l
 | existing AI decision persistence（`decision_snapshots` / `ai_decisions`） | `REUSE WITH MINIMAL EXTENSION` | snapshots 继续存 frozen input；`ai_decisions` 只存 normalized provider artifact 并强制 Attempt origin；Invocation 五个 final fields 是唯一 terminal authority（§14/§24） |
 | `RuntimeHost` TaskGroup / lifecycle | `ADAPT` | Host 构造/启动/停止 Advisory（D1 shutdown step 2 预留槽位）；一个受控 wrapper child 拥有内部 finite workers；Advisory 异常在 wrapper 内分类，不得取消 safety siblings；沿用 I1 fatal matrix，不自建 restart loop |
 | existing attribution identity（`EdgeAttributionRecorder`） | `REUSE` | exact `opportunity_id/evidence_id` lineage、append-only、caller-transaction pattern 保持；payload 可增 invocation/experiment facts；attribution 不是 winner authority |
-| `PostgresG2Repository` formal transaction | `ADAPT` | 复用 G2+Evidence 原子提交；Evidence insert 只带 schema literal `UNSTAGED`，全部 Advisory preparation/canonicalization/digest/config binding/optional persistence 均在 nested SAVEPOINT 内；任何 Advisory-only failure 只回滚该 SAVEPOINT；queue 只在 commit 成功且 Invocation 已 durable 后触达；`persist()` 返回 typed result |
+| `PostgresG2Repository` formal transaction | `ADAPT` | 复用 G2+Evidence 原子提交；startup epoch 明确 `DISABLED` 时，existing formal Evidence INSERT 直接携带 frozen literal `GATE_A_DISABLED`，不构造 writer/fence/SAVEPOINT；Gate A active 时 schema default 为 `UNSTAGED`，caller-owned G2 connection 只用 immediate non-blocking token try-acquire，全部 Advisory preparation/canonicalization/digest/config binding/optional persistence 均在 nested SAVEPOINT 内；token 覆盖 outer commit/rollback 到 connection actual return；任何 Advisory-only failure 只回滚该 SAVEPOINT；queue 只在 commit 成功且 Invocation 已 durable 后触达；`persist()` 返回 typed result |
 | SE-02D-I02 `aggregation_snapshot`（`CurrentSnapshotRevisionReader` / `CurrentSnapshotProjection` / `CanonicalScopeFacts`） | `DO NOT USE IN GATE A`（runtime reuse = NONE） | I02 是 Edge/Expectancy 的 REPEATABLE READ READ ONLY、aggregation-oriented 投影；live advisory decision-ingress 不得与之耦合。概念性复用见 §23.2 |
 
 ## 8. Producer Boundary
@@ -347,31 +376,41 @@ G2/G3/RuntimeHost/Edge capture/schema/attribution 任何路径，旧 facts 在 l
 
 1. `PostgresG2Repository.persist()` 在现有 G2 formal transaction 中写 G2 facts 与
    exact Evidence revision（`capture_opportunity()` 内）。
-2. I2 migration 对既有 Evidence 一次性标为 `LEGACY_PRE_I2`；此后所有新 formal
-   Evidence 由 PostgreSQL schema literal default 得到 `UNSTAGED`。这是 first durable
-   marker；G2/Edge application insert 不传 Advisory seed/config/digest，不执行额外
-   Advisory SQL，也不在 Evidence hash/payload 中加入该字段。若 canonical G2/Evidence
-   row 本身因 PostgreSQL、连接、core schema/integrity failure 不能持久化，允许外层
-   transaction 失败；这不是「Advisory optional write 失败后强行保 G2」的场景。
-3. Host-composed `AdvisoryAdmissionWriter` 在 Evidence insert/flush 成功后开启
-   **同一外层 transaction 内的 nested SAVEPOINT**。从第一条 Advisory-specific
-   operation 开始，以下全部在 SAVEPOINT 内：activation classification、一次 PostgreSQL
-   admission clock、完整 `AdvisoryAdmissionSeed` construction、canonicalization、digest、
-   config/experiment/pair/arm binding、snapshot、Invocation、FK/constraints，以及 Evidence
-   accounting update。
-4. Gate A disabled 时，该 SAVEPOINT 只把 `UNSTAGED -> GATE_A_DISABLED`；Gate A active
-   且 qualifying 时，同一 SAVEPOINT 写 snapshot +
-   `advisory_decision_invocations(state=ADMITTED)`，再把 Evidence 原子更新为
-   `INVOCATION_CREATED` 并绑定 `decision_invocation_id`。两条路径都不调用 provider、
-   不触达 queue、不写 final、不写任何 TradePlan/economic table。
-5. 任一 Advisory-only exception 必须由 nested transaction 捕获并 rollback 到
+2. I2 migration 对既有 Evidence 一次性标为 `LEGACY_PRE_I2`；新 row 的 PostgreSQL
+   safe default 为 `UNSTAGED`。Host startup 先冻结 current runtime epoch 的 immutable
+   activation classification。若该分类合法且为 `DISABLED`，existing formal Evidence
+   INSERT 在同一 statement 直接携带 literal `GATE_A_DISABLED`；不构造
+   `AdvisoryIngress`、provider、worker、`AdvisoryDbFence`、完整
+   `AdvisoryAdmissionWriter`，不执行额外 Advisory SQL/SAVEPOINT，也不要求 Pack-B
+   capacity/timeout config。若不能建立合法 disabled classification，则 INSERT 不覆盖
+   server default，durable safe fallback 为 `UNSTAGED`。上述 accounting field 均不进入
+   Evidence hash/payload，DISABLED Evidence 永不补绑 experiment/pair/arm。
+3. 仅当 startup epoch 已由另行批准的 activation boundary 冻结为 Gate A active 且
+   所需 Pack-B config 完整时，Host 才构造 `AdvisoryAdmissionWriter` 与
+   `AdvisoryDbFence`。G2 caller 已持有 session/connection；在第一条 Advisory-specific
+   operation 前只能调用 **immediate non-blocking try-acquire**。持该 connection 时禁止
+   queue、await 或 timeout-based token wait，也禁止为取得 token 再开第二 connection。
+   try-acquire 失败则不执行任何 Advisory SQL，保留 G2/Evidence outer transaction，
+   Evidence 保持 `UNSTAGED` 并沿既有 deterministic unbound-failure accounting；需要
+   completeness 的 Gate A fail closed。
+4. try-acquire 成功后，writer 在**同一外层 transaction 内的 nested SAVEPOINT**执行
+   全部 Advisory work：一次 PostgreSQL admission clock、完整 seed construction、
+   canonicalization/digest、config/experiment/pair/arm binding、snapshot、Invocation、
+   FK/constraints 与 `UNSTAGED -> INVOCATION_CREATED`。token 在全部 SAVEPOINT work、
+   outer commit/rollback 以及 caller-owned connection actual return/close/invalidate 期间
+   始终持有；SAVEPOINT 完成不得释放。两种 activation 路径都不在 DB resource 下调用
+   provider，不写 TradePlan/economic table。
+5. active path 任一 Advisory-only exception 必须由 nested transaction 捕获并 rollback 到
    SAVEPOINT；不得污染、标记 rollback-only 或重新抛出到外层 G2 transaction。随后可在
    **第二个独立 nested SAVEPOINT** 只写常量终态
    `ADMISSION_FAILED_FINAL / ADMISSION_STAGING_FAILED_UNBOUND / NO_LONG_UNBOUND`。
    该 best-effort terminal write 再失败时也只 rollback 自己；外层仍可提交，Evidence
    保持 `UNSTAGED`。§8.3 冻结 restart 解释。
-6. `session.begin()` 正常退出（commit）后，`persist()` 返回 typed result（含 frozen
-   `AdvisoryWorkRef`，若 admission 成立）。
+6. `session.begin()` 完成 commit/rollback 后，G2 caller 仍拥有 session 与 connection
+   return；只有 caller 的 session context 实际完成 return/close/invalidate 后，caller 才在
+   `finally` 释放该 token。`AdvisoryDbFence`/writer 不得提前释放或取得 outer transaction
+   ownership。随后 `persist()` 返回 typed result（含 frozen `AdvisoryWorkRef`，若 admission
+   成立）。
 7. `EventRuntime` 仅在 `persisted=true` 且持有 ref 后，调用 Host-owned
    `AdvisoryIngress.post_commit_offer(ref)`。
 8. `post_commit_offer` 使用 non-blocking `put_nowait`/equivalent；consumer 只收到 ref。
@@ -426,7 +465,8 @@ advisory_decision_invocation_id nullable
   不得伪造 `experiment_id/pair_id/arm_id`，也不得混入任一 arm 的 ordinary denominator；
   必须进入独立的 `unbound_eligible_admission_failure` accounting/health count，并使相关
   Gate A evidence completeness 与任何未来 Gate C evaluation fail closed。正常成功的
-  treatment 仍按 Invocation 记账；正常 disabled 则为 `GATE_A_DISABLED`。
+  treatment 仍按 Invocation 记账；正常 disabled 的 formal Evidence INSERT 直接写
+  `GATE_A_DISABLED`，不经过 writer/fence/SAVEPOINT。
 - 没有 formal Evidence 的 G2 event 不创建 accounting row；其非资格由 accepted
   qualifying facts + Evidence 缺席共同确定，不伪造 Evidence。
 - process-local counter 仅是 health telemetry，不是 coverage authority。
@@ -434,21 +474,24 @@ advisory_decision_invocation_id nullable
   sibling cancellation；不影响 Protection / Core Host readiness。
 - 外层 transaction 在 staging 之后失败：整体（G2 + Evidence + advisory）原子回滚，
   无 phantom、无半提交。
-- Gate A `DISABLED` 时不构造 provider/consumer，但 Host 仍注入只具 classification
-  能力的 writer，在 nested SAVEPOINT 内把 new Evidence 的 `UNSTAGED` 原子改为
-  `GATE_A_DISABLED`。writer failure 仍按上述 unbound terminal/fallback 处理，绝不影响
-  outer G2 transaction。
+- Gate A `DISABLED` 时 startup classification 是 current epoch 的 immutable literal；
+  不构造 provider/consumer/worker、`AdvisoryDbFence` 或完整
+  `AdvisoryAdmissionWriter`。existing formal Evidence INSERT 直接写
+  `GATE_A_DISABLED`，因此没有 separate optional writer failure。若分类不能合法冻结，
+  column 保持 DB default `UNSTAGED`；不得临时查 mutable config、不得补写 experiment/pair/arm。
+  从 `DISABLED` 到 Gate A active 必须经过另行授权的 activation boundary 并创建新的
+  explicitly frozen runtime epoch，禁止 same-epoch silent in-place activation。
 
 **理由（任务 §12 逐问回答）**：
 
 | 问题 | 裁定 |
 |---|---|
-| Evidence + accounting + Snapshot + Invocation 能否合法同 transaction？ | 能 —— base Evidence 只携带 schema-default `UNSTAGED`；全部 Advisory accounting + seed + Snapshot + Invocation + `INVOCATION_CREATED` 在 SAVEPOINT 内原子；SAVEPOINT 失败只留下 `UNSTAGED` 或 constant unbound terminal |
+| Evidence + accounting + Snapshot + Invocation 能否合法同 transaction？ | 能 —— active path 的 base Evidence 先取 schema-default `UNSTAGED`；全部 Advisory accounting + seed + Snapshot + Invocation + `INVOCATION_CREATED` 在 SAVEPOINT 内原子；SAVEPOINT 失败只留下 `UNSTAGED` 或 constant unbound terminal。DISABLED path 只有原 Evidence INSERT + literal `GATE_A_DISABLED`，无 Snapshot/Invocation |
 | 是否不当扩大 Scanner/G2 authority？ | 否 —— G2 formal transaction 只是 **atomicity host**；admission 的 identity/policy authority 属 Host-composed、config-gated 的 `AdvisoryAdmissionWriter`；writer opt-in 注入，Gate A disabled 时 G2 路径不变 |
 | AI advisory persistence 是否污染 Scanner core responsibility？ | 旧 draft 会（staging 失败回滚 G2 facts ⇒ AI infra 失败摧毁 market truth）；savepoint 方案消除该污染：Scanner/G2/Edge 真值独立于 AI infra 健康（invariant 12） |
 | rollback 能否产生 phantom advisory work？ | 不能（§8.2 phantom proof）；Evidence 仍以 `UNSTAGED` 或 constant unbound terminal 可查询，且永不由 mutable config 补绑 |
 | DB commit 成功而进程在 enqueue 前崩溃？ | 可能；由 durable `ADMITTED` + restart scan 恢复（§15），process-local queue publication 不是 authoritative delivery fact |
-| 谁拥有 admission creation？ | `AdvisoryAdmissionWriter`（Host 在 `_compose_services` 构造，唯 Gate A config 完整时注入）；Scanner/EventRuntime/G2 不拥有 admission policy |
+| 谁拥有 admission creation？ | active Gate A 的 `AdvisoryAdmissionWriter` 由 Host 在 `_compose_services` 构造且仅在 config 完整时注入；G2 caller 继续拥有 outer transaction/session/final connection return，writer 只拥有 token/capability 与 Advisory operations。DISABLED 只消费 frozen startup literal，不存在 admission writer |
 
 ## 9. Evidence Revision Binding（Critical Question A）
 
@@ -1034,20 +1077,29 @@ A + R <= C
   该 capability。Protection/Safety 保持使用 Host primary session factory，绝不获取
    Advisory limiter。无第二 general DB authority、无 separate Advisory DSN/pool。
 3. **Acquire/release**：每个执行 Advisory SQL 的 call path 必须先取得一个 limiter token；
-   token 数上限 = `A`。新 Advisory session 必须在 token 后 checkout，且一个 token 最多
-   对应一个 checked-out connection；nested/parallel second session 禁止。token 只有在
-   transaction commit/rollback 完成且 session close/connection return（或明确 invalidate）
-   后释放。Admission nested SAVEPOINT 复用 caller-owned G2 session，但在第一条
-   Advisory-specific SQL 前也必须取得 token；拿不到时不执行 Advisory SQL，Evidence
-   保持 `UNSTAGED`，外层 G2 继续。
-4. **Bounded acquisition/transaction**：Pack B 必须提供 positive finite
+   token 数上限 = `A`，ordinary fence-owned Advisory session 必须在 token 后 checkout，
+   且一个 token 最多对应一个 checked-out connection；nested/parallel second session 禁止。
+   Admission 复用已经 checkout 的 caller-owned G2 session 时，在第一条 Advisory-specific
+   operation 前只允许 **immediate non-blocking try-acquire**：持 G2 connection 时不得
+   queue/await/timeout wait；不得为取 token checkout 第二 connection。失败即 skip Advisory
+   SQL，Evidence 保持 `UNSTAGED` 并走 deterministic unbound-failure accounting，外层 G2
+   继续；需要 completeness 的 Gate A fail closed。成功后 token 从 try-acquire 起持续覆盖
+   全部 nested SAVEPOINT work、outer transaction commit/rollback，以及 caller-owned
+   connection actual return/close/invalidate；SAVEPOINT completion 绝不释放 token。
+   G2 caller 仍独占 outer transaction/session/final connection return ownership；writer/fence
+   只拥有 bounded token/capability 与 Advisory-specific operations。try-acquire 不执行 SQL/
+   checkout；返回的 `CallerOwnedAdvisoryLease` 绑定 already-owned session，writer 不接收 raw
+   engine/session factory，也不能 close/invalidate/commit/rollback outer resource。
+4. **Bounded acquisition/transaction**：Gate A active 时 Pack B 必须提供 positive finite
    `advisory_db_acquire_timeout`、`advisory_db_transaction_timeout`、
    `advisory_statement_timeout`、`advisory_lock_timeout`、
    `advisory_idle_in_transaction_timeout`。每次 operation 的 local deadline 取这些配置、
    persisted invocation deadline（若存在）与当前 shutdown subdeadline 的最小值；要求
    `lock_timeout <= statement_timeout <= transaction_timeout` 且所有值能在
    `advisory_cleanup_budget` 内完成 cancel/rollback。checkout wait 同时受 wrapper
-   acquire timeout 与 primary pool timeout 约束。每个 transaction 用 PostgreSQL
+   acquire timeout 与 primary pool timeout 约束。该 bounded wait 只适用于尚未持有 primary
+   connection 的 ordinary Advisory call；caller-owned G2 path 始终使用上项 zero-wait try。
+   每个 transaction 用 PostgreSQL
    `SET LOCAL statement_timeout/lock_timeout/idle_in_transaction_session_timeout`（或经
    PostgreSQL 版本验证的等价 server-side mechanism），client cancel 不能替代 server fence。
 5. **Provider/DB separation**：provider network I/O 前必须已 commit/rollback 并关闭
@@ -1062,33 +1114,43 @@ A + R <= C
    它们全部 wedged，在仅考虑 Advisory 对 pool 的贡献时仍有至少 `R` 容量未被 Advisory
    占用。该保证不声称 PostgreSQL/core failure 或其他 core caller 永不失败；它只证明
    Advisory 不能耗尽 Protection reserve，符合 P1-05 的 failure attribution 边界。
-8. **Cannot acquire**：Admission path 留 `UNSTAGED` 并按 §8.3 终态化；已有 Invocation
+8. **Cannot acquire**：caller-owned G2 admission 的 immediate try-acquire 失败时留
+   `UNSTAGED` 并按 §8.3 终态化；已有 Invocation
    在能取得一个 bounded terminal-write lease 时写
    `CAPACITY_BLOCKED / ADVISORY_DB_CAPACITY_UNAVAILABLE`，否则保持原 durable state、
    Gate A fail closed、zero provider，并由 restart 在原 deadline 下重裁。不得 unbounded wait、
-   不得借用 `R`、不得 fallback 到 raw session factory。
+   不得借用 `R`、不得 fallback 到 raw session factory。`DISABLED` path 不构造 fence、
+   不取得 token，也不要求本节 Pack-B 数值。
 
 ### 20.2 Shutdown subdeadline / deterministic handoff
 
 1. Host 立即设 `advisory_admission_open=false`，拒绝新 post-commit offer（Invocation 保持
-   `ADMITTED`）；同时 `AdvisoryDbFence.close_for_new_acquisitions()`，停止 durable recovery
-   scan / queue 补充 / dequeue claim，不再启动新 Attempt/DB lease。
+   `ADMITTED`）；同时 `AdvisoryDbFence.close_for_new_acquisitions()`，包括拒绝 caller-owned
+   G2 的新 immediate try-acquire，停止 durable recovery scan / queue 补充 / dequeue claim，
+   不再启动新 Attempt/DB lease。已取得 token 的 caller-owned G2 operation 仍被计入 `A`。
 2. cancel active provider I/O；取消仅作用于 Advisory nested scope，不能传播到
    safety/protection siblings。Provider boundary 必须无 detached callback/task；late response
    无法绕过 Invocation finalizer fence。
 3. 在 `advisory_subdeadline` 前可 best-effort terminalize 已取消 ACTIVE Attempt 或少量
    ADMITTED items，但**不要求每个 queued ref/Invocation 都写 cancellation final**。任何
    shielded DB cleanup 的 shield 上限也是 advisory subdeadline，绝不是 Host deadline；
-   每次 cleanup 仍需取得 Advisory token 且受 §20.1 server/client timeout 约束。
-4. 到达 `advisory_subdeadline` 时，Host 必须立即取消/停止所有 Advisory DB
-   cleanup，rollback/close；无法在 boundary 前 clean close 的 Advisory connection 必须
-   invalidate，且不得 dispose shared engine。丢弃 process-local queue refs，让 Advisory
-   wrapper acknowledge/return，然后进入 Protection/Safety phase。Advisory 不得开启新事务、
-   等待 provider、或以日志/metrics flush 占用 reserve。
+   每次 fence-owned cleanup 仍需取得 Advisory token 且受 §20.1 server/client timeout 约束；
+   已持 token 的 caller-owned G2 admission 不重新 acquire。
+4. 到达 `advisory_subdeadline` 时，Host 必须拒绝新 Advisory work/token，并取消/rollback
+   Advisory SAVEPOINT work where possible。fence-owned Advisory session 无法及时 clean close
+   时可 invalidate，但不得 dispose shared engine。**不得仅为停止 Advisory 而 invalidate
+   caller-owned G2 connection、强制 rollback otherwise-valid G2 truth，或取得 outer
+   transaction ownership**；该 outer G2 operation 按 accepted core RuntimeHost lifecycle
+   完成 commit/rollback 和 connection return。其 token 必须如实保持 held/counting，直到
+   core owner 实际 return/close/invalidate，Host 不得提前报告 released。丢弃 process-local
+   queue refs 后进入 Protection/Safety phase；Protection 不等待这些最多 `A` 个 holders，
+   直接使用其余 `R` capacity。Advisory 不得开启新事务、等待 provider、或以日志/metrics
+   flush 占用 reserve。
 5. 结构不变量：无论 Advisory backlog/DB/provider 状态如何，
    `protection_handoff_at..host_shutdown_deadline` 始终留给 Protection/Safety。
    Advisory cancellation 既不 cancel Protection，也不得阻塞 safety drain；即使 cleanup
-   connection 尚在 driver/DB 层退出，它们总数也不超过 `A`，`R` 不可被 Advisory 占用。
+   connection（包括延迟退出的 caller-owned G2 holder）尚在 driver/DB/core lifecycle，
+   被 Advisory 计数的总数也不超过 `A`，`R` 不可被 Advisory 占用。
 6. engine 仍由 Host 最后 dispose。选择 **cancel，不做 provider drain**；无 detached
    daemon、无 in-process restart supervisor（沿用 I1 fatal matrix）。
 
@@ -1135,11 +1197,21 @@ provider_configured (identity only; no secret)
 只保留 current snapshot、monotonic counters、high-water 与 bounded error samples；
 不构建 metrics platform / unbounded time series。
 
+上述 DB-fence/queue/attempt metrics 是 active-capable Gate A surface；`DISABLED` epoch
+不因 fence/worker 未构造而制造缺失告警，可明确报告 `not_applicable`/zero。唯一必须可查询的
+durable classification 是 Evidence INSERT 中的 `GATE_A_DISABLED` 或 safe fallback
+`UNSTAGED`。
+
 ### 21.2 Readiness split（显式裁定：DISABLED vs GATE_A_SHADOW）
 
 - `DISABLED`：AdvisoryIngress 不构造（无 provider/consumer）；`AI_AUXILIARY` 维持
   I1 现状（`DEGRADED/ai_reevaluation_disabled` 类语义），对 RuntimeHost overall
-  readiness **无影响**。
+  readiness **无影响**。Host 只冻结本 runtime epoch 的 immutable activation
+  classification；formal Evidence INSERT 直接写 literal `GATE_A_DISABLED`。无 worker、
+  无 `AdvisoryDbFence`、无 full writer、无 extra Advisory SQL/SAVEPOINT；Pack-B
+  capacity/timeout values 可 unset。若不能建立 valid disabled classification，new Evidence
+  保持 DB default `UNSTAGED`，不得被追溯补绑。任何 `DISABLED -> active` 都要求独立授权
+  boundary + new explicitly frozen runtime epoch，禁止 silent in-place activation。
 - `GATE_A_SHADOW`：AdvisoryIngress degraded / `FAIL_CLOSED`（含 admission staging
   failure、provenance persistence failure、DB fence invalid/acquire timeout）**只**影响 Gate A readiness
   （`AI_AUXILIARY` 组件置 unavailable/degraded + 关闭新 advisory admission），
@@ -1251,7 +1323,11 @@ advisory_decision_invocation_id nullable
 ```
 
 Migration 必须先把 existing rows 固定 backfill 为 `LEGACY_PRE_I2`，再把 new-row
-server default 设为 `UNSTAGED`；不得把历史 Evidence 猜成 Gate A 成员。conditional CHECK
+server default 设为 `UNSTAGED`；不得把历史 Evidence 猜成 Gate A 成员。startup epoch
+合法冻结为 `DISABLED` 时，existing formal Evidence INSERT **在原 INSERT statement 内**
+显式写 literal `GATE_A_DISABLED`；不经 separate UPDATE/writer/fence/SAVEPOINT，不准备
+seed/config/digest/provider，也不改变 Evidence identity/hash/payload。分类无法合法建立时不
+覆盖 default，持久值为 `UNSTAGED`。conditional CHECK
 要求：`LEGACY_PRE_I2/UNSTAGED/GATE_A_DISABLED` 不得有 invocation；
 `UNSTAGED` 不得有 partial seed/digest/config/clock/arm；
 `ADMISSION_FAILED_FINAL` 的 `...UNBOUND` reason 必须无 seed、无 experiment/pair/arm、
@@ -1259,7 +1335,9 @@ server default 设为 `UNSTAGED`；不得把历史 Evidence 猜成 Gate A 成员
 存在时才可使用；`INVOCATION_CREATED` 必须有完整 seed 与 Invocation FK。Evidence ↔
 Invocation 的循环 FK 必须 `DEFERRABLE INITIALLY DEFERRED`，使 §8.3 SAVEPOINT
 在单一 transaction 内原子插入/翻转，不可暂时提交半链接状态。除 schema literal
-`UNSTAGED` 外，任何 seed/accounting write 都在 nested SAVEPOINT 内。该 extension 是关闭
+`UNSTAGED` 外，只有 original Evidence INSERT 上的 literal `GATE_A_DISABLED` 可不经
+nested SAVEPOINT；active path 的其他 seed/accounting write 全在 nested SAVEPOINT 内。
+该 extension 是关闭
 P1-01 的 minimum PostgreSQL authority；不新增 admission/outbox/framework table。
 
 `decision_snapshots`（新 Shadow rows 增加 queryable binding facts，legacy rows 兼容）：
@@ -1343,7 +1421,10 @@ fields。因此 PRE-01A AC-21/22、P1-01 恢复、P1-03 final authority 与 winn
 **三处最小 extension**（Evidence accounting、Snapshot binding、AIDecision origin）
 是满足契约的最小集。P1-05 还要求现有 `DatabaseResources` 暴露 primary-pool effective
 capacity 并由 Host 构造 `AdvisoryDbFence`；这是同一 engine/session ownership 的 capability
-extension，**不是**新 table/engine/DSN。Evidence supersession 与 final-then-supersede actionability
+extension，**不是**新 table/engine/DSN，且仅在 Gate A active-capable epoch 需要；
+`DISABLED` epoch 不构造该 fence。caller-owned G2 admission 的 token lease 覆盖其实际
+connection return，使同一 equation 能计数该路径而不转移 G2 transaction ownership。
+Evidence supersession 与 final-then-supersede actionability
 完全复用现有 Evidence chain + row lock，故**不**增 supersession marker/table。
 不新增 generic workflow、event bus、saga、job、provider registry、outbox 或 metrics
 table；Invocation row 即 final authority，不建第三 final table。**本契约不创建 migration**。
@@ -1359,10 +1440,10 @@ table；Invocation row 即 final authority，不建第三 final table。**本契
 | absolute decision deadline duration | **B** | field/digest/propagation implemented；unset ⇒ disabled |
 | per-decision token/cost budget | **B** | nullable usage provenance + fail-closed budget checker；unset ⇒ disabled |
 | advisory queue capacity / finite worker count | **B** | bounded implementation accepts explicit injected values；production activation unset ⇒ disabled |
-| Protection-reserved shutdown budget / Advisory cleanup budget | **B** | 实现 §20 的 subdeadline 关系；tests 注入明确值；production activation unset/invalid ⇒ disabled |
-| primary pool size / finite max overflow / pool timeout（共同定义 `effective_db_capacity`） | **B** | I2 暴露 explicit config/engine facts；无法证明 capacity 或 overflow unbounded ⇒ Gate A disabled |
-| Protection-reserved DB capacity / Advisory DB max concurrency | **B** | positive integers 且 `A + R <= C`；缺失/非法 ⇒ Gate A disabled |
-| Advisory DB acquire / transaction / statement / lock / idle-in-transaction timeouts | **B** | positive finite 且满足 §20.1 顺序/cleanup 方程；缺失/非法 ⇒ Gate A disabled |
+| Protection-reserved shutdown budget / Advisory cleanup budget | **B** | active-capable Gate A 实现 §20 的 subdeadline 关系；tests 注入明确值；`DISABLED` 可 unset，activation 前 unset/invalid ⇒ rejected |
+| primary pool size / finite max overflow / pool timeout（共同定义 `effective_db_capacity`） | **B** | active-capable Gate A 暴露 explicit config/engine facts；`DISABLED` 可 unset；无法证明 capacity 或 overflow unbounded ⇒ Gate A activation rejected |
+| Protection-reserved DB capacity / Advisory DB max concurrency | **B** | active-capable Gate A 要求 positive integers 且 `A + R <= C`；`DISABLED` 可 unset，activation 前缺失/非法 ⇒ rejected |
+| Advisory DB acquire / transaction / statement / lock / idle-in-transaction timeouts | **B** | active-capable Gate A 要求 positive finite 且满足 §20.1 顺序/cleanup 方程；`DISABLED` 可 unset，activation 前缺失/非法 ⇒ rejected；caller-owned G2 admission 始终仅 zero-wait try |
 | exact provider/model | **B** | provider-neutral interface only；I2 candidate 不含 real constructor |
 | raw provider envelope retention size/duration/access | **B** | retention OFF / columns NULL；normalized/redacted required provenance 仍保存 |
 | Gate A Shadow observation window / sufficiency thresholds | **C** | collection counters implemented；no PASS threshold invented |
@@ -1371,11 +1452,12 @@ table；Invocation row 即 final authority，不建第三 final table。**本契
 ### 25.2 Human Decisions Blocking I2 Implementation
 
 `NONE` —— P1 修复已冻结 lock target/order、terminal model、DB clock authority、
-durable admission accounting、shared-engine DB capacity fence 与 shutdown subdeadline
-semantics，不再需要人工选设计方向；第二 engine/DSN 未引入、也不需要 Human 选型。
+durable admission accounting、caller-owned immediate try-acquire 与 through-return lease、
+shared-engine DB capacity fence、shutdown ownership，以及 DISABLED direct-literal/no-writer
+authority，不再需要人工选设计方向；第二 engine/DSN 未引入、也不需要 Human 选型。
 前提：I2 必须接受「production activation disabled when required explicit config is unset」，
 且只用 fake/injected provider 做 deterministic tests。**Safe I2
-implementation with activation OFF、required config unset、fake/injected provider only
+implementation with activation OFF、Pack-B config unset、no provider construction
 是可行的**（显式声明，任务 §29 要求）。若 I2 被要求同时真实激活 Gate A，则上表 B 项
 立即变成 blocker。
 
@@ -1407,8 +1489,11 @@ implementation with activation OFF、required config unset、fake/injected provi
 
 1. §24 的 migration + minimal models/constraints（含 Evidence durable accounting 与
    Invocation authoritative final fields）；
-2. G2 formal transaction 内 schema-default `UNSTAGED` + all-Advisory nested SAVEPOINT +
-   constant unbound terminal fallback + typed post-commit ref（`persist()` 返回值扩展）；
+2. `DISABLED` epoch 由 original formal Evidence INSERT 直接写 `GATE_A_DISABLED`，无
+   writer/fence/extra SQL；active Gate A 的 G2 formal transaction 使用 schema-default
+   `UNSTAGED` + caller-owned immediate try-acquire + all-Advisory nested SAVEPOINT +
+   through-outer-close token lifetime + constant unbound terminal fallback + typed post-commit
+   ref（`persist()` 返回值扩展）；
 3. Host-owned bounded AdvisoryIngress queue（无 durable `QUEUED`）/ nested auxiliary
    lifecycle / shared-primary-engine `AdvisoryDbFence` / Protection DB reserve /
    Protection-reserved Advisory subdeadline（D1 shutdown step 2 槽位）；
@@ -1432,9 +1517,11 @@ Real provider adapter selection / contract validation 与 Gate A activation 为�
 
 ## 27. Acceptance Criteria（I2 Candidate ready for review 的独立证据要求）
 
-1. qualifying formal Evidence + successful invocation/snapshot 同 outer transaction；全部
-   Advisory-specific work 在 nested SAVEPOINT 原子。外层 core failure ⇒
-   queue/provider/rows 全为零。
+1. active Gate A qualifying formal Evidence + successful invocation/snapshot 同 outer
+   transaction；caller-owned G2 connection 上 token 只能 immediate non-blocking try-acquire，
+   全部 Advisory-specific work 在 nested SAVEPOINT 原子，token 直到 outer transaction +
+   connection actual return/close/invalidate 后释放。外层 core failure ⇒ queue/provider/rows
+   全为零。
 2. **Admission preparation/canonicalization/digest/config-binding/optional persistence 任一失败
    ⇒ nested SAVEPOINT 回滚，G2 facts + formal Evidence (`UNSTAGED`) 仍 commit**；无 partial
    seed/invocation/phantom。第二 SAVEPOINT 或 restart 只能写 constant
@@ -1451,7 +1538,8 @@ Real provider adapter selection / contract validation 与 Gate A activation 为�
 7. Protection lane 在 queue full、slow provider、provider timeout、admission staging
    failure、Advisory critical failure、Advisory pool wait/statement/lock timeout 下持续工作；
    real PostgreSQL adverse test 证明 `A + R <= C` 且 A 个 wedged Advisory holders 时
-   Protection 仍可取得至少一个 reserve connection。
+   Protection 仍可取得至少一个 reserve connection；holders 集合同时覆盖 ordinary
+   Advisory session 与 caller-owned G2 admission，token unavailable 时 G2 zero-wait skip。
 8. Gate A consumer constructor/call graph 无 TradePlan/Risk/Execution/Position
    mutation handle。
 9. Gate A adversarial valid LONG response 仍产生 zero TradePlan/economic mutation；
@@ -1476,13 +1564,19 @@ Real provider adapter selection / contract validation 与 Gate A activation 为�
 17. failure matrix 全部有 targeted tests；无 baseline fallback / fake-AI substitution。
 18. deadline authority/propagation 匹配 §17：PostgreSQL single-read timestamp、UTC/
     precision/canonical serialization、duration+version 持久化、queue/retry 消耗同一 budget。
-19. Advisory 在其 subdeadline 到达时关闭 acquisition、cancel/rollback/close 或 invalidate，
-    不 dispose shared engine；即使最多 A 个 connection 延迟退出，Protection reserve R
-    仍不可被 Advisory 占用；不要求 per-Invocation cancellation final。
+19. Advisory 在其 subdeadline 到达时关闭新 acquisition；fence-owned session 可
+    cancel/rollback/close/invalidate。caller-owned G2 session 只能 cancel/rollback nested
+    Advisory SAVEPOINT where possible，不能仅为停止 Advisory 被 invalidate 或强制回滚
+    valid G2 truth；token 保持 counted 直到 core owner actual return。即使最多 A 个
+    connection 延迟退出，Protection 不等待并使用 reserve R；不 dispose shared engine，
+    不要求 per-Invocation cancellation final。
 20. Gate A health fail closed 不取消/阻塞 safety sibling；shared Host fatal 沿用 I1；
     DISABLED 与 GATE_A_SHADOW 的 readiness 影响按 §21.2 裁定。
-21. activation default disabled；缺任何 B 类 config 或请求 Gate B 均 startup fail
-    closed。
+21. activation default disabled；`DISABLED` startup epoch 不构造 ingress/provider/worker/
+    fence/full writer，original Evidence INSERT 直接写 literal `GATE_A_DISABLED`，Pack-B
+    capacity/timeout config 可 unset；不能冻结 valid classification 时 DB default
+    `UNSTAGED`。从 DISABLED 激活必须是另行授权的新 epoch。active Gate A 缺任何 required
+    B 类 config 或请求 Gate B 均 startup/activation fail closed。
 22. exact allow-list tables 之外零写；Production/Live/Real API = zero。
 23. no G2 state-machine、G3 economic、Risk、Execution、Accounting、Protection
     semantic regression；SE-02D 边界（§23.3）零触碰（`aggregation_snapshot.py`
@@ -1490,6 +1584,9 @@ Real provider adapter selection / contract validation 与 Gate A activation 为�
 24. Advisory call graph 只能取得 `AdvisoryDbFence`，raw engine/session-factory capability
     injection count = 0；provider await 时 token/session/transaction count = 0；acquire/checkout/
     statement/lock/idle timeout、forced invalidation 与 handoff metrics 全部可验证。
+25. `DISABLED + Pack B unset`、ordinary Evidence INSERT、Evidence INSERT failure，以及
+    restart `UNSTAGED/GATE_A_DISABLED` 必须逐案证明 §33.7 的 durable/owner/provider/
+    Protection/restart outcome；DISABLED Evidence 永不 retroactive 绑定 experiment/pair/arm。
 
 ## 28. Risk Register
 
@@ -1513,7 +1610,10 @@ Real provider adapter selection / contract validation 与 Gate A activation 为�
 | provider alias/model drift | configured + provider-reported exact identity 分别保存；unknown != configured |
 | Advisory failure/backlog 耗尽 Protection shutdown window | Host 预留 Protection budget + Advisory subdeadline；到点立即停 DB cleanup，无 per-row final 前置 |
 | Advisory 耗尽 shared pool 或在 provider I/O 中长期持 connection | Host-owned `AdvisoryDbFence`；`A + R <= C`；Advisory 无 raw session capability；token 覆盖 checkout→close；provider await 持 DB = 0 |
+| G2 持 caller-owned connection 等待 token，或 SAVEPOINT 后提前 release | caller-owned path 只做 immediate non-blocking try-acquire；失败 zero-wait skip；成功 token 覆盖 SAVEPOINT + outer commit/rollback + actual connection return/close/invalidate |
 | Advisory statement/lock/rollback 越过 Protection handoff | server statement/lock/idle timeout + client transaction/subdeadline；到点 close/invalidate、不 dispose shared engine；A holders 仍留 R reserve |
+| shutdown 为停止 Advisory 破坏 valid G2 truth | caller-owned connection 始终由 G2/core owner 管理；subdeadline 只拒绝新 work 并尽可能取消 nested work，不得 solely-for-Advisory invalidate/force outer rollback；token 如实计数到 return |
+| DISABLED 仍要求 writer/fence/Pack-B，或事后补绑 | startup epoch 冻结 literal；original Evidence INSERT 直接写 `GATE_A_DISABLED`；无 writer/fence/extra SQL；Pack-B capacity/timeouts 可 unset；激活须新授权 epoch，历史 Evidence 永不补绑 |
 | durable QUEUED 与 process queue 顺序歧义 | 删除 QUEUED；queue 只 wake-up；consumer 先原子 `ADMITTED -> ACTIVE` + Attempt |
 | raw envelope 泄密/无限增长 | retention OFF until approved；redaction + size/TTL/access decision required |
 | Shadow result 被未来代码误接 economic path | activation enum、constructor allow-list、Gate B startup reject、table mutation tests |
@@ -1549,7 +1649,8 @@ queue、PostgreSQL durable authority。当前 repository truth 足以满足 corr
   Human Accept。
 
 ```text
-Producer Boundary = formal edge_opportunity_evidence schema-default UNSTAGED +
+Producer Boundary = DISABLED: original Evidence INSERT literal GATE_A_DISABLED；
+                    ACTIVE: schema-default UNSTAGED + immediate caller-owned token try +
                     all-Advisory SAVEPOINT（同 G2 formal transaction）
 Admission Gap Authority = UNSTAGED / ADMISSION_STAGING_FAILED_UNBOUND；
                     restart 只做 constant terminal，不构造 seed/deadline/config binding
@@ -1573,33 +1674,45 @@ Shutdown / Restart = Protection-reserved budget + Advisory subdeadline；到点�
                     cancel-not-drain；UNSTAGED 无配置终态化；非终态 Invocation durable recovery
 DB Resource Fence = one Host-owned primary engine；A + R <= C；Advisory capability-only
                     session access；bounded acquire/transaction/statement/lock/idle timeouts；
+                    caller-owned token held through actual connection return；
                     provider I/O holds zero DB resource
+DISABLED Authority = frozen startup-epoch literal；no ingress/provider/worker/fence/full writer；
+                    Pack-B capacity/timeouts may remain unset；activation requires new authorized epoch
 Gate A vs Gate B = explicit activation level；Gate B startup fail-closed until approval
 SE-02D-I02/I03 Runtime Reuse = NONE（仅概念性复用 accepted canonicalization 语义）
 Schema = reuse Evidence chain/attribution + minimal Evidence/Snapshot/AIDecision
          extensions + two new minimal tables；无 migration（属 I2）
 I2 Numeric Blockers = NONE when activation remains disabled and config explicit/unset
-Artifact Status = FIX CANDIDATE DESIGN / READY FOR INDEPENDENT RE-REVIEW
+Artifact Status = FIX-03 CANDIDATE DESIGN / READY FOR INDEPENDENT RE-REVIEW
 ```
 
 ## 31. Independent Review Finding Dispositions
 
 | Finding | Previous Severity | Disposition | Design Change | Residual Risk |
 |---|---|---|---|---|
-| `PRE01B-D2-RR-P1-01` | P1 | **FIX-02 CLAIMED CLOSED / AWAITING RE-REVIEW** | schema-default `UNSTAGED` 是 SAVEPOINT 外唯一 marker；全部 Advisory preparation/persistence 在 nested SAVEPOINT；failure 只留 unbound constant terminal/no mutable rebind | 真实 schema/migration/savepoint failure race 仍待 I2 独立实现与 PostgreSQL 验证 |
+| `PRE01B-D2-RR-P1-01` | P1 | **CLOSED / PRESERVED BY RR02** | schema-default `UNSTAGED` 是 active path SAVEPOINT 外 marker；全部 active Advisory preparation/persistence 在 nested SAVEPOINT；failure 只留 unbound constant terminal/no mutable rebind；DISABLED 无 optional write | 真实 schema/migration/savepoint failure race 仍待 I2 独立实现与 PostgreSQL 验证 |
 | `PRE01B-D2-RR-P1-02` | P1 | **CLOSED** | supersede writer/finalizer 共享 predecessor Evidence row lock；固定 lock order/re-read/commit；final-then-supersede 由 durable N+1 chain 使旧 final 未来 non-actionable | 所有 Evidence writer 必须在 I2 审计为同一锁协议 |
 | `PRE01B-D2-RR-P1-03` | P1 | **CLOSED** | Invocation 五个 final fields 为唯一终态权威；Attempt/AIDecision 同 Invocation/origin composite FK 与原子 terminalization | deferred composite constraints 与 legacy-row compatibility 待 migration review |
 | `PRE01B-D2-RR-P1-04` | P1 | **CLOSED** | PostgreSQL `statement_timestamp()` 单次 CTE；TIMESTAMPTZ(6)/UTC/canonical serialization；duration/version 持久；restart/config reload/queue delay 语义冻结 | 数值 duration 仍是 B 类 activation decision |
-| `PRE01B-D2-RR-P1-05` | P1 | **FIX-02 CLAIMED CLOSED / AWAITING RE-REVIEW** | one primary engine capacity authority + Host-owned `AdvisoryDbFence` + `A + R <= C` + capability isolation + bounded checkout/statement/lock/transaction + deterministic handoff | capacity/timeouts 仍是 B 类 activation values；I2 需真实 pool saturation/DB lock/shutdown adverse proof |
+| `PRE01B-D2-RR-P1-05` | P1 | **CLOSED / ORIGINAL RESOURCE-FENCE DIRECTION PRESERVED BY RR02** | one primary engine capacity authority + Host-owned `AdvisoryDbFence` + `A + R <= C` + capability isolation + bounded checkout/statement/lock/transaction + deterministic handoff；caller-owned lifetime gap separately closed in §33 | capacity/timeouts 仍是 B 类 activation values；I2 需真实 pool saturation/DB lock/shutdown adverse proof |
 | `PRE01B-D2-RR-P2-01` | P2 | **CLOSED** | 删除 durable `QUEUED`；queue 仅 bounded wake-up；consumer 先原子 claim `ADMITTED -> ACTIVE` + Attempt | duplicate-ref/crash/claim DB-failure 需 I2 adverse tests |
 
 Process P2（memory / skills compliance narrative contradiction）仅记录为
 `PROCESS P2 / NOT PRODUCT DESIGN BLOCKER`；FIX-01 未修改 `.workbuddy`、memory、skills 或 daily
 logs，也不以修改产品设计的方式「修复」该 process finding。
 
+RR02 incremental dispositions：
+
+| Finding | Severity | FIX-03 disposition | Design change | Residual implementation proof |
+|---|---|---|---|---|
+| `PRE01B-D2-RR02-P1-01` | P1 | **FIX-03 CLAIMED CLOSED / AWAITING INDEPENDENT RE-REVIEW** | caller-owned G2 connection 只允许 immediate non-blocking token try；成功 token 覆盖 SAVEPOINT、outer commit/rollback 与 actual connection return；shutdown 不夺取 outer ownership | I2 需真实 PostgreSQL/pool test 覆盖 delayed commit、delayed cancellation、actual return 与 truthful token metrics |
+| `PRE01B-D2-RR02-P1-02` | P1 | **FIX-03 CLAIMED CLOSED / AWAITING INDEPENDENT RE-REVIEW** | DISABLED 使用 frozen startup literal 随 original Evidence INSERT 写 `GATE_A_DISABLED`；无 ingress/provider/worker/fence/full writer/extra SQL；Pack-B capacity/timeouts 可 unset | I2 需证明 DB-default fallback、insert failure、restart immutability 与 no retroactive binding |
+
 ## 32. FIX-02｜RR01 P1-01 + P1-05 Latest-Main Closure Contract
 
-本节是 FIX-02 的集中、normative disposition；与 §0.5、§8、§20、§24～§31 共同解释。
+本节记录 FIX-02 的集中 disposition；其仍-current 内容与 §0.5、§8、§20、§24～§31
+共同解释。RR02 指出的 caller-owned lease 与 DISABLED path 由 §33 修正并最终控制；本节
+已同步删除相反的 release/writer/shutdown wording。
 若 failed FIX-01 的历史措辞与本节冲突，以本节为准；历史时间点的 baseline/status 事实不被
 改写。
 
@@ -1633,14 +1746,14 @@ OUTER G2 TRANSACTION (core authority)
     -> no seed/config/digest/optional Advisory statement
 
   NESTED SAVEPOINT #1 (all Advisory work)
-    acquire AdvisoryDbFence token
+    immediate non-blocking try-acquire caller-owned Advisory lease
     activation classification
     one PostgreSQL admission clock
     build/canonicalize/digest complete seed
     bind config/experiment/pair/arm/provider/model/deadline
     write Snapshot + Invocation(ADMITTED)
     UNSTAGED -> INVOCATION_CREATED
-    release token after SAVEPOINT completes
+    keep token through SAVEPOINT + outer commit/rollback + actual connection return
 
   on any Advisory-only error:
     rollback SAVEPOINT #1 only
@@ -1651,6 +1764,7 @@ OUTER G2 TRANSACTION (core authority)
     if #2 also fails: keep UNSTAGED
 
 COMMIT OUTER G2 TRANSACTION unless a genuine core PostgreSQL/G2/Evidence failure occurred
+G2 caller releases token only after connection actual return/close/invalidate
 ```
 
 `UNSTAGED` 是 first durable marker，不是“DB write 不会失败”的假设：若 PostgreSQL 无法持久
@@ -1666,7 +1780,7 @@ SE-02A Evidence identity/hash/payload，也不会把失败样本事后塞进某�
 | Failure point | Outer G2/Evidence | Durable Advisory fact | Invocation / Attempt / Decision | Accounting / next action |
 |---|---|---|---|---|
 | PostgreSQL/connection/core G2 integrity failure before/at Evidence write | may rollback | none required | none | legitimate core failure；不声称 G2 survives |
-| Advisory limiter unavailable before SAVEPOINT work | commits if core valid | `UNSTAGED` | none | restart constant unbound terminal；Gate A fail closed |
+| caller-owned immediate token try unavailable before SAVEPOINT work | commits if core valid；zero wait | `UNSTAGED` | none | no Advisory SQL；restart constant unbound terminal；Gate A fail closed where completeness requires |
 | seed construction / canonicalization / digest failure | commits if core valid | `UNSTAGED` or constant unbound terminal | none | durable completeness hole；no mutable rebind |
 | config/experiment/pair/arm binding failure | commits if core valid | `UNSTAGED` or constant unbound terminal | none | 不伪造 experiment membership；Gate evidence blocked |
 | snapshot/Invocation/FK/optional Advisory persistence failure | commits if core valid | `UNSTAGED` or constant unbound terminal | none（SAVEPOINT rollback） | no partial/phantom row |
@@ -1709,6 +1823,7 @@ Advisory code receives only AdvisoryDbFence
 Protection keeps primary session factory and never takes Advisory tokens
 token before Advisory SQL/session checkout
 token release only after transaction rollback/commit + session close/invalidate
+caller-owned G2 path uses zero-wait try and keeps token until its connection actually returns
 provider I/O holds zero token/session/transaction
 ```
 
@@ -1719,23 +1834,24 @@ proven, makes Gate A non-ACTIVE。This task does not authorize a second engine/p
 
 | Condition | Mechanical action | Protection guarantee | Durable/restart result |
 |---|---|---|---|
-| `A` tokens held | next Advisory waits only to bounded acquire deadline | at least `R` capacity not consumable by Advisory | no new provider；state unchanged/terminalized if possible |
+| `A` tokens held | ordinary no-connection Advisory waits only to bounded acquire deadline；caller-owned G2 zero-wait skips | at least `R` capacity not consumable by Advisory | no new provider；state unchanged/terminalized if possible |
 | primary pool checkout timeout after token | close partial session, release token | no token leak；reserve equation unchanged | exact DB-capacity reason；restart under original deadline |
 | Advisory statement/row-lock timeout | PostgreSQL aborts statement；wrapper rollback/close then releases token | no indefinite Advisory statement/lock | Attempt/Invocation failure when writable；otherwise durable prior state |
 | provider network I/O | DB token/session count must equal zero | provider latency cannot hold pool/locks | response later uses a new bounded finalizer transaction |
 | shutdown begins | close admission + close fence to new leases + cancel provider | no new Advisory checkout | ADMITTED/ACTIVE/RETRY_PENDING remain interpretable |
-| cleanup reaches subdeadline | cancel, rollback/close or invalidate Advisory connection；never dispose shared engine | at most `A` delayed holders, so `R` remains outside Advisory reach | incomplete terminal writes stay in prior durable state |
+| cleanup reaches subdeadline | fence-owned session cancel/rollback/close/invalidate；caller-owned G2 only cancel nested work where possible，never solely-for-Advisory invalidate/force outer rollback；never dispose shared engine | at most `A` delayed holders remain truthfully counted，Protection uses `R` without waiting | incomplete terminal writes stay in prior durable state；G2 follows core lifecycle |
 | Advisory rollback/driver close itself delays | report forced invalidation/over-subdeadline metric；wrapper returns | capacity arithmetic still reserves `R`; Advisory lock allow-list excludes Protection rows | restart treats nonterminal rows honestly |
 | Protection needs DB during/after handoff | bypasses Advisory limiter, uses primary factory | Advisory cannot borrow reserve or queue ahead through raw factory | Protection semantics unchanged |
 
 ### 32.7 Pack A / B / C update
 
 - **Pack A = NONE**：transaction polarity、unbound terminal semantics、single-engine resource ownership、
-  limiter capability、reserve equation、provider/DB separation、timeouts categories、handoff/restart semantics均已冻结。
+  caller-owned zero-wait acquisition/through-return lifetime、limiter capability、reserve equation、
+  provider/DB separation、shutdown ownership、DISABLED direct-literal/no-writer authority 均已冻结。
 - **Pack B**：joint attempts/retries、decision/provider budgets；queue/workers；shutdown budgets；explicit
   primary pool size/finite overflow/pool timeout；`R`、`A`；Advisory acquire/transaction/statement/lock/
   idle-in-transaction timeout；provider/model；retention policy。所有值须 positive/finite/internally valid；
-  missing/invalid ⇒ Gate A cannot ACTIVE。
+  capacity/timeout values 在 `DISABLED` 可 unset；进入 Gate A active 前 missing/invalid ⇒ activation rejected。
 - **Pack C**：Gate A observation window、latency/failure/coverage/duplicate/cost sufficiency thresholds；不在 D2
   发明 PASS threshold。
 
@@ -1782,7 +1898,8 @@ FUTURE TASK；Gate C NOT PASSED；Real AI NOT ACTIVATED；Live NOT AUTHORIZED。
 FIX-02 后，future PRE-01B-I2 不需再选择以下架构：G2/advisory transaction isolation、admission failure
 polarity、unbound terminal/restart state、DB capacity authority、Advisory concurrency/reserve equation、checkout/
 statement/lock behavior、provider/DB separation、shutdown handoff。只有 Pack-B 数值留待 implementation/
-activation config。故候选的作者声明为：
+activation config。FIX-02 在当时的候选作者声明为（historical candidate status；current FIX-03
+verdict 见 §33.9）：
 
 ```text
 PRE-01B-D2-FIX-02 = FIX CANDIDATE DESIGN — READY FOR INDEPENDENT RE-REVIEW
@@ -1793,3 +1910,183 @@ MIGRATION / RUNTIME CHANGE / ACTIVATION = NO
 
 非声明：本文件不 Human Accept D2、不实施 I2、不修改 schema/runtime/config/test、不激活 Gate A/B/C、
 Real AI 或 Live；不声称 provider/edge/profitability 已验证；不声称 production numeric sizing 已决定。
+
+## 33. FIX-03｜RR02 Caller-Owned Lease + DISABLED Authority Closure Contract
+
+本节是 FIX-03 的最终 normative disposition。若 §7、§8、§20、§21、§24、§25、§27、
+§30～§32 的 current wording 与本节冲突，以本节为准；上述各节已同步修正，不允许 future
+I2 executor 在 acquisition blocking、token lifetime、shutdown ownership 或 DISABLED writer/fence
+上再次选择设计。
+
+### 33.1 RR02 verdict / exact scope
+
+```text
+PRE-01B-D2-RR02 = FAIL — FIX REQUIRED
+RR02 P1-01 = FIX-03 CLAIMED CLOSED / AWAITING INDEPENDENT RE-REVIEW
+RR02 P1-02 = FIX-03 CLAIMED CLOSED / AWAITING INDEPENDENT RE-REVIEW
+RR01 P1-01 / P1-02 / P1-03 / P1-04 / P1-05 / P2-01 = REMAIN CLOSED
+```
+
+本轮只修 caller-owned G2 connection lease 与 DISABLED authority。Evidence identity/hash、
+supersede/finalizer locks、Invocation final authority、PostgreSQL original deadline、no fake
+durable `QUEUED`、provider/DB separation、Gate A/B/C 边界均不重开。
+
+### 33.2 Caller-owned G2 lease authority
+
+1. G2 caller 始终拥有 outer transaction、G2 session、valid G2/Evidence commit/rollback 与
+   final connection return。`AdvisoryDbFence`/writer 只拥有 bounded token/capability 与
+   Advisory-specific operations，绝不取得整个 G2 transaction ownership。
+2. G2 已持 connection 时，Advisory admission token 只能 **immediate non-blocking
+   try-acquire**。持 connection 期间不得 queue、await 或 timeout wait；不得为取得 token
+   再 checkout 第二 connection。该 try 是 Host-owned in-process limiter operation，不能
+   执行 SQL 或 checkout connection。G2/core owner 将 already-owned session 绑定到返回的
+   `CallerOwnedAdvisoryLease` capability；writer 只使用该 lease，不接收 raw engine/session
+   factory，也不得 close/invalidate/commit/rollback outer resource。
+3. try-acquire 失败：zero Advisory SQL、zero SAVEPOINT、zero provider；preserve outer
+   G2/Evidence transaction；Evidence 保持 schema-default `UNSTAGED`，沿 deterministic
+   unbound-failure/restart accounting；需要 completeness 的 Gate A fail closed。
+4. try-acquire 成功：该 caller-owned connection 立即成为一个 counted Advisory holder。
+   token 覆盖所有 Advisory SAVEPOINT work、outer commit/rollback，并持续到 connection
+   actual return/close/invalidate。SAVEPOINT release、outer transaction completion 回调或
+   process-local ref publication都不得提前 release。
+5. only the G2/core owner 在 session context 的 connection-return `finally` 释放 token；
+   writer 不得释放。释放 metrics 必须以 actual return/close/invalidate 为事实，禁止把
+   subdeadline、SAVEPOINT rollback 或 wrapper return 误报为 token released。
+
+### 33.3 Acquisition failure matrix
+
+| Path | Connection at request | Acquisition | Wait | Advisory SQL/provider | Durable/Gate result |
+|---|---|---|---|---|---|
+| caller-owned G2 admission | already held by G2 | immediate try only | exactly zero | unavailable ⇒ none/none | `UNSTAGED` + deterministic unbound handling；Gate A completeness fail closed |
+| ordinary Advisory start/finalizer/recovery | none held | bounded fence acquire, then at most one checkout | Pack-B deadline clipped by invocation/shutdown | unavailable ⇒ zero provider/new SQL except a later separately leased terminal write | prior durable state retained；restart uses original identity/deadline |
+| shutdown closed fence | none or caller-owned without token | reject new acquisition | exactly zero | none | no new work；prior durable state retained |
+
+No path may borrow `R`, fall back to raw session factory, or turn capacity failure into baseline
+participation/BUY.
+
+### 33.4 Shutdown ownership and truthful handoff
+
+At Advisory subdeadline the Host rejects new Advisory work/token, cancels provider work and
+cancels/rolls back nested Advisory SAVEPOINT work where possible. Fence-owned Advisory sessions
+may be closed/invalidated within the bounded cleanup contract. A caller-owned G2 connection must
+**never** be invalidated solely to stop Advisory, and otherwise-valid G2 truth must not be forcibly
+rolled back. Its outer transaction follows accepted core RuntimeHost lifecycle; its token remains
+held/counting until core owner actual return/close/invalidate.
+
+If that core G2 operation remains active after Advisory subdeadline, it is still one of at most
+`A` counted Advisory-induced holders. Host health/metrics must expose it as held/over-subdeadline，
+not released。Protection does not wait for those holders：it bypasses the Advisory limiter and uses
+the remaining reserved capacity `R`。Shared engine is still disposed only by Host at accepted final
+shutdown step。
+
+### 33.5 Capacity proof
+
+Let `H_o` be ordinary fence-owned Advisory sessions and `H_g` caller-owned G2 connections whose
+Advisory try-acquire succeeded。The single limiter enforces：
+
+```text
+H_o + H_g <= A
+A + R <= C
+C - (H_o + H_g) >= C - A >= R
+```
+
+Each token is bound to exactly one distinct primary connection for its full counted lifetime；
+one connection cannot hold multiple Advisory tokens，and one lease cannot open a second/nested
+connection。
+
+- `A` ordinary Advisory sessions：`H_o=A, H_g=0`；new G2 try fails immediately，reserve `R`
+  remains outside Advisory reach。
+- caller-owned admissions：each successful G2 try consumes one of the same `A` tokens；they do
+  not form a second uncounted class。
+- token unavailable while G2 holds connection：zero wait means Advisory does not extend that
+  uncounted connection lifetime；G2 continues core work without Advisory SQL。
+- outer commit / cancellation / driver return delayed：token remains counted until actual return，
+  so the inequality stays true and the Host cannot falsely increase headroom。
+- Protection new checkout：uses primary factory without Advisory token；even with `A` counted
+  holders wedged, Advisory itself cannot consume `R`。
+
+This is an attribution proof only：it does not promise Protection success under unrelated core
+overload、all connections consumed by non-Advisory callers、PostgreSQL outage or shared engine
+failure。
+
+### 33.6 DISABLED single authority
+
+1. Host startup freezes one immutable activation classification for the current runtime epoch。
+   The value passed to G2 persistence is a typed immutable literal value only，not a callable writer、
+   session capability or mutable config reference。
+2. If classification = `DISABLED`：no `AdvisoryIngress`、provider、worker、
+   `AdvisoryDbFence`、full `AdvisoryAdmissionWriter`、extra Advisory SQL or SAVEPOINT。
+3. The existing formal Evidence INSERT directly records literal `GATE_A_DISABLED` from that
+   frozen classification。It performs no seed/config/digest/provider preparation and no separate
+   optional DB write。The field remains outside Evidence identity/hash/payload。
+4. If a valid disabled classification cannot be established，the INSERT omits the override and
+   PostgreSQL default `UNSTAGED` is the safe durable fallback。No mutable config lookup may later
+   reinterpret it。
+5. `GATE_A_DISABLED` Evidence is terminal for that Evidence/epoch and is never retroactively
+   assigned experiment、pair、arm、seed、deadline、Snapshot or Invocation。
+6. `DISABLED -> active Gate A` requires a separately authorized activation boundary and a new
+   explicitly frozen runtime epoch。No silent in-place activation。
+7. Pack-B pool/concurrency/timeout values may remain unset throughout `DISABLED`。All become
+   mandatory and must validate before a Gate A active epoch can start。
+
+### 33.7 Required 13-case proof matrix
+
+| # / Case | Session owner | Token ownership / lifetime | Durable Evidence state | G2 commit/rollback | Provider call | Protection capacity | Restart action |
+|---|---|---|---|---|---|---|---|
+| 1. DISABLED + Pack B unset | no Advisory session；Host only freezes classification | none；no fence exists | no row until ordinary Evidence；classification authority = `DISABLED` | N/A | no | normal primary capacity；no Advisory reservation/config required | new process freezes its own epoch；does not mutate old Evidence |
+| 2. DISABLED + ordinary Evidence insert | G2 caller owns outer session/connection | none | same INSERT writes `GATE_A_DISABLED` | commit if all core G2/Evidence writes valid | no | unaffected；Advisory consumes 0 | terminal classification；no writer/reclassification/provider |
+| 3. DISABLED + Evidence insert failure | G2 caller | none | no new durable Evidence row | outer core transaction rolls back；this is a core write failure | no | unaffected by Advisory | no Advisory recovery row/work；normal core recovery only |
+| 4. Gate A + no Advisory token available | G2 caller | try fails immediately；none acquired；zero wait | `UNSTAGED` after valid outer commit | valid G2/Evidence commits | no | existing counted holders ≤ A；R remains unavailable to Advisory and available to Protection | only constant unbound terminalization under a later bounded lease；no seed/config/deadline/Invocation；otherwise remain `UNSTAGED` / fail closed |
+| 5. Gate A + token acquired + SAVEPOINT success | G2 caller owns outer；writer owns only nested ops | G2-bound token held through SAVEPOINT、outer commit/rollback、actual connection return | commit yields `INVOCATION_CREATED` + `ADMITTED` atomically | commit if core valid | none before commit；only post-commit eligible ref may cause provider under original deadline | holder counts within A；R remains | recover same Invocation/ref/deadline；never create new logical identity |
+| 6. Gate A + SAVEPOINT failure | G2 caller | same token remains through nested rollback、optional constant-terminal SAVEPOINT、outer result and actual return | `UNSTAGED` or constant `ADMISSION_FAILED_FINAL/...UNBOUND` if best-effort write succeeds | valid core G2/Evidence commits | no | counted within A until return；R remains | retry only same constant terminal write；never bind mutable config/arm |
+| 7. Gate A + outer G2 commit failure | G2 caller | held through rollback and actual return，then released by G2 owner | no new Evidence/Invocation survives | whole outer transaction rolls back | no | counted within A until return；then headroom restored | no Advisory work for rolled-back row/ref |
+| 8. Token acquired + outer commit delayed | G2 caller | remains held/counting for entire delay and connection return；never released at SAVEPOINT | uncommitted facts are not durable/visible；eventual result follows case 5 or 7 | pending，then exact commit/rollback branch | no while outer unresolved | Protection does not wait；R remains by equation | crash/DB rollback ⇒ no phantom；commit ⇒ recover same Invocation |
+| 9. Shutdown while G2 owns session | G2/core caller | reject new tokens；existing token stays counted；cancel nested work where possible，no forced outer ownership transfer | nested success + outer commit ⇒ case 5；nested rollback + outer commit ⇒ case 6；outer rollback ⇒ case 7 | core lifecycle decides only | no new call；active provider scope cancelled separately | Protection proceeds on R without waiting | interpret only committed resulting state under cases 5–7 |
+| 10. Advisory subdeadline reached before G2 returns | G2/core caller | token remains held/over-subdeadline until actual return/close/invalidate；must not report released | no new durability claim before outer result | do not solely-for-Advisory invalidate or force rollback；core lifecycle completes | no new call | R remains and Protection proceeds | after actual result，same committed-state rules；no synthetic cancellation final |
+| 11. A holders wedged + Protection needs DB | holders may be ordinary fence-owned and/or caller-owned G2；Protection owns its new session | exactly A tokens held；no new Advisory lease；caller G2 zero-wait skips | existing states unchanged until their owners resolve | unrelated core transactions keep their own outcome | no new provider requiring DB；in-flight provider holds zero DB | equation leaves at least R outside Advisory reach；Protection bypasses limiter and checks out from reserve | prior nonterminal states recover honestly；no false release/headroom |
+| 12. Restart with `UNSTAGED` | bounded recovery session only when active-capable config/fence is valid；otherwise none | recovery must acquire an ordinary bounded token before SQL；no caller-owned lease | constant `...UNBOUND / NO_LONG_UNBOUND` terminal if write commits；else stays `UNSTAGED` | no historical G2 rewrite | no | recovery consumes at most one of A；R remains；DISABLED with no fence leaves row unchanged/fail closed | never read current experiment/provider config，never create seed/deadline/Invocation，retry only constant terminalization |
+| 13. Restart with `GATE_A_DISABLED` | none | none | remains exactly `GATE_A_DISABLED` | no historical G2 rewrite | no | unaffected | no reclassification、seed、arm、Invocation or provider even if new epoch is active |
+
+These branches are fully selected by durable state、token result and outer transaction result；
+implementation may not invent another disabled/wait/release path。
+
+### 33.8 Closed-finding non-regression
+
+| Preserved finding | FIX-03 proof |
+|---|---|
+| RR01 P1-01 G2 truth isolation | active Advisory remains inside nested SAVEPOINT；token failure executes no Advisory SQL；DISABLED has no optional write，so Advisory-only failure cannot abort valid G2 truth |
+| RR01 P1-02 supersede/finalizer TOCTOU | bound Evidence `FOR UPDATE` target、lock order and final actionability unchanged |
+| RR01 P1-03 exactly one durable final | Invocation five terminal fields and Attempt/AIDecision origin constraints unchanged；DISABLED/unbound paths create none |
+| RR01 P1-04 immutable original deadline | successful active admission still uses one persisted PostgreSQL clock/deadline；unbound/disabled creates none；restart never resets |
+| RR01 P1-05 resource fence | same one-engine `A + R <= C` fence now also counts caller-owned G2 connections for their full actual lifetime |
+| RR01 P2-01 no fake durable QUEUED | queue remains post-commit bounded wake-up only；DISABLED/token-failure paths never enqueue |
+
+Evidence identity/hash、baseline attribution、provider/DB separation、Gate A/B/C/Real AI/Live
+activation boundaries remain unchanged。
+
+- PRE-01A-D1 compatibility：`GATE_A_DISABLED`/`UNSTAGED` create no experiment/pair/arm、
+  Invocation、Attempt、Decision or provider call；active success still binds the original immutable
+  deadline and exactly-one logical final。
+- PRE-01B-D1 compatibility：RuntimeHost remains sole startup/lifecycle owner；DISABLED adds only
+  a frozen literal value and no resource owner/task；active caller-owned lease does not transfer G2
+  outer transaction ownership or create a second engine/pool/DSN。
+- P1-01 SAVEPOINT compatibility：active optional work remains isolated；DISABLED has no optional
+  Advisory write，while failure of the original combined Evidence INSERT remains a legitimate core
+  transaction failure。
+
+### 33.9 Pack A / B / C and candidate verdict
+
+- **Pack A = NONE**：acquisition blocking rule、caller-owned lease start/end、outer ownership、
+  shutdown cleanup、Protection handoff、DISABLED writer/fence/classification/state semantics are
+  fully frozen。
+- **Pack B**：retains numeric pool/concurrency/timeout/shutdown/queue/retry/provider values。
+  Capacity/timeout settings may be unset while `DISABLED`；all required values must validate before
+  Gate A active。
+- **Pack C**：remains observation/sufficiency thresholds only。
+
+```text
+PRE-01B-D2-FIX-03 = FIX CANDIDATE DESIGN — READY FOR INDEPENDENT RE-REVIEW
+HUMAN ACCEPTANCE = NOT PERFORMED
+I2 IMPLEMENTATION = NOT AUTHORIZED
+MIGRATION / RUNTIME CHANGE / ACTIVATION = NO
+```
