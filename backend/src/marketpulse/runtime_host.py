@@ -141,6 +141,11 @@ __all__ = [
     "HostStartupError",
     "HostTerminalResult",
     "LiveMarketState",
+    "ProductHealthCheckSnapshot",
+    "ProductLaneSnapshot",
+    "ProductMarketSnapshot",
+    "ProductRuntimeSnapshot",
+    "RecoverySnapshot",
     "RuntimeHost",
     "SafetyQueueOverflowError",
 ]
@@ -198,9 +203,7 @@ _TERMINAL_STATES = frozenset(
 
 #: Health components whose non-healthy status closes risk admission in the accepted G4 risk
 #: gate. `CORE_MARKET_DATA` is kept honest by the Host itself (see `_sync_market_health`).
-_DB_HEALTH_COMPONENTS = frozenset(
-    {HealthComponent.DATABASE.value, HealthComponent.EXECUTION.value}
-)
+_DB_HEALTH_COMPONENTS = frozenset({HealthComponent.DATABASE.value, HealthComponent.EXECUTION.value})
 
 
 class HostConfigurationError(RuntimeError):
@@ -252,6 +255,95 @@ class HostTerminalResult:
     reason: str
     state: HostLifecycleState
     shutdown_failures: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class RecoverySnapshot:
+    """Sanitized terminal recovery fact for one Host process lifetime."""
+
+    status: str
+    ok: bool
+    started_at: datetime
+    finished_at: datetime | None
+    ready_at: datetime | None
+    reason: str | None
+    final_system_state: SystemState
+    operator_state: OperatorState
+    reconciliation_ok: bool | None
+
+
+@dataclass(frozen=True)
+class ProductMarketSnapshot:
+    instrument_id: str
+    present: bool
+    fresh: bool
+    quality: str
+
+
+@dataclass(frozen=True)
+class ProductLaneSnapshot:
+    name: str
+    size: int
+    capacity: int
+    high_water: int
+    processed: int
+    rejected: int
+    overflow: int
+
+
+@dataclass(frozen=True)
+class ProductHealthCheckSnapshot:
+    name: str
+    status: str
+    updated_at: datetime | None
+    reason: str | None
+
+
+@dataclass(frozen=True)
+class ProductRuntimeSnapshot:
+    """Narrow, sanitized Host-owned read snapshot for the Product API."""
+
+    instance_id: str
+    run_mode: str
+    local_only: bool
+    lifecycle_state: HostLifecycleState
+    uptime_seconds: float | None
+    instruments: tuple[str, ...]
+    active_risk_instruments: tuple[str, ...]
+    children_live: tuple[str, ...]
+    risk_admission: bool
+    ingress: bool
+    safety: bool
+    scanner: bool
+    created_at: datetime
+    started_at: datetime | None
+    recovery_ready_at: datetime | None
+    last_heartbeat_at: datetime | None
+    last_reconciliation_at: datetime | None
+    health_checks: tuple[ProductHealthCheckSnapshot, ...]
+    provider_status: str
+    provider_connection_attempts: int | None
+    provider_reconnects: int | None
+    provider_constructed_by_host: bool
+    subscriptions: tuple[tuple[str, str], ...]
+    market: tuple[ProductMarketSnapshot, ...]
+    scanner_lane: ProductLaneSnapshot
+    safety_lanes: tuple[ProductLaneSnapshot, ...]
+    database_application_name: str
+    database_engine_disposed: bool | None
+    database_owns_engine: bool
+    singleton_lock_held: bool
+    singleton_connection_present: bool
+    singleton_lock_lost: bool
+    recovery: RecoverySnapshot | None
+    reconciliation_startup_ok: bool
+    reconciliation_last_ok: bool
+    reconciliation_last_result: str | None
+    reconciliation_diagnostics: tuple[str, ...]
+    safe_mode_latched_by_host: bool
+    operator_state: OperatorState | None
+    system_state: SystemState | None
+    blocking_incident_count: int
 
 
 @dataclass
@@ -425,10 +517,7 @@ class LiveMarketState:
             "present": {item: item in self._latest for item in instruments},
             "fresh": {item: self.fresh_tradable(item) for item in instruments},
             "quality": {item: self.quality(item).value for item in instruments},
-            "age_seconds": {
-                item: _round_or_none(self.age_seconds(item))
-                for item in instruments
-            },
+            "age_seconds": {item: _round_or_none(self.age_seconds(item)) for item in instruments},
             "frames": {item: self.frames(item) for item in instruments},
         }
 
@@ -590,9 +679,7 @@ class RuntimeHost:
         self._control: SystemControlService | None = None
 
         # --- market state / lanes --------------------------------------------------
-        self._market = LiveMarketState(
-            freshness_seconds=settings.runtime_market_freshness_seconds
-        )
+        self._market = LiveMarketState(freshness_seconds=settings.runtime_market_freshness_seconds)
         self._safety_lanes: dict[str, BoundedLane] = {}
         self._scanner_lane = BoundedLane(
             name="scanner", capacity=settings.runtime_scanner_queue_capacity
@@ -618,6 +705,7 @@ class RuntimeHost:
         self._instrument_metadata: dict[str, Instrument] = {}
         self._active_risk_instruments: tuple[str, ...] = ()
         self._recovery_ok = False
+        self._recovery_snapshot: RecoverySnapshot | None = None
         self._startup_reconciliation_ok = False
         self._durable_system_state: SystemState | None = None
         self._durable_operator_state: OperatorState | None = None
@@ -737,6 +825,109 @@ class RuntimeHost:
     @property
     def provider_constructed_by_host(self) -> bool:
         return self._provider_constructed
+
+    @property
+    def product_read_session_factory(self) -> async_sessionmaker[AsyncSession] | None:
+        """Borrow the exact Host-owned session factory without transferring ownership."""
+        return self._sessions
+
+    @property
+    def recovery_snapshot(self) -> RecoverySnapshot | None:
+        """The immutable, sanitized recovery completion fact, if recovery returned."""
+        return self._recovery_snapshot
+
+    def product_runtime_snapshot(self) -> ProductRuntimeSnapshot:
+        """Return the Product allowlist as a section-consistent Host-memory snapshot.
+
+        This is intentionally separate from ``runtime_payload()``.  The latter remains the
+        existing authenticated telemetry surface; it includes broad operational diagnostics
+        that are not a Product API contract.
+        """
+        health_checks = tuple(
+            ProductHealthCheckSnapshot(
+                name=name,
+                status=str(entry.get("status", "UNAVAILABLE")),
+                updated_at=_as_utc_datetime(entry.get("updated_at")),
+                reason=(entry.get("reason") if isinstance(entry.get("reason"), str) else None),
+            )
+            for name, entry in sorted(self._health.snapshot().items())
+        )
+        provider = self._provider
+        provider_status = "NOT_STARTED"
+        connection_attempts: int | None = None
+        reconnects: int | None = None
+        if provider is not None:
+            provider_status = (
+                "LIVE"
+                if self._provider_stream_live()
+                else ("STOPPED" if self._provider_stopped.is_set() else "NOT_STARTED")
+            )
+            connection_attempts = _as_int_or_none(_safe_getattr(provider, "connection_attempts"))
+            reconnects = _as_int_or_none(_safe_getattr(provider, "reconnects"))
+        market = tuple(
+            ProductMarketSnapshot(
+                instrument_id=instrument_id,
+                present=self._market.latest(instrument_id) is not None,
+                fresh=self._market.fresh_tradable(instrument_id),
+                quality=self._market.quality(instrument_id).value,
+            )
+            for instrument_id in self.required_instruments()
+        )
+
+        def lane_snapshot(lane: BoundedLane) -> ProductLaneSnapshot:
+            return ProductLaneSnapshot(name=lane.name, **lane.telemetry())
+
+        return ProductRuntimeSnapshot(
+            instance_id=self.instance_id,
+            run_mode=self.run_mode.value,
+            local_only=self.settings.local_only,
+            lifecycle_state=self._state,
+            uptime_seconds=(
+                None
+                if self._started_monotonic is None
+                else round(time.monotonic() - self._started_monotonic, 3)
+            ),
+            instruments=self.instruments,
+            active_risk_instruments=self._active_risk_instruments,
+            children_live=tuple(sorted(self._children_live)),
+            risk_admission=self._risk_admission_open,
+            ingress=self._ingress_open,
+            safety=self._safety_admission_open,
+            scanner=self._scanner_admission_open,
+            created_at=self._created_at,
+            started_at=self._started_at,
+            recovery_ready_at=self._recovery_ready_at,
+            last_heartbeat_at=self._last_heartbeat_at,
+            last_reconciliation_at=self._last_reconciliation_at,
+            health_checks=health_checks,
+            provider_status=provider_status,
+            provider_connection_attempts=connection_attempts,
+            provider_reconnects=reconnects,
+            provider_constructed_by_host=self._provider_constructed,
+            subscriptions=tuple(
+                (channel["channel"], channel["instId"]) for channel in self.subscriptions
+            ),
+            market=market,
+            scanner_lane=lane_snapshot(self._scanner_lane),
+            safety_lanes=tuple(
+                lane_snapshot(lane) for _, lane in sorted(self._safety_lanes.items())
+            ),
+            database_application_name=self.database_application_name,
+            database_engine_disposed=None if self._db is None else self._db.disposed,
+            database_owns_engine=self._owns_database,
+            singleton_lock_held=self._lock_held,
+            singleton_connection_present=self._lock_connection is not None,
+            singleton_lock_lost=self._lock_lost,
+            recovery=self._recovery_snapshot,
+            reconciliation_startup_ok=self._startup_reconciliation_ok,
+            reconciliation_last_ok=self._reconciliation_ok,
+            reconciliation_last_result=self._last_reconciliation_result,
+            reconciliation_diagnostics=tuple(self._last_reconciliation_diagnostics),
+            safe_mode_latched_by_host=self._safe_mode_latch_applied,
+            operator_state=self._durable_operator_state,
+            system_state=self._durable_system_state,
+            blocking_incident_count=self._blocking_incident_count,
+        )
 
     def ownership_snapshot(self) -> dict[str, Any]:
         """Read-only facts about what this Host owns right now (used by tests/review)."""
@@ -947,9 +1138,7 @@ class RuntimeHost:
         if missing_v1:
             # V1 activation contract: an enabled Host always covers both accepted instruments.
             # Additional symbols stay allowed; a missing BTC-USDT / ETH-USDT does not.
-            raise HostConfigurationError(
-                "V1_REQUIRED_INSTRUMENTS_MISSING:" + ",".join(missing_v1)
-            )
+            raise HostConfigurationError("V1_REQUIRED_INSTRUMENTS_MISSING:" + ",".join(missing_v1))
         if self.run_mode is RunMode.LIVE_PAPER:
             if not settings.local_only or settings.host != "127.0.0.1":
                 raise HostConfigurationError("LIVE_PAPER_REQUIRES_LOCAL_ONLY")
@@ -1252,6 +1441,8 @@ class RuntimeHost:
 
     async def _run_recovery(self) -> None:
         assert self._recovery is not None and self._incidents is not None
+        if self._recovery_snapshot is not None:
+            raise HostInvariantError("recovery_snapshot_already_published")
         report = await self._recovery.recover(
             self.run_mode, bbo_for=self._market.bbo_for, now=self.clock.now()
         )
@@ -1267,6 +1458,23 @@ class RuntimeHost:
             self._last_reconciliation_diagnostics = list(report.reconciliation.diagnostics)[:8]
         if self._recovery_ok:
             self._recovery_ready_at = self.clock.now()
+        # ``report`` is mutable and contains arbitrary revalidation/evidence payloads.  Publish
+        # one complete, immutable Product-safe fact only after ``recover()`` has returned.
+        # Assignment is atomic at the object-reference level and this process-lifetime field is
+        # never subsequently mutated or reconstructed from timestamps.
+        self._recovery_snapshot = RecoverySnapshot(
+            status="COMPLETED",
+            ok=bool(report.ok),
+            started_at=report.started_at,
+            finished_at=report.finished_at,
+            ready_at=self._recovery_ready_at,
+            reason=report.reason,
+            final_system_state=SystemState(report.final_system_state),
+            operator_state=OperatorState(report.operator_state),
+            reconciliation_ok=(
+                None if report.reconciliation is None else bool(report.reconciliation.ok)
+            ),
+        )
         self._health.set(
             HealthComponent.DATABASE.value, HealthStatus.HEALTHY.value, recovery="completed"
         )
@@ -1529,9 +1737,7 @@ class RuntimeHost:
                     continue
                 # Quality is re-derived at consumption time: a BBO that aged while the
                 # worker drained its backlog must not be handed on under a FRESH label.
-                item = item.model_copy(
-                    update={"data_quality": self._market.quality(instrument_id)}
-                )
+                item = item.model_copy(update={"data_quality": self._market.quality(instrument_id)})
                 assert self._safety is not None
                 try:
                     await self._safety.on_market_data(self.run_mode, item, now=self.clock.now())
@@ -2009,9 +2215,7 @@ class RuntimeHost:
             },
             "durable_state": {
                 "system_state": (
-                    None
-                    if self._durable_system_state is None
-                    else self._durable_system_state.value
+                    None if self._durable_system_state is None else self._durable_system_state.value
                 ),
                 "operator_state": (
                     None
@@ -2089,9 +2293,7 @@ class RuntimeHost:
             return {
                 "rss_bytes": rss,
                 "rss_mb": round(rss / (1024 * 1024), 3),
-                "tcp_socket_count": _safe_call(
-                    process, "net_connections", kind="tcp", length=True
-                ),
+                "tcp_socket_count": _safe_call(process, "net_connections", kind="tcp", length=True),
                 "handle_count": _handle_count(process),
             }
         except Exception:  # noqa: BLE001 - a failed probe is UNAVAILABLE, never zero
@@ -2158,8 +2360,10 @@ class RuntimeHost:
             if scope is not None:
                 await self._drain(
                     "provider_stream",
-                    lambda: self._provider_stopped.is_set()
-                    or not self._child_ever_started("provider_stream"),
+                    lambda: (
+                        self._provider_stopped.is_set()
+                        or not self._child_ever_started("provider_stream")
+                    ),
                     deadline,
                 )
 
@@ -2180,8 +2384,9 @@ class RuntimeHost:
             self._scanner_admission_open = False
             await self._drain(
                 "scanner_lane",
-                lambda: "scanner" not in self._children_live
-                or not self._child_ever_started("scanner"),
+                lambda: (
+                    "scanner" not in self._children_live or not self._child_ever_started("scanner")
+                ),
                 deadline,
             )
 
@@ -2272,9 +2477,7 @@ class RuntimeHost:
             self._stopped_at = self.clock.now()
             self._stop_completed = True
             escalated = self._shutdown_escalated or bool(self._shutdown_failures)
-            target = (
-                HostLifecycleState.STOP_FAILED if escalated else HostLifecycleState.STOPPED
-            )
+            target = HostLifecycleState.STOP_FAILED if escalated else HostLifecycleState.STOPPED
             if self._legal(self._state, target):
                 self._transition(target)
             else:
@@ -2331,9 +2534,7 @@ class RuntimeHost:
     def _remaining(self, deadline: float) -> float:
         return max(0.0, deadline - time.monotonic())
 
-    async def _drain(
-        self, label: str, predicate: Callable[[], bool], deadline: float
-    ) -> bool:
+    async def _drain(self, label: str, predicate: Callable[[], bool], deadline: float) -> bool:
         """Bounded wait for one shutdown stage. Never an unbounded join."""
         ok = await self._await_until(predicate, self._remaining(deadline))
         if not ok:
@@ -2397,6 +2598,22 @@ def _iso(value: datetime | None) -> str | None:
 
 def _round_or_none(value: float | None) -> float | None:
     return None if value is None else round(value, 3)
+
+
+def _as_utc_datetime(value: object) -> datetime | None:
+    if isinstance(value, datetime):
+        return value if value.tzinfo is not None else None
+    if not isinstance(value, str):
+        return None
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo is not None else None
+
+
+def _as_int_or_none(value: object) -> int | None:
+    return value if isinstance(value, int) and not isinstance(value, bool) else None
 
 
 def _positive_finite(value: object) -> bool:

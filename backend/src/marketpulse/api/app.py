@@ -36,6 +36,7 @@ from fastapi import Depends, FastAPI, Request, Response
 from marketpulse.api.auth import router as auth_router
 from marketpulse.api.auth import verify_session
 from marketpulse.api.market import router as market_router
+from marketpulse.api.product.system import router as product_router
 from marketpulse.config import get_settings
 from marketpulse.logging_config import configure_logging
 from marketpulse.runtime import HostLifecycleState
@@ -161,6 +162,7 @@ def create_app() -> FastAPI:
     application = FastAPI(title="MarketPulse AI API", version="v1-group1", lifespan=lifespan)
     application.include_router(auth_router)
     application.include_router(market_router)
+    application.include_router(product_router)
 
     @application.get("/api/v1/live", tags=["system"])
     async def live(request: Request) -> dict[str, object]:

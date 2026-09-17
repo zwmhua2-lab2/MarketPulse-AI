@@ -1293,7 +1293,7 @@ disposable 库保持空表（症状 `relation "edge_opportunity_evidence" does n
 - `UI-RD01 = ACCEPTED / FROZEN`；artifact：`docs/design/UI-RD01/UI-RD01-Product-Read-API-Formal-Design.md`。
 - Human Design Acceptance = `CONFIRMED — 2026-09-17`；Final Design Re-Review = `PASS`；R1–R8 = `CLOSED`；Open Decisions = `NONE`。
 - Frozen invariants include independent `ReadSurfaceClass` A/B/C and `OperationalAvailability`, distinct projection/trace states and NONE semantics, explicit provenance/range contracts, typed Pydantic DTOs, and no silent Replay fallback；详见 accepted artifact。
-- Product Read API Implementation = `NOT STARTED`；next candidate `UI-RD01-I01 = NOT STARTED`，requires separate formal authorization。
+- `UI-RD01-I01 = IMPLEMENTED / READY FOR INDEPENDENT RE-REVIEW`（2026-09-18 candidate branch `ui-rd01-i01-system-product-read`；未合并 `main`、未获 Human Acceptance）。Scope 仅为 shared Product Read contracts、nullable `ProductReadContext`、`SystemIncidentRead` vertical slice 与本 slice OpenAPI/generated.ts integration；schema/migration/AI activation/Live/其它 projection = ZERO CHANGE。详见 `dev_log/2026-09-18-ui-rd01-i01-system-product-read.md`。
 
 ## PRE-01B-D2-CLAR-01 Accepted Clarification Pointer
 

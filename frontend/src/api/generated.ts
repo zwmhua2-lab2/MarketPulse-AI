@@ -78,6 +78,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/product/system": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * System Incident Read
+         * @description Read the typed System/Incident Product projection without owning any runtime resource.
+         */
+        get: operations["system_incident_read_api_v1_product_system_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/protected/ping": {
         parameters: {
             query?: never;
@@ -156,10 +176,137 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AIActivationDTO */
+        AIActivationDTO: {
+            /**
+             * Activated
+             * @default false
+             */
+            activated: boolean;
+            /** Note */
+            note: string;
+            /**
+             * Reevaluation Enabled
+             * @default false
+             */
+            reevaluation_enabled: boolean;
+            /**
+             * Status
+             * @default NOT_ACTIVATED
+             */
+            status: string;
+        };
+        /** DatabaseSingletonDTO */
+        DatabaseSingletonDTO: {
+            /** Application Name */
+            application_name: string;
+            /** Engine Disposed */
+            engine_disposed: boolean | null;
+            /** Owns Engine */
+            owns_engine: boolean;
+            /** Singleton Connection Present */
+            singleton_connection_present: boolean;
+            /** Singleton Lock Held */
+            singleton_lock_held: boolean;
+            /** Singleton Lock Lost */
+            singleton_lock_lost: boolean;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** HealthCheckDTO */
+        HealthCheckDTO: {
+            /** Name */
+            name: string;
+            /** Reason */
+            reason: string | null;
+            /** Status */
+            status: string;
+            /** Updated At */
+            updated_at: string | null;
+        };
+        /** HealthDTO */
+        HealthDTO: {
+            /** Checks */
+            checks: components["schemas"]["HealthCheckDTO"][];
+            /** Overall Status */
+            overall_status: string;
+        };
+        /**
+         * HostLifecycleState
+         * @description In-memory lifecycle facts of the single integrated Runtime Host.
+         *
+         *     These are deliberately NOT aliases of the durable G4 ``SystemState``: a Host may be
+         *     ``READY`` while the durable business state is ``SAFE_MODE`` is false, and the two are
+         *     evaluated separately. Readiness derives from both.
+         * @enum {string}
+         */
+        HostLifecycleState: "CREATED" | "STARTING" | "ACQUIRING_SINGLETON" | "RECOVERY_INGRESS" | "RECOVERING" | "STARTING_RUNTIME" | "WAITING_FOR_READINESS" | "READY" | "DEGRADED" | "FAIL_CLOSED" | "FAILED" | "STOPPING" | "STOPPED" | "STOP_FAILED";
+        /** IncidentDTO */
+        IncidentDTO: {
+            /** Incident Id */
+            incident_id: string;
+            /** Incident Type */
+            incident_type: string;
+            /** Instrument Id */
+            instrument_id: string | null;
+            /**
+             * Opened At
+             * Format: date-time
+             */
+            opened_at: string;
+            /** Reason */
+            reason: string;
+            /** Resolved At */
+            resolved_at: string | null;
+            /** Run Mode */
+            run_mode: string;
+            /** Status */
+            status: string;
+        };
+        /** IncidentPageDTO */
+        IncidentPageDTO: {
+            /** Items */
+            items?: components["schemas"]["IncidentDTO"][];
+            /** Next Cursor */
+            next_cursor?: string | null;
+        };
+        /** LaneTelemetryDTO */
+        LaneTelemetryDTO: {
+            /** Capacity */
+            capacity: number;
+            /** High Water */
+            high_water: number;
+            /** Name */
+            name: string;
+            /** Overflow */
+            overflow: number;
+            /** Processed */
+            processed: number;
+            /** Rejected */
+            rejected: number;
+            /** Size */
+            size: number;
+        };
+        /** LanesDTO */
+        LanesDTO: {
+            /** Safety Lanes */
+            safety_lanes: components["schemas"]["LaneTelemetryDTO"][];
+            scanner_lane: components["schemas"]["LaneTelemetryDTO"];
+        };
+        /** LiveDTO */
+        LiveDTO: {
+            /** Alive */
+            alive: boolean;
+            host_state: components["schemas"]["HostLifecycleState"];
+            /** Instance Id */
+            instance_id: string;
+            /** Local Only */
+            local_only: boolean;
+            /** Run Mode */
+            run_mode: string;
         };
         /** LoginRequest */
         LoginRequest: {
@@ -167,6 +314,211 @@ export interface components {
             password: string;
             /** Username */
             username: string;
+        };
+        /** MarketInstrumentDTO */
+        MarketInstrumentDTO: {
+            /** Fresh */
+            fresh: boolean;
+            /** Instrument Id */
+            instrument_id: string;
+            /** Present */
+            present: boolean;
+            /** Quality */
+            quality: string;
+        };
+        /** MarketProviderDTO */
+        MarketProviderDTO: {
+            /** Market */
+            market: components["schemas"]["MarketInstrumentDTO"][];
+            provider: components["schemas"]["ProviderDTO"];
+        };
+        /**
+         * OperationalAvailability
+         * @enum {string}
+         */
+        OperationalAvailability: "ACTIVE" | "ACCEPTED_NOT_INTEGRATED" | "NOT_ACTIVATED";
+        /** OperationalContextDTO */
+        OperationalContextDTO: {
+            /**
+             * Context Snapshot At
+             * Format: date-time
+             */
+            context_snapshot_at: string;
+            host_state: components["schemas"]["HostLifecycleState"] | null;
+            /** Operational Provenance */
+            operational_provenance: string;
+            /** Run Mode */
+            run_mode: string;
+            /** Runtime Instance Id */
+            runtime_instance_id: string | null;
+        };
+        /** OperatorSystemStateDTO */
+        OperatorSystemStateDTO: {
+            /** Blocking Incident Count */
+            blocking_incident_count: number;
+            /** Operator State */
+            operator_state: string | null;
+            /** System State */
+            system_state: string | null;
+        };
+        /** ProjectionMetaDTO */
+        ProjectionMetaDTO: {
+            /**
+             * Contract Version
+             * @default ui-rd01-product-read-v1
+             */
+            contract_version: string;
+            /** Is Partial */
+            is_partial: boolean;
+            /** Next Cursor */
+            next_cursor?: string | null;
+            /** Observed At */
+            observed_at?: string | null;
+            operational_availability: components["schemas"]["OperationalAvailability"];
+            /** Projection */
+            projection: string;
+            projection_state: components["schemas"]["ProjectionState"];
+            read_failure_reason?: components["schemas"]["ReadFailureReason"] | null;
+            read_surface_class: components["schemas"]["ReadSurfaceClass"];
+            /**
+             * Snapshot At
+             * Format: date-time
+             */
+            snapshot_at: string;
+        };
+        /**
+         * ProjectionState
+         * @enum {string}
+         */
+        ProjectionState: "FRESH" | "STALE" | "EMPTY" | "UNAVAILABLE" | "CAPABILITY_NOT_INTEGRATED";
+        /** ProviderDTO */
+        ProviderDTO: {
+            /** Connection Attempts */
+            connection_attempts: number | null;
+            /** Constructed By Host */
+            constructed_by_host: boolean;
+            /** Reconnects */
+            reconnects: number | null;
+            /** Status */
+            status: string;
+            /** Subscriptions */
+            subscriptions: components["schemas"]["ProviderSubscriptionDTO"][];
+        };
+        /** ProviderSubscriptionDTO */
+        ProviderSubscriptionDTO: {
+            /** Channel */
+            channel: string;
+            /** Instrument Id */
+            instrument_id: string;
+        };
+        /**
+         * ReadFailureReason
+         * @enum {string}
+         */
+        ReadFailureReason: "SOURCE_UNAVAILABLE" | "SNAPSHOT_FAILED";
+        /**
+         * ReadSurfaceClass
+         * @enum {string}
+         */
+        ReadSurfaceClass: "A" | "B" | "C";
+        /** ReadyDTO */
+        ReadyDTO: {
+            /**
+             * Evaluated At
+             * Format: date-time
+             */
+            evaluated_at: string;
+            /** Ready */
+            ready: boolean;
+            /** Reasons */
+            reasons: string[];
+            /** Status */
+            status: string;
+        };
+        /** ReconciliationDTO */
+        ReconciliationDTO: {
+            /** Diagnostics */
+            diagnostics: string[];
+            /** Last Ok */
+            last_ok: boolean;
+            /** Last Reconciliation At */
+            last_reconciliation_at: string | null;
+            /** Last Result */
+            last_result: string | null;
+            /** Safe Mode Latched By Host */
+            safe_mode_latched_by_host: boolean;
+            /**
+             * Snapshot At
+             * Format: date-time
+             */
+            snapshot_at: string;
+            /** Startup Ok */
+            startup_ok: boolean;
+        };
+        /** RecoveryDTO */
+        RecoveryDTO: {
+            /** Final System State */
+            final_system_state: string;
+            /** Finished At */
+            finished_at: string | null;
+            /** Ok */
+            ok: boolean;
+            /** Operator State */
+            operator_state: string;
+            /** Ready At */
+            ready_at: string | null;
+            /** Reason */
+            reason: string | null;
+            /** Reconciliation Ok */
+            reconciliation_ok: boolean | null;
+            /**
+             * Started At
+             * Format: date-time
+             */
+            started_at: string;
+            /** Status */
+            status: string;
+        };
+        /** RuntimeDTO */
+        RuntimeDTO: {
+            /** Active Risk Instruments */
+            active_risk_instruments: string[];
+            /** Children Live */
+            children_live: string[];
+            gates: components["schemas"]["RuntimeGatesDTO"];
+            /** Instruments */
+            instruments: string[];
+            lifecycle_state: components["schemas"]["HostLifecycleState"];
+            timestamps: components["schemas"]["RuntimeTimestampsDTO"];
+            /** Uptime Seconds */
+            uptime_seconds: number | null;
+        };
+        /** RuntimeGatesDTO */
+        RuntimeGatesDTO: {
+            /** Ingress */
+            ingress: boolean;
+            /** Risk Admission */
+            risk_admission: boolean;
+            /** Safety */
+            safety: boolean;
+            /** Scanner */
+            scanner: boolean;
+        };
+        /** RuntimeTimestampsDTO */
+        RuntimeTimestampsDTO: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Last Heartbeat At */
+            last_heartbeat_at: string | null;
+            /** Last Reconciliation At */
+            last_reconciliation_at: string | null;
+            /** Recovery Ready At */
+            recovery_ready_at: string | null;
+            /** Started At */
+            started_at: string | null;
         };
         /** SessionResponse */
         SessionResponse: {
@@ -177,6 +529,183 @@ export interface components {
              * @default bearer
              */
             token_type: string;
+        };
+        /** SourceContextDTO */
+        SourceContextDTO: {
+            /**
+             * Snapshot At
+             * Format: date-time
+             */
+            snapshot_at: string;
+            /** Source Identity */
+            source_identity: string;
+            /** Source Type */
+            source_type: string;
+        };
+        /** SystemIncidentDataDTO */
+        SystemIncidentDataDTO: {
+            ai_activation: components["schemas"]["SystemSectionDTO_AIActivationDTO_"];
+            database_singleton: components["schemas"]["SystemSectionDTO_DatabaseSingletonDTO_"];
+            health: components["schemas"]["SystemSectionDTO_HealthDTO_"];
+            incidents: components["schemas"]["SystemSectionDTO_IncidentPageDTO_"];
+            lanes: components["schemas"]["SystemSectionDTO_LanesDTO_"];
+            live: components["schemas"]["SystemSectionDTO_LiveDTO_"];
+            market_provider: components["schemas"]["SystemSectionDTO_MarketProviderDTO_"];
+            operator_system_state: components["schemas"]["SystemSectionDTO_OperatorSystemStateDTO_"];
+            ready: components["schemas"]["SystemSectionDTO_ReadyDTO_"];
+            reconciliation: components["schemas"]["SystemSectionDTO_ReconciliationDTO_"];
+            recovery: components["schemas"]["SystemSectionDTO_RecoveryDTO_"];
+            runtime: components["schemas"]["SystemSectionDTO_RuntimeDTO_"];
+        };
+        /** SystemIncidentReadResponse */
+        SystemIncidentReadResponse: {
+            data: components["schemas"]["SystemIncidentDataDTO"] | null;
+            meta: components["schemas"]["ProjectionMetaDTO"];
+            operational_context: components["schemas"]["OperationalContextDTO"];
+        };
+        /** SystemSectionDTO[AIActivationDTO] */
+        SystemSectionDTO_AIActivationDTO_: {
+            data?: components["schemas"]["AIActivationDTO"] | null;
+            read_failure_reason?: components["schemas"]["ReadFailureReason"] | null;
+            /**
+             * Snapshot At
+             * Format: date-time
+             */
+            snapshot_at: string;
+            source: components["schemas"]["SourceContextDTO"];
+            state: components["schemas"]["ProjectionState"];
+        };
+        /** SystemSectionDTO[DatabaseSingletonDTO] */
+        SystemSectionDTO_DatabaseSingletonDTO_: {
+            data?: components["schemas"]["DatabaseSingletonDTO"] | null;
+            read_failure_reason?: components["schemas"]["ReadFailureReason"] | null;
+            /**
+             * Snapshot At
+             * Format: date-time
+             */
+            snapshot_at: string;
+            source: components["schemas"]["SourceContextDTO"];
+            state: components["schemas"]["ProjectionState"];
+        };
+        /** SystemSectionDTO[HealthDTO] */
+        SystemSectionDTO_HealthDTO_: {
+            data?: components["schemas"]["HealthDTO"] | null;
+            read_failure_reason?: components["schemas"]["ReadFailureReason"] | null;
+            /**
+             * Snapshot At
+             * Format: date-time
+             */
+            snapshot_at: string;
+            source: components["schemas"]["SourceContextDTO"];
+            state: components["schemas"]["ProjectionState"];
+        };
+        /** SystemSectionDTO[IncidentPageDTO] */
+        SystemSectionDTO_IncidentPageDTO_: {
+            data?: components["schemas"]["IncidentPageDTO"] | null;
+            read_failure_reason?: components["schemas"]["ReadFailureReason"] | null;
+            /**
+             * Snapshot At
+             * Format: date-time
+             */
+            snapshot_at: string;
+            source: components["schemas"]["SourceContextDTO"];
+            state: components["schemas"]["ProjectionState"];
+        };
+        /** SystemSectionDTO[LanesDTO] */
+        SystemSectionDTO_LanesDTO_: {
+            data?: components["schemas"]["LanesDTO"] | null;
+            read_failure_reason?: components["schemas"]["ReadFailureReason"] | null;
+            /**
+             * Snapshot At
+             * Format: date-time
+             */
+            snapshot_at: string;
+            source: components["schemas"]["SourceContextDTO"];
+            state: components["schemas"]["ProjectionState"];
+        };
+        /** SystemSectionDTO[LiveDTO] */
+        SystemSectionDTO_LiveDTO_: {
+            data?: components["schemas"]["LiveDTO"] | null;
+            read_failure_reason?: components["schemas"]["ReadFailureReason"] | null;
+            /**
+             * Snapshot At
+             * Format: date-time
+             */
+            snapshot_at: string;
+            source: components["schemas"]["SourceContextDTO"];
+            state: components["schemas"]["ProjectionState"];
+        };
+        /** SystemSectionDTO[MarketProviderDTO] */
+        SystemSectionDTO_MarketProviderDTO_: {
+            data?: components["schemas"]["MarketProviderDTO"] | null;
+            read_failure_reason?: components["schemas"]["ReadFailureReason"] | null;
+            /**
+             * Snapshot At
+             * Format: date-time
+             */
+            snapshot_at: string;
+            source: components["schemas"]["SourceContextDTO"];
+            state: components["schemas"]["ProjectionState"];
+        };
+        /** SystemSectionDTO[OperatorSystemStateDTO] */
+        SystemSectionDTO_OperatorSystemStateDTO_: {
+            data?: components["schemas"]["OperatorSystemStateDTO"] | null;
+            read_failure_reason?: components["schemas"]["ReadFailureReason"] | null;
+            /**
+             * Snapshot At
+             * Format: date-time
+             */
+            snapshot_at: string;
+            source: components["schemas"]["SourceContextDTO"];
+            state: components["schemas"]["ProjectionState"];
+        };
+        /** SystemSectionDTO[ReadyDTO] */
+        SystemSectionDTO_ReadyDTO_: {
+            data?: components["schemas"]["ReadyDTO"] | null;
+            read_failure_reason?: components["schemas"]["ReadFailureReason"] | null;
+            /**
+             * Snapshot At
+             * Format: date-time
+             */
+            snapshot_at: string;
+            source: components["schemas"]["SourceContextDTO"];
+            state: components["schemas"]["ProjectionState"];
+        };
+        /** SystemSectionDTO[ReconciliationDTO] */
+        SystemSectionDTO_ReconciliationDTO_: {
+            data?: components["schemas"]["ReconciliationDTO"] | null;
+            read_failure_reason?: components["schemas"]["ReadFailureReason"] | null;
+            /**
+             * Snapshot At
+             * Format: date-time
+             */
+            snapshot_at: string;
+            source: components["schemas"]["SourceContextDTO"];
+            state: components["schemas"]["ProjectionState"];
+        };
+        /** SystemSectionDTO[RecoveryDTO] */
+        SystemSectionDTO_RecoveryDTO_: {
+            data?: components["schemas"]["RecoveryDTO"] | null;
+            read_failure_reason?: components["schemas"]["ReadFailureReason"] | null;
+            /**
+             * Snapshot At
+             * Format: date-time
+             */
+            snapshot_at: string;
+            source: components["schemas"]["SourceContextDTO"];
+            state: components["schemas"]["ProjectionState"];
+        };
+        /** SystemSectionDTO[RuntimeDTO] */
+        SystemSectionDTO_RuntimeDTO_: {
+            data?: components["schemas"]["RuntimeDTO"] | null;
+            read_failure_reason?: components["schemas"]["ReadFailureReason"] | null;
+            /**
+             * Snapshot At
+             * Format: date-time
+             */
+            snapshot_at: string;
+            source: components["schemas"]["SourceContextDTO"];
+            state: components["schemas"]["ProjectionState"];
         };
         /** ValidationError */
         ValidationError: {
@@ -295,6 +824,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    system_incident_read_api_v1_product_system_get: {
+        parameters: {
+            query?: {
+                incident_status?: string | null;
+                incident_type?: string | null;
+                limit?: number;
+                cursor?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemIncidentReadResponse"];
                 };
             };
             /** @description Validation Error */
