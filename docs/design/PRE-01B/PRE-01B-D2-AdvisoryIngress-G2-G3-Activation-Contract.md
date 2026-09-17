@@ -1,19 +1,61 @@
 # PRE-01B-D2-FIX-05｜Connection Return Completion Authority Fix
 
-## PRE-01B-D2-CLAR-01-FIX-02｜Retry-Gap Terminal Provenance Fix Candidate
+## PRE-01B-D2-CLAR-01-FIX-03｜Process-Lost No-Retry Terminal Closure Fix Candidate
+
+```text
+Fix: PRE-01B-D2-CLAR-01-FIX-03
+Status: FIX CANDIDATE DESIGN / READY FOR INDEPENDENT RE-REVIEW
+Task type: CLARIFICATION FIX / DOCS ONLY
+Reviewed FIX-02 candidate: bb7c8933796ebee302a8cd2af909f50859ceebc5
+Finding: PRE01B-D2-CLAR01-FIX02-RR-P1-01
+Independent Re-Review: NOT PERFORMED
+Human Acceptance: NOT PERFORMED
+PRE-01B-I2: NOT RESUMED
+Implementation / Migration / Runtime change authorized: NO
+```
+
+本候选只关闭 process-loss/no-retry terminal gap。durable `STARTED` Attempt 在
+process/runtime authority 丢失且没有 durable completion/finalizer result 时，recovery 先按既有
+Attempt lifecycle 将该 exact Attempt 分类为 `PROCESS_LOST` / `ABANDONED`，然后依固定优先级
+裁决：existing final/winner → deadline/stale/binding/activation/config/shutdown 等外部终态 →
+retry-policy eligibility → normal replacement Attempt start。若无更高优先级外部终态，且 joint
+retry policy 本身不允许下一 Attempt，lost Attempt 的 lifecycle failure 与耗尽的 retry authority
+直接产生唯一 Invocation 终态：
+
+```text
+state = FINAL
+final_status = INVALID_SCHEMA
+final_reason_code = RETRY_EXHAUSTED
+final_attempt_id = exact PROCESS_LOST / ABANDONED Attempt
+final_decision_id = NULL
+```
+
+该终态不是 retry-gap NULL-origin terminal，不属于 §14.2 九组 NULL-Attempt pair。不得伪造
+replacement Attempt，不新增 reason literal。provider response 即使可能曾存在于 process memory，
+只要 finalizer transaction 未 commit，就不是 durable provider result；recovery 不重建
+`AIDecision`、不猜 response/usage/cost，也不声称 provider winner 存在。若 deadline、supersede、
+stale、binding、activation/config 或 shutdown 是更高优先级的真实终态原因，则 lost Attempt 仅为
+historical audit，沿 FIX-02 retry-gap 规则使用对应 exact pair 且 `final_attempt_id=NULL`。
+
+原 Human-Accepted PRE-01B-D2 仍是 accepted design；本候选通过 Independent Re-Review 与
+Human Acceptance 前只处于 `READY FOR INDEPENDENT RE-REVIEW`，不授权恢复 PRE-01B-I2、
+修改 migration 0010、激活 Gate A/B/C、调用 provider 或启用 Live。
+
+## PRE-01B-D2-CLAR-01-FIX-02｜Reviewed Historical Parent
 
 ```text
 Fix: PRE-01B-D2-CLAR-01-FIX-02
-Status: FIX CANDIDATE DESIGN / READY FOR INDEPENDENT RE-REVIEW
+Status: FAILED INDEPENDENT RE-REVIEW / SUPERSEDED BY FIX-03
 Task type: CLARIFICATION FIX / DOCS ONLY
 Reviewed FIX-01 candidate: e408ef7d14213aa5a6ff2cad37dc04b1a65810fd
-Finding: PRE01B-D2-CLAR01-FIX01-RR-P1-01
-Independent Re-Review: NOT PERFORMED
+Finding closed by FIX-02: PRE01B-D2-CLAR01-FIX01-RR-P1-01
+Blocking finding: PRE01B-D2-CLAR01-FIX02-RR-P1-01
+Independent Re-Review: FAIL — FIX REQUIRED
 Human Acceptance: NOT PERFORMED
 Implementation / Migration / Runtime change authorized: NO
 ```
 
-本候选只修复 retry-gap terminal provenance：Invocation 可已有历史 Attempt，但当前
+本历史父候选修复 retry-gap terminal provenance：Invocation 可已有历史 Attempt，但当前
 dispatch/retry cycle 的下一个 Attempt 尚未 durable create，而 deadline、stale、binding/config、
 capacity、queue 或 shutdown 使 Invocation 直接终态化。这些终态没有 terminal-producing
 Attempt；历史 Attempt 只是 immutable audit history，不得因为它是“latest historical
@@ -45,7 +87,9 @@ re-dispatch 的唯一 process-local dispatch mechanism；它不是 durable autho
 **REJECT NEWEST**，使用既有
 `CAPACITY_BLOCKED / ADVISORY_QUEUE_REJECTED`，`final_attempt_id=NULL`；不伪造新 Attempt，
 不链接历史 Attempt。本澄清不新增 queue、reason literal、table、column 或 dispatch
-framework，不改 retry budget 或 REJECT NEWEST policy。
+framework，不改 retry budget 或 REJECT NEWEST policy。FIX-02 未冻结 lost Attempt 已 durable
+存在、但 retry policy 不允许 replacement Attempt 时的 Invocation 终态；该唯一 blocking gap
+由顶部 FIX-03 修复。
 
 ## PRE-01B-D2-CLAR-01-FIX-01｜Reviewed Historical Parent
 
@@ -1054,17 +1098,38 @@ Attempt-origin / success mapping（不构成第二份 no-terminal-producing-Atte
 | successful valid AI decision | required | required | `VALID / VALID_PROVIDER_DECISION` |
 | refusal | required | NULL | `INVALID_SCHEMA / REFUSAL` |
 | auth/permission failure | required | NULL | `INVALID_SCHEMA / AUTH_PERMISSION` |
-| retry exhaustion | required（last terminal-producing Attempt） | 仅当该 Attempt 产生可持久 normalized result 时 required，否则 NULL | exact last failure + `RETRY_EXHAUSTED` |
+| completed-Attempt retry exhaustion | required（the completed Attempt whose durable provider/validation failure exhausts policy） | 仅当该 Attempt 产生可持久 normalized result 时 required，否则 NULL | completed failure status / `RETRY_EXHAUSTED` |
+| process-lost / abandoned + retry-policy exhaustion | required（the exact `PROCESS_LOST` / `ABANDONED` Attempt） | NULL | `INVALID_SCHEMA / RETRY_EXHAUSTED` |
 | shutdown cancellation with ACTIVE provider Attempt | required | NULL | `INVALID_SCHEMA / SHUTDOWN_CANCELLED_ACTIVE_ATTEMPT` |
 
 normalized-but-business-invalid 或 provider 返回后才变 stale 的 final 可持有
 `final_decision_id`，但其 actionability 仍由 `final_status/reason` 与 §10 supersede
 revalidation 决定；AIDecision 存在不等于 actionable。
 
-Retry exhaustion 不属于 State B：若最后一个 completed Attempt 的 result 本身使 joint retry
-policy 决定不再 retry，该 last Attempt 就是 terminal-producing Attempt，必须写入
-`final_attempt_id` 并保留 `RETRY_EXHAUSTED` 语义。只有 Invocation 已进入 `RETRY_PENDING`
-后，在下一 Attempt 创建前发生一个**新的外部 terminal condition**，才是 retry gap。
+Retry exhaustion 有且只有两种 Attempt-origin 形式，二者都不属于九组 NULL-Attempt pair：
+
+1. **Completed-Attempt exhaustion**：completed Attempt 的 durable provider/validation failure
+   使 joint retry policy 不再授权 retry；该 Attempt 是 terminal-producing Attempt。
+2. **Process-lost-Attempt exhaustion**：Attempt 没有 durable provider completion，但 recovery
+   已把该 exact Attempt durably classified 为 `PROCESS_LOST` / `ABANDONED`，且在没有任何
+   higher-precedence external terminal predicate 时，max-attempt、cost/token、usage/cost
+   uncertainty fail-closed 或其他已接受 retry-policy budget 不允许 replacement Attempt。该 lost
+   Attempt 的 lifecycle failure 与耗尽的 retry authority 直接产生
+   `INVALID_SCHEMA / RETRY_EXHAUSTED`；`final_attempt_id` 必须引用该 lost Attempt，
+   `final_decision_id=NULL`，不得创建 replacement/fake Attempt 或 `AIDecision`。
+
+process-lost-Attempt exhaustion 使用 `INVALID_SCHEMA`，因为没有 durably accepted normalized AI
+decision：它不能是 `VALID`，也不能是已完成 normalized business validation 才能成立的
+`INVALID_BUSINESS`。只有 exact stale/deadline predicate 赢得 precedence 时才是
+`STALE_DECISION`；只有 exact capacity predicate 赢得 precedence 时才是
+`CAPACITY_BLOCKED`。不新增 `PROCESS_LOST_RETRY_EXHAUSTED`、`PROCESS_LOST_FINAL`、
+`ABANDONED_FINAL` 或其他 literal；lost root cause 由 Attempt identity、lifecycle 与 retry/error/
+audit facts 保存，Invocation 的 `RETRY_EXHAUSTED` 只表示无下一 Attempt authority。
+
+只有 Invocation 已进入 `RETRY_PENDING` 后、在下一 Attempt 创建前发生一个**新的外部 terminal
+condition**，才是 FIX-02 的 retry gap：外部 predicate 是 terminal authority，历史/lost Attempt
+仅为 audit，`final_attempt_id=NULL`。因 retry policy 本身无剩余安全容量而终态化时，lost
+Attempt 是 causal terminal origin，不得误入 retry-gap NULL provenance。
 
 ### 14.3 Attempt start（provider call 之前必须 durable）
 
@@ -1125,8 +1190,30 @@ authoritative delivery fact：
   - final 已存在：永不 requeue；
   - `ADMITTED` 且未过期：按 durable ordering 分页填充 bounded queue，
     同 invocation；一次最多持有 capacity 个 ref，不建立 unbounded in-memory backlog；
-  - `ACTIVE` 且 attempt 无 completion：原 attempt 记 `PROCESS_LOST/ABANDONED`；
-    仅当原 joint budget 与 deadline 允许才创建下一 attempt；
+  - `ACTIVE` + `STARTED` 且无 durable completion/finalizer result：exact existing Attempt
+    保持 immutable identity，并按既有 lifecycle 规则记为 `PROCESS_LOST` / `ABANDONED`；
+    unknown response、usage、cost 保持 `NULL/UNKNOWN`，绝不猜为 zero。provider 可能已在
+    process memory 返回、但 finalizer transaction 未 commit 的场景与此完全相同：recovery
+    不重建 response、不创建 `AIDecision`、不声称 provider winner 存在；
+  - lost classification 不是可单独提交的中间结果。recovery 沿既有
+    `Evidence -> Invocation -> Attempt` 锁顺序，在一个 winner-fenced transaction 中原子提交
+    exact Attempt 的 `PROCESS_LOST/ABANDONED` 与下述三者之一：external FINAL、
+    `RETRY_PENDING`、retry-policy-exhausted FINAL。transaction 失败则保持原 durable
+    `ACTIVE + STARTED`，不得留下 `ACTIVE + lost Attempt` 的悬空组合；
+  - 对该 lost Attempt，recovery 必须按固定顺序裁决：① existing winner/final；② absolute
+    deadline、Evidence supersede、Opportunity/market stale、binding invalid、activation/config
+    mismatch、shutdown 等 external terminal authority；③ joint retry-policy eligibility；④ normal
+    replacement Attempt start。若步骤②成立，lost Attempt 仅是 historical audit，使用对应
+    §14.2 retry-gap exact pair，`final_attempt_id=NULL`。若步骤②均不成立且步骤③允许 retry，
+    同一 Invocation/immutable input/provider/model/deadline 进入 `RETRY_PENDING`，replacement
+    Attempt 只可由后续正常 §14.3 Attempt-start transaction 创建；
+  - 若步骤②均不成立，但步骤③因 max-attempt、cost/token、usage/cost uncertainty fail-closed
+    或其他已接受 retry-policy budget 不允许下一 Attempt，则 recovery 将 lost Attempt lifecycle
+    与 Invocation final fields 按上述 atomic rule 提交：
+    `FINAL + INVALID_SCHEMA / RETRY_EXHAUSTED`，
+    `final_attempt_id=exact lost Attempt`，`final_decision_id=NULL`。不得创建 synthetic/
+    replacement Attempt；Invocation 不得仅因 retry unavailable 而继续停留在 `ACTIVE` 或
+    `RETRY_PENDING`；
   - `RETRY_PENDING`：按原 provider/model/input/deadline 继续；不重建 pair/arm。recovery 以
     同一 frozen ref 按 durable ordering 填充§16 bounded queue；若 re-offer 遭 REJECT NEWEST，
     它作为 retry-gap terminal 使用 `CAPACITY_BLOCKED / ADVISORY_QUEUE_REJECTED`，
@@ -1138,6 +1225,11 @@ authoritative delivery fact：
     commit，按§14.2 Attempt-origin mapping 并引用 exact current Attempt。
 - Core recovery/Protection 可先完成并诚实 ready；Gate A readiness 在 advisory
   recovery 完成前为 false。
+
+上述 recovery 终态仍受 §14.4 exactly-one winner fence：duplicate/concurrent recovery 只有一个
+transaction 可提交 Invocation final fields。任何技术上可能迟到的 provider completion 必须在
+Invocation row lock 下看见既有 FINAL，只能写允许的 audit，不得创建第二 final、`AIDecision`
+winner 或经济动作。
 
 ## 16. Queue / Backpressure Contract
 
@@ -1276,14 +1368,24 @@ transaction 已 durable commit，不是「attempt table 中存在任意一行」
 | Decision Snapshot / input-binding invalid | NO | no current Attempt: `STALE_DECISION / BINDING_INVALID_BEFORE_PROVIDER`；current Attempt exists: `STALE_DECISION / STALE_BINDING` | invocation/final yes | current cycle zero before current Attempt |
 | activation genuinely disabled | NO | no current Attempt: `STALE_DECISION / ACTIVATION_DISABLED_BEFORE_PROVIDER`；current Attempt exists: `STALE_DECISION / STALE_BINDING` | invocation/final yes | current cycle zero before current Attempt |
 | activation enabled but experiment/config definition mismatched | NO | no current Attempt: `STALE_DECISION / EXPERIMENT_CONFIG_MISMATCH_BEFORE_PROVIDER`；current Attempt exists: `STALE_DECISION / STALE_BINDING` | invocation/final yes | current cycle zero before current Attempt |
-| retry exhaustion | NO | 最后 failure status + `RETRY_EXHAUSTED`；last completed Attempt 本身为 terminal producer | last terminal-producing Attempt required | follows last Attempt facts |
-| cancellation / shutdown | NO（restart 另按原 invocation/budget 裁决） | no current Attempt（包括 retry gap）: `INVALID_SCHEMA / SHUTDOWN_BEFORE_PROVIDER`；current ACTIVE Attempt: `INVALID_SCHEMA / SHUTDOWN_CANCELLED_ACTIVE_ATTEMPT`；或 process-loss attempt audit | current Attempt pair requires it；retry-gap historical Attempt not linked | current cycle zero before current Attempt |
+| completed-Attempt retry exhaustion | NO | completed provider/validation failure status + `RETRY_EXHAUSTED` | exact completed terminal-producing Attempt required；Decision only if normalized artifact exists | follows completed Attempt facts |
+| process lost / abandoned + retry allowed | YES，only when no higher-precedence external terminal and joint policy permits | no Invocation final；lost Attempt audit + same Invocation `RETRY_PENDING` | exact lost Attempt preserved；replacement Attempt does not exist until normal next Attempt-start | zero until replacement Attempt start commits |
+| process lost / abandoned + retry unavailable solely by retry policy | NO | `INVALID_SCHEMA / RETRY_EXHAUSTED` | exact `PROCESS_LOST` / `ABANDONED` Attempt required；`final_decision_id=NULL`；no replacement Attempt | zero new call；no new risk |
+| provider returned in memory but finalizer uncommitted | apply process-loss tree | DB `STARTED` + no durable completion is not a provider result；external terminal wins first，else retry allowed/unavailable mapping above | never reconstruct response/usage/cost or `AIDecision`；late delivery fenced audit-only | zero reconstructed authority |
+| cancellation / shutdown | NO（restart 另按 fixed process-loss precedence 裁决） | no current replacement Attempt（包括 retry gap）: `INVALID_SCHEMA / SHUTDOWN_BEFORE_PROVIDER`；durably committed shutdown cancellation of current ACTIVE Attempt: `INVALID_SCHEMA / SHUTDOWN_CANCELLED_ACTIVE_ATTEMPT`；uncommitted cancellation followed by restart enters process-loss tree | committed current-Attempt pair requires it；external retry-gap shutdown leaves historical lost Attempt unlinked | current cycle zero before current Attempt |
 | late result | NO | `STALE_DECISION / LATE_RESULT` 或 loser audit | yes | zero |
 | duplicate completion | NO | winner 不变；`DUPLICATE_SUPPRESSED` | loser attempt yes | zero |
 | internal invariant/hash/fence failure | NO；Advisory subsystem fail closed | immutable snapshot/binding integrity failure 按上方 exact binding pair；不能可靠写 terminal 的 DB/lock/fence failure 保留原 durable state 并由 restart 重裁，不得发明额外 terminal pair | sanitized durable evidence where possible | zero |
 | queue rejected | NO | initial/retry/recovery offer 均用 `CAPACITY_BLOCKED / ADVISORY_QUEUE_REJECTED`；`final_attempt_id=NULL` | invocation/final yes；retry-gap history preserved | terminalizing cycle new calls zero |
 | Advisory DB capacity unavailable before provider | NO | no current Attempt（包括 retry gap）: `CAPACITY_BLOCKED / ADVISORY_DB_CAPACITY_UNAVAILABLE`；`final_attempt_id=NULL` | invocation/final yes；retry-gap history preserved | terminalizing cycle new calls zero |
 | admission preparation/canonicalization/digest/config-binding/optional persistence failure | NO retry to Invocation；只重试 constant terminal write | `UNSTAGED`，或 `ADMISSION_FAILED_FINAL / ADMISSION_STAGING_FAILED_UNBOUND / NO_LONG_UNBOUND`；subsystem `FAIL_CLOSED` | valid G2/Evidence durable；无 seed/Invocation/Attempt/AIDecision；unbound completeness-hole counter durable/queryable | zero |
+
+process-loss recovery 不得把 retry-policy check 提升到 external authority 之前。若 restart 时 absolute
+deadline 已过期，必须先得到 `STALE_DECISION / DEADLINE_EXPIRED_BEFORE_PROVIDER` 与
+`final_attempt_id=NULL`；Evidence supersede、Opportunity/market stale、binding invalid、activation/config
+mismatch 与适用的 shutdown authority 同理。只有这些更高优先级 predicate 均为 false 时，
+`PROCESS_LOST/ABANDONED + no safe retry capacity` 才使用
+`INVALID_SCHEMA / RETRY_EXHAUSTED` 并链接 lost Attempt。
 
 无任何 failure 触发 baseline BUY、自动 participate、TradePlan fallback 或 deterministic
 fake-AI substitution；AI failure ⇒ treatment 侧按 PRE-01A §15 记 `NO_LONG` 语义入
@@ -1464,6 +1566,12 @@ A + R <= C
    Attempt；`ACTIVE` current Attempt 使用
    `INVALID_SCHEMA / SHUTDOWN_CANCELLED_ACTIVE_ATTEMPT` 并要求该 exact current Attempt
    provenance。禁止为 shutdown 伪造 next Attempt。
+   若 active Attempt 的 shutdown terminalization 未 commit 而 process 随后丢失，restart
+   不得倒推或补写先前 cancellation final；它先把 Attempt 分类为 lost，再走 §15 precedence。
+   当 shutdown 仍是 higher-precedence authority 且 replacement Attempt 尚未开始时，使用
+   `INVALID_SCHEMA / SHUTDOWN_BEFORE_PROVIDER`、`final_attempt_id=NULL`，lost Attempt 仅为
+   historical audit。只有 shutdown cancellation 已在 active-Attempt contract 下 durable commit，
+   才保留 `SHUTDOWN_CANCELLED_ACTIVE_ATTEMPT` 与 exact current Attempt provenance。
 4. 到达 `advisory_subdeadline` 时，Host 必须拒绝新 Advisory work/token，并取消/rollback
    Advisory SAVEPOINT work where possible。fence-owned Advisory session 无法及时 clean close
    时可 invalidate，但不得 dispose shared engine。**不得仅为停止 Advisory 而 invalidate
@@ -1491,9 +1599,9 @@ A + R <= C
 | Evidence accounting `UNSTAGED` | yes | admission closed，zero provider | 不读 config/不补 seed；只写 constant unbound terminal，失败则保持 `UNSTAGED` / fail closed |
 | Evidence accounting `ADMISSION_FAILED_FINAL` | yes | accounting terminal，zero provider | 保留 `NO_LONG` + exact reason，不创建 Invocation |
 | `ADMITTED`（含 queue ref 已存但未 claim） | yes | queue ref 丢弃；不 claim | 按原 deadline/stale/config epoch 重新 bounded offer 或 terminalize |
-| `ACTIVE` + `STARTED` Attempt，provider I/O in flight | yes | cancel scope；不等 drain；不允许新 finalizer 越过 subdeadline | 原 Attempt 记 `PROCESS_LOST/ABANDONED`；仅在原 budget/deadline 允许时 retry |
+| `ACTIVE` + `STARTED` Attempt，provider I/O in flight | yes | cancel scope；不等 drain；不允许新 finalizer 越过 subdeadline | 若 shutdown terminalization 未 durable commit，restart 将其按 no-durable-completion 记 `PROCESS_LOST/ABANDONED`，再依次裁决 existing final → external terminal（含 deadline/stale/shutdown）→ retry policy；retry allowed ⇒ `RETRY_PENDING`，retry unavailable solely by policy ⇒ `INVALID_SCHEMA / RETRY_EXHAUSTED` + exact lost Attempt |
 | provider cancellation completed、DB terminalization 也在 budget 内 commit | no（Invocation 已 FINAL） | terminal/non-actionable | 永不 requeue |
-| provider cancellation completed、但 DB terminalization 未在 budget 内 commit | yes（仍 ACTIVE/STARTED） | 本 process 已关闭 finalizer，zero economic use | 按 process-lost 规则，不伪造 cancellation final |
+| provider cancellation completed、但 DB terminalization 未在 budget 内 commit | yes（仍 ACTIVE/STARTED） | 本 process 已关闭 finalizer，zero economic use | 按同一 process-loss decision tree；不伪造 cancellation final，不重建 memory-only provider response |
 | `RETRY_PENDING` | yes | 不启动新 Attempt | 处于 retry gap；原 identity/provider/model/deadline 继续，或按§14.2 无 terminal-producing Attempt pair terminalize；历史 Attempt 保留、`final_attempt_id=NULL` |
 
 ### 20.3 Connection disposition / token state machine（FIX-05）
@@ -1971,8 +2079,9 @@ Real provider adapter selection / contract validation 与 Gate A activation 为�
 18. queue retry/recovery re-offer rejection、DB capacity unavailable 与 shutdown 必须各有 retry-gap
     证明：历史 Attempt/provider call 可存在，当前 cycle 新增 provider call = zero，
     `final_attempt_id=NULL`，不伪造 Attempt #2。shutdown 的 current ACTIVE Attempt #2 对照必须
-    使用 `SHUTDOWN_CANCELLED_ACTIVE_ATTEMPT` 并引用 Attempt #2。另必须证明 true retry
-    exhaustion 引用 last terminal-producing Attempt 并保留 `RETRY_EXHAUSTED`，不误入 NULL set。
+    使用 `SHUTDOWN_CANCELLED_ACTIVE_ATTEMPT` 并引用 Attempt #2。另必须分别证明 completed-
+    Attempt exhaustion 与 process-lost-Attempt exhaustion 都引用 exact terminal-producing Attempt
+    并使用 `RETRY_EXHAUSTED`，不误入 NULL set。
     负向不变式：Attempt #1 绝不能仅因为它是 latest historical Attempt 而成为后续
     retry-gap terminal 的 `final_attempt_id`；Attempt #2 row count 必须仍为 zero。
 19. all expiry/stale phases（六维度 × 六时点）匹配 §19；每个维度必须同时证明
@@ -2016,6 +2125,22 @@ Real provider adapter selection / contract validation 与 Gate A activation 为�
     successful hard invalidation + checkin(None) + successful owner cleanup；invalidation/close unknown；
     process death/restart。任何不满足 exact-correlated full predicate 的 lease 不得增加 available
     token；uncertain count > 0 时 Gate A fail closed，Host shutdown 不得报告 clean STOPPED。
+30. process-loss recovery 必须用真实 durable fixtures 覆盖完整三分支与 precedence：
+    - `STARTED` + no durable completion + retry remains ⇒ exact Attempt 变
+      `PROCESS_LOST/ABANDONED`、same Invocation `RETRY_PENDING`、无 FINAL、无 replacement Attempt，
+      直到正常 next Attempt-start transaction；
+    - max-attempt exhausted、cost/token budget exhausted、usage/cost unknown makes retry unsafe，
+      各自必须得到 `FINAL + INVALID_SCHEMA / RETRY_EXHAUSTED`、
+      `final_attempt_id=exact lost Attempt`、`final_decision_id=NULL`、replacement Attempt count = 0；
+    - deadline already expired、Evidence superseded、Opportunity/market stale、binding invalid、
+      activation/config mismatch 与 applicable shutdown 各自先于 retry policy，使用既有 exact
+      retry-gap terminal、`final_attempt_id=NULL`，lost Attempt audit 保留；
+    - provider may have returned in memory but finalizer uncommitted 的 DB fixture 必须与
+      `STARTED + no durable completion` 得到同一 decision tree，且不得重建 `AIDecision`、usage、
+      cost 或 provider winner；
+    - negative origin test 必须拒绝在 external retry-gap terminal 中链接 historical/lost Attempt；
+      positive origin test 必须要求 retry-policy exhaustion 链接 exact lost Attempt；
+    - concurrent/duplicate recovery 必须证明 exactly one Invocation final，late completion 只可 audit。
 
 ## 28. Risk Register
 
