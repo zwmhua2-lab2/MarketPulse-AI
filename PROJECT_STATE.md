@@ -183,6 +183,13 @@ provider / model / retry / timeout / deadline / pool / concurrency / shutdown / 
 retention 数值）与 Pack C（Gate-A observation / sufficiency / acceptance thresholds）仍
 `UNRESOLVED`（本收尾**不**发明数值、**不**静默授权 production defaults）。详见「PRE-01B-D2 Result」）
 
+PRE-01B-D2-CLAR-01-FIX-04 — Attempt Lifecycle Determinism = `IMPLEMENTING`（unaccepted
+docs-only clarification candidate；base = reviewed FIX-03 `7fd0e93ffb746bf6330961dcfed5127ffca9975e`；
+finding `PRE01B-D2-CLAR01-FIX03-RR-P1-01` claimed closed by freezing mutually exclusive
+`PROCESS_LOST` restart-recovery and live durable-shutdown `ABANDONED` predicates；Handoff Marker =
+`READY FOR INDEPENDENT RE-REVIEW` after candidate commit/push；Human Acceptance = `NOT PERFORMED`；
+PRE-01B-I2 remains `NOT RESUMED`；accepted PRE-01B-D2/main unchanged）
+
 ## GitHub Repository
 
 - GitHub Repository Full Name: `zwmhua2-lab2/MarketPulse-AI`
