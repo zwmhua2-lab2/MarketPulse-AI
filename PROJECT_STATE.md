@@ -202,6 +202,31 @@ Reviewer-approved final candidate = `b2d1af0c7388fe2bbfe52fb85a1c78ee269d10e4`�
 运行时调度、**不**改变任何 schema / migration / config / runtime。前端基础库选型 =
 `DEFERRED` 至 `UI-F01`（本 D01 只冻结「需要」，不选库）。详见「UI-V1-D01 Result」与「UI-V1-D01 Final Acceptance Closeout Result」）
 
+UI-F01-I01 — Frontend Foundation Implementation — IMPLEMENTED / READY FOR INDEPENDENT REVIEW
+（Task Type = IMPLEMENTATION + VERIFICATION；Task Base = `2c95cc21cc99d85c5692c5f9b276c5805cc32b13`
+= 执行前实读远端 `main` 真值 ⇒ **无** baseline drift；task branch = `ui-f01-i01-frontend-foundation`，
+**未** merge `main`）。本批建立前端 Foundation：`react-router` 声明式路由（顶层 IA **恰好五页**、
+**无**顶层 `/ai`、`/login` 为 Auth Shell 而非第六页，五页**仅**占位）；单一 application
+`QueryClient`（无默认轮询 / 无全局 refetch interval；`401` 与普通 `4xx` 不重试、network 与 `5xx`
+有界重试）；`openapi-fetch` typed API client（**未**引入 Axios、**未**自建 HTTP 框架；应用请求
+同源相对 `/api/...`、**不**硬编码后端 host）；唯一 Auth Session Boundary（bearer 仅存
+`sessionStorage`，**密码永不持久化**；login `401` 保持「凭据错误」且无重定向循环；受保护 `401`
+清 session + 清已认证 Query cache 并进入 Login 边界且保留原定安全内部路由）；Vite 开发 `/api`
+proxy → `127.0.0.1:8000`（**不** rewrite、**未**引入宽泛 CORS）；`/ready` `503` = 权威 NOT READY
+（保留 body，**不是**网络故障、**不是**通用后端故障、**不**被重试）；OpenAPI 生成纪律恢复
+（`generate:api` 离线可复现、`check:api-drift` 可执行且漂移即失败）；Vitest + jsdom + RTL + MSW
+测试 harness。真实验证：`npm ci` / `npm run typecheck` / `npm run test:run`（7 files / 37 tests
+PASS）/ `npm run build` / `npm run generate:api` / `npm run check:api-drift` 全部 exit 0
+（另以注入式探针证明 typecheck 与 drift 两个门均**有牙齿**）。**本批为 Worker 交付**：
+Independent Review 与 Human Acceptance 均**未**发生，`UI-F01-I01` **不**等于
+`ACCEPTED` / `COMPLETE` / `HUMAN ACCEPTED`；业务页面实现 = `NOT STARTED`（五页仍为占位）；
+Product Read API = `NOT STARTED`；**不**构成 `UI-RD01` / `UI-I01..UI-I06` 的授权或进度。
+边界保持：`PRE-01B-I2` = `NOT STARTED / NOT ACTIVATED`；Real AI = `NOT ACTIVATED`；live `G2→G3`
+= `NOT ACTIVE`；Forward Outcome runtime integration = `NOT INTEGRATED`；`Gate C` = `NOT PASSED`；
+`Live` = `NOT AUTHORIZED`；Trading Edge = **未证明**。后端 / schema / migration / config =
+**ZERO CHANGE**。详见「UI-F01-I01 Result」与
+`dev_log/2026-09-17-ui-f01-i01-frontend-foundation.md`）
+
 ## GitHub Repository
 
 - GitHub Repository Full Name: `zwmhua2-lab2/MarketPulse-AI`
@@ -2022,3 +2047,52 @@ Reviewer-approved final candidate = `b2d1af0c7388fe2bbfe52fb85a1c78ee269d10e4`�
   `Migration = ZERO CHANGE` / `Config = ZERO CHANGE` / `Runtime = ZERO` /
   `PRODUCT_REQUIREMENTS.md = ZERO CHANGE`。
 - 详见 `dev_log/2026-09-17-ui-v1-d01-final-acceptance-closeout.md`。
+
+## UI-F01-I01 Result
+
+- 任务：`UI-F01-I01`｜Frontend Foundation（IMPLEMENTATION + VERIFICATION）。本批**仅**建立
+  Foundation，**不**实现任何正式业务页面。
+- Task Base（任务卡声明）= `2c95cc21cc99d85c5692c5f9b276c5805cc32b13`；执行前**实读**远端真值
+  `git ls-remote origin refs/heads/main` = 同 SHA ⇒ **无 baseline drift**（CIP-02）。
+  task branch = `ui-f01-i01-frontend-foundation`，**未** merge `main`、**未** push `main`。
+- Result = **`UI-F01-I01 = IMPLEMENTED / READY FOR INDEPENDENT REVIEW`**；**不**等于 `ACCEPTED` /
+  `COMPLETE` / `HUMAN ACCEPTED`（Independent Review 与 Human Acceptance 另开独立窗口）。
+- 冻结复用决策**按实际安装结果**落地：`react-router@8.4.0`（Declarative，非 Framework Mode / 非
+  SSR）、`@tanstack/react-query@5.103.1`、`openapi-fetch@0.17.0`、既有
+  `openapi-typescript@7.13.0`、`vitest@5.0.1` + `jsdom@30.1.0` +
+  `@testing-library/react@16.3.3` / `dom@10.4.2` / `jest-dom@7.0.1` / `user-event@14.6.7` +
+  `msw@2.15.0`、`vite@8.3.0` + `@vitejs/plugin-react@6.1.1` + `typescript@5.9.3`。
+  **未**引入 Axios；**未**引入 Redux / Redux Toolkit / Zustand / MobX / XState；
+  **未**引入 SSR / PWA / service worker / WebSocket 框架 / offline cache / refresh token /
+  Remember Me / 多标签页 auth 协调 / design system / UI 组件框架。
+- 工具链：Node `v22.22.2` / npm `10.9.7`；全部选中依赖 `engines` 均满足。
+  TypeScript 版本为**证据驱动**的兼容性收敛：`latest` 解析到 `typescript@7.0.2` 时
+  `openapi-typescript@7.13.0` 的 peer `typescript@^5.x` 未被满足（`ERESOLVE overriding peer
+  dependency`）⇒ 改为 `typescript@^5.9.3`（`^5.x` 最新稳定版）后树一致、无 override。
+- 生成纪律：`frontend/src/api/generated.ts` 已由当前后端 OpenAPI 重新生成（408 行，含
+  `/api/v1/live` 与 `/api/v1/ready`）；生成链路为 `scripts/export-openapi.py`（直接导入 FastAPI
+  app 对象，无需运行服务 / 数据库 / `.env`）+ `generate:api` + `check:api-drift`
+  （重新导出 + 重生成并逐字节比对，漂移即 exit 1）。**未**手写任何重复后端权威 DTO。
+- 验证（全部真实执行、全部 exit 0）：`npm ci`；`npm run typecheck`（`tsc -b`）；
+  `npm run test:run` = **7 files / 37 tests PASS**；`npm run build`；`npm run generate:api`；
+  `npm run check:api-drift`。另以注入式探针证明两个门**有牙齿**：临时类型错误使
+  `typecheck` exit 1，人为向 `generated.ts` 追加一行使 `check:api-drift` exit 1
+  （两者均已复原/删除，未进入提交）。
+- 冻结语义落点：`/ready` `503` = 权威 NOT READY 且 **body 原样保留**，**不**成为 `NetworkError`、
+  **不**成为通用后端故障、**不**被重试；`Readiness != Risk Admission`（代码中无任何由 ready
+  推断 `risk_admission_open` 的路径）；Query cache `stale` 与 MarketPulse 业务 `FRESH / STALE`
+  **无**映射；无全局高频轮询；`Unavailable != zero` 的六态模型属后续页面范围、本批**未**实现。
+- 明确非声称：业务页面（总览 / 市场与机会 / 策略研究 / 交易与仓位 / 系统）= 仍为占位，
+  `NOT STARTED`；Product Read API（`MarketScannerRead` / `OpportunityTraceRead` /
+  `EdgeAggregateRead` / `TradingAuditRead` / `SystemIncidentRead`）= `NOT STARTED`；
+  `PRE-01B-I2` = `NOT STARTED / NOT ACTIVATED`；Real AI = `NOT ACTIVATED`；live `G2→G3` =
+  `NOT ACTIVE`；Forward Outcome runtime integration = `NOT INTEGRATED`；`Gate C` = `NOT PASSED`；
+  `Live` = `NOT AUTHORIZED`；Trading Edge = **未证明**。
+- 改动面：`frontend/**` + `dev_log/` + `PROJECT_STATE.md` / `AI_CONTEXT.md` / `DECISIONS.md`
+  最小同步。`backend/**` = ZERO CHANGE；`schema` / `migration` = ZERO CHANGE；
+  `frontend/tsconfig.json` = **零改动**（`strict: true` 保持）。
+- 非阻塞 Finding（本批**不**修，CIP-05）：`F-01` 后端 `/live` `/ready` `/health` `/runtime`
+  等仍为 `dict[str, object]` ⇒ 生成类型为 `{[key: string]: unknown}`，typed DTO 属 `UI-RD01`；
+  `F-02` `vite.config.ts` / `vitest.config.ts` 不在 `tsconfig.json` `include` 内；
+  `F-03` `generate:api` / `check:api-drift` 依赖本机 `py -3.14` 可导入后端运行时。
+- 详见 `dev_log/2026-09-17-ui-f01-i01-frontend-foundation.md`。

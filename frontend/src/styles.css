@@ -1,7 +1,111 @@
-:root { color: #e6edf3; background: #0b1118; font-family: Inter, system-ui, sans-serif; }
-body { margin: 0; min-height: 100vh; display: grid; place-items: center; }
-main { width: min(720px, 88vw); padding: 48px; border: 1px solid #243447; border-radius: 16px; background: #111b27; box-shadow: 0 24px 80px #0008; }
-.eyebrow { color: #54b3ff; letter-spacing: .16em; font-size: 12px; }
-h1 { font-size: 36px; margin: 16px 0; }
-p { color: #9fb0c3; }
+:root {
+  color: #e6edf3;
+  background: #0b1118;
+  font-family: Inter, system-ui, sans-serif;
+  color-scheme: dark;
+}
 
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+h1 {
+  font-size: 28px;
+  margin: 8px 0 16px;
+}
+
+p {
+  color: #9fb0c3;
+}
+
+.eyebrow {
+  color: #54b3ff;
+  letter-spacing: 0.16em;
+  font-size: 12px;
+  margin: 0;
+}
+
+.product-shell__header {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 16px 24px;
+  border-bottom: 1px solid #243447;
+  background: #0f1925;
+}
+
+.product-shell__nav {
+  display: flex;
+  gap: 16px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.product-shell__nav a {
+  color: #9fb0c3;
+  text-decoration: none;
+  padding: 6px 10px;
+  border-radius: 8px;
+}
+
+.product-shell__nav a[aria-current="page"] {
+  color: #e6edf3;
+  background: #1b2b3d;
+}
+
+.product-shell__header button {
+  margin-left: auto;
+  background: #1b2b3d;
+  color: #e6edf3;
+  border: 1px solid #243447;
+  border-radius: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+.foundation-placeholder {
+  max-width: 720px;
+  padding: 32px 24px;
+}
+
+.login {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+}
+
+.login__form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(360px, 88vw);
+  padding: 32px;
+  border: 1px solid #243447;
+  border-radius: 16px;
+  background: #111b27;
+}
+
+.login__form input {
+  background: #0b1118;
+  border: 1px solid #243447;
+  border-radius: 8px;
+  color: #e6edf3;
+  padding: 8px 10px;
+}
+
+.login__form button {
+  margin-top: 12px;
+  background: #1b6fc4;
+  border: 0;
+  border-radius: 8px;
+  color: #ffffff;
+  cursor: pointer;
+  padding: 10px;
+}
+
+.login__failure {
+  color: #ff8f8f;
+  margin: 4px 0 0;
+}

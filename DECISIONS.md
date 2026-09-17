@@ -387,3 +387,43 @@
     Real AI = `NOT ACTIVATED`；live `G2→G3` Advisory = `NOT ACTIVE`；Forward Outcome 运行时
     自动生产 = `NOT INTEGRATED`（无 Product consumer）；`Gate C = NOT PASSED`；
     `Live = NOT AUTHORIZED`；Trading Edge = **未证明**。
+
+- UI-F01-I01 V1 = **IMPLEMENTED / READY FOR INDEPENDENT REVIEW**（**非** ACCEPTED / COMPLETE；
+  Independent Review 与 Human Acceptance 均未发生）：Frontend Foundation 的已批准复用决策落地。
+  本条为**最压缩持久化**，来源 = Human 授权的 `UI-F01-I01` 任务卡（Task Base =
+  `2c95cc21cc99d85c5692c5f9b276c5805cc32b13`）；全部实现与证据细节以
+  `dev_log/2026-09-17-ui-f01-i01-frontend-foundation.md` 为唯一权威，本条目**不**复制。
+  冻结要点：
+  - **Router** = `react-router`（Declarative 模式）；**不**使用 Framework Mode / SSR，
+    **不**把 route loader 作为服务端数据所有权层；**不**自建 Router 框架。
+  - **Server Query / Cache** = `@tanstack/react-query`，拥有服务端请求生命周期 / 响应缓存 /
+    请求去重 / refetch 协调 / invalidation；**不**拥有 MarketPulse 业务新鲜度。
+    **TanStack Query cache `stale` != MarketPulse backend business `STALE`**，**禁止**由 Query
+    cache 状态推导业务 `FRESH / STALE`。
+  - **API Client** = `openapi-fetch`（链路：FastAPI OpenAPI → `openapi-typescript` →
+    `generated.ts` → `openapi-fetch` → frontend queries）；**禁止** Axios，**禁止**自建
+    HTTP 框架；应用请求用相对 `/api/...`，**禁止**硬编码 `http://127.0.0.1:8000`。
+  - **Global Client State**：**不**引入 Redux / Redux Toolkit / Zustand / MobX / XState。
+    所有权冻结：服务端状态 → TanStack Query；可分享 route / filter 状态 → URL / Router；
+    认证会话 → 专用 Auth Session Boundary；组件局部状态 → React local state；
+    通用跨页 store = `NOT REQUIRED IN UI-F01`。
+  - **Auth Session Boundary**：恰好一个，拥有 bearer session；access token 持久化 =
+    `sessionStorage`；**密码永不持久化**（localStorage / sessionStorage / cookie / Query Cache /
+    generated state / logs 均不得出现）；**不**解析 token 生成独立前端 auth 权威；
+    backend `401` 是唯一 auth authority；**不存在** refresh token 机制，**禁止**新建。
+  - **401 语义**：受保护请求 `401` ⇒ 清 token/session + 清已认证 Query cache + 在可行时保留
+    原定安全内部路由 + 进入 Login 边界；**login POST 的 `401` = 凭据错误**（显示失败、留在登录页、
+    **不**产生重定向循环）。`/ready` `503` **不**属此列。
+  - **`/ready` 503 语义**：`503` + 合法 readiness body ⇒ 保留 body 并映射为语义 `NOT_READY`，
+    视为**成功解释**；**不**得成为 `NetworkError` / 通用后端故障 / unavailable /
+    自动重试失败；**Readiness != Risk Admission**，**禁止**由 ready 推断 `risk_admission_open`。
+  - **Retry 策略**：`401` 不重试；普通 `4xx` 不重试；`/ready` `503` 不是 error 故不重试；
+    network / 可重试 `5xx` 仅**有界**重试；**无**默认高频轮询、**无**全局 refetch interval。
+  - **Vite 开发 proxy**：`/api/*` → `http://127.0.0.1:8000/api/*`，**不** rewrite `/api`；
+    **禁止**以宽泛开发 CORS 作为绕行方案。
+  - **OpenAPI 生成纪律**：`generated.ts` 保持 AUTO-GENERATED、**禁止**手改；**禁止**以手写
+    重复后端权威 DTO 绕过弱 typing；生成可复现且存在可执行 drift 校验。
+  - **边界**：本决策**仅**持久化 Foundation 复用选择，**不**授权任何业务页面 / Product Read
+    API / `UI-RD01` / `UI-I01..UI-I06` 实现；`PRE-01B-I2` = `NOT STARTED / NOT ACTIVATED`；
+    Real AI = `NOT ACTIVATED`；live `G2→G3` = `NOT ACTIVE`；Forward Outcome runtime = `NOT
+    INTEGRATED`；`Gate C = NOT PASSED`；`Live = NOT AUTHORIZED`。

@@ -308,6 +308,44 @@ disposable 库保持空表（症状 `relation "edge_opportunity_evidence" does n
 
 ## 6. Next Step Entry（下一步工作入口）
 
+### UI-F01-I01 Frontend Foundation — IMPLEMENTED / READY FOR INDEPENDENT REVIEW
+
+- 任务：`UI-F01-I01`｜Frontend Foundation（IMPLEMENTATION + VERIFICATION；**非** New Design、
+  **非** Product Read API、**非** `UI-RD01`、**非** 业务页面实现、**非** `PRE-01B-I2`、
+  **非** Real AI activation）。
+- 状态：**`UI-F01-I01 = IMPLEMENTED / READY FOR INDEPENDENT REVIEW`**。
+  **不**等于 `ACCEPTED` / `COMPLETE` / `HUMAN ACCEPTED` —— Independent Review 与 Human
+  Acceptance 均**未**发生，需另开独立窗口。
+- Task Base（任务卡声明）= `2c95cc21cc99d85c5692c5f9b276c5805cc32b13`；执行前**实读**远端真值
+  `git ls-remote origin refs/heads/main` = 同 SHA ⇒ **无** baseline drift。task branch =
+  `ui-f01-i01-frontend-foundation`，**未** merge `main`。
+- 已实现（`frontend/**`）：`react-router` 声明式路由（顶层 IA **恰好五页**、**无**顶层 `/ai`、
+  `/login` = Auth Shell 非第六页、五页**仅**占位）；单一 application `QueryClient`（无默认轮询 /
+  无全局 refetch interval；`401` 与普通 `4xx` 不重试、network 与 `5xx` 有界重试）；`openapi-fetch`
+  typed client（**未**引入 Axios、**未**自建 HTTP 框架；同源相对 `/api/...`，**不**硬编码后端
+  host）；唯一 Auth Session Boundary（bearer 仅存 `sessionStorage`、**密码永不持久化**、login
+  `401` 保持凭据错误且无重定向循环、受保护 `401` 清 session + 清已认证 Query cache + 保留原定
+  路由）；Vite 开发 `/api` proxy → `127.0.0.1:8000`（**不** rewrite、**未**引入宽泛 CORS）；
+  `/ready` `503` = 权威 NOT READY（保留 body、**不是**网络故障、**不**被重试）；OpenAPI 生成纪律
+  恢复（`generate:api` 离线可复现、`check:api-drift` 漂移即失败）；Vitest + jsdom + RTL + MSW
+  harness。
+- 真实验证（全部 exit 0）：`npm ci`；`npm run typecheck`；`npm run test:run` = **7 files /
+  37 tests PASS**；`npm run build`；`npm run generate:api`；`npm run check:api-drift`。
+- ⚠️ **本条目更新上文 `UI-V1-D01` 条目中的 `Implementation = NOT STARTED` 与
+  `前端库选型 = DEFERRED 至 UI-F01` 两项状态**：前端 Foundation 已实现（尚未验收）；
+  库选型已按任务卡冻结决策落地（见「UI-F01-I01 Result」）。`UI-V1-D01` 条目其余内容
+  （设计本身、五页 IA、权威边界、非声称清单）**仍然有效**。
+- 明确非声称：业务页面 = 仍为占位 `NOT STARTED`；Product Read API = `NOT STARTED`；
+  `PRE-01B-I2` = `NOT STARTED / NOT ACTIVATED`；Real AI = `NOT ACTIVATED`；live `G2→G3` =
+  `NOT ACTIVE`；Forward Outcome runtime integration = `NOT INTEGRATED`；`Gate C` =
+  `NOT PASSED`；`Live` = `NOT AUTHORIZED`；Trading Edge = **未证明**。
+- 边界保持：Memory P2 `N01-7-R01-RR-P2-01` = `REMAINS / NON-BLOCKING`（**禁止**写
+  `memory resolved` / `memory is fine` / `no memory concern`）。
+- 详见 `dev_log/2026-09-17-ui-f01-i01-frontend-foundation.md`；状态摘要见 `PROJECT_STATE.md`
+  「UI-F01-I01 Result」；决策压缩见 `DECISIONS.md`「UI-F01-I01 V1」。
+- 下一计划任务仍为 `UI-RD01`（Product Read API Formal Design）→ `UI-I01..UI-I06`，
+  **但本批既不实现、也不自动授权**它们；任何后续设计 / 实现均需另开独立获批窗口。
+
 ### UI-V1-D01 MarketPulse UI V1 Formal Design — ACCEPTED / FROZEN / REPOSITORY-INTEGRATED
 
 - 任务：`UI-V1-D01-FINAL-DOC-01`｜MarketPulse UI V1 Formal Design — Repository Persistence

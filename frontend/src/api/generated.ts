@@ -21,40 +21,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/market/instruments": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Instruments */
-        get: operations["instruments_api_v1_market_instruments_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/universe": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Universe */
-        get: operations["universe_api_v1_universe_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/health": {
         parameters: {
             query?: never;
@@ -62,7 +28,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Health */
+        /**
+         * Health
+         * @description Honest health: ``ok`` only when the Host is fully ready.
+         */
         get: operations["health_api_v1_health_get"];
         put?: never;
         post?: never;
@@ -72,15 +41,35 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/runtime": {
+    "/api/v1/live": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Runtime */
-        get: operations["runtime_api_v1_runtime_get"];
+        /**
+         * Live
+         * @description Liveness. Alive iff the process and Host control path are up.
+         */
+        get: operations["live_api_v1_live_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/market/instruments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Instruments */
+        get: operations["instruments_api_v1_market_instruments_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -106,6 +95,63 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/ready": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ready
+         * @description Readiness. ``200`` only when every risk-increasing prerequisite holds.
+         */
+        get: operations["ready_api_v1_ready_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/runtime": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Runtime
+         * @description Detailed telemetry. Only ever reachable behind the authenticated boundary.
+         */
+        get: operations["runtime_api_v1_runtime_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/universe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Universe */
+        get: operations["universe_api_v1_universe_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -117,10 +163,10 @@ export interface components {
         };
         /** LoginRequest */
         LoginRequest: {
-            /** Username */
-            username: string;
             /** Password */
             password: string;
+            /** Username */
+            username: string;
         };
         /** SessionResponse */
         SessionResponse: {
@@ -134,16 +180,16 @@ export interface components {
         };
         /** ValidationError */
         ValidationError: {
+            /** Context */
+            ctx?: Record<string, never>;
+            /** Input */
+            input?: unknown;
             /** Location */
             loc: (string | number)[];
             /** Message */
             msg: string;
             /** Error Type */
             type: string;
-            /** Input */
-            input?: unknown;
-            /** Context */
-            ctx?: Record<string, never>;
         };
     };
     responses: never;
@@ -187,6 +233,50 @@ export interface operations {
             };
         };
     };
+    health_api_v1_health_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    live_api_v1_live_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
     instruments_api_v1_market_instruments_get: {
         parameters: {
             query?: {
@@ -218,11 +308,9 @@ export interface operations {
             };
         };
     };
-    universe_api_v1_universe_get: {
+    protected_ping_api_v1_protected_ping_get: {
         parameters: {
-            query?: {
-                manual_watchlist?: string[] | null;
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
@@ -235,21 +323,14 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": {
+                        [key: string]: string;
+                    };
                 };
             };
         };
     };
-    health_api_v1_health_get: {
+    ready_api_v1_ready_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -293,9 +374,11 @@ export interface operations {
             };
         };
     };
-    protected_ping_api_v1_protected_ping_get: {
+    universe_api_v1_universe_get: {
         parameters: {
-            query?: never;
+            query?: {
+                manual_watchlist?: string[] | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -308,9 +391,16 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: string;
-                    };
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
