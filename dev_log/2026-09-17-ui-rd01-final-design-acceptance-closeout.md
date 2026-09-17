@@ -39,8 +39,9 @@ No backend/frontend implementation, Product Read router/DTOs, schema/migration/i
 
 ## Source Artifact
 
-`C:\Users\hua\Downloads\UI-RD01-Formal-Proposal-Revision-02.md`  
-Expected SHA-256: `af74da3e6de6d4052729ced2276c417c3fbf3d8add51a9833c2bd471ab478db4`  
+`C:\Users\hua\Downloads\UI-RD01-Formal-Proposal-Revision-02.md`
+
+Expected SHA-256: `af74da3e6de6d4052729ced2276c417c3fbf3d8add51a9833c2bd471ab478db4`
 Actual SHA-256: `af74da3e6de6d4052729ced2276c417c3fbf3d8add51a9833c2bd471ab478db4`
 
 Permitted artifact differences only: status `ACCEPTED / FROZEN`; acceptance/re-review record; final state `UI-RD01-DESIGN-FIX-02 = ACCEPTED / CLOSED`, `UI-RD01 = ACCEPTED / FROZEN`, and explicit implementation `NOT STARTED` / no automatic authorization.
@@ -67,5 +68,6 @@ Use the accepted artifact as the Product Read contract source. Start only a sepa
 
 ## Evidence
 
-Branch: `ui-rd01-final-design-acceptance`  
+Branch: `ui-rd01-final-design-acceptance`
+
 Task Base: `de0f8d83c4a917f3fa801e1ef5c703cd9d9a5a84`
