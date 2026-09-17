@@ -2261,3 +2261,11 @@ Closeout Result」）；**不**构成 `UI-RD01` / `UI-I01..UI-I06` 的授权或�
   `Migration = ZERO CHANGE` / `Config = ZERO CHANGE` / `Runtime = ZERO` /
   `PRODUCT_REQUIREMENTS.md = ZERO CHANGE`。
 - 详见 `dev_log/2026-09-17-ui-f01-i01-final-acceptance-closeout.md`。
+
+## UI-RD01 Final Design Acceptance Closeout
+
+- `UI-RD01 = ACCEPTED / FROZEN`；Human Design Acceptance = `CONFIRMED — 2026-09-17`；Final Design Re-Review = `PASS`。
+- `UI-RD01-DESIGN-FIX-02 = ACCEPTED / CLOSED`；`UI-RD01-R1`–`R8 = CLOSED`；`Open Decisions = NONE`。
+- Accepted artifact：`docs/design/UI-RD01/UI-RD01-Product-Read-API-Formal-Design.md`。
+- Product Read API Implementation = `NOT STARTED`；`UI-RD01-I01 = NOT STARTED / REQUIRES SEPARATE FORMAL AUTHORIZATION`。
+- Review history remains: initial review `FAIL`, Revision 01 review `FAIL`, Revision 02 final re-review `PASS`。

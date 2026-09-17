@@ -438,3 +438,12 @@
     API / `UI-RD01` / `UI-I01..UI-I06` 实现；`PRE-01B-I2` = `NOT STARTED / NOT ACTIVATED`；
     Real AI = `NOT ACTIVATED`；live `G2→G3` = `NOT ACTIVE`；Forward Outcome runtime = `NOT
     INTEGRATED`；`Gate C = NOT PASSED`；`Live = NOT AUTHORIZED`。
+
+## UI-RD01 Frozen Product Read Decisions
+
+- `UI-RD01 = ACCEPTED / FROZEN`；Human Design Acceptance `CONFIRMED — 2026-09-17`；R1–R8 closed；`Open Decisions = NONE`。Formal artifact：`docs/design/UI-RD01/UI-RD01-Product-Read-API-Formal-Design.md`。
+- Five projections：`MarketScannerRead`、`OpportunityTraceRead`、`EdgeAggregateRead`、`TradingAuditRead`、`SystemIncidentRead`；`ProductReadContext` is nullable/non-owning；Axis A `ReadSurfaceClass = A | B | C` 与 Axis B 独立。
+- `ProjectionState` 与 `TraceNodeState` 分离；operational Market/Opportunity uses `FORWARD_PAPER`，no silent `HISTORICAL_REPLAY` fallback；Market/Opportunity default range = `1h`。
+- Product boundary uses explicit typed Pydantic DTOs；each implementation batch synchronizes OpenAPI → `generated.ts` → drift gate；I01–I05 decomposition is sequencing only, not authorization。
+- Edge path：stable DB snapshot → canonical folding → immutable materialization → transaction end → bounded CPU offload；Trading authority remains separated and Fill is economic-action proof；current OPEN Position durable protection snapshot is authoritative；System uses section-level consistency。
+- No schema/migration/index or Product Read implementation authorization is implied. Implementation remains `NOT STARTED`; `UI-RD01-I01` requires separate formal authorization。

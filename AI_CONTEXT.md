@@ -1287,3 +1287,10 @@ disposable 库保持空表（症状 `relation "edge_opportunity_evidence" does n
     不修改 G3 accounting semantics、不做 MFE/MAE/drawdown/equity curve/win rate/expectancy/R-multiple/Sharpe/Sortino/profit factor。
 - G5 overall = `ACCEPTED / COMPLETE`（G5-4 已于 2026-09-06 Formal Acceptance Closeout）。Next Group Design = `NOT STARTED`；Next Group name/number = `NOT YET APPROVED`。
 - 具体 In Progress / Blocked 状态见 `PROJECT_STATE.md`。
+
+## UI-RD01 Accepted Design Pointer
+
+- `UI-RD01 = ACCEPTED / FROZEN`；artifact：`docs/design/UI-RD01/UI-RD01-Product-Read-API-Formal-Design.md`。
+- Human Design Acceptance = `CONFIRMED — 2026-09-17`；Final Design Re-Review = `PASS`；R1–R8 = `CLOSED`；Open Decisions = `NONE`。
+- Frozen invariants include independent `ReadSurfaceClass` A/B/C and `OperationalAvailability`, distinct projection/trace states and NONE semantics, explicit provenance/range contracts, typed Pydantic DTOs, and no silent Replay fallback；详见 accepted artifact。
+- Product Read API Implementation = `NOT STARTED`；next candidate `UI-RD01-I01 = NOT STARTED`，requires separate formal authorization。
