@@ -195,14 +195,35 @@ Reviewer-approved final candidate = `b2d1af0c7388fe2bbfe52fb85a1c78ee269d10e4`�
 `docs/design/UI-V1/UI-V1-D01-MarketPulse-UI-V1-Formal-Design.md`，Artifact status =
 `ACCEPTED / FROZEN`）。产品定位 = **Read-Only Paper Trading Operations & Evidence Terminal**
 （只读纸面交易运维与证据终端）；顶层信息架构 = 恰好五页（总览 / 市场与机会 / 策略研究 /
-交易与仓位 / 系统），**AI 无独立顶层页**。**本 Acceptance 仅接受 Formal Design；
-`UI implementation = NOT STARTED`**（前端仅 Group 1 占位脚手架，`frontend/vite.config.ts`
-尚无 `/api` proxy）；**不**授权 `UI-F01` / `UI-RD01` 或任何后续实现、**不**激活
+交易与仓位 / 系统），**AI 无独立顶层页**。**本 Acceptance（UI-V1-D01 收尾时）仅接受 Formal
+Design；当时 `UI implementation = NOT STARTED`**（当时前端仅 Group 1 占位脚手架，
+`frontend/vite.config.ts` 当时尚无 `/api` proxy；其后 Frontend Foundation 已于 2026-09-17 经
+Human Acceptance 转为 `ACCEPTED / COMPLETE`，见「UI-F01-I01 Final Acceptance Closeout
+Result」）；**不**授权 `UI-F01` / `UI-RD01` 或任何后续实现、**不**激活
 `PRE-01B-I2`、**不**激活 Real AI、**不**接通 live `G2→G3`、**不**接通 Forward Outcome
 运行时调度、**不**改变任何 schema / migration / config / runtime。前端基础库选型 =
 `DEFERRED` 至 `UI-F01`（本 D01 只冻结「需要」，不选库）。详见「UI-V1-D01 Result」与「UI-V1-D01 Final Acceptance Closeout Result」）
 
-UI-F01-I01 — Frontend Foundation Implementation — IMPLEMENTED / READY FOR INDEPENDENT REVIEW
+UI-F01 — Frontend Foundation — ACCEPTED / COMPLETE（2026-09-17 Human Acceptance = `CONFIRMED` +
+Final Acceptance Closeout；其唯一已授权实现批 `UI-F01-I01` 于同日转为 `ACCEPTED / COMPLETE`，
+foundation closure fix `UI-F01-I01-FIX-01` = `ACCEPTED / CLOSED`；Human-Accepted reviewed
+candidate = `ecc21356851f7deca8fd55ea086ec1007b0675d4`；closeout branch =
+`ui-f01-i01-final-acceptance-closeout`；集成方法 = `FAST-FORWARD ONLY`）。**本 Acceptance 仅接受
+Frontend Foundation 本身**：正式业务页面（总览 / 市场与机会 / 策略研究 / 交易与仓位 / 系统）
+= 仍为占位 `NOT STARTED`；Product Read API = `NOT STARTED`；`UI-RD01` / `UI-I01..UI-I06` =
+**未**实现、**未**授权（`UI-RD01` 为下一计划正式设计任务，**须**另行 Human 授权）。详见
+「UI-F01-I01 Result」与「UI-F01-I01 Final Acceptance Closeout Result」）
+
+UI-F01-I01 — Frontend Foundation Implementation — ACCEPTED / COMPLETE（2026-09-17 Human Acceptance =
+`CONFIRMED` + Final Acceptance Closeout；Independent Initial Review = `FAIL — FIX REQUIRED`；
+Finding = `UI-F01-I01-R1`（generic transport error-normalization boundary 不完整，即原批 `R-02`）；
+FIX = `UI-F01-I01-FIX-01`；Independent Re-Review = `PASS — READY FOR HUMAN ACCEPTANCE`；Final
+Re-Review severity：P0 = `NONE` / P1 = `NONE` / P2 = `NONE` / P3 = `NON-BLOCKING ONLY`；
+`UI-F01-I01-R1` = `CLOSED`；Human-Accepted candidate = `ecc21356851f7deca8fd55ea086ec1007b0675d4`，
+branch `ui-f01-i01-fix-01-transport-error-boundary`，immutable 且远端未被移动；原始实现
+candidate = `0c9186d2d94450d39754eb40536148a73deb123c`，branch `ui-f01-i01-frontend-foundation`，
+immutable；Final Regression = `typecheck` / `7 files / 44 tests` / `build` / `check:api-drift`
+全 exit 0）
 （Task Type = IMPLEMENTATION + VERIFICATION；Task Base = `2c95cc21cc99d85c5692c5f9b276c5805cc32b13`
 = 执行前实读远端 `main` 真值 ⇒ **无** baseline drift；task branch = `ui-f01-i01-frontend-foundation`，
 **未** merge `main`）。本批建立前端 Foundation：`react-router` 声明式路由（顶层 IA **恰好五页**、
@@ -217,17 +238,25 @@ proxy → `127.0.0.1:8000`（**不** rewrite、**未**引入宽泛 CORS）；`/r
 （`generate:api` 离线可复现、`check:api-drift` 可执行且漂移即失败）；Vitest + jsdom + RTL + MSW
 测试 harness。真实验证：`npm ci` / `npm run typecheck` / `npm run test:run`（7 files / 37 tests
 PASS）/ `npm run build` / `npm run generate:api` / `npm run check:api-drift` 全部 exit 0
-（另以注入式探针证明 typecheck 与 drift 两个门均**有牙齿**）。**本批为 Worker 交付**：
-Independent Review 与 Human Acceptance 均**未**发生，`UI-F01-I01` **不**等于
-`ACCEPTED` / `COMPLETE` / `HUMAN ACCEPTED`；业务页面实现 = `NOT STARTED`（五页仍为占位）；
+（另以注入式探针证明 typecheck 与 drift 两个门均**有牙齿**）。**该批交付时状态（Implementation
+完成时）**：Independent Review 与 Human Acceptance 均**未**发生，`UI-F01-I01` 当时**不**等于
+`ACCEPTED` / `COMPLETE` / `HUMAN ACCEPTED`（其后已于 2026-09-17 经 Independent Review
+`FAIL — FIX REQUIRED` → `UI-F01-I01-FIX-01` → Independent Re-Review
+`PASS — READY FOR HUMAN ACCEPTANCE` → Human Acceptance `CONFIRMED` 转为 `ACCEPTED / COMPLETE`，
+见「UI-F01-I01 Final Acceptance Closeout Result」）；业务页面实现 = `NOT STARTED`（五页仍为占位）；
 Product Read API = `NOT STARTED`；**不**构成 `UI-RD01` / `UI-I01..UI-I06` 的授权或进度。
 边界保持：`PRE-01B-I2` = `NOT STARTED / NOT ACTIVATED`；Real AI = `NOT ACTIVATED`；live `G2→G3`
 = `NOT ACTIVE`；Forward Outcome runtime integration = `NOT INTEGRATED`；`Gate C` = `NOT PASSED`；
 `Live` = `NOT AUTHORIZED`；Trading Edge = **未证明**。后端 / schema / migration / config =
 **ZERO CHANGE**。详见「UI-F01-I01 Result」与
-`dev_log/2026-09-17-ui-f01-i01-frontend-foundation.md`）
+`dev_log/2026-09-17-ui-f01-i01-frontend-foundation.md`、及
+`dev_log/2026-09-17-ui-f01-i01-final-acceptance-closeout.md`）
 
-UI-F01-I01-FIX-01 — Transport Error Boundary Closure — IMPLEMENTED / READY FOR INDEPENDENT RE-REVIEW
+UI-F01-I01-FIX-01 — Transport Error Boundary Closure — ACCEPTED / CLOSED（2026-09-17 Human
+Acceptance = `CONFIRMED` + Final Acceptance Closeout；Independent Re-Review = `PASS — READY FOR
+HUMAN ACCEPTANCE`；`UI-F01-I01-R1` = `CLOSED`；Human-Accepted candidate =
+`ecc21356851f7deca8fd55ea086ec1007b0675d4`，branch `ui-f01-i01-fix-01-transport-error-boundary`，
+immutable；集成方法 = `FAST-FORWARD ONLY`；Final Regression 全 exit 0）
 （Task Type = IMPLEMENTATION + VERIFICATION；关闭独立复审 Finding `UI-F01-I01-R1` = 原批 `R-02` 风险；
 Reviewed candidate = `0c9186d2d94450d39754eb40536148a73deb123c`，**未**重写、保留为历史证据；
 Fix branch = `ui-f01-i01-fix-01-transport-error-boundary`，**未** merge `main`）。通用网络 / HTTP
@@ -242,8 +271,10 @@ Fix branch = `ui-f01-i01-fix-01-transport-error-boundary`，**未** merge `main`
 `frontend/package.json` / `frontend/package-lock.json` / `backend/**` / schema / migration /
 `frontend/src/auth/**` / `frontend/src/app/**` = **ZERO CHANGE**；`react` / `react-dom` 按
 lockfile 实测 = `19.3.0`（**未**因上一份 Completion Report 的版本笔误改动任何 production
-dependency）。**本批为 Worker 交付**：`UI-F01-I01-FIX-01` **不**等于 `ACCEPTED` / `COMPLETE` /
-`HUMAN ACCEPTED`；**不**构成 `UI-RD01` / `UI-I01..UI-I06` 的授权或进度。详见
+dependency）。**该批交付时状态（Fix 完成时）**：`UI-F01-I01-FIX-01` 当时**不**等于 `ACCEPTED` /
+`COMPLETE`；其后已于 2026-09-17 经 Independent Re-Review（`PASS — READY FOR HUMAN ACCEPTANCE`）
+与 Human Acceptance（`CONFIRMED`）转为 `ACCEPTED / CLOSED`（见「UI-F01-I01 Final Acceptance
+Closeout Result」）；**不**构成 `UI-RD01` / `UI-I01..UI-I06` 的授权或进度。详见
 `dev_log/2026-09-17-ui-f01-i01-fix-01-transport-error-boundary.md`）
 
 ## GitHub Repository
@@ -768,6 +799,19 @@ dependency）。**本批为 Worker 交付**：`UI-F01-I01-FIX-01` **不**等于 
 - **`Integrated Runtime Host Core V1 Implementation = ACCEPTED / COMPLETE`**（PRE-01B-I1，2026-09-15 Human Acceptance = `CONFIRMED`；content-level carry-forward 收编 latest `main` `0ae5b0b…`；集成方法 = `FAST-FORWARD ONLY`）。**不** 构成 OS/service / WinSW process supervision / Real AI activation / G2→G3 live handoff / `SE-02D` Production complete / Live Trading 的任何进度（这些仍 `NOT COMPLETE / DISABLED / NOT AUTHORIZED`）。
 - **`PRE-01B-D2｜AdvisoryIngress / durable G2→G3 Activation Contract Formal Design = ACCEPTED / COMPLETE`**（2026-09-17 Human Acceptance = `CONFIRMED` + Final Acceptance Closeout；Human-Accepted reviewed candidate = `cce1ae7`，branch `design/pre-01b-d2-fix-05-return-completion-authority`，immutable；Independent Re-Review = `PASS`；P0 = `NONE` / P1 = `NONE` / P2 = `NONE` / P3 = `NONE`；已 fast-forward only 收编 `main`；见 Current Group 与本文「PRE-01B-D2 Result」）。该 Acceptance 接受 **AdvisoryIngress / durable G2→G3 Activation Contract 的 Formal Design**，**不** 构成 `PRE-01B-I2` implementation / live G2→G3 activation / Real AI activation / Gate A / Gate B / Gate C / Live 的任何进度。
 - **`UI-V1-D01｜MarketPulse UI V1 Formal Design = ACCEPTED / FROZEN / REPOSITORY-INTEGRATED`**（2026-09-17 Human Acceptance = `CONFIRMED` + Final Acceptance / Main Integration Closeout；Independent Final Repository Review = `PASS`，P0 = `NONE` / P1 = `NONE` / P2 = `NONE` / P3 = `NONE`；Human-Accepted / Reviewer-approved final candidate = `b2d1af0c7388fe2bbfe52fb85a1c78ee269d10e4`，branch `design/ui-v1-d01-final-doc-fix-02`，immutable；已 fast-forward only 收编 `main`；见 Current Group 与本文「UI-V1-D01 Result」/「UI-V1-D01 Final Acceptance Closeout Result」）。该 Acceptance 接受 **MarketPulse UI V1 Formal Design**，**不** 构成 UI implementation（仍 `NOT STARTED`）/ Product Read API implementation / `UI-F01` / `UI-RD01` / `PRE-01B-I2` implementation / live G2→G3 activation / Real AI activation / Gate A / Gate B / Gate C / Live 的任何进度。
+- **`UI-F01-I01｜Frontend Foundation = ACCEPTED / COMPLETE`**（2026-09-17 Human Acceptance =
+  `CONFIRMED` + Final Acceptance Closeout；Independent Initial Review = `FAIL — FIX REQUIRED`；
+  Finding `UI-F01-I01-R1` → FIX `UI-F01-I01-FIX-01`（`ACCEPTED / CLOSED`）；Independent Re-Review
+  = `PASS — READY FOR HUMAN ACCEPTANCE`；Final Re-Review severity：P0 = `NONE` / P1 = `NONE` /
+  P2 = `NONE` / P3 = `NON-BLOCKING ONLY`；Human-Accepted reviewed candidate = `ecc213568`，branch
+  `ui-f01-i01-fix-01-transport-error-boundary`，immutable；original implementation candidate =
+  `0c9186d2`，branch `ui-f01-i01-frontend-foundation`，immutable；closeout branch =
+  `ui-f01-i01-final-acceptance-closeout`；集成方法 = `FAST-FORWARD ONLY`；Final Regression =
+  `typecheck` / `7 files / 44 tests` / `build` / `check:api-drift` 全 exit 0；见 Current Group
+  与本文「UI-F01-I01 Result」/「UI-F01-I01 Final Acceptance Closeout Result」）。
+  **本 Acceptance 仅接受 Frontend Foundation 本身**：正式业务页面（五页仍为占位）=
+  `NOT STARTED`；Product Read API = `NOT STARTED`；`UI-F01 = ACCEPTED / COMPLETE` **不**构成
+  `UI-RD01` / `UI-I01..UI-I06` 的实现或自动授权。
 - **N01-A / N01-B / N01-C / N01-6 / N01-7-F01 / N01-7（N01-7-R01）/ N01-8 均已
   `ACCEPTED / COMPLETE`**（见 Completed）；`N01 overall` 亦已于 2026-09-14 经 N01 Overall
   Final Acceptance Closeout 转 `ACCEPTED / COMPLETE`（该总体结论由独立的 Overall Final
@@ -2074,8 +2118,12 @@ dependency）。**本批为 Worker 交付**：`UI-F01-I01-FIX-01` **不**等于 
 - Task Base（任务卡声明）= `2c95cc21cc99d85c5692c5f9b276c5805cc32b13`；执行前**实读**远端真值
   `git ls-remote origin refs/heads/main` = 同 SHA ⇒ **无 baseline drift**（CIP-02）。
   task branch = `ui-f01-i01-frontend-foundation`，**未** merge `main`、**未** push `main`。
-- Result = **`UI-F01-I01 = IMPLEMENTED / READY FOR INDEPENDENT REVIEW`**；**不**等于 `ACCEPTED` /
-  `COMPLETE` / `HUMAN ACCEPTED`（Independent Review 与 Human Acceptance 另开独立窗口）。
+- Result（Implementation 完成时）= **`UI-F01-I01 = IMPLEMENTED / READY FOR INDEPENDENT REVIEW`**；
+  当时**不**等于 `ACCEPTED` / `COMPLETE`（Independent Review 与 Human Acceptance 当时另开独立
+  窗口）。该状态其后已于 2026-09-17 经 Independent Review（`FAIL — FIX REQUIRED`）→
+  `UI-F01-I01-FIX-01` → Independent Re-Review（`PASS — READY FOR HUMAN ACCEPTANCE`）→ Human
+  Acceptance（`CONFIRMED`）转为 **`UI-F01-I01 = ACCEPTED / COMPLETE`**（见文末「UI-F01-I01
+  Final Acceptance Closeout Result」）。
 - 冻结复用决策**按实际安装结果**落地：`react-router@8.4.0`（Declarative，非 Framework Mode / 非
   SSR）、`@tanstack/react-query@5.103.1`、`openapi-fetch@0.17.0`、既有
   `openapi-typescript@7.13.0`、`vitest@5.0.1` + `jsdom@30.1.0` +
@@ -2162,10 +2210,54 @@ dependency）。**本批为 Worker 交付**：`UI-F01-I01-FIX-01` **不**等于 
 - 本批**未**执行 `npm ci`（`package.json` / `package-lock.json` 零改动，依赖树与 candidate 一致；
   `frontend/node_modules` 由 candidate worktree 同盘整体 rename 迁移复用，该目录被 `.gitignore`
   忽略、不属 repository truth）；**未**做浏览器真机联调、**未**连接真实 backend。
-- Result = **`UI-F01-I01-FIX-01 = IMPLEMENTED / READY FOR INDEPENDENT RE-REVIEW`**；**不**等于
-  `ACCEPTED` / `COMPLETE` / `HUMAN ACCEPTED`（Independent Re-Review 与 Human Acceptance 另开
-  独立窗口）。
+- Result（Fix 完成时）= **`UI-F01-I01-FIX-01 = IMPLEMENTED / READY FOR INDEPENDENT RE-REVIEW`**；
+  当时**不**等于 `ACCEPTED` / `COMPLETE`（Independent Re-Review 与 Human Acceptance 当时另开
+  独立窗口）。该状态其后已于 2026-09-17 经 Independent Re-Review（`PASS — READY FOR HUMAN
+  ACCEPTANCE`）与 Human Acceptance（`CONFIRMED`）转为 **`UI-F01-I01-FIX-01 = ACCEPTED /
+  CLOSED`**（见文末「UI-F01-I01 Final Acceptance Closeout Result」）。
 - 遗留（非阻塞，**未**写 resolved）：`F-01` `auth/AuthSessionProvider.tsx` 的 `signIn()` 仍自行
   catch / 检查 `response.ok`（Scope 只允许 `frontend/src/api/**`，本批**未**改 auth 边界；login
   `401` = 凭据判决而非传输类别）；原批 `R-01` / `R-03` 状态**不变**；原批 `R-02` 由本批关闭。
 - 详见 `dev_log/2026-09-17-ui-f01-i01-fix-01-transport-error-boundary.md`。
+
+## UI-F01-I01 Final Acceptance Closeout Result
+
+- 任务：`UI-F01-I01-FINAL`｜Frontend Foundation — Final Acceptance Closeout + Main Integration
+  （DOCS / STATE / GIT INTEGRATION ONLY；`NO PRODUCT IMPLEMENTATION`；**非** New Design、**非** 实现、
+  **非** Product Read API、**非** `UI-RD01`、**非** `PRE-01B-I2`、**非** Real AI activation）。
+- Human Acceptance = `CONFIRMED — 2026-09-17`；Independent Initial Review = `FAIL — FIX REQUIRED`；
+  FIX = `UI-F01-I01-FIX-01`（`ACCEPTED / CLOSED`）；Independent Re-Review =
+  `PASS — READY FOR HUMAN ACCEPTANCE`；`UI-F01-I01-R1` = `CLOSED`；Final Re-Review severity：
+  P0 = `NONE` / P1 = `NONE` / P2 = `NONE` / P3 = `NON-BLOCKING ONLY`。
+- 最终状态 = `UI-F01-I01 = ACCEPTED / COMPLETE`；`UI-F01-I01-FIX-01` = `ACCEPTED / CLOSED`；
+  `UI-F01 = ACCEPTED / COMPLETE`（**仅**接受 Frontend Foundation 本身）。
+- Human-Accepted reviewed candidate = `ecc21356851f7deca8fd55ea086ec1007b0675d4`（branch
+  `ui-f01-i01-fix-01-transport-error-boundary`；远端同 SHA、immutable、未被移动）；original
+  implementation candidate = `0c9186d2d94450d39754eb40536148a73deb123c`（branch
+  `ui-f01-i01-frontend-foundation`，immutable）。
+- Accepted lineage（线性单 parent，`FAST-FORWARD ONLY` 收编 `main`）= `2c95cc21cc99d85c5692c5f9b276c5805cc32b13`
+  → `0c9186d2d94450d39754eb40536148a73deb123c` → `ecc21356851f7deca8fd55ea086ec1007b0675d4`
+  → 本次 docs/state-only closeout commit。
+- closeout branch = `ui-f01-i01-final-acceptance-closeout`；集成方法 = `FAST-FORWARD ONLY`
+  （无 merge commit / 无 squash / 无 rebase / 无 cherry-pick / 无 force push）。
+- Final Regression（收尾前在候选 lineage 上重新执行，全部 exit 0）：`npm run typecheck` /
+  `npm run test:run` = **7 files / 44 tests PASS** / `npm run build` / `npm run check:api-drift`。
+- **本 Acceptance 仅接受 Frontend Foundation**：正式业务页面（五页仍为占位）= `NOT STARTED`；
+  Product Read API（`MarketScannerRead` / `OpportunityTraceRead` / `EdgeAggregateRead` /
+  `TradingAuditRead` / `SystemIncidentRead`）= `NOT STARTED`；`UI-RD01` / `UI-I01..UI-I06` =
+  **未**实现、**未**授权（`UI-RD01` = 下一计划正式设计任务，**须**另行 Human 授权）。
+- 明确非声称（本收尾**仅**完成 Frontend Foundation 的接受与仓库集成）：`PRE-01B-I2` =
+  `NOT STARTED / NOT ACTIVATED`；Real AI = `NOT ACTIVATED`；live `G2→G3` = `NOT ACTIVE`；
+  Forward Outcome runtime integration = `NOT INTEGRATED`；`Gate C` = `NOT PASSED`；`Live` =
+  `NOT AUTHORIZED`；Trading Edge = `NOT PROVEN`。
+- 保留的非阻塞 finding（**未** resolved）：`F-01`（后端 system / read endpoint 部分返回
+  `dict[str, object]` ⇒ 生成 body typing 偏弱，正式 Product Read DTO 属 `UI-RD01`）；`F-02`
+  （`vite.config.ts` / `vitest.config.ts` 不在 frontend tsconfig `include` 内）；`F-03`（OpenAPI
+  生成依赖仓库兼容的 Python 运行时调用，Windows = `py -3.14`）；`R-03` 等价项（真实浏览器 +
+  真实 backend 的端到端 proxy 集成**不**属 UI-F01 验收证据）；`UI-F01-I01-FIX-01 F-01`（`auth/`
+  的 `signIn()` 仍自行 `try/catch`）。
+- 本收尾为 docs/state-only：`Production Code = ZERO CHANGE` / `Frontend Code = ZERO CHANGE` /
+  `Backend Code = ZERO CHANGE` / `Tests = ZERO CHANGE` / `Schema = ZERO CHANGE` /
+  `Migration = ZERO CHANGE` / `Config = ZERO CHANGE` / `Runtime = ZERO` /
+  `PRODUCT_REQUIREMENTS.md = ZERO CHANGE`。
+- 详见 `dev_log/2026-09-17-ui-f01-i01-final-acceptance-closeout.md`。

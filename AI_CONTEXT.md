@@ -60,9 +60,24 @@
   `design/ui-v1-d01-final-doc-fix-02`，immutable；远端同 SHA、未被移动）；Accepted Design
   artifact = `docs/design/UI-V1/UI-V1-D01-MarketPulse-UI-V1-Formal-Design.md`，Artifact
   status = `ACCEPTED / FROZEN`）。**本 Acceptance 仅接受 MarketPulse UI V1 Formal Design**，
-  **不**构成 UI implementation（仍 `NOT STARTED`）/ Product Read API implementation /
+  **不**构成 UI implementation（该句为 UI-V1-D01 收尾时；Frontend Foundation 其后已于
+  2026-09-17 经 Human Acceptance 转为 `ACCEPTED / COMPLETE`，正式业务页面仍 `NOT STARTED`，
+  见 §6）/ Product Read API implementation /
   `UI-F01` / `UI-RD01` / `PRE-01B-I2` implementation / live `G2→G3` activation / Real AI
   activation / Gate A / Gate B / Gate C / Live 的任何进度（见 §6）。
+- **`UI-F01-I01`（Frontend Foundation）= `ACCEPTED / COMPLETE`；`UI-F01 = ACCEPTED / COMPLETE`**
+  （2026-09-17 Human Acceptance = `CONFIRMED` + Final Acceptance Closeout；Independent Initial
+  Review = `FAIL — FIX REQUIRED`（Finding `UI-F01-I01-R1`）→ FIX `UI-F01-I01-FIX-01` =
+  `ACCEPTED / CLOSED` → Independent Re-Review = `PASS — READY FOR HUMAN ACCEPTANCE`；Final
+  Re-Review severity：P0 = `NONE` / P1 = `NONE` / P2 = `NONE` / P3 = `NON-BLOCKING ONLY`；
+  `UI-F01-I01-R1` = `CLOSED`；Human-Accepted reviewed candidate =
+  `ecc21356851f7deca8fd55ea086ec1007b0675d4`（branch
+  `ui-f01-i01-fix-01-transport-error-boundary`，immutable；远端未被移动）；original
+  implementation candidate = `0c9186d2d94450d39754eb40536148a73deb123c`；closeout branch =
+  `ui-f01-i01-final-acceptance-closeout`；集成方法 = `FAST-FORWARD ONLY`）。
+  **本 Acceptance 仅接受 Frontend Foundation 本身**：正式业务页面（五页仍为占位）= `NOT STARTED`；
+  Product Read API = `NOT STARTED`；**不**构成 `UI-RD01` / `UI-I01..UI-I06` 的实现或自动授权
+  （见 §6）。
 - **SE-02D-D01 = `ACCEPTED / COMPLETE`**（2026-09-15 Human Acceptance = `CONFIRMED` + Final
   Acceptance Closeout；Independent Initial Review = `FAIL — FIX REQUIRED`；FIX-01 Independent
   Re-Review = `PASS`；`D01-R1` / `D01-R2` = `CLOSED`；`D01-R3` = `CLARIFIED / NON-BLOCKING`；
@@ -308,14 +323,22 @@ disposable 库保持空表（症状 `relation "edge_opportunity_evidence" does n
 
 ## 6. Next Step Entry（下一步工作入口）
 
-### UI-F01-I01 Frontend Foundation — IMPLEMENTED / READY FOR INDEPENDENT REVIEW
+### UI-F01-I01 Frontend Foundation — ACCEPTED / COMPLETE
 
 - 任务：`UI-F01-I01`｜Frontend Foundation（IMPLEMENTATION + VERIFICATION；**非** New Design、
   **非** Product Read API、**非** `UI-RD01`、**非** 业务页面实现、**非** `PRE-01B-I2`、
   **非** Real AI activation）。
-- 状态：**`UI-F01-I01 = IMPLEMENTED / READY FOR INDEPENDENT REVIEW`**。
-  **不**等于 `ACCEPTED` / `COMPLETE` / `HUMAN ACCEPTED` —— Independent Review 与 Human
-  Acceptance 均**未**发生，需另开独立窗口。
+- 状态：**`UI-F01-I01 = ACCEPTED / COMPLETE`**；**`UI-F01 = ACCEPTED / COMPLETE`**（2026-09-17
+  Human Acceptance = `CONFIRMED` + Final Acceptance Closeout；Independent Initial Review =
+  `FAIL — FIX REQUIRED`（Finding `UI-F01-I01-R1`，即原批 `R-02`）→ FIX `UI-F01-I01-FIX-01` =
+  `ACCEPTED / CLOSED` → Independent Re-Review = `PASS — READY FOR HUMAN ACCEPTANCE`；Final
+  Re-Review severity：P0 = `NONE` / P1 = `NONE` / P2 = `NONE` / P3 = `NON-BLOCKING ONLY`）。
+  Human-Accepted reviewed candidate = `ecc21356851f7deca8fd55ea086ec1007b0675d4`（branch
+  `ui-f01-i01-fix-01-transport-error-boundary`，immutable；远端未被移动）；original
+  implementation candidate = `0c9186d2d94450d39754eb40536148a73deb123c`（immutable）；closeout
+  branch = `ui-f01-i01-final-acceptance-closeout`；集成方法 = `FAST-FORWARD ONLY`；Final
+  Regression（收尾前在候选 lineage 上重跑，全部 exit 0）= `typecheck` / `7 files / 44 tests` /
+  `build` / `check:api-drift`。**本 Acceptance 仅接受 Frontend Foundation 本身。**
 - Task Base（任务卡声明）= `2c95cc21cc99d85c5692c5f9b276c5805cc32b13`；执行前**实读**远端真值
   `git ls-remote origin refs/heads/main` = 同 SHA ⇒ **无** baseline drift。task branch =
   `ui-f01-i01-frontend-foundation`，**未** merge `main`。
@@ -332,7 +355,8 @@ disposable 库保持空表（症状 `relation "edge_opportunity_evidence" does n
 - 真实验证（全部 exit 0）：`npm ci`；`npm run typecheck`；`npm run test:run` = **7 files /
   37 tests PASS**；`npm run build`；`npm run generate:api`；`npm run check:api-drift`。
 - ⚠️ **本条目更新上文 `UI-V1-D01` 条目中的 `Implementation = NOT STARTED` 与
-  `前端库选型 = DEFERRED 至 UI-F01` 两项状态**：前端 Foundation 已实现（尚未验收）；
+  `前端库选型 = DEFERRED 至 UI-F01` 两项状态**：前端 Foundation 已实现并已于 2026-09-17 经
+  Human Acceptance = `CONFIRMED` + Final Acceptance Closeout 转为 `ACCEPTED / COMPLETE`；
   库选型已按任务卡冻结决策落地（见「UI-F01-I01 Result」）。`UI-V1-D01` 条目其余内容
   （设计本身、五页 IA、权威边界、非声称清单）**仍然有效**。
 - 明确非声称：业务页面 = 仍为占位 `NOT STARTED`；Product Read API = `NOT STARTED`；
@@ -341,13 +365,18 @@ disposable 库保持空表（症状 `relation "edge_opportunity_evidence" does n
   `NOT PASSED`；`Live` = `NOT AUTHORIZED`；Trading Edge = **未证明**。
 - 边界保持：Memory P2 `N01-7-R01-RR-P2-01` = `REMAINS / NON-BLOCKING`（**禁止**写
   `memory resolved` / `memory is fine` / `no memory concern`）。
-- 详见 `dev_log/2026-09-17-ui-f01-i01-frontend-foundation.md`；状态摘要见 `PROJECT_STATE.md`
-  「UI-F01-I01 Result」；决策压缩见 `DECISIONS.md`「UI-F01-I01 V1」。
-- 下一计划任务仍为 `UI-RD01`（Product Read API Formal Design）→ `UI-I01..UI-I06`，
-  **但本批既不实现、也不自动授权**它们；任何后续设计 / 实现均需另开独立获批窗口。
+- 详见 `dev_log/2026-09-17-ui-f01-i01-frontend-foundation.md`（Implementation）、
+  `dev_log/2026-09-17-ui-f01-i01-fix-01-transport-error-boundary.md`（FIX-01）与
+  `dev_log/2026-09-17-ui-f01-i01-final-acceptance-closeout.md`（Final Acceptance Closeout）；
+  状态摘要见 `PROJECT_STATE.md`「UI-F01-I01 Result」/「UI-F01-I01 Final Acceptance Closeout
+  Result」；决策压缩见 `DECISIONS.md`「UI-F01-I01 V1」。
+- 下一计划正式设计任务 = `UI-RD01`（Product Read API Formal Design）→ `UI-I01..UI-I06`；
+  `UI-RD01` = **`NOT STARTED` / `NOT AUTOMATICALLY AUTHORIZED`**（本 Acceptance 与本收尾**均不**
+  实现、**不**自动授权它们）；任何后续设计 / 实现均需另开独立获批窗口。
 
-- `UI-F01-I01-FIX-01`｜Transport Error Boundary Closure = **IMPLEMENTED / READY FOR INDEPENDENT
-  RE-REVIEW**（关闭独立复审 Finding `UI-F01-I01-R1` = 原批 `R-02` 风险；reviewed candidate
+- `UI-F01-I01-FIX-01`｜Transport Error Boundary Closure = **ACCEPTED / CLOSED**（2026-09-17 Human
+  Acceptance = `CONFIRMED` + Final Acceptance Closeout；关闭独立复审 Finding `UI-F01-I01-R1` =
+  原批 `R-02` 风险；reviewed candidate
   `0c9186d2d94450d39754eb40536148a73deb123c` **未**重写、保留为历史证据；Fix branch =
   `ui-f01-i01-fix-01-transport-error-boundary`，**未** merge `main`；实测远端 `main` =
   `2c95cc21cc99d85c5692c5f9b276c5805cc32b13` ⇒ **无** baseline drift）。通用网络 / HTTP 错误归一化
@@ -360,8 +389,9 @@ disposable 库保持空表（症状 `relation "edge_opportunity_evidence" does n
   覆盖**有牙齿**（已逐字节复原）。改动面 = `frontend/src/api/**` 4 个文件 + 最小状态文档同步；
   `frontend/package.json` / `frontend/package-lock.json` / `backend/**` / schema / migration /
   `frontend/src/auth/**` / `frontend/src/app/**` = **ZERO CHANGE**；`react` / `react-dom` 按
-  lockfile 实测 = `19.3.0`。**非** ACCEPTED / COMPLETE / HUMAN ACCEPTED；**不**构成 `UI-RD01` /
-  `UI-I01..UI-I06` 的授权。详见
+  lockfile 实测 = `19.3.0`。**该批交付时状态（Fix 完成时）= IMPLEMENTED / READY FOR INDEPENDENT
+  RE-REVIEW；其后已于 2026-09-17 经 Independent Re-Review 与 Human Acceptance 转为 `ACCEPTED /
+  CLOSED`**；**不**构成 `UI-RD01` / `UI-I01..UI-I06` 的授权。详见
   `dev_log/2026-09-17-ui-f01-i01-fix-01-transport-error-boundary.md`。
 
 ### UI-V1-D01 MarketPulse UI V1 Formal Design — ACCEPTED / FROZEN / REPOSITORY-INTEGRATED
@@ -381,16 +411,21 @@ disposable 库保持空表（症状 `relation "edge_opportunity_evidence" does n
   集成方法 = `FAST-FORWARD ONLY`。
 - **Formal artifact**：`docs/design/UI-V1/UI-V1-D01-MarketPulse-UI-V1-Formal-Design.md`
   （Artifact status = `ACCEPTED / FROZEN`）。
-- **Implementation = `NOT STARTED`**（前端仅 Group 1 占位脚手架；`frontend/vite.config.ts`
-  尚无 `/api` proxy）；Product Read API implementation = `NOT STARTED`；前端库选型 =
-  `DEFERRED` 至 `UI-F01`。
+- **Implementation（UI-V1-D01 收尾时）= `NOT STARTED`**（当时前端仅 Group 1 占位脚手架；
+  `frontend/vite.config.ts` 当时尚无 `/api` proxy）；Product Read API implementation =
+  `NOT STARTED`；前端库选型 = `DEFERRED` 至 `UI-F01`。**其后 Frontend Foundation 已于
+  2026-09-17 经 Human Acceptance = `CONFIRMED` + Final Acceptance Closeout 转为
+  `ACCEPTED / COMPLETE`（`UI-F01 = ACCEPTED / COMPLETE`）；正式业务页面 / Product Read API
+  仍 `NOT STARTED`**（见上「UI-F01-I01 Frontend Foundation — ACCEPTED / COMPLETE」）。
 - 产品定位 = **Read-Only Paper Trading Operations & Evidence Terminal**（只读纸面交易运维与
   证据终端，**非**手工交易终端 / **非**运行时控制面板 / **非** Live Trading UI / **非** AI
   自主控制界面）；顶层 IA = **恰好五页**（总览 / 市场与机会 / 策略研究 / 交易与仓位 / 系统），
   **AI 无独立顶层页**。
-- 下一计划设计任务：`UI-F01`（Frontend Foundation）→ `UI-RD01`（Product Read API Formal
-  Design）序列，**但本 docs 任务与本 Final Acceptance Closeout 均不授权它、也不实现它**；
-  任何后续设计 / 实现均需另开独立获批窗口。
+- 下一计划设计任务（UI-V1-D01 收尾时）：`UI-F01`（Frontend Foundation）→ `UI-RD01`（Product
+  Read API Formal Design）序列；`UI-F01` 其后已于 2026-09-17 经 Human Acceptance 转为
+  `ACCEPTED / COMPLETE`，故当前下一计划正式设计任务 = `UI-RD01`；**本 docs 任务、UI-V1-D01
+  Final Acceptance Closeout 与 UI-F01-I01 Final Acceptance Closeout 均不授权、也不实现**
+  `UI-RD01`；任何后续设计 / 实现均需另开独立获批窗口。
 - ⚠️ 本 Acceptance **只**接受 Formal Design，**不**证明 / 不授权：UI 实现、`PRE-01B-I2`
   implementation、live `G2→G3` activation、Real AI activation、Gate A / Gate B activation、
   `Gate C`（`NOT PASSED`）、`Live`（`NOT AUTHORIZED`）、profitability / edge。

@@ -382,17 +382,28 @@
     **未**激活；UI 实现**绝不**允许静默接通这些能力。
   - **实现顺序（仅排序，不授权）**：`UI-F01`（Frontend Foundation）→ `UI-RD01`（Product Read
     API Formal Design）→ `UI-I01` → `UI-I02` → `UI-I03` → `UI-I04` → `UI-I05` → `UI-I06`。
-  - **边界**：本 Acceptance **仅**接受 Design 本身，**不授权任何实现**；UI 实现 / 前端实现 /
-    后端 Product Read API 实现 = `NOT STARTED`；`PRE-01B-I2` = `NOT STARTED / NOT ACTIVATED`；
+  - **边界**：本 Acceptance（UI-V1-D01 收尾时）**仅**接受 Design 本身，**不授权任何实现**；
+    UI 实现 / 前端实现 / 后端 Product Read API 实现当时 = `NOT STARTED`（其后 Frontend
+    Foundation 已于 2026-09-17 经 Human Acceptance 转为 `ACCEPTED / COMPLETE`，见下条；
+    正式业务页面 / Product Read API 仍 `NOT STARTED`）；`PRE-01B-I2` = `NOT STARTED / NOT ACTIVATED`；
     Real AI = `NOT ACTIVATED`；live `G2→G3` Advisory = `NOT ACTIVE`；Forward Outcome 运行时
     自动生产 = `NOT INTEGRATED`（无 Product consumer）；`Gate C = NOT PASSED`；
     `Live = NOT AUTHORIZED`；Trading Edge = **未证明**。
 
-- UI-F01-I01 V1 = **IMPLEMENTED / READY FOR INDEPENDENT REVIEW**（**非** ACCEPTED / COMPLETE；
-  Independent Review 与 Human Acceptance 均未发生）：Frontend Foundation 的已批准复用决策落地。
+- UI-F01-I01 V1 = **ACCEPTED / COMPLETE**（2026-09-17 Human Acceptance = `CONFIRMED` + Final
+  Acceptance Closeout；其交付时状态为 `IMPLEMENTED / READY FOR INDEPENDENT REVIEW`，Independent
+  Initial Review = `FAIL — FIX REQUIRED`，FIX `UI-F01-I01-FIX-01` = `ACCEPTED / CLOSED`，
+  Independent Re-Review = `PASS — READY FOR HUMAN ACCEPTANCE`，`UI-F01-I01-R1` = `CLOSED`；
+  Human-Accepted reviewed candidate = `ecc21356851f7deca8fd55ea086ec1007b0675d4`，branch
+  `ui-f01-i01-fix-01-transport-error-boundary`，immutable；closeout branch =
+  `ui-f01-i01-final-acceptance-closeout`；集成方法 = `FAST-FORWARD ONLY`）：Frontend Foundation
+  的已批准复用决策落地。**`UI-F01 = ACCEPTED / COMPLETE`**（**仅**接受 Frontend Foundation
+  本身；正式业务页面 / Product Read API 仍 `NOT STARTED`）。
   本条为**最压缩持久化**，来源 = Human 授权的 `UI-F01-I01` 任务卡（Task Base =
   `2c95cc21cc99d85c5692c5f9b276c5805cc32b13`）；全部实现与证据细节以
-  `dev_log/2026-09-17-ui-f01-i01-frontend-foundation.md` 为唯一权威，本条目**不**复制。
+  `dev_log/2026-09-17-ui-f01-i01-frontend-foundation.md` 为唯一权威，FIX-01 见
+  `dev_log/2026-09-17-ui-f01-i01-fix-01-transport-error-boundary.md`，本次收尾见
+  `dev_log/2026-09-17-ui-f01-i01-final-acceptance-closeout.md`，本条目**不**复制。
   冻结要点：
   - **Router** = `react-router`（Declarative 模式）；**不**使用 Framework Mode / SSR，
     **不**把 route loader 作为服务端数据所有权层；**不**自建 Router 框架。
