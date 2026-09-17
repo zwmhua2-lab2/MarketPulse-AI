@@ -1,34 +1,82 @@
 # PRE-01B-D2-FIX-05｜Connection Return Completion Authority Fix
 
-## PRE-01B-D2-CLAR-01-FIX-01｜No-Attempt Terminal Completeness Fix Candidate
+## PRE-01B-D2-CLAR-01-FIX-02｜Retry-Gap Terminal Provenance Fix Candidate
 
 ```text
-Fix: PRE-01B-D2-CLAR-01-FIX-01
+Fix: PRE-01B-D2-CLAR-01-FIX-02
 Status: FIX CANDIDATE DESIGN / READY FOR INDEPENDENT RE-REVIEW
 Task type: CLARIFICATION FIX / DOCS ONLY
-Reviewed parent candidate: f583e096d3a9ed33dcce97b6581b8c336a57d671
+Reviewed FIX-01 candidate: e408ef7d14213aa5a6ff2cad37dc04b1a65810fd
+Finding: PRE01B-D2-CLAR01-FIX01-RR-P1-01
 Independent Re-Review: NOT PERFORMED
 Human Acceptance: NOT PERFORMED
 Implementation / Migration / Runtime change authorized: NO
 ```
 
-本候选只修复 CLAR-01 Independent Review 的两个 P1：deadline 以 durable Attempt existence
+本候选只修复 retry-gap terminal provenance：Invocation 可已有历史 Attempt，但当前
+dispatch/retry cycle 的下一个 Attempt 尚未 durable create，而 deadline、stale、binding/config、
+capacity、queue 或 shutdown 使 Invocation 直接终态化。这些终态没有 terminal-producing
+Attempt；历史 Attempt 只是 immutable audit history，不得因为它是“latest historical
+Attempt”而被写入 `final_attempt_id`。
+
+唯一 normative provenance model 区分三态：
+
+1. **Zero Attempt History**：Invocation 从未成功 commit Attempt row；无 terminal-producing
+   Attempt，`final_attempt_id=NULL`。
+2. **Retry Gap**：一个或多个历史 Attempt 已存在，但当前 retry cycle 尚未成功
+   commit 新 Attempt；新的外部 terminal predicate 直接产生终态，因此
+   `final_attempt_id=NULL`，历史 Attempt 保留但不连接为 terminal producer。
+3. **Current Terminal-Producing Attempt Exists**：当前 cycle 的 Attempt-start transaction 已成功
+   commit；若该 Attempt 的 lifecycle/result 直接产生 authoritative terminal，
+   `final_attempt_id` 必须引用该 exact same-Invocation Attempt。
+
+`final_attempt_id` 的唯一语义是“其 lifecycle/result 直接产生 authoritative terminal
+result 的 durable Attempt”；它不是“latest historical Attempt”。禁止为前两态伪造
+Attempt。§14.2 九个 exact pair 是“无 terminal-producing Attempt”闭集，不是
+“Invocation 没有任何历史 Attempt”闭集。`*_BEFORE_PROVIDER` 表示在**当前**
+dispatch/retry cycle 本应创建的 provider Attempt 之前，不表示 Invocation 生命期内
+从未调用 provider。因此 retry-gap 可以有历史 provider call，但终态化的当前
+cycle 新增 provider call 必须为 zero。
+
+本契约的 bounded `AdvisoryIngress` queue 是 initial dispatch、retry continuation 与 recovery
+re-dispatch 的唯一 process-local dispatch mechanism；它不是 durable authority。Attempt finalizer
+或 recovery 将 Invocation 保持/置为 `RETRY_PENDING` 后，只能在 commit 后将同一 frozen
+`AdvisoryWorkRef` non-blocking re-offer 到该队列。retry-gap 的 re-offer 若遭
+**REJECT NEWEST**，使用既有
+`CAPACITY_BLOCKED / ADVISORY_QUEUE_REJECTED`，`final_attempt_id=NULL`；不伪造新 Attempt，
+不链接历史 Attempt。本澄清不新增 queue、reason literal、table、column 或 dispatch
+framework，不改 retry budget 或 REJECT NEWEST policy。
+
+## PRE-01B-D2-CLAR-01-FIX-01｜Reviewed Historical Parent
+
+```text
+Fix: PRE-01B-D2-CLAR-01-FIX-01
+Status: FAILED INDEPENDENT RE-REVIEW / SUPERSEDED BY FIX-02
+Task type: CLARIFICATION FIX / DOCS ONLY
+Reviewed parent candidate: f583e096d3a9ed33dcce97b6581b8c336a57d671
+Independent Re-Review: FAIL — FIX REQUIRED
+Human Acceptance: NOT PERFORMED
+Implementation / Migration / Runtime change authorized: NO
+```
+
+本历史父候选修复 CLAR-01 Independent Review 的两个 P1：deadline 以 durable Attempt existence
 划界，以及所有 no-Attempt terminal 的 exact pair 闭集完整性。除 §14、§17、§18、§19、
 §27 的直接同步外，PRE-01B-D2 的架构、业务语义、Gate、SAVEPOINT、DB fence、shutdown、
 provider 边界与 CLAR-01 已通过的 F-01/F-02 均不重开。原 PRE-01B-D2 仍是最后一份
-Human-Accepted design；本候选通过 Independent Re-Review 与 Human Acceptance 前不得称为
-accepted amendment，也不授权继续 I2 implementation。
+Human-Accepted design。FIX-01 因 retry-gap provenance 不完整而失败，由顶部 FIX-02 候选继承；
+二者均不授权继续 I2 implementation。
 
-### CLAR-01-B-01｜No-Attempt terminal authority
+### CLAR-01-B-01｜Historical no-Attempt wording（superseded by FIX-02 provenance model）
 
 `final_status` 是既有 `DecisionStatus` 终态类别；`final_reason_code` 是该终态的精确诊断原因。
 两者是不同字段、不同 vocabulary，任何 status token 都不得因为名称相近而充当 reason code。
 
-CLAR-01 的七-pair 列表被本 FIX-01 完整性修复取代。§14.2 的表是本 artifact **唯一 current
-normative no-Attempt pair authority**；本节不再维护第二份 active whitelist。DB CHECK、§17、
+CLAR-01 的七-pair 列表被 FIX-01 的完整性修复取代；FIX-01 的“no-Attempt”命名又被
+FIX-02 精确为“no terminal-producing Attempt”。§14.2 的表是本 artifact **唯一 current
+normative no-terminal-producing-Attempt pair authority**；本节不再维护第二份 active whitelist。DB CHECK、§17、
 §18、§19 与 §27 只能引用 §14.2 exact pair set，不得按 reason-only、status wildcard、phase name
 或 network-call count 自行扩展。`CAPACITY_BLOCKED` 仍只可作为 status，不是 reason code；不得为
-任何 no-Attempt terminal 伪造 Attempt。
+任何无 terminal-producing Attempt terminal 伪造 Attempt。
 
 I2 尚未合并，故 continuation 可在最终 descendant candidate 中直接修正未接受的
 `20260917_0010_advisory_ingress_core.py` CHECK；不得仅为保留该 unaccepted candidate mistake
@@ -687,9 +735,10 @@ schema/SE-02A 契约与 I02 折叠语义使该场景成为必须显式设计的�
 2. **旧 Invocation 的命运 = stale / non-actionable**：在任一检查点（pre-enqueue /
    dequeue / pre-provider / during-provider→finalizer / pre-finalization）检测到
    「同 `opportunity_id` 存在 revision > N 的 durable Evidence row（或等价的
-   supersedes 链事实）」⇒ 尚无 Attempt 时该 Invocation terminalize 为
-   `STALE_DECISION / EVIDENCE_SUPERSEDED_BEFORE_PROVIDER`，已有 Attempt 时使用
-   `STALE_DECISION / EVIDENCE_SUPERSEDED`；zero provider call（若尚未调用），
+   supersedes 链事实）」⇒ 当前 cycle 尚无 terminal-producing Attempt 时（包括有历史
+   Attempt 的 retry gap）该 Invocation terminalize 为
+   `STALE_DECISION / EVIDENCE_SUPERSEDED_BEFORE_PROVIDER`；当前 Attempt-start 已 commit 时使用
+   `STALE_DECISION / EVIDENCE_SUPERSEDED`。前者当前 cycle 新增 provider call = zero；
    valid response 只留 attempt audit、不能赢 final（若已调用）。检测方式 = 直接
    durable 查询 `edge_opportunity_evidence`（按 `opportunity_id` 取 max
    `evidence_revision`），**不**调用 `aggregation_snapshot.py`。用于终态胜者或
@@ -740,12 +789,12 @@ schema/SE-02A 契约与 I02 折叠语义使该场景成为必须显式设计的�
    即 `NON_ACTIONABLE_FOR_FUTURE_ECONOMIC_USE`。Gate A 仍 non-economic，D2 不实现
    Gate B。
 7. **生命周期覆盖（任务 §10 清单）**：
-   - before queue publication：offer 前置检查 ⇒ 不入 queue，以
+   - before queue/retry publication：offer 前置检查 ⇒ 不入 queue，以
      `EVIDENCE_SUPERSEDED_BEFORE_PROVIDER` terminalize；
    - while queued：dequeue durable re-read 后以
-     `EVIDENCE_SUPERSEDED_BEFORE_PROVIDER` terminalize，zero provider；
-   - before provider call：attempt-start transaction 拒绝，以
-     `EVIDENCE_SUPERSEDED_BEFORE_PROVIDER` terminalize，zero provider；
+     `EVIDENCE_SUPERSEDED_BEFORE_PROVIDER` terminalize，当前 cycle 新增 provider call = zero；
+   - before provider call：当前 cycle 的 attempt-start transaction 拒绝，以
+     `EVIDENCE_SUPERSEDED_BEFORE_PROVIDER` terminalize，当前 cycle 新增 provider call = zero；
    - during provider call：best-effort cancel（非 authority）；response 后 finalizer
      durable re-read ⇒ `STALE_DECISION / EVIDENCE_SUPERSEDED`；
    - after provider result / before finalization：finalizer transaction 判 stale，
@@ -893,6 +942,13 @@ consumer 在任何 provider I/O 前以 §10.1 共享锁顺序原子执行
 `ADMITTED/RETRY_PENDING -> ACTIVE` 与 Attempt insert。状态是 durable execution state，
 不是新 `DecisionStatus`。
 
+“dispatch/retry cycle”从一个 frozen `AdvisoryWorkRef` 被 initial offer、retry re-offer 或
+recovery re-dispatch 开始，到该 cycle 的 Attempt-start transaction 成功 commit 为止。
+`RETRY_PENDING` 可已有一个或多个历史 Attempt；在下一个 Attempt-start commit 之前，
+它处于 **retry gap**。此时可以直接 `RETRY_PENDING -> FINAL`，但不得将旧
+Attempt 误作新终态的 provenance。初次、retry 与 recovery 的 ref publication 共用§16
+同一 bounded queue；不建立第二 dispatch path。
+
 ### 14.2 Exactly-one authoritative terminal result
 
 Invocation row 是**唯一 logical final-result authority**，不再以「查询最新 Attempt/
@@ -903,7 +959,7 @@ state = FINAL
 final_status                 NOT NULL
 final_reason_code            NOT NULL
 finalized_at                 NOT NULL
-final_attempt_id             NULLABLE only for named no-Attempt terminals
+final_attempt_id             NULLABLE only for named no-terminal-producing-Attempt terminals
 final_decision_id            NULLABLE when no normalized AIDecision exists
 ```
 
@@ -911,12 +967,17 @@ DB constraints 冻结：
 
 1. `state=FINAL` iff `final_status/final_reason_code/finalized_at` 三者全非空；
    non-FINAL 时全部 final fields 必须为 NULL。
-2. `final_attempt_id` 含义是「产生终态结果的 durable Attempt」（失败终态也可有）；
+2. `final_attempt_id` 含义是「其 lifecycle/result **直接产生 authoritative 终态结果**
+   的 durable Attempt」（失败终态也可有）；它不是 latest historical Attempt，也不是
+   Invocation 中任一曾经发生的 Attempt。
    非空时必须通过 composite FK `(decision_invocation_id, final_attempt_id)` 指向同
    Invocation 的 Attempt。对 FINAL Invocation，DB CHECK 必须实现双向约束：
    `final_attempt_id IS NULL` **IFF** exact `(final_status, final_reason_code)` 属于下方唯一
-   authoritative no-Attempt pair set；不得使用 status wildcard、reason-only whitelist 或
-   generic `CAPACITY_BLOCKED` reason。属于该 set 时 `final_decision_id` 也必须为 NULL。
+   authoritative no-terminal-producing-Attempt pair set；不得使用 status wildcard、
+   reason-only whitelist 或 generic `CAPACITY_BLOCKED` reason。该 CHECK 不断言「Invocation
+   中没有任何 Attempt row」；历史行仍由 `advisory_decision_attempts` 查询。属于该
+   set 时 `final_decision_id` 也必须为 NULL。不需要 CHECK subquery、trigger、新 Invocation
+   column 或 fake Attempt。
 3. 新 Advisory `AIDecision` row 必须同时持有
    `decision_invocation_id` 与 `attempt_id`；composite FK 证明 Attempt 属于同一
    Invocation。`AIDecision` 只表示已成功 normalized 的 provider result；
@@ -934,21 +995,29 @@ DB constraints 冻结：
    的 normalized result 可插入 Advisory `ai_decisions`；中间 retry/non-winning
    normalized output 只留在 Attempt audit，不占用 final-decision unique linkage。
 
-Durable Attempt existence 是唯一 provenance boundary：
+Current-cycle terminal provenance 是唯一 boundary，必须区分：
 
-- **No Attempt** = 同 Invocation 从未成功 commit 任一 Attempt row。此时只允许下表 pair，
-  `final_attempt_id=NULL`、`final_decision_id=NULL`、provider call count = ZERO。
-- **Attempt exists** = 同 Invocation 的 Attempt-start transaction 已成功 commit。若该 Attempt
-  产生终态，则 `final_attempt_id` 必须引用它；不能因 provider I/O 尚未开始、network call count
-  仍为 zero、queue phase 名称或 Python wall-clock 位置而使用任何 `*_BEFORE_PROVIDER` reason。
-- Attempt-start commit 后 deadline 才过期，即使 provider I/O 尚未开始，也必须使用
+- **State A — Zero Attempt History**：同 Invocation 从未成功 commit Attempt row。无
+  terminal-producing Attempt，`final_attempt_id=NULL`、`final_decision_id=NULL`；本 Invocation
+  lifetime provider-call count 也为 zero。
+- **State B — Retry Gap**：同 Invocation 存在一个或多个 immutable historical Attempt，但当前
+  dispatch/retry cycle 尚未成功 commit 新 Attempt。若新的 external terminal predicate 在此时
+  成立，则无 terminal-producing Attempt：`final_attempt_id=NULL`、
+  `final_decision_id=NULL`。历史 provider calls 可以大于 zero，但当前终态化 cycle 的新增
+  provider call 必须为 zero。历史 Attempt 保留并不得被链接为 `final_attempt_id`。
+- **State C — Current Terminal-Producing Attempt Exists**：当前 cycle 的 Attempt-start
+  transaction 已成功 commit。若该 Attempt 后续直接产生终态，`final_attempt_id`
+  必须引用它；不能因 provider I/O 尚未开始、network call count 仍为 zero、queue phase
+  名称或 Python wall-clock 位置而使用任何 `*_BEFORE_PROVIDER` reason。
+- 当前 Attempt-start commit 后 deadline 才过期，即使 provider I/O 尚未开始，也必须使用
   `STALE_DECISION / DEADLINE_EXPIRED`；`final_attempt_id` required，`final_decision_id=NULL`，
   除非 D2 finalizer contract 下已经合法存在该 Attempt 的 accepted normalized artifact。
-  `BEFORE_PROVIDER` 在 no-Attempt reason 中只表示「durable provider Attempt provenance 尚不存在」。
+  `BEFORE_PROVIDER` 在 reason 中只表示「当前 dispatch/retry cycle 本应创建的 durable
+  provider Attempt 尚不存在」，不表示 Invocation lifetime 从未调用 provider。
 
-唯一 authoritative no-Attempt pair set：
+唯一 authoritative no-terminal-producing-Attempt pair set（State A 与 State B 共用）：
 
-| Terminal class | `final_status` | `final_reason_code` | `final_attempt_id` | `final_decision_id` | Provider calls |
+| Terminal class | `final_status` | `final_reason_code` | `final_attempt_id` | `final_decision_id` | New provider calls for terminalizing cycle |
 |---|---|---|---|---|---|
 | deadline expired before durable Attempt | `STALE_DECISION` | `DEADLINE_EXPIRED_BEFORE_PROVIDER` | NULL | NULL | ZERO |
 | queue rejected | `CAPACITY_BLOCKED` | `ADVISORY_QUEUE_REJECTED` | NULL | NULL | ZERO |
@@ -960,22 +1029,25 @@ Durable Attempt existence 是唯一 provenance boundary：
 | activation enabled but invocation-bound experiment/config definition mismatched | `STALE_DECISION` | `EXPERIMENT_CONFIG_MISMATCH_BEFORE_PROVIDER` | NULL | NULL | ZERO |
 | shutdown terminal | `INVALID_SCHEMA` | `SHUTDOWN_BEFORE_PROVIDER` | NULL | NULL | ZERO |
 
-`BINDING_INVALID_BEFORE_PROVIDER` 的唯一语义类是：Attempt 尚不存在时，对 immutable
+`BINDING_INVALID_BEFORE_PROVIDER` 的唯一语义类是：当前 cycle 的 terminal-producing Attempt
+尚不存在时（可有历史 Attempt），对 immutable
 Decision Snapshot / `snapshot_payload_hash` / `input_binding_digest` / bound Evidence hashes 的
 deterministic integrity check 证明 binding corrupted、invalid、misrouted 或 incompatible。它不是
 market staleness、capacity、activation、provider 或 DB-fence failure。
 
-`EXPERIMENT_CONFIG_MISMATCH_BEFORE_PROVIDER` 的唯一语义类是：Attempt 尚不存在、activation
-仍 enabled，但 Invocation 已绑定的 experiment definition/config epoch 与 current authoritative
+`EXPERIMENT_CONFIG_MISMATCH_BEFORE_PROVIDER` 的唯一语义类是：当前 cycle 的 terminal-producing
+Attempt 尚不存在（可有历史 Attempt）、activation 仍 enabled，但 Invocation 已绑定的
+experiment definition/config epoch 与 current authoritative
 activation/config definition 不兼容。若 current state 实际为 DISABLED，只能使用
 `ACTIVATION_DISABLED_BEFORE_PROVIDER`。
 
 除上述两项新 narrow literal 外，其余 reason 均为 CLAR-01 retained literal。queue 与 DB
 capacity 保持两个 exact pair；Opportunity eligibility lost 与 market freshness lost 明确共享
 `OPPORTUNITY_STALE_BEFORE_PROVIDER`。无法可靠提交 terminal row 的 DB/lock/fence failure 保留原
-durable state 并 fail closed，交由 restart 在原 deadline 下重裁；它不是额外 no-Attempt pair。
+durable state 并 fail closed，交由 restart 在原 deadline 下重裁；它不是额外
+no-terminal-producing-Attempt pair。
 
-Attempt-origin / success mapping（不构成第二份 no-Attempt whitelist）：
+Attempt-origin / success mapping（不构成第二份 no-terminal-producing-Attempt whitelist）：
 
 | Terminal class | `final_attempt_id` | `final_decision_id` | Authority result |
 |---|---|---|---|
@@ -989,6 +1061,11 @@ normalized-but-business-invalid 或 provider 返回后才变 stale 的 final 可
 `final_decision_id`，但其 actionability 仍由 `final_status/reason` 与 §10 supersede
 revalidation 决定；AIDecision 存在不等于 actionable。
 
+Retry exhaustion 不属于 State B：若最后一个 completed Attempt 的 result 本身使 joint retry
+policy 决定不再 retry，该 last Attempt 就是 terminal-producing Attempt，必须写入
+`final_attempt_id` 并保留 `RETRY_EXHAUSTED` 语义。只有 Invocation 已进入 `RETRY_PENDING`
+后，在下一 Attempt 创建前发生一个**新的外部 terminal condition**，才是 retry gap。
+
 ### 14.3 Attempt start（provider call 之前必须 durable）
 
 consumer 在 provider call **之前**用一个 transaction：
@@ -998,7 +1075,8 @@ consumer 在 provider call **之前**用一个 transaction：
 3. 若 final 已存在，直接 fence，不调用 provider；
 4. 持 Evidence 锁重验 supersede，再重验 DB-clock deadline / other stale /
    activation / budget；
-5. 插入 exact next attempt row（`STARTED`）并把 invocation 置 `ACTIVE`；
+5. 插入当前 dispatch/retry cycle 的 exact next attempt row（`STARTED`）并把 invocation 置
+   `ACTIVE`；该 commit 是 retry gap 与 current Attempt 存在的唯一 durable boundary；
 6. commit；
 7. provider call 才可开始。
 
@@ -1049,9 +1127,15 @@ authoritative delivery fact：
     同 invocation；一次最多持有 capacity 个 ref，不建立 unbounded in-memory backlog；
   - `ACTIVE` 且 attempt 无 completion：原 attempt 记 `PROCESS_LOST/ABANDONED`；
     仅当原 joint budget 与 deadline 允许才创建下一 attempt；
-  - `RETRY_PENDING`：按原 provider/model/input/deadline 继续；不重建 pair/arm；
+  - `RETRY_PENDING`：按原 provider/model/input/deadline 继续；不重建 pair/arm。recovery 以
+    同一 frozen ref 按 durable ordering 填充§16 bounded queue；若 re-offer 遭 REJECT NEWEST，
+    它作为 retry-gap terminal 使用 `CAPACITY_BLOCKED / ADVISORY_QUEUE_REJECTED`，
+    `final_attempt_id=NULL`，历史 Attempt 保留；
   - 已过 deadline / Opportunity invalid / Evidence superseded / activation disabled：
-    原 invocation terminalize，zero provider。
+    若当前 cycle 尚无 Attempt-start commit（包括 retry gap），按§14.2 相应
+    `*_BEFORE_PROVIDER` pair terminalize，`final_attempt_id=NULL`，当前 cycle 新增
+    provider call = zero；任何历史 Attempt 保留且不被伪链接。若当前 Attempt-start 已
+    commit，按§14.2 Attempt-origin mapping 并引用 exact current Attempt。
 - Core recovery/Protection 可先完成并诚实 ready；Gate A readiness 在 advisory
   recovery 完成前为 false。
 
@@ -1061,12 +1145,12 @@ authoritative delivery fact：
 |---|---|
 | owner | one `AdvisoryIngress` per `RuntimeHost`（Host-owned auxiliary） |
 | capacity | positive finite explicit config；unset 时 activation disabled |
-| item | frozen `AdvisoryWorkRef { decision_invocation_id, decision_deadline_at }` only |
+| item | frozen `AdvisoryWorkRef { decision_invocation_id, decision_deadline_at }` only；initial、retry continuation 与 recovery re-dispatch 共用同一 ref/queue |
 | ordering | process-local queue 按 `(decision_requested_at, decision_invocation_id)` ascending；无 response-based priority；该顺序不是 durable correctness state |
 | priorities | Gate A 只有 `NEW_SETUP` 一类；不得与 Position/Plan Review 混合 |
-| enqueue | post-commit `put_nowait` / equivalent；绝不 await queue space |
+| enqueue | admission commit 后 initial offer，或 Attempt finalizer/recovery 持久 `RETRY_PENDING` 后 retry re-offer；均使用 post-commit `put_nowait` / equivalent，绝不 await queue space |
 | full policy | **REJECT NEWEST**；不 DROP accepted item、不 COALESCE、不阻塞 producer |
-| full durable result | same invocation 按 §14.2 原子 terminalize：`CAPACITY_BLOCKED / ADVISORY_QUEUE_REJECTED`，`final_attempt_id=NULL`、`final_decision_id=NULL`；zero provider call |
+| full durable result | same invocation 按 §14.2 原子 terminalize：`CAPACITY_BLOCKED / ADVISORY_QUEUE_REJECTED`，`final_attempt_id=NULL`、`final_decision_id=NULL`；当前 terminalizing cycle 新增 provider call = zero。retry-gap 可有 historical Attempt/provider calls，但不得链接旧 Attempt 或伪造新 Attempt |
 | accepted item | queue 一旦接受，不 silent drop；consumer/finalizer 或 restart 必须给出 durable terminal state |
 | shutdown | close admission；offer 被拒（admission closed）⇒ invocation 保持 `ADMITTED`，由 restart recovery 处理；不等待新 slot |
 
@@ -1078,7 +1162,8 @@ blocking 会反压 scanner/provider）。rejection 仍保留 exact invocation/pa
 
 **Queue rejection ≠ durable admission rejection**：durable admission rejection 发生在
 admission transaction（staging 失败 / admission-time stale ⇒ 无 invocation）；queue
-rejection 发生在 admission 已 durable 之后（⇒ 同 invocation terminalize，显式留在
+rejection 发生在 Invocation 已 durable 之后，可以是 initial offer，也可以是已有
+historical Attempt 的 retry/recovery re-offer（⇒ 同 invocation terminalize，显式留在
 denominator）。二者在 telemetry 与 durable state 上都必须可区分。
 
 queue full handling 的 durable terminal transaction 若因 DB failure 未提交，invocation
@@ -1100,6 +1185,11 @@ state 恢复并在原 deadline 下重新裁决。
 6. queue full 时 ref 未进队，必须同步尝试上述 durable capacity final。
    若该 final commit 失败，诚实状态仍是 `ADMITTED`，subsystem fail closed；
    restart 不伪造历史 capacity result，而是按原 deadline/stale 再次 bounded offer。
+7. retry/recovery re-offer 同样受该 capacity gate约束。若 full 时状态为 `RETRY_PENDING`，
+   它处于 retry gap：按上表 pair terminalize，保留所有历史 Attempt/provider-call audit，
+   `final_attempt_id=NULL`；不允许把旧 Attempt 链接为 terminal producer，也不允许为获得
+   provenance 先插入新 Attempt。若 retry-gap capacity final commit 失败，诚实状态仍是
+   `RETRY_PENDING`，restart 在原 deadline 下重裁。
 
 无 durable `QUEUED`、无 coalescing（identity safety 未被形式化证明前禁止）。
 
@@ -1146,11 +1236,14 @@ config reload 只能创建新 config epoch/experiment，不改动旧 seed/Invoca
   remaining interval 一次性映射为 AnyIO monotonic cancel scope（`fail_after` /
   equivalent），但 monotonic scope 仅负责本地取消；终态 deadline verdict 仍由
   finalizer 的 DB clock 重验决定。
-- deadline terminal mapping 只按 durable Attempt existence 判断：同 Invocation 尚无 Attempt row
-  时（包括 applicable 的 enqueue、dequeue、pre-claim、attempt-start commit 前路径）使用
-  `STALE_DECISION / DEADLINE_EXPIRED_BEFORE_PROVIDER`，且 provider call = ZERO；Attempt-start
-  transaction 已 commit 后使用 `STALE_DECISION / DEADLINE_EXPIRED`，即使 provider I/O 尚未开始。
-  phase 名称与 network-call count 均不是 provenance boundary。
+- deadline terminal mapping 只按**当前 cycle 的 terminal-producing Attempt 是否已 durable
+  commit** 判断：在该 commit 之前（包括 applicable 的 initial/retry enqueue、dequeue、
+  pre-claim 路径）使用 `STALE_DECISION / DEADLINE_EXPIRED_BEFORE_PROVIDER`，
+  `final_attempt_id=NULL`，当前 cycle 新增 provider call = zero。这同时适用于从无 Attempt 的
+  first dispatch 与可有 historical Attempt/provider call 的 retry gap。当前 Attempt-start transaction
+  已 commit 后使用 `STALE_DECISION / DEADLINE_EXPIRED`，即使 provider I/O 尚未开始，
+  并要求 exact current `final_attempt_id`。phase 名称、历史 Attempt 总数与 network-call count
+  均不是 provenance boundary。
 - provider 返回时已过期：不能增加风险；late-result semantics（audit only，不能赢
   final）。
 - retry 共享 deadline；conservative remaining-time/cost/attempt check 不通过则不启动
@@ -1160,6 +1253,11 @@ config reload 只能创建新 config epoch/experiment，不改动旧 seed/Invoca
 
 沿用 PRE-01A-D1 §8/§9 accepted taxonomy（transport/validation 分离、joint
 deadline/attempt/cost、失败不得增加风险）。Gate A 落地：
+
+下表中“no current Attempt”的唯一含义是：当前 terminalizing dispatch/retry cycle
+尚无 terminal-producing Attempt；它包括 State A zero-history 与 State B retry gap，后者可有
+historical Attempts/provider calls。“current Attempt exists”表示当前 cycle 的 Attempt-start
+transaction 已 durable commit，不是「attempt table 中存在任意一行」。
 
 | Failure class | Retry? | Final status / diagnostic | Durable provenance | Risk effect |
 |---|---|---|---|---|
@@ -1172,19 +1270,19 @@ deadline/attempt/cost、失败不得增加风险）。Gate A 落地：
 | refusal | NO | `INVALID_SCHEMA / REFUSAL` | yes | zero |
 | auth/permission | NO；subsystem Gate A fail closed | `INVALID_SCHEMA / AUTH_PERMISSION` | yes | zero |
 | invalid request/schema capability/model | NO；activation config invalid | `INVALID_SCHEMA / INVALID_REQUEST` | yes | zero |
-| deadline expiry | NO | no Attempt: `STALE_DECISION / DEADLINE_EXPIRED_BEFORE_PROVIDER`；已有 Attempt: `STALE_DECISION / DEADLINE_EXPIRED` | yes | zero |
-| Evidence superseded | NO | no Attempt: `STALE_DECISION / EVIDENCE_SUPERSEDED_BEFORE_PROVIDER`；已有 Attempt: `STALE_DECISION / EVIDENCE_SUPERSEDED` | yes | zero |
-| Opportunity eligibility lost or market freshness lost | NO | no Attempt: `STALE_DECISION / OPPORTUNITY_STALE_BEFORE_PROVIDER`；已有 Attempt: `STALE_DECISION / STALE_BINDING` | invocation/final yes | zero |
-| Decision Snapshot / input-binding invalid | NO | no Attempt: `STALE_DECISION / BINDING_INVALID_BEFORE_PROVIDER`；已有 Attempt: `STALE_DECISION / STALE_BINDING` | invocation/final yes | zero |
-| activation genuinely disabled | NO | no Attempt: `STALE_DECISION / ACTIVATION_DISABLED_BEFORE_PROVIDER`；已有 Attempt: `STALE_DECISION / STALE_BINDING` | invocation/final yes | zero |
-| activation enabled but experiment/config definition mismatched | NO | no Attempt: `STALE_DECISION / EXPERIMENT_CONFIG_MISMATCH_BEFORE_PROVIDER`；已有 Attempt: `STALE_DECISION / STALE_BINDING` | invocation/final yes | zero |
-| retry exhaustion | NO | 最后 failure status + `RETRY_EXHAUSTED` | all attempts | zero |
-| cancellation | NO（restart 另按原 invocation/budget 裁决） | 按 §14.2 区分 `SHUTDOWN_BEFORE_PROVIDER` / `SHUTDOWN_CANCELLED_ACTIVE_ATTEMPT`，或 process-loss attempt audit | yes | zero |
+| deadline expiry | NO | no current Attempt: `STALE_DECISION / DEADLINE_EXPIRED_BEFORE_PROVIDER`；current Attempt exists: `STALE_DECISION / DEADLINE_EXPIRED` | yes；retry-gap historical Attempt preserved, not linked | current cycle zero before current Attempt |
+| Evidence superseded | NO | no current Attempt: `STALE_DECISION / EVIDENCE_SUPERSEDED_BEFORE_PROVIDER`；current Attempt exists: `STALE_DECISION / EVIDENCE_SUPERSEDED` | yes；retry-gap historical Attempt preserved, not linked | current cycle zero before current Attempt |
+| Opportunity eligibility lost or market freshness lost | NO | no current Attempt: `STALE_DECISION / OPPORTUNITY_STALE_BEFORE_PROVIDER`；current Attempt exists: `STALE_DECISION / STALE_BINDING` | invocation/final yes | current cycle zero before current Attempt |
+| Decision Snapshot / input-binding invalid | NO | no current Attempt: `STALE_DECISION / BINDING_INVALID_BEFORE_PROVIDER`；current Attempt exists: `STALE_DECISION / STALE_BINDING` | invocation/final yes | current cycle zero before current Attempt |
+| activation genuinely disabled | NO | no current Attempt: `STALE_DECISION / ACTIVATION_DISABLED_BEFORE_PROVIDER`；current Attempt exists: `STALE_DECISION / STALE_BINDING` | invocation/final yes | current cycle zero before current Attempt |
+| activation enabled but experiment/config definition mismatched | NO | no current Attempt: `STALE_DECISION / EXPERIMENT_CONFIG_MISMATCH_BEFORE_PROVIDER`；current Attempt exists: `STALE_DECISION / STALE_BINDING` | invocation/final yes | current cycle zero before current Attempt |
+| retry exhaustion | NO | 最后 failure status + `RETRY_EXHAUSTED`；last completed Attempt 本身为 terminal producer | last terminal-producing Attempt required | follows last Attempt facts |
+| cancellation / shutdown | NO（restart 另按原 invocation/budget 裁决） | no current Attempt（包括 retry gap）: `INVALID_SCHEMA / SHUTDOWN_BEFORE_PROVIDER`；current ACTIVE Attempt: `INVALID_SCHEMA / SHUTDOWN_CANCELLED_ACTIVE_ATTEMPT`；或 process-loss attempt audit | current Attempt pair requires it；retry-gap historical Attempt not linked | current cycle zero before current Attempt |
 | late result | NO | `STALE_DECISION / LATE_RESULT` 或 loser audit | yes | zero |
 | duplicate completion | NO | winner 不变；`DUPLICATE_SUPPRESSED` | loser attempt yes | zero |
 | internal invariant/hash/fence failure | NO；Advisory subsystem fail closed | immutable snapshot/binding integrity failure 按上方 exact binding pair；不能可靠写 terminal 的 DB/lock/fence failure 保留原 durable state 并由 restart 重裁，不得发明额外 terminal pair | sanitized durable evidence where possible | zero |
-| queue rejected | NO | `CAPACITY_BLOCKED / ADVISORY_QUEUE_REJECTED` | invocation/final yes | zero |
-| Advisory DB capacity unavailable before provider | NO | `CAPACITY_BLOCKED / ADVISORY_DB_CAPACITY_UNAVAILABLE` | invocation/final yes | zero |
+| queue rejected | NO | initial/retry/recovery offer 均用 `CAPACITY_BLOCKED / ADVISORY_QUEUE_REJECTED`；`final_attempt_id=NULL` | invocation/final yes；retry-gap history preserved | terminalizing cycle new calls zero |
+| Advisory DB capacity unavailable before provider | NO | no current Attempt（包括 retry gap）: `CAPACITY_BLOCKED / ADVISORY_DB_CAPACITY_UNAVAILABLE`；`final_attempt_id=NULL` | invocation/final yes；retry-gap history preserved | terminalizing cycle new calls zero |
 | admission preparation/canonicalization/digest/config-binding/optional persistence failure | NO retry to Invocation；只重试 constant terminal write | `UNSTAGED`，或 `ADMISSION_FAILED_FINAL / ADMISSION_STAGING_FAILED_UNBOUND / NO_LONG_UNBOUND`；subsystem `FAIL_CLOSED` | valid G2/Evidence durable；无 seed/Invocation/Attempt/AIDecision；unbound completeness-hole counter durable/queryable | zero |
 
 无任何 failure 触发 baseline BUY、自动 participate、TradePlan fallback 或 deterministic
@@ -1195,7 +1293,7 @@ operational denominator，但不因此产生任何经济动作。
 
 六类 stale 判定相互独立，不得折叠成一个 boolean：
 
-| 维度 | Authority | no Attempt exact pair | Attempt exists exact behavior |
+| 维度 | Authority | no terminal-producing Attempt for current cycle（zero-history 或 retry gap） | current terminal-producing Attempt durably committed |
 |---|---|---|---|
 | Evidence revision superseded | durable `edge_opportunity_evidence`（同 opportunity 存在更高 revision） | `STALE_DECISION / EVIDENCE_SUPERSEDED_BEFORE_PROVIDER` | `STALE_DECISION / EVIDENCE_SUPERSEDED` |
 | Opportunity eligibility lost | formal Evidence `expires_at` + durable current G2 `symbol_states.state/state_version` | `STALE_DECISION / OPPORTUNITY_STALE_BEFORE_PROVIDER` | `STALE_DECISION / STALE_BINDING` |
@@ -1206,19 +1304,23 @@ operational denominator，但不因此产生任何经济动作。
 
 | 时点 | 必须动作 |
 |---|---|
-| stale before enqueue | 不入 queue；同 invocation terminalize，zero provider |
-| stale while queued | dequeue durable re-read 后 terminalize，zero provider |
-| stale immediately before provider | attempt-start transaction 在 Evidence lock 下拒绝，zero provider |
-| Attempt-start committed, provider I/O not begun | Attempt 已存在；按对应 Attempt-exists exact behavior terminalize，禁止 `*_BEFORE_PROVIDER` reason |
+| stale before initial/retry enqueue | 不入 queue；同 invocation 按无 terminal-producing Attempt pair terminalize，当前 cycle 新增 provider call = zero |
+| stale while initial/retry queued | dequeue durable re-read 后按无 terminal-producing Attempt pair terminalize，当前 cycle 新增 provider call = zero |
+| stale immediately before current Attempt creation | attempt-start transaction 在 Evidence lock 下拒绝，当前 cycle 新增 provider call = zero |
+| current Attempt-start committed, provider I/O not begun | current Attempt 已存在；按对应 Attempt-origin exact behavior terminalize，禁止 `*_BEFORE_PROVIDER` reason |
 | stale during provider call | 不新增 market subscription / second event bus；response 后 finalizer durable re-read 判 stale；可 best-effort cancel，cancellation 不是 authority |
 | valid response 后、finalization 前变 stale | finalizer 按 `Evidence -> Invocation -> Attempt` 锁顺序重读后判 `STALE_DECISION`（含 `EVIDENCE_SUPERSEDED`），valid response 只留 attempt/AIDecision audit，不能成为 current/actionable winner |
 
-前三个时点只有在 Attempt-start transaction 尚未 commit 时才使用上表 no-Attempt pair；若
-Attempt 已 durably inserted，则即使 provider I/O 未开始，也必须走 Attempt-exists 列并要求同
-Invocation `final_attempt_id`。Attempt-exists terminal 的 `final_decision_id` 仅在 D2 finalizer
+前三个时点只有在当前 cycle 的 Attempt-start transaction 尚未 commit 时才使用上表
+无 terminal-producing Attempt pair；这可以是 zero-history，也可以是保留 historical Attempts 的
+retry gap。若当前 Attempt 已 durably inserted，则即使 provider I/O 未开始，也必须走 current
+Attempt 列并要求 exact same-Invocation `final_attempt_id`。current-Attempt terminal 的
+`final_decision_id` 仅在 D2 finalizer
 contract 已合法接受 normalized artifact 时可非 NULL，否则为 NULL。每个 case 显式给出：
 durable state（terminal row + exact diagnostic）、provider call yes/no、audit retention（Attempt
-存在时保留 attempt audit）、economic effect = **ZERO**。所有 stale outcome zero risk increase。
+存在时保留 attempt audit）、economic effect = **ZERO**。retry gap 中 historical Attempt/provider-call
+facts 不变；“zero”只指 terminalizing current cycle 无新 provider call。所有 stale outcome
+zero risk increase。
 
 ## 20. Shutdown / Restart
 
@@ -1318,9 +1420,15 @@ A + R <= C
    `UNSTAGED` 并按 §8.3 终态化；已有 Invocation
    在能取得一个 bounded terminal-write lease 时写
    `CAPACITY_BLOCKED / ADVISORY_DB_CAPACITY_UNAVAILABLE`，否则保持原 durable state、
-   Gate A fail closed、zero provider，并由 restart 在原 deadline 下重裁。不得 unbounded wait、
+   Gate A fail closed、当前 acquisition/terminalizing cycle 新增 provider call = zero，并由
+   restart 在原 deadline 下重裁。不得 unbounded wait、
    不得借用 `R`、不得 fallback 到 raw session factory。`DISABLED` path 不构造 fence、
    不取得 token，也不要求本节 Pack-B 数值。
+   对 `RETRY_PENDING` Invocation，下一 Attempt 创建前无法取得 DB capacity 就是
+   retry-gap terminal：若 bounded terminal-write lease 可用，写入上述 exact pair、
+   `final_attempt_id=NULL`、`final_decision_id=NULL`，当前 retry cycle 新增 provider call = zero。
+   historical Attempt/provider-call facts 可存在且必须保留；不得链接 last historical
+   Attempt，不得伪造 next Attempt，不得声称 Invocation-lifetime provider calls = zero。
 9. **Release authority**：每个 lease 必须绑定 RuntimeHost epoch + application-assigned pool-entry
    identity + monotonically increasing checkout generation + lease/token identity。`checkout` listener
    只用 public `ConnectionPoolEntry.record_info` / `PoolProxiedConnection.info` 写入 correlation；
@@ -1351,6 +1459,11 @@ A + R <= C
    shielded DB cleanup 的 shield 上限也是 advisory subdeadline，绝不是 Host deadline；
    每次 fence-owned cleanup 仍需取得 Advisory token 且受 §20.1 server/client timeout 约束；
    已持 token 的 caller-owned G2 admission 不重新 acquire。
+   若能在 budget 内写入 shutdown final：State A 或 `RETRY_PENDING` retry gap 使用
+   `INVALID_SCHEMA / SHUTDOWN_BEFORE_PROVIDER`，`final_attempt_id=NULL`，保留任何历史
+   Attempt；`ACTIVE` current Attempt 使用
+   `INVALID_SCHEMA / SHUTDOWN_CANCELLED_ACTIVE_ATTEMPT` 并要求该 exact current Attempt
+   provenance。禁止为 shutdown 伪造 next Attempt。
 4. 到达 `advisory_subdeadline` 时，Host 必须拒绝新 Advisory work/token，并取消/rollback
    Advisory SAVEPOINT work where possible。fence-owned Advisory session 无法及时 clean close
    时可 invalidate，但不得 dispose shared engine。**不得仅为停止 Advisory 而 invalidate
@@ -1381,7 +1494,7 @@ A + R <= C
 | `ACTIVE` + `STARTED` Attempt，provider I/O in flight | yes | cancel scope；不等 drain；不允许新 finalizer 越过 subdeadline | 原 Attempt 记 `PROCESS_LOST/ABANDONED`；仅在原 budget/deadline 允许时 retry |
 | provider cancellation completed、DB terminalization 也在 budget 内 commit | no（Invocation 已 FINAL） | terminal/non-actionable | 永不 requeue |
 | provider cancellation completed、但 DB terminalization 未在 budget 内 commit | yes（仍 ACTIVE/STARTED） | 本 process 已关闭 finalizer，zero economic use | 按 process-lost 规则，不伪造 cancellation final |
-| `RETRY_PENDING` | yes | 不启动新 Attempt | 原 identity/provider/model/deadline 继续或 terminalize |
+| `RETRY_PENDING` | yes | 不启动新 Attempt | 处于 retry gap；原 identity/provider/model/deadline 继续，或按§14.2 无 terminal-producing Attempt pair terminalize；历史 Attempt 保留、`final_attempt_id=NULL` |
 
 ### 20.3 Connection disposition / token state machine（FIX-05）
 
@@ -1801,15 +1914,18 @@ Real provider adapter selection / contract validation 与 Gate A activation 为�
    `ADMISSION_FAILED_FINAL / ...UNBOUND / NO_LONG_UNBOUND`，不得读取 mutable config、
    补造 deadline 或创建 Invocation；unbound completeness hole 可查询并阻断 Gate evidence。
 3. Capture Anchor without formal Evidence 永不进入 Advisory。
-4. enqueue 只发生在 commit 后；crash-after-commit-before-enqueue 恢复同一 invocation。
+4. initial offer 与 `RETRY_PENDING` retry/recovery re-offer 只发生在对应 commit 后；
+   crash-after-commit-before-offer 恢复同一 invocation/ref，不重建 identity 或 Attempt。
 5. queue object 只有 frozen ref；consumer durable re-read 并验证全部
    binding/hash（含 feature_snapshot_hash）。
 6. queue bounded；无 durable `QUEUED`；full = durable REJECT NEWEST
    （`CAPACITY_BLOCKED / ADVISORY_QUEUE_REJECTED`）；
    no block/drop/coalesce；queue rejection 与 durable admission rejection 在 durable
-   state/telemetry 上可区分。queue 与 DB capacity no-provider terminal 必须分别以
+   state/telemetry 上可区分。queue 与 DB capacity no-terminal-producing-Attempt terminal
+   必须分别以
    `ADVISORY_QUEUE_REJECTED` / `ADVISORY_DB_CAPACITY_UNAVAILABLE` 持久化，且
-   `final_attempt_id=NULL`、`final_decision_id=NULL`；§14.2 exact pair CHECK 必须真实验证。
+   `final_attempt_id=NULL`、`final_decision_id=NULL`；该要求同时覆盖 zero-history 与 retry-gap
+   状态，§14.2 exact pair CHECK 必须真实验证。
 7. Protection lane 在 queue full、slow provider、provider timeout、admission staging
    failure、Advisory critical failure、Advisory pool wait/statement/lock timeout 下持续工作；
    real PostgreSQL adverse test 证明 `A + R <= C` 且 A 个 wedged Advisory holders 时
@@ -1835,23 +1951,35 @@ Real provider adapter selection / contract validation 与 Gate A activation 为�
 14. two concurrent completions、retry/shutdown/restart race 只产生一个 Invocation
     authoritative final；五个 terminal fields 可直接查询；final Attempt/AIDecision 必须
     同 Invocation 且 origin constrained；late/duplicate loser 不能覆盖 winner。
-15. §14.2 唯一 authoritative no-Attempt exact pair set 的每个 legal pair 都必须真实持久化；
-    每个 pair 均证明 `final_attempt_id=NULL`、`final_decision_id=NULL`、provider call = ZERO。
-    exact-pair CHECK 必须接受全部 legal pair，并至少拒绝一个 status-correct/reason-wrong 与一个
-    reason-correct/status-wrong near-miss；不得使用 status 或 reason wildcard。
-16. deadline 在 Attempt-start commit 前使用
-    `STALE_DECISION / DEADLINE_EXPIRED_BEFORE_PROVIDER`；Attempt 已创建但 provider I/O 尚未开始
-    的 race 使用 `STALE_DECISION / DEADLINE_EXPIRED` 且 same-Invocation `final_attempt_id` required。
-17. binding-invalid pre-Attempt path 精确使用
-    `STALE_DECISION / BINDING_INVALID_BEFORE_PROVIDER`；activation genuinely disabled 使用
-    `ACTIVATION_DISABLED_BEFORE_PROVIDER`；activation enabled 但 experiment/config mismatch 使用
-    `EXPERIMENT_CONFIG_MISMATCH_BEFORE_PROVIDER`。market freshness lost 与 Opportunity eligibility
-    lost 均显式验证为 `OPPORTUNITY_STALE_BEFORE_PROVIDER`。Evidence supersede、queue capacity、
-    DB capacity 与 shutdown 分别保持 §14.2 exact pair。
-18. all expiry/stale phases（六维度 × 六时点）匹配 §19；每个维度必须同时证明 no-Attempt
-    exact pair 与 Attempt-exists exact behavior，no provider/no risk 精确。
-19. restart 对 UNSTAGED/ADMISSION_FAILED_FINAL/ADMITTED/ACTIVE/
-    RETRY_PENDING/FINAL 均匹配 §15。
+15. §14.2 唯一 authoritative no-terminal-producing-Attempt exact pair set 的每个 legal pair
+    都必须真实持久化。每个 pair 均需分别证明 State A zero-history 与 State B retry-gap；
+    retry-gap fixture 必须预先持久 Attempt #1（允许它已有 provider call）、置
+    `RETRY_PENDING`、不创建 Attempt #2，然后持久 legal pair，并证明
+    `final_attempt_id=NULL`、`final_decision_id=NULL`、Attempt #1 保留但未链接、当前 cycle
+    新增 provider call = zero。exact-pair CHECK 必须在同 Invocation 有历史 Attempt 时仍接受
+    NULL `final_attempt_id`；并至少拒绝一个非九-pair且 `final_attempt_id=NULL` 的 terminal、
+    一个 status-correct/reason-wrong 与一个 reason-correct/status-wrong near-miss。不得使用
+    status/reason wildcard、CHECK subquery、trigger、新 Invocation column 或 fake Attempt。
+16. retry-gap deadline 必须证明：Attempt #1 completed → `RETRY_PENDING` → Attempt #2 未创建
+    → deadline → `STALE_DECISION / DEADLINE_EXPIRED_BEFORE_PROVIDER` →
+    `final_attempt_id=NULL`，Attempt #1 保留。对照 case 在 Attempt #2 start commit 后过期，
+    必须使用 `STALE_DECISION / DEADLINE_EXPIRED` 且 `final_attempt_id=Attempt #2`。
+17. Evidence supersede、Opportunity/market stale、binding invalid、activation disabled 与 enabled-but-
+    incompatible config 都必须以同一 retry-gap shape 证明各自 §14.2 `*_BEFORE_PROVIDER`
+    pair + NULL final Attempt，并以 Attempt #2 start commit 后的 current-Attempt mapping 作对照。
+    禁止从历史 Attempt 总数推断 provenance。
+18. queue retry/recovery re-offer rejection、DB capacity unavailable 与 shutdown 必须各有 retry-gap
+    证明：历史 Attempt/provider call 可存在，当前 cycle 新增 provider call = zero，
+    `final_attempt_id=NULL`，不伪造 Attempt #2。shutdown 的 current ACTIVE Attempt #2 对照必须
+    使用 `SHUTDOWN_CANCELLED_ACTIVE_ATTEMPT` 并引用 Attempt #2。另必须证明 true retry
+    exhaustion 引用 last terminal-producing Attempt 并保留 `RETRY_EXHAUSTED`，不误入 NULL set。
+    负向不变式：Attempt #1 绝不能仅因为它是 latest historical Attempt 而成为后续
+    retry-gap terminal 的 `final_attempt_id`；Attempt #2 row count 必须仍为 zero。
+19. all expiry/stale phases（六维度 × 六时点）匹配 §19；每个维度必须同时证明
+    zero-history、retry-gap 与 current-Attempt exact behavior。restart 对
+    UNSTAGED/ADMISSION_FAILED_FINAL/ADMITTED/ACTIVE/RETRY_PENDING/FINAL 均匹配 §15，
+    且 RETRY_PENDING 恢复在新 Attempt commit 前触发 terminal predicate 时使用 retry-gap
+    semantics，不伪造下一 Attempt。
 20. failure matrix 全部有 targeted tests；无 baseline fallback / fake-AI substitution。
 21. deadline authority/propagation 匹配 §17：PostgreSQL single-read timestamp、UTC/
     precision/canonical serialization、duration+version 持久化、queue/retry 消耗同一 budget。
