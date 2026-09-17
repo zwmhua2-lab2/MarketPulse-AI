@@ -1,5 +1,6 @@
 import type { ApiClient } from "./client";
-import { HttpError, NetworkError, UnauthorizedError, UnexpectedResponse } from "./errors";
+import { UnexpectedResponse } from "./errors";
+import { sendRequest, transportErrorForStatus } from "./transport";
 
 /** The frozen readiness endpoint (UI-V1-D01 §28). */
 export const READINESS_PATH = "/api/v1/ready";
@@ -18,20 +19,6 @@ export interface ReadinessResult {
   readonly payload: Record<string, unknown>;
 }
 
-/**
- * Maps an HTTP status to a transport error category, or `null` when the response is
- * not a transport failure. Product capability semantics are never inferred here.
- */
-export function transportErrorForStatus(status: number, body: unknown): Error | null {
-  if (status === 401) {
-    return new UnauthorizedError();
-  }
-  if (status < 200 || status >= 300) {
-    return new HttpError(status, body);
-  }
-  return null;
-}
-
 function asReadinessPayload(value: unknown, context: string): Record<string, unknown> {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     throw new UnexpectedResponse(`运行就绪响应缺少可解析的 JSON 对象（${context}）`);
@@ -44,16 +31,18 @@ function asReadinessPayload(value: unknown, context: string): Record<string, unk
  *
  * The backend contract is `200` = READY payload and `503` = authoritative NOT READY
  * payload. A `503` therefore never becomes a `NetworkError`, never becomes a generic
- * "backend unavailable", and — because it resolves successfully instead of throwing —
- * is never retried. The body is preserved so the UI can render the real reason.
+ * "backend unavailable" and never becomes an `HttpError` — and, because it resolves
+ * successfully instead of throwing, it is never retried. The body is preserved so the
+ * UI can render the real reason.
+ *
+ * This endpoint is the single explicit exception to the generic transport
+ * interpretation (`api/transport.ts`): readiness is an authoritative *capability
+ * payload* carried on a non-2xx status, which generic interpretation must not know
+ * about. Hence the raw request step first, the `503` interception, and only then the
+ * shared interpretation for everything else. No other module may take this shortcut.
  */
 export async function readReadiness(client: ApiClient): Promise<ReadinessResult> {
-  let outcome;
-  try {
-    outcome = await client.GET(READINESS_PATH);
-  } catch (cause) {
-    throw new NetworkError("读取运行就绪状态失败：网络请求未完成", { cause });
-  }
+  const outcome = await sendRequest(() => client.GET(READINESS_PATH));
 
   const { response } = outcome;
   const body: unknown = response.ok ? outcome.data : outcome.error;

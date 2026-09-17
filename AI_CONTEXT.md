@@ -346,6 +346,24 @@ disposable 库保持空表（症状 `relation "edge_opportunity_evidence" does n
 - 下一计划任务仍为 `UI-RD01`（Product Read API Formal Design）→ `UI-I01..UI-I06`，
   **但本批既不实现、也不自动授权**它们；任何后续设计 / 实现均需另开独立获批窗口。
 
+- `UI-F01-I01-FIX-01`｜Transport Error Boundary Closure = **IMPLEMENTED / READY FOR INDEPENDENT
+  RE-REVIEW**（关闭独立复审 Finding `UI-F01-I01-R1` = 原批 `R-02` 风险；reviewed candidate
+  `0c9186d2d94450d39754eb40536148a73deb123c` **未**重写、保留为历史证据；Fix branch =
+  `ui-f01-i01-fix-01-transport-error-boundary`，**未** merge `main`；实测远端 `main` =
+  `2c95cc21cc99d85c5692c5f9b276c5805cc32b13` ⇒ **无** baseline drift）。通用网络 / HTTP 错误归一化
+  现由 `frontend/src/api/transport.ts` **单点拥有**：`requestData()` → network = `NetworkError`、
+  `401` = `UnauthorizedError`、其他非 2xx = `HttpError`（status / body 保留）、2xx + 不可解释 body
+  = `UnexpectedResponse`；`/ready` `503` 仍是**唯一**显式例外（权威 NOT READY、body 保留、**不是**
+  `HttpError` / `NetworkError`、**不**被重试），并已由新用例反向固定（非 `/ready` 端点的 `503` =
+  普通 `HttpError`）。真实门（全部 exit 0）：`typecheck` / `test:run` = **7 files / 44 tests
+  PASS**（既有 37 **未**削弱 + 新增 7）/ `build` / `check:api-drift`；另以 3 个注入式探针证明新
+  覆盖**有牙齿**（已逐字节复原）。改动面 = `frontend/src/api/**` 4 个文件 + 最小状态文档同步；
+  `frontend/package.json` / `frontend/package-lock.json` / `backend/**` / schema / migration /
+  `frontend/src/auth/**` / `frontend/src/app/**` = **ZERO CHANGE**；`react` / `react-dom` 按
+  lockfile 实测 = `19.3.0`。**非** ACCEPTED / COMPLETE / HUMAN ACCEPTED；**不**构成 `UI-RD01` /
+  `UI-I01..UI-I06` 的授权。详见
+  `dev_log/2026-09-17-ui-f01-i01-fix-01-transport-error-boundary.md`。
+
 ### UI-V1-D01 MarketPulse UI V1 Formal Design — ACCEPTED / FROZEN / REPOSITORY-INTEGRATED
 
 - 任务：`UI-V1-D01-FINAL-DOC-01`｜MarketPulse UI V1 Formal Design — Repository Persistence

@@ -227,6 +227,25 @@ Product Read API = `NOT STARTED`；**不**构成 `UI-RD01` / `UI-I01..UI-I06` �
 **ZERO CHANGE**。详见「UI-F01-I01 Result」与
 `dev_log/2026-09-17-ui-f01-i01-frontend-foundation.md`）
 
+UI-F01-I01-FIX-01 — Transport Error Boundary Closure — IMPLEMENTED / READY FOR INDEPENDENT RE-REVIEW
+（Task Type = IMPLEMENTATION + VERIFICATION；关闭独立复审 Finding `UI-F01-I01-R1` = 原批 `R-02` 风险；
+Reviewed candidate = `0c9186d2d94450d39754eb40536148a73deb123c`，**未**重写、保留为历史证据；
+Fix branch = `ui-f01-i01-fix-01-transport-error-boundary`，**未** merge `main`）。通用网络 / HTTP
+错误归一化现由 `frontend/src/api/transport.ts` **单点拥有**（`requestData()`：network →
+`NetworkError`；`401` → `UnauthorizedError`；其他非 2xx → `HttpError` 且 status / body 保留；
+2xx + 不可解释 body → `UnexpectedResponse`），`transportErrorForStatus()` 由 `readiness.ts` 迁入；
+`/ready` `503` 仍是**唯一**显式例外（权威 NOT READY、body 保留、**不是** `HttpError` /
+`NetworkError`、**不**被重试）。真实门：`npm run typecheck` / `npm run test:run`（7 files /
+**44** tests PASS，既有 37 **未**削弱 + 新增 7）/ `npm run build` / `npm run check:api-drift`
+全部 exit 0；另以 3 个注入式探针证明新覆盖**有牙齿**（已逐字节复原）。改动面 =
+`frontend/src/api/**` 4 个文件 + `dev_log` / `PROJECT_STATE.md` / `AI_CONTEXT.md` 最小同步；
+`frontend/package.json` / `frontend/package-lock.json` / `backend/**` / schema / migration /
+`frontend/src/auth/**` / `frontend/src/app/**` = **ZERO CHANGE**；`react` / `react-dom` 按
+lockfile 实测 = `19.3.0`（**未**因上一份 Completion Report 的版本笔误改动任何 production
+dependency）。**本批为 Worker 交付**：`UI-F01-I01-FIX-01` **不**等于 `ACCEPTED` / `COMPLETE` /
+`HUMAN ACCEPTED`；**不**构成 `UI-RD01` / `UI-I01..UI-I06` 的授权或进度。详见
+`dev_log/2026-09-17-ui-f01-i01-fix-01-transport-error-boundary.md`）
+
 ## GitHub Repository
 
 - GitHub Repository Full Name: `zwmhua2-lab2/MarketPulse-AI`
@@ -2096,3 +2115,57 @@ Product Read API = `NOT STARTED`；**不**构成 `UI-RD01` / `UI-I01..UI-I06` �
   `F-02` `vite.config.ts` / `vitest.config.ts` 不在 `tsconfig.json` `include` 内；
   `F-03` `generate:api` / `check:api-drift` 依赖本机 `py -3.14` 可导入后端运行时。
 - 详见 `dev_log/2026-09-17-ui-f01-i01-frontend-foundation.md`。
+
+## UI-F01-I01-FIX-01 Result
+
+- 任务：`UI-F01-I01-FIX-01`｜Transport Error Boundary Closure（IMPLEMENTATION + VERIFICATION）；
+  关闭独立复审 Finding `UI-F01-I01-R1`（generic transport error-normalization boundary 不完整，
+  表现为通用调用方仍需自行复现「catch 网络异常 / 检查 `response.ok` / 映射 `401` / 映射普通
+  `4xx` / 映射普通 `5xx`」，且归一化逻辑大部分由 `readReadiness()` 拥有；原批 `R-02` 已预置该风险）。
+- Reviewed candidate = `0c9186d2d94450d39754eb40536148a73deb123c`（单 parent = main
+  `2c95cc21cc99d85c5692c5f9b276c5805cc32b13`；执行前实读远端 `main` 同 SHA ⇒ **无** baseline
+  drift；candidate **未**重写、**未** reset / rebase / amend）。Fix branch =
+  `ui-f01-i01-fix-01-transport-error-boundary`（独立 clean worktree），**未** merge `main`、
+  **未** push `main`。
+- 实现边界：新增 `frontend/src/api/transport.ts` 作为**唯一** Foundation-owned 通用传输解释路径
+  ——`requestData()`：network failure → `NetworkError`、`401` → `UnauthorizedError`、其他非 2xx →
+  `HttpError`（status + body 保留）、2xx + 可解释 body → typed data（生成类型的成功 body）、
+  2xx + 不可解释 body → `UnexpectedResponse`；`transportErrorForStatus()` 由 `readiness.ts`
+  **迁入**本模块；`sendRequest()` 只为 `/ready` 的 503 前置拦截提供网络层归一化，不做 HTTP 分类。
+  **未**引入 Repository / Gateway / RequestFactory / BaseService / 第二个 HTTP client / Axios。
+- 唯一显式例外：`/ready` —— 先取原始 outcome，`503` → 权威 `NOT_READY`（body 原样保留、**不**成为
+  `HttpError` / `NetworkError` / 通用后端故障、**不**被重试）；其余状态复用与通用路径**同一**实现。
+  该例外已被新用例 6 反向固定：`/api/v1/runtime` 的 `503` 是普通 `HttpError`，其权威语义**只**
+  属于 `/ready`。
+- 真实验证（全部在 Fix worktree 内执行、全部 exit 0）：`npm run typecheck`；
+  `npm run test:run` = **7 files / 44 tests PASS**（既有 37 个逐字保留 + 新增 7 个，无删除 /
+  削弱 / skip）；`npm run build`；`npm run check:api-drift`。基线对照：改动前同一 worktree 为
+  `7 files / 37 tests PASS` ⇒ delta 精确为 `+7 tests`。
+- 牙齿证据（注入式探针，脚本在仓库外，探针后逐字节复原并复核 sha256）：P-1 停用通用非 2xx 解释 ⇒
+  4 个新用例 fail；P-2 停用「body 无法解析 ≠ 网络故障」的区分 ⇒ 1 个新用例 fail；P-3 移除
+  `/ready` 的 `503` 拦截 ⇒ 5 个用例 fail（含既有 readiness 用例）。复原后重跑 exit 0。
+- 改动面：`frontend/src/api/**` 4 个文件（`transport.ts` 新增；`readiness.ts` / `errors.ts` /
+  `transport.test.ts` 修改）+ `dev_log/2026-09-17-ui-f01-i01-fix-01-transport-error-boundary.md` +
+  本文件与 `AI_CONTEXT.md` 最小同步。`frontend/package.json` / `frontend/package-lock.json` /
+  `frontend/tsconfig.json` / `generated.ts` / `backend/**` / schema / migration /
+  `frontend/src/auth/**` / `frontend/src/app/**` = **ZERO CHANGE**。
+- 版本真值（按实际 lockfile 报告）：`react` = `19.3.0`、`react-dom` = `19.3.0`、
+  `react-router` = `8.4.0`、`@tanstack/react-query` = `5.103.1`、`openapi-fetch` = `0.17.0`、
+  `msw` = `2.15.0`、`vitest` = `5.0.1`、`vite` = `8.3.0`、`typescript` = `5.9.3`。
+  上一份 Completion Report 的 `react` / `react-dom` 版本笔误**未**通过改动任何 production
+  dependency 来"修正"。
+- 明确非声称：业务页面（五页仍为占位）= `NOT STARTED`；Product Read API = `NOT STARTED`；
+  `UI-RD01` / `UI-I01..UI-I06` = **未**实现、**未**授权；`PRE-01B-I2` =
+  `NOT STARTED / NOT ACTIVATED`；Real AI = `NOT ACTIVATED`；live `G2→G3` = `NOT ACTIVE`；
+  Forward Outcome runtime integration = `NOT INTEGRATED`；`Gate C` = `NOT PASSED`；`Live` =
+  `NOT AUTHORIZED`；Trading Edge = **未证明**。`PRE-01B-I2` 未被本批激活。
+- 本批**未**执行 `npm ci`（`package.json` / `package-lock.json` 零改动，依赖树与 candidate 一致；
+  `frontend/node_modules` 由 candidate worktree 同盘整体 rename 迁移复用，该目录被 `.gitignore`
+  忽略、不属 repository truth）；**未**做浏览器真机联调、**未**连接真实 backend。
+- Result = **`UI-F01-I01-FIX-01 = IMPLEMENTED / READY FOR INDEPENDENT RE-REVIEW`**；**不**等于
+  `ACCEPTED` / `COMPLETE` / `HUMAN ACCEPTED`（Independent Re-Review 与 Human Acceptance 另开
+  独立窗口）。
+- 遗留（非阻塞，**未**写 resolved）：`F-01` `auth/AuthSessionProvider.tsx` 的 `signIn()` 仍自行
+  catch / 检查 `response.ok`（Scope 只允许 `frontend/src/api/**`，本批**未**改 auth 边界；login
+  `401` = 凭据判决而非传输类别）；原批 `R-01` / `R-03` 状态**不变**；原批 `R-02` 由本批关闭。
+- 详见 `dev_log/2026-09-17-ui-f01-i01-fix-01-transport-error-boundary.md`。

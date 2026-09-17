@@ -4,8 +4,12 @@ import { describe, expect, it } from "vitest";
 import { LOGIN_PATH, PROTECTED_PING_PATH, TEST_ACCESS_TOKEN } from "../test/handlers";
 import { server } from "../test/server";
 import { createApiClient } from "./client";
-import { HttpError, NetworkError, UnauthorizedError } from "./errors";
+import { HttpError, NetworkError, UnauthorizedError, UnexpectedResponse } from "./errors";
 import { READINESS_PATH, readReadiness } from "./readiness";
+import { requestData } from "./transport";
+
+/** A protected endpoint that is not `/ready`, used for the generic transport cases. */
+const RUNTIME_PATH = "/api/v1/runtime";
 
 function client(onUnauthorized: () => void = () => undefined, token: string | null = null) {
   return createApiClient({ getToken: () => token, onUnauthorized });
@@ -129,5 +133,124 @@ describe("401 lifecycle ownership", () => {
     await readReadiness(client(() => invalidations.push(1), "stale-token"));
 
     expect(invalidations).toHaveLength(0);
+  });
+});
+
+/**
+ * The generic boundary every non-`/ready` caller uses.
+ *
+ * These cases deliberately avoid `/ready`: the point is that a Product Query module can
+ * get one normalized transport failure without reproducing the checks itself, and that
+ * the authoritative `/ready` `503` payload stays confined to `/ready`.
+ */
+describe("generic transport interpretation", () => {
+  it("returns the typed success body instead of an outcome to unwrap", async () => {
+    server.use(
+      http.get(PROTECTED_PING_PATH, () => HttpResponse.json({ status: "authenticated" })),
+    );
+
+    const data = await requestData(() => client().GET(PROTECTED_PING_PATH));
+
+    // The annotation is the assertion: `data` is the generated success body type, so the
+    // caller never inspects `response.ok` and never reads `{ data, error, response }`.
+    const status: string = data["status"];
+    expect(status).toBe("authenticated");
+  });
+
+  it("classifies a network failure as NetworkError", async () => {
+    server.use(http.get(PROTECTED_PING_PATH, () => HttpResponse.error()));
+
+    const failure = await requestData(() => client().GET(PROTECTED_PING_PATH)).catch(
+      (cause: unknown) => cause,
+    );
+
+    expect(failure).toBeInstanceOf(NetworkError);
+    expect(failure).not.toBeInstanceOf(HttpError);
+    expect(failure).not.toBeInstanceOf(UnauthorizedError);
+  });
+
+  it("classifies a 401 as UnauthorizedError without losing the session lifecycle", async () => {
+    const invalidations: number[] = [];
+    server.use(
+      http.get(PROTECTED_PING_PATH, () =>
+        HttpResponse.json({ detail: "invalid session" }, { status: 401 }),
+      ),
+    );
+
+    const failure = await requestData(() =>
+      client(() => invalidations.push(1), "stale-token").GET(PROTECTED_PING_PATH),
+    ).catch((cause: unknown) => cause);
+
+    expect(failure).toBeInstanceOf(UnauthorizedError);
+    expect(failure).not.toBeInstanceOf(HttpError);
+    expect((failure as UnauthorizedError).status).toBe(401);
+    expect(invalidations).toHaveLength(1);
+  });
+
+  it("classifies an ordinary 4xx as HttpError and preserves the status and the error body", async () => {
+    const body = { detail: "telemetry not found" };
+    server.use(
+      http.get(PROTECTED_PING_PATH, () => HttpResponse.json(body, { status: 404 })),
+    );
+
+    const failure = await requestData(() => client().GET(PROTECTED_PING_PATH)).catch(
+      (cause: unknown) => cause,
+    );
+
+    expect(failure).toBeInstanceOf(HttpError);
+    expect((failure as HttpError).status).toBe(404);
+    expect((failure as HttpError).body).toEqual(body);
+  });
+
+  it("classifies an ordinary 5xx as HttpError and preserves a non-JSON error body", async () => {
+    server.use(
+      http.get(PROTECTED_PING_PATH, () =>
+        HttpResponse.text("upstream unavailable", { status: 502 }),
+      ),
+    );
+
+    const failure = await requestData(() => client().GET(PROTECTED_PING_PATH)).catch(
+      (cause: unknown) => cause,
+    );
+
+    expect(failure).toBeInstanceOf(HttpError);
+    expect((failure as HttpError).status).toBe(502);
+    expect((failure as HttpError).body).toBe("upstream unavailable");
+  });
+
+  it("keeps the authoritative 503 payload confined to /ready", async () => {
+    const payload = { ready: false, reasons: ["NOT_READY"] };
+    server.use(http.get(RUNTIME_PATH, () => HttpResponse.json(payload, { status: 503 })));
+
+    const failure = await requestData(() => client().GET(RUNTIME_PATH)).catch(
+      (cause: unknown) => cause,
+    );
+
+    // Anywhere else a 503 is an ordinary 5xx failure — never a readiness verdict.
+    expect(failure).toBeInstanceOf(HttpError);
+    expect((failure as HttpError).status).toBe(503);
+    expect((failure as HttpError).body).toEqual(payload);
+    expect(failure).not.toBeInstanceOf(NetworkError);
+    expect(failure).not.toBeInstanceOf(UnauthorizedError);
+  });
+
+  it("reports an uninterpretable 2xx body as UnexpectedResponse, not as a network failure", async () => {
+    server.use(
+      http.get(PROTECTED_PING_PATH, () =>
+        HttpResponse.text("<html>proxy error</html>", {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      ),
+    );
+
+    const failure = await requestData(() => client().GET(PROTECTED_PING_PATH)).catch(
+      (cause: unknown) => cause,
+    );
+
+    expect(failure).toBeInstanceOf(UnexpectedResponse);
+    expect(failure).not.toBeInstanceOf(NetworkError);
+    expect(failure).not.toBeInstanceOf(HttpError);
+    expect(failure).not.toBeInstanceOf(UnauthorizedError);
   });
 });

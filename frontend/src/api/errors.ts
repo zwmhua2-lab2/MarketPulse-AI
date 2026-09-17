@@ -53,8 +53,8 @@ export class NetworkError extends ApiError {
 
 /** A response arrived but carried no interpretable JSON body. */
 export class UnexpectedResponse extends ApiError {
-  constructor(message = "响应格式无法解析") {
-    super("unexpected-response", message);
+  constructor(message = "响应格式无法解析", options?: { cause?: unknown }) {
+    super("unexpected-response", message, options);
   }
 }
 
