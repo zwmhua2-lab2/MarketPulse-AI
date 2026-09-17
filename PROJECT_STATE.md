@@ -2269,3 +2269,8 @@ Closeout Result」）；**不**构成 `UI-RD01` / `UI-I01..UI-I06` 的授权或�
 - Accepted artifact：`docs/design/UI-RD01/UI-RD01-Product-Read-API-Formal-Design.md`。
 - Product Read API Implementation = `NOT STARTED`；`UI-RD01-I01 = NOT STARTED / REQUIRES SEPARATE FORMAL AUTHORIZATION`。
 - Review history remains: initial review `FAIL`, Revision 01 review `FAIL`, Revision 02 final re-review `PASS`。
+
+## PRE-01B-D2-CLAR-01 Reconciliation Acceptance
+
+- `PRE-01B-D2-CLAR-01 = ACCEPTED / COMPLETE`；Human Acceptance = `CONFIRMED — 2026-09-17`；Independent Re-Review = `PASS`；Human-Accepted reviewed candidate = `bdf691bf52bbb0706f497b9d1920349588c7c0b4`，Final Fix = `PRE-01B-D2-CLAR-01-FIX-04`，P0/P1/P2/P3 = `NONE`。
+- `PRE-01B-D2 = ACCEPTED / COMPLETE — AS AMENDED`；`PRE-01B-I2 = NOT RESUMED / NOT ACTIVATED`。Real AI = `NOT ACTIVATED`；live `G2→G3` = `NOT ACTIVE`；Gate A/B/C = `NOT ACTIVATED / NOT PASSED`；Live = `NOT AUTHORIZED`。

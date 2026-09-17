@@ -1294,3 +1294,7 @@ disposable 库保持空表（症状 `relation "edge_opportunity_evidence" does n
 - Human Design Acceptance = `CONFIRMED — 2026-09-17`；Final Design Re-Review = `PASS`；R1–R8 = `CLOSED`；Open Decisions = `NONE`。
 - Frozen invariants include independent `ReadSurfaceClass` A/B/C and `OperationalAvailability`, distinct projection/trace states and NONE semantics, explicit provenance/range contracts, typed Pydantic DTOs, and no silent Replay fallback；详见 accepted artifact。
 - Product Read API Implementation = `NOT STARTED`；next candidate `UI-RD01-I01 = NOT STARTED`，requires separate formal authorization。
+
+## PRE-01B-D2-CLAR-01 Accepted Clarification Pointer
+
+- `PRE-01B-D2-CLAR-01 = ACCEPTED / COMPLETE`（Human Acceptance = `CONFIRMED — 2026-09-17`；candidate `bdf691bf52bbb0706f497b9d1920349588c7c0b4`；Independent Re-Review = `PASS`；artifact = `docs/design/PRE-01B/PRE-01B-D2-AdvisoryIngress-G2-G3-Activation-Contract.md`）。冻结：arm domain = `pre01a-arm-v1`；§14.2 exact no-terminal-producing-Attempt pair contract；retry gap 可有历史 Attempt 而无当前 terminal-producing Attempt 时 `final_attempt_id=NULL`；`PROCESS_LOST` = restart/recovery-only；`ABANDONED` = live durable shutdown-cancellation-only；process-loss exhaustion 引用 exact `PROCESS_LOST` Attempt。本 Acceptance 不恢复/激活 PRE-01B-I2、Real AI、provider、Gate A/B/C、live `G2→G3` 或 Live。

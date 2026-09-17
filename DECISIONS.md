@@ -447,3 +447,10 @@
 - Product boundary uses explicit typed Pydantic DTOs；each implementation batch synchronizes OpenAPI → `generated.ts` → drift gate；I01–I05 decomposition is sequencing only, not authorization。
 - Edge path：stable DB snapshot → canonical folding → immutable materialization → transaction end → bounded CPU offload；Trading authority remains separated and Fill is economic-action proof；current OPEN Position durable protection snapshot is authoritative；System uses section-level consistency。
 - No schema/migration/index or Product Read implementation authorization is implied. Implementation remains `NOT STARTED`; `UI-RD01-I01` requires separate formal authorization。
+
+## PRE-01B-D2-CLAR-01 Accepted Clarification Decisions
+
+- `PRE-01B-D2-CLAR-01 = ACCEPTED / COMPLETE`（Human Acceptance = `CONFIRMED — 2026-09-17`；candidate `bdf691bf52bbb0706f497b9d1920349588c7c0b4`；Independent Re-Review = `PASS`；P0/P1/P2/P3 = `NONE`）。
+- arm identity = `H("pre01a-arm-v1", pair_id, exact arm label)`；`final_attempt_id` 仅指向 lifecycle/result 直接产生 authoritative terminal 的 exact durable Attempt。retry gap 可有 historical Attempts，而无 current terminal-producing Attempt 时 `final_attempt_id=NULL`。
+- `PROCESS_LOST` 仅为 previous owner authority 已丢失后的 restart/recovery unfinished `STARTED` Attempt；`ABANDONED` 仅为 live-current-owner deliberate shutdown cancellation 已正面完成，且与 `INVALID_SCHEMA / SHUTDOWN_CANCELLED_ACTIVE_ATTEMPT` 原子配对；二者互斥。
+- `PROCESS_LOST` 无 retry authority时为 `INVALID_SCHEMA / RETRY_EXHAUSTED`，`final_attempt_id` = exact `PROCESS_LOST` Attempt。本澄清不授权 table/column/state/reason、PRE-01B-I2、Real AI/provider、Gate activation、live `G2→G3` 或 Live。
