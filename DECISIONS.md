@@ -438,3 +438,10 @@
     API / `UI-RD01` / `UI-I01..UI-I06` 实现；`PRE-01B-I2` = `NOT STARTED / NOT ACTIVATED`；
     Real AI = `NOT ACTIVATED`；live `G2→G3` = `NOT ACTIVE`；Forward Outcome runtime = `NOT
     INTEGRATED`；`Gate C = NOT PASSED`；`Live = NOT AUTHORIZED`。
+
+- PRE-01B-D2-CLAR-01（已批准，2026-09-17 Human Acceptance = `CONFIRMED`；Human-Accepted reviewed candidate = `bdf691bf52bbb0706f497b9d1920349588c7c0b4`；Independent Re-Review = `PASS`；P0 / P1 / P2 / P3 = `NONE`）：
+  - arm identity 固定为 `H("pre01a-arm-v1", pair_id, exact arm label)`。
+  - `final_attempt_id` 只指向 lifecycle/result 直接产生 authoritative terminal 的 exact durable Attempt；retry gap 可有历史 Attempt，但无当前 terminal-producing Attempt 时必须为 `NULL`。
+  - `PROCESS_LOST` 仅由 restart/recovery 在 previous owner authority 已丢失时，对 unfinished durable `STARTED` Attempt 分类；`ABANDONED` 仅由 live authoritative owner 在 deliberate shutdown cancellation 已正面完成时产生，并与 `INVALID_SCHEMA / SHUTDOWN_CANCELLED_ACTIVE_ATTEMPT` 原子配对；二者互斥。
+  - `PROCESS_LOST` 且无 retry authority 时，终态为 `INVALID_SCHEMA / RETRY_EXHAUSTED`，`final_attempt_id` 指向 exact `PROCESS_LOST` Attempt。
+  - 本澄清不授权新 table、column、state 或 reason，不授权 `PRE-01B-I2`、Real AI、provider、Gate activation、live `G2→G3` 或 Live。

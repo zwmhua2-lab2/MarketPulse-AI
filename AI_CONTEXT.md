@@ -1287,3 +1287,5 @@ disposable 库保持空表（症状 `relation "edge_opportunity_evidence" does n
     不修改 G3 accounting semantics、不做 MFE/MAE/drawdown/equity curve/win rate/expectancy/R-multiple/Sharpe/Sortino/profit factor。
 - G5 overall = `ACCEPTED / COMPLETE`（G5-4 已于 2026-09-06 Formal Acceptance Closeout）。Next Group Design = `NOT STARTED`；Next Group name/number = `NOT YET APPROVED`。
 - 具体 In Progress / Blocked 状态见 `PROJECT_STATE.md`。
+
+- `PRE-01B-D2-CLAR-01 = ACCEPTED / COMPLETE`（2026-09-17 Human Acceptance = `CONFIRMED`；candidate `bdf691bf52bbb0706f497b9d1920349588c7c0b4`，Independent Re-Review = `PASS`；artifact = `docs/design/PRE-01B/PRE-01B-D2-AdvisoryIngress-G2-G3-Activation-Contract.md`）。跨窗口冻结：arm domain = `pre01a-arm-v1`；§14.2 exact no-terminal-producing-Attempt pair contract；retry gap 可有历史 Attempt 且无当前 terminal-producing Attempt 时 `final_attempt_id=NULL`；`PROCESS_LOST` 仅 restart/recovery 的 unfinished durable `STARTED` Attempt；`ABANDONED` 仅 live authoritative owner 的 durable shutdown-cancellation；process-loss retry exhaustion 引用 exact `PROCESS_LOST` Attempt。此 Acceptance 不恢复/激活 `PRE-01B-I2`、Real AI、provider、Gate A/B/C、live `G2→G3` 或 Live。
