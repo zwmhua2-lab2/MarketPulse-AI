@@ -122,6 +122,11 @@
 - Verification：focused `21 passed, 3 warnings`; ruff PASS; generate/drift/typecheck/frontend `44` tests/build PASS; exclusive-window full backend `$env:PYTHONPATH='backend/src'; py -3.14 -m pytest backend/tests -q` = **`706 passed, 3 warnings, exit 0, 637.22s`** (outer `640.896s`); `DATABASE_URL` UNSET; DB current/heads = `20260913_0009`; `git diff --check` PASS.
 - Scope integrity：only allowed Product models/system/tests, generated API and state/dev-log changed; RuntimeHost, migrations/schema/index/manifests, I02-I05 and main = ZERO CHANGE. Result：**`UI-RD01-I01-FIX-02 = IMPLEMENTED / READY FOR INDEPENDENT RE-REVIEW`**；Independent Re-Review / Human Acceptance pending；main integration forbidden。
 
+## Final Acceptance Closeout
+
+- Independent Re-Review = `PASS — READY FOR HUMAN ACCEPTANCE`; Human Acceptance = `CONFIRMED — 2026-09-18`; Human-Accepted reviewed candidate = `e0fceafdb8cc35498144929ac2f4295327071bfb`.
+- Final gates and Acceptance/Baseline SHA / FAST-FORWARD ONLY main integration are recorded by this closeout commit; `I02–I05` remain NOT STARTED / NOT AUTHORIZED; Real AI, live G2→G3, Gate A/B/C and Live remain unauthorized.
+
 ### Evidence
 
 - Parent（Reviewed Candidate）：`2b47b8fae7c47e53f73bfe3a7e75884bb615d221`；Task Base / `origin/main`：`2cabc7311e041566011be59fb139cac9a082fe24`（提交前复读，未变）。
