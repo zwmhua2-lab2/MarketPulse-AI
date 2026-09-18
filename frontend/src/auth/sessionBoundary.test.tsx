@@ -156,16 +156,17 @@ describe("auth session boundary", () => {
         oldRequestFailure = error;
       }),
     );
-    expect(await screen.findByRole("heading", { name: "交易与仓位" })).toBeInTheDocument();
+
+    // `rerender()` has committed the old Provider removal. Release immediately,
+    // before yielding for new UI work: the old lifetime must already be inactive.
     const newLifetimeCache = { cached: "new provider lifetime" };
     queryClient.setQueryData(["authenticated-probe"], newLifetimeCache);
-
     releaseResponse();
     await requestSettled;
 
     expect(oldRequestFailure).toBeInstanceOf(UnauthorizedError);
     expect(readAccessToken()).toBe(newToken);
-    expect(screen.getByRole("heading", { name: "交易与仓位" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "交易与仓位" })).toBeInTheDocument();
     expect(queryClient.getQueryData(["authenticated-probe"])).toEqual(newLifetimeCache);
   });
 });

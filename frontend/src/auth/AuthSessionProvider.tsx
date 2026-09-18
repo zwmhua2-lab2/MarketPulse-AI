@@ -3,7 +3,7 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -82,13 +82,14 @@ export function AuthSessionProvider({ children }: { children: ReactNode }) {
     queryClient.clear();
   }, [advanceGeneration, queryClient]);
 
-  useEffect(
+  useLayoutEffect(
     () => {
       providerActiveRef.current = true;
 
       return () => {
-        // An unmounted Provider can still receive an old fetch response. Mark only
-        // that Provider lifetime inactive; do not change session generation here.
+        // Layout cleanup runs synchronously with the real unmount commit. An old
+        // client therefore cannot clear a QueryClient adopted by a newly committed
+        // Provider lifetime. Do not change session generation here.
         providerActiveRef.current = false;
       };
     },
