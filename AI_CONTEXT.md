@@ -1291,6 +1291,7 @@ disposable 库保持空表（症状 `relation "edge_opportunity_evidence" does n
 ## UI-RD01 Accepted Design Pointer
 
 - `UI-RD01 = ACCEPTED / FROZEN`；artifact：`docs/design/UI-RD01/UI-RD01-Product-Read-API-Formal-Design.md`。
+- `UI-V1-D01-AMEND-01 = ACCEPTED / FROZEN`（Human-confirmed post-freeze amendment）；`UI-V1-D01` / `UI-RD01` = `ACCEPTED / FROZEN — AS AMENDED BY UI-V1-D01-AMEND-01`。权威 Amendment：`docs/design/UI-V1/UI-V1-D01-AMEND-01-Post-Freeze-Amendment.md`。CR-01 typed readiness 与 CR-02 session-generation 均为 Foundation remediation contracts (`REQUIRED / NOT STARTED`)；CR-03–CR-06 为 future relevant Product Read implementation contracts；原 frozen artifacts 与 `UI-RD01-I01` accepted state 均不被重写。
 - Human Design Acceptance = `CONFIRMED — 2026-09-17`；Final Design Re-Review = `PASS`；R1–R8 = `CLOSED`；Open Decisions = `NONE`。
 - Frozen invariants include independent `ReadSurfaceClass` A/B/C and `OperationalAvailability`, distinct projection/trace states and NONE semantics, explicit provenance/range contracts, typed Pydantic DTOs, and no silent Replay fallback；详见 accepted artifact。
 - `UI-RD01-I01 = ACCEPTED / COMPLETE`（Human Acceptance = `CONFIRMED — 2026-09-18`；Independent Re-Review = `PASS`；Human-Accepted reviewed candidate = `e0fceafdb8cc35498144929ac2f4295327071bfb`）。`I02–I05` = NOT STARTED / NOT AUTHORIZED；Real AI / live G2→G3 / Gate A/B/C / Live 均未获激活授权。

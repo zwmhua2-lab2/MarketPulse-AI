@@ -442,6 +442,8 @@
 ## UI-RD01 Frozen Product Read Decisions
 
 - `UI-RD01 = ACCEPTED / FROZEN`；Human Design Acceptance `CONFIRMED — 2026-09-17`；R1–R8 closed；`Open Decisions = NONE`。Formal artifact：`docs/design/UI-RD01/UI-RD01-Product-Read-API-Formal-Design.md`。
+- `UI-V1-D01-AMEND-01 = ACCEPTED / FROZEN`（Human-confirmed post-freeze amendment）；`UI-V1-D01` 与 `UI-RD01` 均保持 `ACCEPTED / FROZEN — AS AMENDED BY UI-V1-D01-AMEND-01`。权威 artifact：`docs/design/UI-V1/UI-V1-D01-AMEND-01-Post-Freeze-Amendment.md`。该 Amendment 冻结 CR-01 typed readiness coherence、CR-02 session-generation request ownership、CR-03 current canonical versus decision-bound Evidence、CR-04 full Edge-query resource boundary、CR-05 `NOT_YET_DUE` trace state、CR-06 same-result aggregate audit identity；不重写原 frozen artifact。
+- CR-01 / CR-02 的 Foundation implementation remediation = `REQUIRED / NOT STARTED`；CR-03–CR-06 约束 future relevant Product Read implementation。它们不改变 `UI-RD01-I01 = ACCEPTED / COMPLETE`，不授权 `I02–I05`（仍 `NOT STARTED / NOT AUTHORIZED`），亦不构成 PRE-01B-I2、Real AI、live G2→G3、Gate 或 Live 进展。
 - Five projections：`MarketScannerRead`、`OpportunityTraceRead`、`EdgeAggregateRead`、`TradingAuditRead`、`SystemIncidentRead`；`ProductReadContext` is nullable/non-owning；Axis A `ReadSurfaceClass = A | B | C` 与 Axis B 独立。
 - `ProjectionState` 与 `TraceNodeState` 分离；operational Market/Opportunity uses `FORWARD_PAPER`，no silent `HISTORICAL_REPLAY` fallback；Market/Opportunity default range = `1h`。
 - Product boundary uses explicit typed Pydantic DTOs；each implementation batch synchronizes OpenAPI → `generated.ts` → drift gate；I01–I05 decomposition is sequencing only, not authorization。

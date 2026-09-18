@@ -2265,6 +2265,7 @@ Closeout Result」）；**不**构成 `UI-RD01` / `UI-I01..UI-I06` 的授权或�
 ## UI-RD01 Final Design Acceptance Closeout
 
 - `UI-RD01 = ACCEPTED / FROZEN`；Human Design Acceptance = `CONFIRMED — 2026-09-17`；Final Design Re-Review = `PASS`。
+- `UI-V1-D01-AMEND-01 = ACCEPTED / FROZEN`（Human-confirmed post-freeze amendment，repository persistence task = `IMPLEMENTED / READY FOR INDEPENDENT REVIEW`）；`UI-V1-D01` / `UI-RD01` = `ACCEPTED / FROZEN — AS AMENDED BY UI-V1-D01-AMEND-01`。artifact：`docs/design/UI-V1/UI-V1-D01-AMEND-01-Post-Freeze-Amendment.md`；CR-01 / CR-02 Foundation code remediation = `REQUIRED / NOT STARTED`；CR-03–CR-06 future implementation must comply。
 - `UI-RD01-DESIGN-FIX-02 = ACCEPTED / CLOSED`；`UI-RD01-R1`–`R8 = CLOSED`；`Open Decisions = NONE`。
 - Accepted artifact：`docs/design/UI-RD01/UI-RD01-Product-Read-API-Formal-Design.md`。
 - `UI-RD01-I01 = ACCEPTED / COMPLETE`（Human Acceptance = `CONFIRMED — 2026-09-18`；Independent Re-Review = `PASS`；Human-Accepted reviewed candidate = `e0fceafdb8cc35498144929ac2f4295327071bfb`）。范围仅为 shared Product Read contracts、nullable/non-owning `ProductReadContext`、`SystemIncidentRead` vertical slice 与 OpenAPI/generated.ts integration；`I02–I05` = NOT STARTED / NOT AUTHORIZED，Real AI = NOT ACTIVATED，live G2→G3 = NOT ACTIVE，Gate A/B/C = NOT ACTIVATED / NOT PASSED，Live = NOT AUTHORIZED。
