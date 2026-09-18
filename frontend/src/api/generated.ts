@@ -88,6 +88,12 @@ export interface paths {
         /**
          * System Incident Read
          * @description Read the typed System/Incident Product projection without owning any runtime resource.
+         *
+         *     This is the endpoint's single internal error boundary. Failure to acquire the required
+         *     Host Product snapshot is an *endpoint-wide* failure and keeps its frozen ``503
+         *     SNAPSHOT_FAILED`` classification; anything still unclassified leaves as a sanitized
+         *     ``500`` correlation id. A section-local source failure never reaches this boundary — it
+         *     stays inside the ``200`` projection as ``is_partial``.
          */
         get: operations["system_incident_read_api_v1_product_system_get"];
         put?: never;
@@ -273,6 +279,16 @@ export interface components {
             /** Next Cursor */
             next_cursor?: string | null;
         };
+        /**
+         * IncidentStatus
+         * @enum {string}
+         */
+        IncidentStatus: "OPEN" | "RESOLVED";
+        /**
+         * IncidentType
+         * @enum {string}
+         */
+        IncidentType: "ACCOUNT_INTEGRITY_ERROR" | "POSITION_UNPROTECTED" | "CORE_DATA_STALE" | "RECOVERY_FAILED" | "EXECUTION_GAP" | "AI_REEVALUATION_FAILED" | "EMERGENCY_STOP_ACTIVATED";
         /** LaneTelemetryDTO */
         LaneTelemetryDTO: {
             /** Capacity */
@@ -360,6 +376,28 @@ export interface components {
             operator_state: string | null;
             /** System State */
             system_state: string | null;
+        };
+        /**
+         * ProductFailureResponse
+         * @description Formal sanitized body for an endpoint-wide Product read failure.
+         *
+         *     Frozen by UI-RD01 §18: a ``503`` preserves the distinction between
+         *     ``SOURCE_UNAVAILABLE`` and ``SNAPSHOT_FAILED``, and an unclassified ``500`` carries only a
+         *     sanitized correlation id. No traceback, exception message, SQL, DSN, provider detail or
+         *     secret may reach this body, so it deliberately has no free-text diagnostic field.
+         */
+        ProductFailureResponse: {
+            /**
+             * Contract Version
+             * @default ui-rd01-product-read-v1
+             */
+            contract_version: string;
+            /** Correlation Id */
+            correlation_id: string;
+            /** Projection */
+            projection: string;
+            read_failure_reason?: components["schemas"]["ReadFailureReason"] | null;
+            read_surface_class: components["schemas"]["ReadSurfaceClass"];
         };
         /** ProjectionMetaDTO */
         ProjectionMetaDTO: {
@@ -840,8 +878,8 @@ export interface operations {
     system_incident_read_api_v1_product_system_get: {
         parameters: {
             query?: {
-                incident_status?: string | null;
-                incident_type?: string | null;
+                incident_status?: components["schemas"]["IncidentStatus"] | null;
+                incident_type?: components["schemas"]["IncidentType"] | null;
                 limit?: number;
                 cursor?: string | null;
             };
@@ -867,6 +905,24 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Unclassified internal failure. Carries a sanitized correlation id only: no traceback, exception message, SQL, DSN or provider/secret detail. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductFailureResponse"];
+                };
+            };
+            /** @description Endpoint-wide Product read failure. `read_failure_reason` keeps the frozen distinction between SOURCE_UNAVAILABLE and SNAPSHOT_FAILED. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductFailureResponse"];
                 };
             };
         };

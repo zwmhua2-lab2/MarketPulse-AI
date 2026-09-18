@@ -301,8 +301,15 @@ class ProductHealthCheckSnapshot:
 
 @dataclass(frozen=True)
 class ProductRuntimeSnapshot:
-    """Narrow, sanitized Host-owned read snapshot for the Product API."""
+    """Narrow, sanitized Host-owned read snapshot for the Product API.
 
+    ``snapshot_at`` is the authoritative instant of this acquisition, captured exactly once
+    together with the facts below. ``health_checks`` and ``readiness`` are read in the same
+    synchronous pass, so a Product health section can never combine checks from one instant
+    with an overall status derived from a later, independent readiness evaluation.
+    """
+
+    snapshot_at: datetime
     instance_id: str
     run_mode: str
     local_only: bool
@@ -321,6 +328,7 @@ class ProductRuntimeSnapshot:
     last_heartbeat_at: datetime | None
     last_reconciliation_at: datetime | None
     health_checks: tuple[ProductHealthCheckSnapshot, ...]
+    readiness: HostReadinessReport
     provider_status: str
     provider_connection_attempts: int | None
     provider_reconnects: int | None
@@ -842,7 +850,14 @@ class RuntimeHost:
         This is intentionally separate from ``runtime_payload()``.  The latter remains the
         existing authenticated telemetry surface; it includes broad operational diagnostics
         that are not a Product API contract.
+
+        ``snapshot_at`` is captured exactly once, here, as the authoritative instant of this
+        acquisition; every Product section derived from this Host snapshot publishes that
+        instant instead of minting a later per-section timestamp. The health registry and the
+        readiness evaluation are read in this same synchronous pass so the Product health
+        section is internally snapshot-consistent.
         """
+        snapshot_at = datetime.now(UTC)
         health_checks = tuple(
             ProductHealthCheckSnapshot(
                 name=name,
@@ -852,6 +867,7 @@ class RuntimeHost:
             )
             for name, entry in sorted(self._health.snapshot().items())
         )
+        readiness = self.readiness()
         provider = self._provider
         provider_status = "NOT_STARTED"
         connection_attempts: int | None = None
@@ -878,6 +894,7 @@ class RuntimeHost:
             return ProductLaneSnapshot(name=lane.name, **lane.telemetry())
 
         return ProductRuntimeSnapshot(
+            snapshot_at=snapshot_at,
             instance_id=self.instance_id,
             run_mode=self.run_mode.value,
             local_only=self.settings.local_only,
@@ -900,6 +917,7 @@ class RuntimeHost:
             last_heartbeat_at=self._last_heartbeat_at,
             last_reconciliation_at=self._last_reconciliation_at,
             health_checks=health_checks,
+            readiness=readiness,
             provider_status=provider_status,
             provider_connection_attempts=connection_attempts,
             provider_reconnects=reconnects,

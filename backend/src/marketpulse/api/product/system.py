@@ -2,14 +2,19 @@
 
 from __future__ import annotations
 
+import logging
+from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi.responses import JSONResponse
 from sqlalchemy import and_, desc, or_, select
 
 from marketpulse.api.auth import verify_session
 from marketpulse.config import Settings, get_settings
 from marketpulse.db.models import IncidentRecord
+from marketpulse.g4.models import IncidentStatus, IncidentType
+from marketpulse.ids import new_id
 from marketpulse.runtime import HostReadinessStatus
 
 from .context import ProductReadContext
@@ -35,6 +40,7 @@ from .models import (
     OperationalAvailability,
     OperationalContextDTO,
     OperatorSystemStateDTO,
+    ProductFailureResponse,
     ProjectionMetaDTO,
     ProjectionState,
     ProviderDTO,
@@ -54,6 +60,11 @@ from .models import (
 )
 
 router = APIRouter(prefix="/api/v1/product", tags=["product-read"])
+
+logger = logging.getLogger(__name__)
+
+#: The single projection this endpoint serves. Also the frozen error-body identity.
+PROJECTION = "SystemIncidentRead"
 
 
 def _now() -> datetime:
@@ -83,10 +94,15 @@ def _section(
     *,
     source_type: str,
     source_identity: str,
+    snapshot_at: datetime,
     state: ProjectionState = ProjectionState.FRESH,
     read_failure_reason: ReadFailureReason | None = None,
 ) -> SystemSectionDTO[object]:
-    snapshot_at = _now()
+    """Build one section around the snapshot instant of *its own* source read.
+
+    ``snapshot_at`` is required and never minted here: a section may not present a
+    DTO-construction timestamp as if it were the instant its source data was acquired.
+    """
     return SystemSectionDTO[object](
         state=state,
         snapshot_at=snapshot_at,
@@ -102,7 +118,7 @@ def _host_absent(settings: Settings) -> SystemIncidentReadResponse:
     now = _now()
     return SystemIncidentReadResponse(
         meta=ProjectionMetaDTO(
-            projection="SystemIncidentRead",
+            projection=PROJECTION,
             read_surface_class=ReadSurfaceClass.A,
             operational_availability=OperationalAvailability.NOT_ACTIVATED,
             projection_state=ProjectionState.UNAVAILABLE,
@@ -120,21 +136,34 @@ def _host_absent(settings: Settings) -> SystemIncidentReadResponse:
     )
 
 
+@dataclass(frozen=True)
+class _IncidentRead:
+    """One incident-source read: its page (or source failure) and its acquisition instant."""
+
+    page: IncidentPageDTO | None
+    next_cursor: str | None
+    snapshot_at: datetime
+
+
 async def _incident_page(
     context: ProductReadContext,
     *,
-    incident_status: str | None,
-    incident_type: str | None,
+    incident_status: IncidentStatus | None,
+    incident_type: IncidentType | None,
     limit: int,
     cursor: str | None,
-) -> tuple[IncidentPageDTO | None, str | None]:
-    """Read the current run-mode incident page; ``None`` represents a source failure."""
+) -> _IncidentRead:
+    """Read the current run-mode incident page; ``None`` page represents a source failure."""
     assert context.host is not None
     sessions = context.sessions
+    # The DB source owns its own snapshot instant: the moment this query read began. It is not
+    # the Host snapshot and is not derived from when the DTO happens to be constructed.
+    query_snapshot_at = _now()
     if sessions is None:
-        return None, None
+        return _IncidentRead(page=None, next_cursor=None, snapshot_at=query_snapshot_at)
     fingerprint = incident_filter_fingerprint(
-        incident_status=incident_status, incident_type=incident_type
+        incident_status=None if incident_status is None else incident_status.value,
+        incident_type=None if incident_type is None else incident_type.value,
     )
     after: IncidentCursor | None = None
     if cursor is not None:
@@ -147,9 +176,9 @@ async def _incident_page(
             ) from exc
     statement = select(IncidentRecord).where(IncidentRecord.run_mode == context.host.run_mode.value)
     if incident_status is not None:
-        statement = statement.where(IncidentRecord.status == incident_status)
+        statement = statement.where(IncidentRecord.status == incident_status.value)
     if incident_type is not None:
-        statement = statement.where(IncidentRecord.incident_type == incident_type)
+        statement = statement.where(IncidentRecord.incident_type == incident_type.value)
     if after is not None:
         statement = statement.where(
             or_(
@@ -167,7 +196,7 @@ async def _incident_page(
         async with sessions() as session:
             records = list((await session.scalars(statement)).all())
     except Exception:  # noqa: BLE001 - section failure is deliberately non-disclosing
-        return None, None
+        return _IncidentRead(page=None, next_cursor=None, snapshot_at=query_snapshot_at)
     page_records, extra = records[:limit], records[limit:]
     next_cursor = None
     if extra and page_records:
@@ -176,8 +205,8 @@ async def _incident_page(
             IncidentCursor(opened_at=_as_utc(last.opened_at), incident_id=last.incident_id),
             filter_fingerprint=fingerprint,
         )
-    return (
-        IncidentPageDTO(
+    return _IncidentRead(
+        page=IncidentPageDTO(
             items=[
                 IncidentDTO(
                     incident_id=record.incident_id,
@@ -195,32 +224,125 @@ async def _incident_page(
             ],
             next_cursor=next_cursor,
         ),
-        next_cursor,
+        next_cursor=next_cursor,
+        snapshot_at=query_snapshot_at,
     )
 
 
-@router.get("/system", response_model=SystemIncidentReadResponse)
+def _product_failure_response(
+    *,
+    status_code: int,
+    reason: ReadFailureReason | None,
+    correlation_id: str,
+) -> JSONResponse:
+    """The frozen Product failure body. It deliberately has no diagnostic free-text field."""
+    body = ProductFailureResponse(
+        projection=PROJECTION,
+        read_surface_class=ReadSurfaceClass.A,
+        read_failure_reason=reason,
+        correlation_id=correlation_id,
+    )
+    return JSONResponse(status_code=status_code, content=body.model_dump(mode="json"))
+
+
+def _product_snapshot_failure(*, exc: BaseException | None) -> JSONResponse:
+    """Endpoint-wide ``503 SNAPSHOT_FAILED``: the required Product snapshot was not obtained."""
+    correlation_id = new_id().hex
+    logger.error(
+        "product_read_snapshot_failed projection=%s correlation_id=%s",
+        PROJECTION,
+        correlation_id,
+        exc_info=exc,
+    )
+    return _product_failure_response(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        reason=ReadFailureReason.SNAPSHOT_FAILED,
+        correlation_id=correlation_id,
+    )
+
+
+@router.get(
+    "/system",
+    response_model=SystemIncidentReadResponse,
+    responses={
+        status.HTTP_503_SERVICE_UNAVAILABLE: {
+            "model": ProductFailureResponse,
+            "description": (
+                "Endpoint-wide Product read failure. `read_failure_reason` keeps the frozen "
+                "distinction between SOURCE_UNAVAILABLE and SNAPSHOT_FAILED."
+            ),
+        },
+        status.HTTP_500_INTERNAL_SERVER_ERROR: {
+            "model": ProductFailureResponse,
+            "description": (
+                "Unclassified internal failure. Carries a sanitized correlation id only: no "
+                "traceback, exception message, SQL, DSN or provider/secret detail."
+            ),
+        },
+    },
+)
 async def system_incident_read(
     request: Request,
-    incident_status: str | None = Query(default=None),
-    incident_type: str | None = Query(default=None),
+    incident_status: IncidentStatus | None = Query(default=None),  # noqa: B008
+    incident_type: IncidentType | None = Query(default=None),  # noqa: B008
     limit: int = Query(default=100, ge=1, le=500),
     cursor: str | None = Query(default=None),
     _: str = Depends(verify_session),
     settings: Settings = Depends(get_settings),  # noqa: B008
-) -> SystemIncidentReadResponse:
-    """Read the typed System/Incident Product projection without owning any runtime resource."""
+) -> SystemIncidentReadResponse | JSONResponse:
+    """Read the typed System/Incident Product projection without owning any runtime resource.
+
+    This is the endpoint's single internal error boundary. Failure to acquire the required
+    Host Product snapshot is an *endpoint-wide* failure and keeps its frozen ``503
+    SNAPSHOT_FAILED`` classification; anything still unclassified leaves as a sanitized
+    ``500`` correlation id. A section-local source failure never reaches this boundary — it
+    stays inside the ``200`` projection as ``is_partial``.
+    """
+    try:
+        return await _read_system_projection(
+            request,
+            incident_status=incident_status,
+            incident_type=incident_type,
+            limit=limit,
+            cursor=cursor,
+            settings=settings,
+        )
+    except HTTPException:
+        raise
+    except Exception:  # unclassified failures must not disclose internals
+        correlation_id = new_id().hex
+        logger.exception(
+            "product_read_internal_error projection=%s correlation_id=%s",
+            PROJECTION,
+            correlation_id,
+        )
+        return _product_failure_response(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            reason=None,
+            correlation_id=correlation_id,
+        )
+
+
+async def _read_system_projection(
+    request: Request,
+    *,
+    incident_status: IncidentStatus | None,
+    incident_type: IncidentType | None,
+    limit: int,
+    cursor: str | None,
+    settings: Settings,
+) -> SystemIncidentReadResponse | JSONResponse:
     context = ProductReadContext.from_request(request)
     if context.host is None:
         return _host_absent(settings)
     try:
         snapshot = context.runtime_snapshot()
-        if snapshot is None:  # pragma: no cover - defensive against an invalid Host facade
-            raise RuntimeError("host did not provide product snapshot")
-    except Exception as exc:
-        raise HTTPException(status_code=503, detail="product snapshot unavailable") from exc
+    except Exception as exc:  # noqa: BLE001 - acquisition failure is endpoint-wide
+        return _product_snapshot_failure(exc=exc)
+    if snapshot is None:
+        return _product_snapshot_failure(exc=None)
 
-    readiness = context.host.readiness()
+    readiness = snapshot.readiness
     ready_data = ReadyDTO(
         ready=readiness.ready,
         status=readiness.status.value,
@@ -232,13 +354,15 @@ async def system_incident_read(
         if readiness.ready
         else ("DEGRADED" if readiness.status is HostReadinessStatus.DEGRADED else "FAIL_CLOSED")
     )
-    incident_page, next_cursor = await _incident_page(
+    incident_read = await _incident_page(
         context,
         incident_status=incident_status,
         incident_type=incident_type,
         limit=limit,
         cursor=cursor,
     )
+    incident_page = incident_read.page
+    next_cursor = incident_read.next_cursor
     host_source = ("RUNTIME_HOST", snapshot.instance_id)
     database_source = ("POSTGRESQL", snapshot.database_application_name)
     recovery_data = snapshot.recovery
@@ -248,6 +372,7 @@ async def system_incident_read(
             None,
             source_type=host_source[0],
             source_identity=host_source[1],
+            snapshot_at=snapshot.snapshot_at,
             state=ProjectionState.UNAVAILABLE,
             read_failure_reason=ReadFailureReason.SNAPSHOT_FAILED,
         )
@@ -266,12 +391,14 @@ async def system_incident_read(
             ),
             source_type=host_source[0],
             source_identity=host_source[1],
+            snapshot_at=snapshot.snapshot_at,
         )
     if incident_page is None:
         incidents_section = _section(
             None,
             source_type=database_source[0],
             source_identity=database_source[1],
+            snapshot_at=incident_read.snapshot_at,
             state=ProjectionState.UNAVAILABLE,
             read_failure_reason=ReadFailureReason.SOURCE_UNAVAILABLE,
         )
@@ -280,6 +407,7 @@ async def system_incident_read(
             incident_page,
             source_type=database_source[0],
             source_identity=database_source[1],
+            snapshot_at=incident_read.snapshot_at,
             state=ProjectionState.EMPTY if not incident_page.items else ProjectionState.FRESH,
         )
     data = SystemIncidentDataDTO(
@@ -293,8 +421,14 @@ async def system_incident_read(
             ),
             source_type=host_source[0],
             source_identity=host_source[1],
+            snapshot_at=snapshot.snapshot_at,
         ),
-        ready=_section(ready_data, source_type=host_source[0], source_identity=host_source[1]),
+        ready=_section(
+            ready_data,
+            source_type=host_source[0],
+            source_identity=host_source[1],
+            snapshot_at=snapshot.snapshot_at,
+        ),
         health=_section(
             HealthDTO(
                 overall_status=overall_health,
@@ -310,6 +444,7 @@ async def system_incident_read(
             ),
             source_type=host_source[0],
             source_identity=host_source[1],
+            snapshot_at=snapshot.snapshot_at,
         ),
         runtime=_section(
             RuntimeDTO(
@@ -334,6 +469,7 @@ async def system_incident_read(
             ),
             source_type=host_source[0],
             source_identity=host_source[1],
+            snapshot_at=snapshot.snapshot_at,
         ),
         market_provider=_section(
             MarketProviderDTO(
@@ -359,6 +495,7 @@ async def system_incident_read(
             ),
             source_type=host_source[0],
             source_identity=host_source[1],
+            snapshot_at=snapshot.snapshot_at,
         ),
         lanes=_section(
             LanesDTO(
@@ -367,6 +504,7 @@ async def system_incident_read(
             ),
             source_type=host_source[0],
             source_identity=host_source[1],
+            snapshot_at=snapshot.snapshot_at,
         ),
         database_singleton=_section(
             DatabaseSingletonDTO(
@@ -379,6 +517,7 @@ async def system_incident_read(
             ),
             source_type=host_source[0],
             source_identity=host_source[1],
+            snapshot_at=snapshot.snapshot_at,
         ),
         recovery=recovery_section,
         reconciliation=_section(
@@ -388,11 +527,12 @@ async def system_incident_read(
                 last_result=snapshot.reconciliation_last_result,
                 diagnostics=list(snapshot.reconciliation_diagnostics),
                 safe_mode_latched_by_host=snapshot.safe_mode_latched_by_host,
-                snapshot_at=_now(),
+                snapshot_at=snapshot.snapshot_at,
                 last_reconciliation_at=snapshot.last_reconciliation_at,
             ),
             source_type=host_source[0],
             source_identity=host_source[1],
+            snapshot_at=snapshot.snapshot_at,
         ),
         operator_system_state=_section(
             OperatorSystemStateDTO(
@@ -404,24 +544,27 @@ async def system_incident_read(
             ),
             source_type=host_source[0],
             source_identity=host_source[1],
+            snapshot_at=snapshot.snapshot_at,
         ),
         incidents=incidents_section,
         ai_activation=_section(
             AIActivationDTO(note="ai_reevaluation_disabled_in_host_core_v1"),
             source_type=host_source[0],
             source_identity=host_source[1],
+            snapshot_at=snapshot.snapshot_at,
         ),
     )
     partial = recovery_data is None or incident_page is None
-    meta_now = _now()
+    # The projection's own instant is the Host snapshot it was projected from. It is never
+    # re-minted here: that would present a DTO-construction time as a source snapshot time.
     return SystemIncidentReadResponse(
         meta=ProjectionMetaDTO(
-            projection="SystemIncidentRead",
+            projection=PROJECTION,
             read_surface_class=ReadSurfaceClass.A,
             operational_availability=OperationalAvailability.ACTIVE,
             projection_state=ProjectionState.FRESH,
-            snapshot_at=meta_now,
-            observed_at=meta_now,
+            snapshot_at=snapshot.snapshot_at,
+            observed_at=snapshot.snapshot_at,
             is_partial=partial,
             next_cursor=next_cursor,
         ),
@@ -430,7 +573,7 @@ async def system_incident_read(
             runtime_instance_id=snapshot.instance_id,
             host_state=snapshot.lifecycle_state,
             operational_provenance=snapshot.run_mode,
-            context_snapshot_at=meta_now,
+            context_snapshot_at=snapshot.snapshot_at,
         ),
         data=data,
     )
