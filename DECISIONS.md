@@ -456,3 +456,19 @@
 - arm identity = `H("pre01a-arm-v1", pair_id, exact arm label)`；`final_attempt_id` 仅指向 lifecycle/result 直接产生 authoritative terminal 的 exact durable Attempt。retry gap 可有 historical Attempts，而无 current terminal-producing Attempt 时 `final_attempt_id=NULL`。
 - `PROCESS_LOST` 仅为 previous owner authority 已丢失后的 restart/recovery unfinished `STARTED` Attempt；`ABANDONED` 仅为 live-current-owner deliberate shutdown cancellation 已正面完成，且与 `INVALID_SCHEMA / SHUTDOWN_CANCELLED_ACTIVE_ATTEMPT` 原子配对；二者互斥。
 - `PROCESS_LOST` 无 retry authority时为 `INVALID_SCHEMA / RETRY_EXHAUSTED`，`final_attempt_id` = exact `PROCESS_LOST` Attempt。本澄清不授权 table/column/state/reason、PRE-01B-I2、Real AI/provider、Gate activation、live `G2→G3` 或 Live。
+
+## UI-RD01-I02-REQ-01 Accepted Requirement Decisions
+
+- `UI-RD01-I02-REQ-01 = ACCEPTED / FROZEN`（2026-09-19 Human Freeze = `CONFIRMED — 2026-09-19`；Independent Re-Review = `PASS — READY FOR HUMAN FREEZE`；Human-Frozen Reviewed Candidate = `b91d635de04c7444257fcc17069f418e3d3919e7`；Finding `I02REQ-RR-P1-01 = CLOSED / PASS`；review severity after R1：P0 = 0 / P1 = 0 / blocking P2 = 0；Requirement semantics = `NO SEMANTIC BLOCKER FOUND`）。**完整语义以 accepted artifact `docs/design/UI-RD01/UI-RD01-I02-Implementation-Requirements.md` 为准；本条目仅摘要。**
+- 1. `UI-RD01-I02` 仍为**一个** Human Acceptance Batch；I02-A 完成仅为内部 checkpoint。
+- 2. 执行拆分为**串行**：`I02-A MarketScannerRead → I02-B OpportunityRead`；两者各自需要**独立** Formal Task。
+- 3. Opportunity Product truth 由已接受的 `EdgeOpportunityEvidenceRecord` revision chain 投影；**不**新增 `OpportunityRecord` 表。
+- 4. Current canonical Evidence 与 historical Decision-bound Evidence 必须保持区分（CR-03）。
+- 5. 无法证明 exact Decision binding 时一律 `NO_PROVABLE_RECORD`；**禁止**用 current canonical head / 时间邻近 / instrument 相同 / payload 相似反推或回填。
+- 6. `NOT_REACHED != NOT_YET_DUE`（CR-05）；causal 与 temporal 分离，maturity authority 为 backend。
+- 7. Operational Forward **不得**静默 fallback 到 `HISTORICAL_REPLAY`。
+- 8. 复用已接受的 revision-folding 语义（`marketpulse.edge.aggregation_snapshot`）；**禁止**第二套 folding authority。
+- 9. I02 默认 `Schema / Migration / Index = ZERO CHANGE`。
+- 10. 本 Freeze **不**自行启动 I02 implementation。
+- 11. I02-A / I02-B 均由独立 Formal Task 授权；本 Freeze **不**创建、**不**执行、**不**启动任何 I02 任务。
+- 边界：`I03`–`I05` = `NOT STARTED / NOT AUTHORIZED`；`PRE-01B-I2` = `NOT STARTED / NOT ACTIVATED`；Real AI = `NOT ACTIVATED`；live `G2→G3` = `NOT ACTIVE`；Gate A/B/C = `NOT ACTIVATED` / `NOT PASSED`；Live = `NOT AUTHORIZED`。
