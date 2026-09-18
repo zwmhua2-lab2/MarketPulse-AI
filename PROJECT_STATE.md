@@ -2,6 +2,8 @@
 
 ## Current Group
 
+PRE-01B-I2 — Advisory durable slice — IMPLEMENTING（`PRE-01B-I2-RESUME-01-INTEGRATE-06-RESUME-01`：已在 latest accepted main `e5476b46d0d84f0bb4e495e9dc806a6adaa390c7` 上重建 `pre-01b-i2-resume-01-integrated-v6`；三个已授权 commit 按序 cherry-pick（3/3、零冲突）；七个已验证 P1 修复按 immutable authority `dbb91c3d55a722b4c0659fc99e9fbfb490da03b8`（`integrated-v5`）逐字节恢复；`backend/**` 与 PRE-I2 schema verifier 与 v5 blob 完全一致，故沿用其执行证据；`P1-01 = CLOSED / VERIFIED`；`P1-02 = CLOSED / VERIFIED`；Implementation Completion Marker = `NOT READY`；Ready For Independent Review = `NO`；Human Acceptance = `NOT PERFORMED`；Real AI / Gate A / Gate B / Gate C / live `G2→G3` / Live 均未激活。）
+
 SE-02A — Contracts + Additive Persistence — ACCEPTED / COMPLETE
 
 SE-02B — Opportunity Capture + Attribution — ACCEPTED / COMPLETE

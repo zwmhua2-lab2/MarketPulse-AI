@@ -135,7 +135,7 @@ async def append_evidence_revision(
         predecessor = await session.scalar(
             select(EdgeOpportunityEvidenceRecord).where(
                 EdgeOpportunityEvidenceRecord.evidence_id == record.supersedes_evidence_id
-            )
+            ).with_for_update()
         )
         if predecessor is None:
             raise EdgeInvalidSupersedes("superseded evidence revision does not exist")
@@ -145,6 +145,15 @@ async def append_evidence_revision(
             raise EdgeInvalidSupersedes(
                 "supersedes must name the immediately preceding evidence revision"
             )
+        head = await session.scalar(
+            select(EdgeOpportunityEvidenceRecord)
+            .where(EdgeOpportunityEvidenceRecord.opportunity_id == record.opportunity_id)
+            .order_by(EdgeOpportunityEvidenceRecord.evidence_revision.desc())
+            .limit(1)
+            .with_for_update()
+        )
+        if head is None or head.evidence_id != predecessor.evidence_id:
+            raise EdgeInvalidSupersedes("supersedes must name the current evidence head")
 
     if advisory_admission_state is not None and advisory_admission_state != "GATE_A_DISABLED":
         raise ValueError("only GATE_A_DISABLED may override the Evidence admission state")
