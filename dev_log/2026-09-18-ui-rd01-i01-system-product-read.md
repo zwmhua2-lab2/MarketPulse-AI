@@ -5,7 +5,7 @@
 - Task ID：`UI-RD01-I01`。
 - Task Type：IMPLEMENTATION + VERIFICATION；基于已接受并冻结的 `UI-RD01` formal design。
 - Task Base / `origin/main`：`2cabc7311e041566011be59fb139cac9a082fe24`。
-- Result：**`UI-RD01-I01 = IMPLEMENTED / READY FOR INDEPENDENT RE-REVIEW`**，不等于 `ACCEPTED`、`COMPLETE` 或 Human Acceptance。
+- Result：**`UI-RD01-I01 = IMPLEMENTED / READY FOR INDEPENDENT REVIEW`**，不等于 `ACCEPTED`、`COMPLETE` 或 Human Acceptance。
 
 ## Scope
 
@@ -41,6 +41,14 @@
 | `npm run test:run` | 7 files / 44 tests passed |
 | `npm run build` | passed |
 | `git diff --check` | passed; Git emits only pre-existing LF→CRLF advisory for `frontend/src/api/generated.ts` |
+
+## Full Backend Regression
+
+- 前次裸命令 `py -3.14 -m pytest backend/tests` 的 `6 failed, 685 passed, 2 warnings`（`626.57s`）**INVALIDATED BY INVOCATION ENVIRONMENT**：失败全为 `backend/tests/test_n01_restart_recovery.py` 的 6 个 child-process 场景，统一为 `ModuleNotFoundError: No module named 'marketpulse'`。该调用未在 `os.environ` 设置 `PYTHONPATH=backend/src`；N01-C 子进程使用 `env=os.environ.copy()`，因此这不是 Product/I01 regression。仓库同类先例见 `dev_log/2026-09-12-se-02b-opportunity-capture-attribution.md` §11.1–§11.2。
+- Accepted rerun preflight：worktree clean；`HEAD` / remote Candidate = `9716cc2737b6278b573246e43673ba6b7dbe6288`；remote `main` = `2cabc7311e041566011be59fb139cac9a082fe24`；`DATABASE_URL` = UNSET；未检测到 foreign/concurrent pytest process；shared DB `alembic current` / `alembic heads` 均为 `20260913_0009 (head)`。
+- Accepted command（PowerShell，环境级、可由 child process 继承）：`$env:PYTHONPATH = 'backend/src'; py -3.14 -m pytest backend/tests -q`。执行前在同一 shell 实测 `os.environ['PYTHONPATH'] = 'backend/src'`。
+- Accepted result：**`691 passed, 0 failed, 2 warnings, 0 skipped, 0 xfailed`**；pytest duration = `771.57s`（`0:12:51`）；outer stopwatch = `775.549s`；exit code = `0`。此前 N01-C `ModuleNotFoundError` 签名未复现。
+- This verification amendment = documentation/evidence only；backend implementation source / tests / frontend / schema / migration / index / package manifests = **ZERO CHANGE**。
 
 ## Remaining / Blockers
 

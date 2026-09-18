@@ -2267,7 +2267,7 @@ Closeout Result」）；**不**构成 `UI-RD01` / `UI-I01..UI-I06` 的授权或�
 - `UI-RD01 = ACCEPTED / FROZEN`；Human Design Acceptance = `CONFIRMED — 2026-09-17`；Final Design Re-Review = `PASS`。
 - `UI-RD01-DESIGN-FIX-02 = ACCEPTED / CLOSED`；`UI-RD01-R1`–`R8 = CLOSED`；`Open Decisions = NONE`。
 - Accepted artifact：`docs/design/UI-RD01/UI-RD01-Product-Read-API-Formal-Design.md`。
-- `UI-RD01-I01 = IMPLEMENTED / READY FOR INDEPENDENT RE-REVIEW`（2026-09-18；candidate branch `ui-rd01-i01-system-product-read`；未合并 `main`、未获 Human Acceptance）。实现范围仅为 shared Product Read contracts、nullable `ProductReadContext`、`SystemIncidentRead` vertical slice 与本 slice OpenAPI/generated.ts integration；schema/migration/AI activation/Live/其它 projection = ZERO CHANGE。详见 `dev_log/2026-09-18-ui-rd01-i01-system-product-read.md`。
+- `UI-RD01-I01 = IMPLEMENTED / READY FOR INDEPENDENT REVIEW`（2026-09-18；candidate branch `ui-rd01-i01-system-product-read`；未合并 `main`、未获 Human Acceptance）。实现范围仅为 shared Product Read contracts、nullable `ProductReadContext`、`SystemIncidentRead` vertical slice 与本 slice OpenAPI/generated.ts integration；schema/migration/AI activation/Live/其它 projection = ZERO CHANGE。完整 Backend regression 已以环境级 `PYTHONPATH=backend/src` 通过（691 passed）；详见 `dev_log/2026-09-18-ui-rd01-i01-system-product-read.md`。
 - Review history remains: initial review `FAIL`, Revision 01 review `FAIL`, Revision 02 final re-review `PASS`。
 
 ## PRE-01B-D2-CLAR-01 Reconciliation Acceptance
