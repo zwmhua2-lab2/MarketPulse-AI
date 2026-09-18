@@ -64,7 +64,15 @@ describe("transport error classification", () => {
     server.use(
       http.get(READINESS_PATH, ({ request }) => {
         urls.push(request.url);
-        return HttpResponse.json({ ready: true, reasons: [] });
+        return HttpResponse.json({
+          ready: true,
+          status: "READY",
+          reasons: [],
+          evaluated_at: "2026-09-18T00:00:00+00:00",
+          run_mode: "TEST",
+          local_only: true,
+          host_state: "READY",
+        });
       }),
     );
 
@@ -126,7 +134,18 @@ describe("401 lifecycle ownership", () => {
     const invalidations: number[] = [];
     server.use(
       http.get(READINESS_PATH, () =>
-        HttpResponse.json({ ready: false, reasons: ["NOT_READY"] }, { status: 503 }),
+        HttpResponse.json(
+          {
+            ready: false,
+            status: "FAIL_CLOSED",
+            reasons: ["READINESS_HOST_DISABLED"],
+            evaluated_at: "2026-09-18T00:00:00+00:00",
+            run_mode: "TEST",
+            local_only: true,
+            host_state: null,
+          },
+          { status: 503 },
+        ),
       ),
     );
 

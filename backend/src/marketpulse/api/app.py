@@ -29,9 +29,12 @@ import logging
 import signal
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from datetime import datetime
+from typing import Self
 
 import anyio
 from fastapi import Depends, FastAPI, Request, Response
+from pydantic import BaseModel, model_validator
 
 from marketpulse.api.auth import router as auth_router
 from marketpulse.api.auth import verify_session
@@ -39,7 +42,12 @@ from marketpulse.api.market import router as market_router
 from marketpulse.api.product.system import router as product_router
 from marketpulse.config import get_settings
 from marketpulse.logging_config import configure_logging
-from marketpulse.runtime import HostLifecycleState
+from marketpulse.runtime import (
+    READINESS_HOST_DISABLED,
+    HostLifecycleState,
+    HostReadinessReport,
+    HostReadinessStatus,
+)
 from marketpulse.runtime_host import HostTerminalResult, RuntimeHost
 
 configure_logging()
@@ -52,6 +60,24 @@ HOST_STATE_KEY = "host"
 DISABLED_STATUS = "disabled"
 READY_STATUS_CODE = 200
 NOT_READY_STATUS_CODE = 503
+
+
+class ReadinessResponse(BaseModel):
+    """Typed HTTP projection of the existing Host readiness authority."""
+
+    ready: bool
+    status: HostReadinessStatus
+    reasons: list[str]
+    evaluated_at: datetime
+    run_mode: str
+    local_only: bool
+    host_state: HostLifecycleState | None
+
+    @model_validator(mode="after")
+    def require_ready_status_coherence(self) -> Self:
+        if self.ready != (self.status is HostReadinessStatus.READY):
+            raise ValueError("ready/status coherence violation")
+        return self
 
 
 def host_of(request: Request) -> RuntimeHost | None:
@@ -176,22 +202,37 @@ def create_app() -> FastAPI:
             }
         return host.live_payload()
 
-    @application.get("/api/v1/ready", tags=["system"])
-    async def ready(request: Request, response: Response) -> dict[str, object]:
+    @application.get(
+        "/api/v1/ready",
+        tags=["system"],
+        response_model=ReadinessResponse,
+        responses={NOT_READY_STATUS_CODE: {"model": ReadinessResponse}},
+    )
+    async def ready(request: Request, response: Response) -> ReadinessResponse:
         """Readiness. ``200`` only when every risk-increasing prerequisite holds."""
         host = host_of(request)
         if host is None:
             response.status_code = NOT_READY_STATUS_CODE
-            return {
-                "ready": False,
-                "run_mode": settings.run_mode,
-                "local_only": settings.local_only,
-                "reasons": ["HOST_DISABLED"],
-            }
+            report = HostReadinessReport(
+                ready=False,
+                status=HostReadinessStatus.FAIL_CLOSED,
+                reasons=[READINESS_HOST_DISABLED],
+            )
+            return ReadinessResponse.model_validate(
+                {
+                    **report.as_payload(),
+                    "run_mode": settings.run_mode,
+                    "local_only": settings.local_only,
+                    "host_state": None,
+                }
+            )
         payload = host.ready_payload()
-        if not payload.get("ready"):
+        readiness = ReadinessResponse.model_validate(
+            {**payload, "local_only": settings.local_only}
+        )
+        if not readiness.ready:
             response.status_code = NOT_READY_STATUS_CODE
-        return payload
+        return readiness
 
     @application.get("/api/v1/health", tags=["system"])
     async def health(request: Request) -> dict[str, object]:

@@ -1043,20 +1043,49 @@ def test_api_surfaces_stay_distinct(monkeypatch):
     assert client.get("/api/v1/live").status_code == 200
     refused = client.get("/api/v1/ready")
     assert refused.status_code == 503
-    assert refused.json()["reasons"] == ["HOST_DISABLED"]
+    refused_payload = refused.json()
+    assert refused_payload["ready"] is False
+    assert refused_payload["status"] == "FAIL_CLOSED"
+    assert refused_payload["reasons"] == ["HOST_DISABLED"]
+    assert isinstance(refused_payload["evaluated_at"], str)
+    assert refused_payload["run_mode"] == "TEST"
+    assert refused_payload["local_only"] is True
+    assert refused_payload["host_state"] is None
     assert client.get("/api/v1/health").json()["status"] == "disabled"
 
     app_module.app.state.host = _StubHost(ready=False, status="FAIL_CLOSED")
     assert client.get("/api/v1/live").status_code == 200
     stale = client.get("/api/v1/ready")
     assert stale.status_code == 503
-    assert stale.json()["reasons"] == ["MARKET_DATA_STALE"]
+    stale_payload = stale.json()
+    assert stale_payload["ready"] is False
+    assert stale_payload["status"] == "FAIL_CLOSED"
+    assert stale_payload["reasons"] == ["MARKET_DATA_STALE"]
+    assert isinstance(stale_payload["evaluated_at"], str)
+    assert stale_payload["local_only"] is True
+    assert stale_payload["host_state"] == "FAIL_CLOSED"
     assert client.get("/api/v1/health").json()["status"] == "FAIL_CLOSED"
 
     app_module.app.state.host = _StubHost(ready=True, status="READY")
-    assert client.get("/api/v1/ready").status_code == 200
-    assert client.get("/api/v1/ready").json()["ready"] is True
+    ready = client.get("/api/v1/ready")
+    assert ready.status_code == 200
+    ready_payload = ready.json()
+    assert ready_payload["ready"] is True
+    assert ready_payload["status"] == "READY"
+    assert ready_payload["reasons"] == []
+    assert isinstance(ready_payload["evaluated_at"], str)
+    assert ready_payload["local_only"] is True
+    assert ready_payload["host_state"] == "READY"
     assert client.get("/api/v1/health").json()["status"] == "ok"
+
+    openapi = client.get("/openapi.json").json()
+    ready_responses = openapi["paths"]["/api/v1/ready"]["get"]["responses"]
+    assert ready_responses["200"]["content"]["application/json"]["schema"] == {
+        "$ref": "#/components/schemas/ReadinessResponse"
+    }
+    assert ready_responses["503"]["content"]["application/json"]["schema"] == {
+        "$ref": "#/components/schemas/ReadinessResponse"
+    }
 
     # Detailed telemetry never becomes anonymously reachable.
     assert client.get("/api/v1/runtime").status_code == 401

@@ -250,6 +250,12 @@ export interface components {
          * @enum {string}
          */
         HostLifecycleState: "CREATED" | "STARTING" | "ACQUIRING_SINGLETON" | "RECOVERY_INGRESS" | "RECOVERING" | "STARTING_RUNTIME" | "WAITING_FOR_READINESS" | "READY" | "DEGRADED" | "FAIL_CLOSED" | "FAILED" | "STOPPING" | "STOPPED" | "STOP_FAILED";
+        /**
+         * HostReadinessStatus
+         * @description Honest readiness surface. `READY` is a conjunction, never a default.
+         * @enum {string}
+         */
+        HostReadinessStatus: "READY" | "NOT_READY" | "DEGRADED" | "FAIL_CLOSED";
         /** IncidentDTO */
         IncidentDTO: {
             /** Incident Id */
@@ -459,6 +465,27 @@ export interface components {
          * @enum {string}
          */
         ReadSurfaceClass: "A" | "B" | "C";
+        /**
+         * ReadinessResponse
+         * @description Typed HTTP projection of the existing Host readiness authority.
+         */
+        ReadinessResponse: {
+            /**
+             * Evaluated At
+             * Format: date-time
+             */
+            evaluated_at: string;
+            host_state: components["schemas"]["HostLifecycleState"] | null;
+            /** Local Only */
+            local_only: boolean;
+            /** Ready */
+            ready: boolean;
+            /** Reasons */
+            reasons: string[];
+            /** Run Mode */
+            run_mode: string;
+            status: components["schemas"]["HostReadinessStatus"];
+        };
         /** ReadyDTO */
         ReadyDTO: {
             /**
@@ -964,9 +991,16 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["ReadinessResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadinessResponse"];
                 };
             };
         };

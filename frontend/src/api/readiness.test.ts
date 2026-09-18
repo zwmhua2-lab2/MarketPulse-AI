@@ -4,76 +4,109 @@ import { describe, expect, it } from "vitest";
 import { createQueryClient } from "../app/queryClient";
 import { server } from "../test/server";
 import { createApiClient } from "./client";
-import { HttpError, NetworkError, UnauthorizedError } from "./errors";
-import { READINESS_PATH, readReadiness } from "./readiness";
+import { HttpError, NetworkError, UnauthorizedError, UnexpectedResponse } from "./errors";
+import { READINESS_PATH, readReadiness, type ReadinessPayload } from "./readiness";
 
 function readinessClient() {
   return createApiClient({ getToken: () => null, onUnauthorized: () => undefined });
 }
 
+function readinessPayload(overrides: Partial<ReadinessPayload> = {}): ReadinessPayload {
+  return {
+    ready: true,
+    status: "READY",
+    reasons: [],
+    evaluated_at: "2026-01-01T00:00:00+00:00",
+    run_mode: "TEST",
+    local_only: true,
+    host_state: "READY",
+    ...overrides,
+  };
+}
+
+async function expectUnexpected(payload: Record<string, unknown>, status = 200) {
+  server.use(http.get(READINESS_PATH, () => HttpResponse.json(payload, { status })));
+  await expect(readReadiness(readinessClient())).rejects.toBeInstanceOf(UnexpectedResponse);
+}
+
 describe("readiness", () => {
-  it("maps 200 to the READY semantic result with the payload preserved", async () => {
-    const payload = { ready: true, run_mode: "TEST", local_only: true, reasons: [] };
+  it("maps typed 200 + ready=true + READY to READY with the payload preserved", async () => {
+    const payload = readinessPayload();
     server.use(http.get(READINESS_PATH, () => HttpResponse.json(payload)));
 
-    const result = await readReadiness(readinessClient());
-
-    expect(result.kind).toBe("READY");
-    expect(result.payload).toEqual(payload);
+    await expect(readReadiness(readinessClient())).resolves.toEqual({ kind: "READY", payload });
   });
 
-  it("maps 503 with a valid body to the NOT_READY semantic result and preserves the body", async () => {
-    const payload = {
-      ready: false,
-      run_mode: "TEST",
-      local_only: true,
-      reasons: ["HOST_DISABLED"],
-    };
-    server.use(http.get(READINESS_PATH, () => HttpResponse.json(payload, { status: 503 })));
+  it.each(["FAIL_CLOSED", "DEGRADED"] as const)(
+    "maps typed 503 + ready=false + %s to NOT_READY without changing its error category",
+    async (status) => {
+      const payload = readinessPayload({
+        ready: false,
+        status,
+        reasons: ["HOST_DISABLED"],
+        host_state: status,
+      });
+      server.use(
+        http.get(READINESS_PATH, () => HttpResponse.json(payload, { status: 503 })),
+      );
 
-    const result = await readReadiness(readinessClient());
+      const result = await readReadiness(readinessClient());
 
-    expect(result.kind).toBe("NOT_READY");
-    expect(result.payload).toEqual(payload);
-  });
+      expect(result).toEqual({ kind: "NOT_READY", payload });
+      expect(result).not.toBeInstanceOf(NetworkError);
+      expect(result).not.toBeInstanceOf(HttpError);
+      expect(result).not.toBeInstanceOf(Error);
+    },
+  );
 
-  it("does not classify a 503 readiness response as a transport failure", async () => {
-    server.use(
-      http.get(READINESS_PATH, () =>
-        HttpResponse.json({ ready: false, reasons: ["NOT_READY"] }, { status: 503 }),
-      ),
-    );
-
-    // Resolving at all is the point: a NetworkError, a generic backend outage or any
-    // other transport failure would have been thrown instead of returned.
-    await expect(readReadiness(readinessClient())).resolves.toMatchObject({ kind: "NOT_READY" });
-
-    const result = await readReadiness(readinessClient());
-    expect(result).not.toBeInstanceOf(NetworkError);
-    expect(result).not.toBeInstanceOf(HttpError);
-    expect(result).not.toBeInstanceOf(Error);
-  });
-
-  it("is not automatically retried on 503", async () => {
+  it("does not automatically retry a valid 503 readiness response", async () => {
     let requests = 0;
+    const payload = readinessPayload({
+      ready: false,
+      status: "FAIL_CLOSED",
+      reasons: ["HOST_DISABLED"],
+      host_state: null,
+    });
     server.use(
       http.get(READINESS_PATH, () => {
         requests += 1;
-        return HttpResponse.json({ ready: false, reasons: ["NOT_READY"] }, { status: 503 });
+        return HttpResponse.json(payload, { status: 503 });
       }),
     );
 
-    const client = readinessClient();
     const result = await createQueryClient().fetchQuery({
       queryKey: ["readiness"],
-      queryFn: () => readReadiness(client),
+      queryFn: () => readReadiness(readinessClient()),
     });
 
     expect(result.kind).toBe("NOT_READY");
     expect(requests).toBe(1);
   });
 
-  it("raises a distinct error when a 503 body is not an interpretable readiness payload", async () => {
+  it("rejects HTTP/body verdict mismatches", async () => {
+    await expectUnexpected(
+      readinessPayload({ ready: false, status: "FAIL_CLOSED", host_state: "FAIL_CLOSED" }),
+    );
+    await expectUnexpected(readinessPayload(), 503);
+  });
+
+  it("rejects malformed typed bodies", async () => {
+    await expectUnexpected({});
+    await expectUnexpected({ ...readinessPayload(), ready: undefined });
+    await expectUnexpected({ ...readinessPayload(), ready: "true" });
+    await expectUnexpected({ ...readinessPayload(), reasons: "HOST_DISABLED" });
+    await expectUnexpected({ ...readinessPayload(), evaluated_at: undefined });
+  });
+
+  it("rejects internal ready/status contradictions", async () => {
+    await expectUnexpected(readinessPayload({ status: "FAIL_CLOSED" }));
+    await expectUnexpected(
+      readinessPayload({ ready: false, status: "READY", host_state: "READY" }),
+      503,
+    );
+  });
+
+  it("rejects malformed non-JSON 503 as an unexpected response", async () => {
     server.use(
       http.get(READINESS_PATH, () =>
         HttpResponse.text("<html>gateway error</html>", {
@@ -83,11 +116,28 @@ describe("readiness", () => {
       ),
     );
 
-    const failure = await readReadiness(readinessClient()).catch((cause: unknown) => cause);
+    await expect(readReadiness(readinessClient())).rejects.toBeInstanceOf(UnexpectedResponse);
+  });
 
-    expect(failure).toBeInstanceOf(Error);
-    expect(failure).not.toBeInstanceOf(NetworkError);
-    expect(failure).not.toBeInstanceOf(HttpError);
-    expect(failure).not.toBeInstanceOf(UnauthorizedError);
+  it("keeps ordinary 500 as HttpError", async () => {
+    server.use(
+      http.get(READINESS_PATH, () => HttpResponse.json({ detail: "error" }, { status: 500 })),
+    );
+
+    await expect(readReadiness(readinessClient())).rejects.toBeInstanceOf(HttpError);
+  });
+
+  it("rejects other successful statuses instead of treating them as READY", async () => {
+    server.use(
+      http.get(READINESS_PATH, () => HttpResponse.json(readinessPayload(), { status: 201 })),
+    );
+
+    await expect(readReadiness(readinessClient())).rejects.toBeInstanceOf(UnexpectedResponse);
+  });
+
+  it("keeps protected 401 as UnauthorizedError", async () => {
+    server.use(http.get(READINESS_PATH, () => HttpResponse.json({}, { status: 401 })));
+
+    await expect(readReadiness(readinessClient())).rejects.toBeInstanceOf(UnauthorizedError);
   });
 });
