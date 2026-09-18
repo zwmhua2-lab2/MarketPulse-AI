@@ -11,6 +11,7 @@ import pytest
 import sqlalchemy.ext.asyncio as sqlalchemy_asyncio
 from fastapi.testclient import TestClient
 from marketpulse.api.product.context import ProductReadContext
+from marketpulse.api.product.models import TraceNodeDTO, TraceNodeState
 from marketpulse.config import Settings
 from marketpulse.db.models import IncidentRecord
 from marketpulse.g3.models import RunMode
@@ -173,6 +174,27 @@ def _product_system(client: TestClient, headers: dict[str, str], query: str = ""
 def test_product_system_requires_session() -> None:
     client = TestClient(app_module.app)
     assert client.get("/api/v1/product/system").status_code == 401
+
+
+def test_trace_node_state_contract_includes_not_yet_due_and_serializes() -> None:
+    assert {state.value for state in TraceNodeState} == {
+        "PRESENT",
+        "NOT_OCCURRED",
+        "NOT_REACHED",
+        "NOT_YET_DUE",
+        "NO_PROVABLE_RECORD",
+        "CAPABILITY_NOT_INTEGRATED",
+    }
+    assert TraceNodeState.NOT_REACHED != TraceNodeState.NOT_YET_DUE
+
+    node = TraceNodeDTO[dict[str, str]](
+        state=TraceNodeState.NOT_YET_DUE,
+        data={"reason": "future_due_at"},
+    )
+    assert node.model_dump_json() == (
+        '{"state":"NOT_YET_DUE","data":{"reason":"future_due_at"},'
+        '"evidence_basis":null}'
+    )
 
 
 def test_product_system_host_absent_is_not_activated_without_data(
