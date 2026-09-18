@@ -16,8 +16,9 @@ function client(
   onUnauthorized: () => void = () => undefined,
   token: string | null = null,
   getSessionGeneration: () => symbol = () => DEFAULT_SESSION_GENERATION,
+  getProviderActive: () => boolean = () => true,
 ) {
-  return createApiClient({ getToken: () => token, getSessionGeneration, onUnauthorized });
+  return createApiClient({ getToken: () => token, getSessionGeneration, getProviderActive, onUnauthorized });
 }
 
 describe("transport error classification", () => {
@@ -167,6 +168,24 @@ describe("401 lifecycle ownership", () => {
 
     const failure = await oldRequest;
     expect(failure).toBeInstanceOf(UnauthorizedError);
+    expect(invalidations).toEqual([]);
+  });
+
+  it("does not let a disposed Provider client invalidate a later lifetime", async () => {
+    const invalidations: number[] = [];
+    server.use(
+      http.get(PROTECTED_PING_PATH, () =>
+        HttpResponse.json({ detail: "old provider session expired" }, { status: 401 }),
+      ),
+    );
+
+    await client(
+      () => invalidations.push(1),
+      "old-token",
+      () => DEFAULT_SESSION_GENERATION,
+      () => false,
+    ).GET(PROTECTED_PING_PATH);
+
     expect(invalidations).toEqual([]);
   });
 

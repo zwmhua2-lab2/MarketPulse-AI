@@ -5,7 +5,13 @@ import { describe, expect, it } from "vitest";
 
 import { queryClient } from "../app/queryClient";
 import { AUTH_TOKEN_STORAGE_KEY, readAccessToken } from "./session";
-import { LOGIN_PATH, PROTECTED_PING_PATH, TEST_PASSWORD, TEST_USERNAME } from "../test/handlers";
+import {
+  LOGIN_PATH,
+  PROTECTED_PING_PATH,
+  TEST_ACCESS_TOKEN,
+  TEST_PASSWORD,
+  TEST_USERNAME,
+} from "../test/handlers";
 import { renderApp, seedSession } from "../test/render";
 import { server } from "../test/server";
 import { UnauthorizedError } from "../api/errors";
@@ -20,6 +26,56 @@ function rejectSession(): void {
 }
 
 describe("protected API 401", () => {
+  it("remains authoritative after the production StrictMode Effect lifecycle", async () => {
+    let markRequestDispatched: () => void = () => undefined;
+    const requestDispatched = new Promise<void>((resolve) => {
+      markRequestDispatched = resolve;
+    });
+    let releaseResponse: () => void = () => undefined;
+    const responseReleased = new Promise<void>((resolve) => {
+      releaseResponse = resolve;
+    });
+    let markRequestSettled: () => void = () => undefined;
+    const requestSettled = new Promise<void>((resolve) => {
+      markRequestSettled = resolve;
+    });
+    let requestFailure: unknown;
+
+    server.use(
+      http.get(PROTECTED_PING_PATH, async ({ request }) => {
+        expect(request.headers.get("Authorization")).toBe(`Bearer ${TEST_ACCESS_TOKEN}`);
+        markRequestDispatched();
+        await responseReleased;
+        return HttpResponse.json({ detail: "invalid current session" }, { status: 401 });
+      }),
+    );
+
+    seedSession();
+    queryClient.setQueryData(["authenticated-probe"], { cached: "authenticated data" });
+    renderApp({
+      initialEntries: ["/trading"],
+      strictMode: true,
+      protectedProbe: {
+        onRejected: (error) => {
+          requestFailure = error;
+        },
+        onSettled: markRequestSettled,
+      },
+    });
+    await requestDispatched;
+
+    // The StrictMode Effect stress cycle has completed without a sign-out, login,
+    // or Provider replacement. This held request remains current-session authority.
+    releaseResponse();
+    await requestSettled;
+
+    expect(requestFailure).toBeInstanceOf(UnauthorizedError);
+    expect(readAccessToken()).toBeNull();
+    expect(window.sessionStorage.getItem(AUTH_TOKEN_STORAGE_KEY)).toBeNull();
+    expect(queryClient.getQueryData(["authenticated-probe"])).toBeUndefined();
+    expect(await screen.findByRole("heading", { name: "登录" })).toBeInTheDocument();
+  });
+
   it("clears the session, clears the authenticated query cache and enters the Login boundary", async () => {
     rejectSession();
     seedSession();

@@ -23,6 +23,8 @@ export interface ApiTransportOptions {
   readonly getToken: () => string | null;
   /** The local-only identity for the current Auth Session Boundary lifetime. */
   readonly getSessionGeneration: () => symbol;
+  /** Whether the Provider lifetime which owns this client is still mounted. */
+  readonly getProviderActive?: () => boolean;
   /** Called when the backend says the bearer session is no longer valid. */
   readonly onUnauthorized: () => void;
 }
@@ -75,7 +77,8 @@ export function createApiClient(options: ApiTransportOptions) {
         response.status === 401 &&
         isProtectedRequest(request) &&
         requestSessionGeneration !== undefined &&
-        requestSessionGeneration === options.getSessionGeneration()
+        requestSessionGeneration === options.getSessionGeneration() &&
+        (options.getProviderActive?.() ?? true)
       ) {
         options.onUnauthorized();
       }

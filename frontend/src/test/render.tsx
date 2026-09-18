@@ -1,4 +1,5 @@
 import { render } from "@testing-library/react";
+import { StrictMode } from "react";
 import { MemoryRouter } from "react-router";
 
 import { AppProviders } from "../app/AppProviders";
@@ -16,6 +17,8 @@ export function seedSession(token: string = TEST_ACCESS_TOKEN): void {
 export interface RenderAppOptions {
   /** Entry history. Defaults to `/`, the redirect root. */
   readonly initialEntries?: readonly string[];
+  /** Mirrors the production root's development lifecycle behavior when needed. */
+  readonly strictMode?: boolean;
   /**
    * When present, mounts a probe that issues one authenticated protected request
    * inside the provider tree, so the `401` lifecycle can be observed end to end.
@@ -33,9 +36,9 @@ export interface RenderAppOptions {
  * replaces `BrowserRouter` so a test can choose where it starts.
  */
 export function renderApp(options: RenderAppOptions = {}) {
-  const { initialEntries = ["/"], protectedProbe } = options;
+  const { initialEntries = ["/"], protectedProbe, strictMode = false } = options;
 
-  return render(
+  const tree = (
     <AppProviders>
       <MemoryRouter initialEntries={[...initialEntries]}>
         <AuthSessionProvider>
@@ -48,6 +51,8 @@ export function renderApp(options: RenderAppOptions = {}) {
           )}
         </AuthSessionProvider>
       </MemoryRouter>
-    </AppProviders>,
+    </AppProviders>
   );
+
+  return render(strictMode ? <StrictMode>{tree}</StrictMode> : tree);
 }

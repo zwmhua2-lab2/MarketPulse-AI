@@ -39,11 +39,11 @@ const AuthSessionContext = createContext<AuthSession | null>(null);
 /**
  * The one Auth Session Boundary.
  *
- * It owns exactly four things: the bearer token, a local-only session generation, the
- * API transport bound to that token, and what happens when the backend rejects the
- * session. It does not parse the token, does not decide whether a token is still valid,
- * and does not invent a refresh mechanism — the backend's `401` is the only auth
- * authority (UI-F01 §7, §8).
+ * It owns the bearer token, a local-only session generation, its Provider-lifetime
+ * active state, the API transport bound to that token, and what happens when the backend
+ * rejects the session. It does not parse the token, does not decide whether a token is
+ * still valid, and does not invent a refresh mechanism — the backend's `401` is the only
+ * auth authority (UI-F01 §7, §8).
  *
  * On an authoritative `401` it clears the persisted token and the authenticated Query
  * cache; navigation to the Login boundary is then a declarative consequence of the
@@ -62,6 +62,11 @@ export function AuthSessionProvider({ children }: { children: ReactNode }) {
   // Symbols are local-only identities. A new Provider lifetime and every session
   // transition receive a fresh identity without deriving anything from the bearer.
   const generationRef = useRef<symbol>(Symbol("marketpulse-session-generation"));
+  // This is deliberately separate from session generation. A real unmount must
+  // prevent the old client from mutating a shared QueryClient, while StrictMode's
+  // development-only Effect cleanup/setup cycle must not stale-fence the current
+  // session generation.
+  const providerActiveRef = useRef(true);
 
   const advanceGeneration = useCallback(() => {
     generationRef.current = Symbol("marketpulse-session-generation");
@@ -78,13 +83,16 @@ export function AuthSessionProvider({ children }: { children: ReactNode }) {
   }, [advanceGeneration, queryClient]);
 
   useEffect(
-    () => () => {
-      // An unmounted Provider can still receive an old fetch response. Move its
-      // generation forward so that response cannot clear a QueryClient used by a new
-      // AuthSessionBoundary lifetime.
-      advanceGeneration();
+    () => {
+      providerActiveRef.current = true;
+
+      return () => {
+        // An unmounted Provider can still receive an old fetch response. Mark only
+        // that Provider lifetime inactive; do not change session generation here.
+        providerActiveRef.current = false;
+      };
     },
-    [advanceGeneration],
+    [],
   );
 
   const client = useMemo(
@@ -92,6 +100,7 @@ export function AuthSessionProvider({ children }: { children: ReactNode }) {
       createApiClient({
         getToken: () => tokenRef.current,
         getSessionGeneration: () => generationRef.current,
+        getProviderActive: () => providerActiveRef.current,
         onUnauthorized: endSession,
       }),
     [endSession],
