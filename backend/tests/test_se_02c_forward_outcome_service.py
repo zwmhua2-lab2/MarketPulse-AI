@@ -18,6 +18,7 @@ the accepted SE-02A / SE-02B repository writers.
 """
 
 import asyncio
+import os
 from contextlib import asynccontextmanager, contextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -167,8 +168,16 @@ def _se02c_database(label: str):
     name = f"marketpulse_se02c_{label}_{uuid4().hex[:12]}"
     asyncio.run(_execute(PRIMARY_URL, f'CREATE DATABASE "{name}"'))
     url = _url_for(name)
-    command.upgrade(_alembic_config(url), "head")
     try:
+        previous_database_url = os.environ.get("DATABASE_URL")
+        os.environ["DATABASE_URL"] = url
+        try:
+            command.upgrade(_alembic_config(url), "head")
+        finally:
+            if previous_database_url is None:
+                os.environ.pop("DATABASE_URL", None)
+            else:
+                os.environ["DATABASE_URL"] = previous_database_url
         yield url
     finally:
         asyncio.run(
@@ -497,7 +506,8 @@ async def _capture_forward_opportunity(
     persisted = await _persist(
         sessions, facts, _context(), quote=_quote(instrument_id=instrument_id)
     )
-    assert persisted is True, f"capture did not qualify for {event_id}"
+    assert persisted.persisted is True, f"capture did not qualify for {event_id}"
+    assert persisted.advisory_work_ref is None
     return facts
 
 
