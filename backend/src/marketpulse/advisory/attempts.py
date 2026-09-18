@@ -24,6 +24,20 @@ class AdvisoryAttemptStarter:
 
     async def start(self, ref: AdvisoryWorkRef) -> str | None:
         async with self._fence.transaction() as session:
+            target = await session.scalar(
+                select(AdvisoryDecisionInvocationRecord)
+                .where(
+                    AdvisoryDecisionInvocationRecord.decision_invocation_id
+                    == ref.decision_invocation_id
+                )
+            )
+            if target is None:
+                return None
+            evidence = await session.scalar(
+                select(EdgeOpportunityEvidenceRecord)
+                .where(EdgeOpportunityEvidenceRecord.evidence_id == target.evidence_id)
+                .with_for_update()
+            )
             invocation = await session.scalar(
                 select(AdvisoryDecisionInvocationRecord)
                 .where(
@@ -32,14 +46,13 @@ class AdvisoryAttemptStarter:
                 )
                 .with_for_update()
             )
-            if invocation is None or invocation.state == INVOCATION_FINAL:
-                return None
-            evidence = await session.scalar(
-                select(EdgeOpportunityEvidenceRecord)
-                .where(EdgeOpportunityEvidenceRecord.evidence_id == invocation.evidence_id)
-                .with_for_update()
-            )
-            if evidence is None or evidence.evidence_hash != invocation.evidence_hash:
+            if (
+                evidence is None
+                or invocation is None
+                or invocation.evidence_id != evidence.evidence_id
+                or invocation.state == INVOCATION_FINAL
+                or evidence.evidence_hash != invocation.evidence_hash
+            ):
                 return None
             now = await session.scalar(select(func.clock_timestamp()))
             if now is None or now >= invocation.decision_deadline_at:

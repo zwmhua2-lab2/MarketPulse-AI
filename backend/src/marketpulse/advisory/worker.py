@@ -33,6 +33,7 @@ from .vocabulary import (
     INVOCATION_FINAL,
     INVOCATION_RETRY_PENDING,
     REASON_ADVISORY_DB_CAPACITY_UNAVAILABLE,
+    REASON_ADVISORY_QUEUE_REJECTED,
     REASON_DEADLINE_EXPIRED_BEFORE_PROVIDER,
     REASON_EVIDENCE_SUPERSEDED,
     REASON_EVIDENCE_SUPERSEDED_BEFORE_PROVIDER,
@@ -64,28 +65,48 @@ class AdvisoryFinalizer:
 
     async def finalize(self, attempt_id: str, result: FakeProviderResult) -> AdvisoryWorkRef | None:
         async with self._fence.transaction() as session:
+            attempt_target = await session.scalar(
+                select(AdvisoryDecisionAttemptRecord)
+                .where(AdvisoryDecisionAttemptRecord.attempt_id == attempt_id)
+            )
+            if attempt_target is None:
+                return None
+            invocation_target = await session.scalar(
+                select(AdvisoryDecisionInvocationRecord)
+                .where(
+                    AdvisoryDecisionInvocationRecord.decision_invocation_id
+                    == attempt_target.decision_invocation_id
+                )
+            )
+            if invocation_target is None:
+                return None
+            evidence = await session.scalar(
+                select(EdgeOpportunityEvidenceRecord)
+                .where(EdgeOpportunityEvidenceRecord.evidence_id == invocation_target.evidence_id)
+                .with_for_update()
+            )
+            invocation = await session.scalar(
+                select(AdvisoryDecisionInvocationRecord)
+                .where(
+                    AdvisoryDecisionInvocationRecord.decision_invocation_id
+                    == invocation_target.decision_invocation_id
+                )
+                .with_for_update()
+            )
             attempt = await session.scalar(
                 select(AdvisoryDecisionAttemptRecord)
                 .where(AdvisoryDecisionAttemptRecord.attempt_id == attempt_id)
                 .with_for_update()
             )
-            if attempt is None:
+            if (
+                evidence is None
+                or invocation is None
+                or attempt is None
+                or invocation.evidence_id != evidence.evidence_id
+                or invocation.evidence_hash != evidence.evidence_hash
+                or attempt.decision_invocation_id != invocation.decision_invocation_id
+            ):
                 return None
-            invocation = await session.scalar(
-                select(AdvisoryDecisionInvocationRecord)
-                .where(
-                    AdvisoryDecisionInvocationRecord.decision_invocation_id
-                    == attempt.decision_invocation_id
-                )
-                .with_for_update()
-            )
-            if invocation is None:
-                return None
-            evidence = await session.scalar(
-                select(EdgeOpportunityEvidenceRecord)
-                .where(EdgeOpportunityEvidenceRecord.evidence_id == invocation.evidence_id)
-                .with_for_update()
-            )
             if invocation.state == INVOCATION_FINAL:
                 if invocation.final_attempt_id != attempt.attempt_id:
                     attempt.attempt_state = ATTEMPT_LATE_RESULT
@@ -140,6 +161,20 @@ class AdvisoryFinalizer:
 
         try:
             async with self._fence.terminal_write_transaction() as session:
+                invocation_target = await session.scalar(
+                    select(AdvisoryDecisionInvocationRecord)
+                    .where(
+                        AdvisoryDecisionInvocationRecord.decision_invocation_id
+                        == ref.decision_invocation_id
+                    )
+                )
+                if invocation_target is None:
+                    return False
+                evidence = await session.scalar(
+                    select(EdgeOpportunityEvidenceRecord)
+                    .where(EdgeOpportunityEvidenceRecord.evidence_id == invocation_target.evidence_id)
+                    .with_for_update()
+                )
                 invocation = await session.scalar(
                     select(AdvisoryDecisionInvocationRecord)
                     .where(
@@ -148,13 +183,14 @@ class AdvisoryFinalizer:
                     )
                     .with_for_update()
                 )
-                if invocation is None or invocation.state == INVOCATION_FINAL:
+                if (
+                    evidence is None
+                    or invocation is None
+                    or invocation.evidence_id != evidence.evidence_id
+                    or invocation.evidence_hash != evidence.evidence_hash
+                    or invocation.state == INVOCATION_FINAL
+                ):
                     return False
-                evidence = await session.scalar(
-                    select(EdgeOpportunityEvidenceRecord)
-                    .where(EdgeOpportunityEvidenceRecord.evidence_id == invocation.evidence_id)
-                    .with_for_update()
-                )
                 now = await session.scalar(select(func.clock_timestamp()))
                 if not isinstance(now, datetime):
                     raise TypeError("PostgreSQL finalizer clock unavailable")
@@ -188,6 +224,70 @@ class AdvisoryFinalizer:
         except (AdvisoryFenceError, SQLAlchemyError):
             return False
 
+    async def terminalize_queue_rejection(self, ref: AdvisoryWorkRef) -> bool:
+        """Persist a queue-full terminal only through bounded Advisory capacity A."""
+
+        try:
+            async with self._fence.terminal_write_transaction() as session:
+                invocation_target = await session.scalar(
+                    select(AdvisoryDecisionInvocationRecord).where(
+                        AdvisoryDecisionInvocationRecord.decision_invocation_id
+                        == ref.decision_invocation_id
+                    )
+                )
+                if invocation_target is None:
+                    return False
+                evidence = await session.scalar(
+                    select(EdgeOpportunityEvidenceRecord)
+                    .where(EdgeOpportunityEvidenceRecord.evidence_id == invocation_target.evidence_id)
+                    .with_for_update()
+                )
+                invocation = await session.scalar(
+                    select(AdvisoryDecisionInvocationRecord)
+                    .where(
+                        AdvisoryDecisionInvocationRecord.decision_invocation_id
+                        == ref.decision_invocation_id
+                    )
+                    .with_for_update()
+                )
+                if (
+                    evidence is None
+                    or invocation is None
+                    or invocation.evidence_id != evidence.evidence_id
+                    or invocation.evidence_hash != evidence.evidence_hash
+                    or invocation.state == INVOCATION_FINAL
+                ):
+                    return False
+                finalized_at = await session.scalar(select(func.clock_timestamp()))
+                if not isinstance(finalized_at, datetime):
+                    raise TypeError("PostgreSQL finalizer clock unavailable")
+                superseded = bool(
+                    await session.scalar(
+                        select(
+                            exists().where(
+                                EdgeOpportunityEvidenceRecord.opportunity_id
+                                == invocation.opportunity_id,
+                                EdgeOpportunityEvidenceRecord.evidence_revision
+                                > invocation.evidence_revision,
+                            )
+                        )
+                    )
+                )
+                invocation.state = INVOCATION_FINAL
+                invocation.finalized_at = finalized_at
+                invocation.final_attempt_id = None
+                invocation.final_decision_id = None
+                invocation.updated_at = finalized_at
+                if superseded:
+                    invocation.final_status = FINAL_STATUS_STALE_DECISION
+                    invocation.final_reason_code = REASON_EVIDENCE_SUPERSEDED_BEFORE_PROVIDER
+                else:
+                    invocation.final_status = FINAL_STATUS_CAPACITY_BLOCKED
+                    invocation.final_reason_code = REASON_ADVISORY_QUEUE_REJECTED
+                return True
+        except (AdvisoryFenceError, SQLAlchemyError):
+            return False
+
     async def abandon(self, attempt_id: str, *, cancellation_observed: bool) -> bool:
         """Durably classify Host shutdown only after its cancellation was observed."""
 
@@ -200,11 +300,49 @@ class AdvisoryFinalizer:
 
     async def _recover_or_shutdown(self, attempt_id: str, *, shutdown: bool, retry_allowed: bool) -> bool:
         async with self._fence.transaction() as session:
-            attempt = await session.scalar(select(AdvisoryDecisionAttemptRecord).where(AdvisoryDecisionAttemptRecord.attempt_id == attempt_id).with_for_update())
-            if attempt is None or attempt.attempt_state != ATTEMPT_STARTED:
+            attempt_target = await session.scalar(
+                select(AdvisoryDecisionAttemptRecord).where(
+                    AdvisoryDecisionAttemptRecord.attempt_id == attempt_id
+                )
+            )
+            if attempt_target is None:
                 return False
-            invocation = await session.scalar(select(AdvisoryDecisionInvocationRecord).where(AdvisoryDecisionInvocationRecord.decision_invocation_id == attempt.decision_invocation_id).with_for_update())
-            if invocation is None or invocation.state == INVOCATION_FINAL:
+            invocation_target = await session.scalar(
+                select(AdvisoryDecisionInvocationRecord).where(
+                    AdvisoryDecisionInvocationRecord.decision_invocation_id
+                    == attempt_target.decision_invocation_id
+                )
+            )
+            if invocation_target is None:
+                return False
+            evidence = await session.scalar(
+                select(EdgeOpportunityEvidenceRecord)
+                .where(EdgeOpportunityEvidenceRecord.evidence_id == invocation_target.evidence_id)
+                .with_for_update()
+            )
+            invocation = await session.scalar(
+                select(AdvisoryDecisionInvocationRecord)
+                .where(
+                    AdvisoryDecisionInvocationRecord.decision_invocation_id
+                    == invocation_target.decision_invocation_id
+                )
+                .with_for_update()
+            )
+            attempt = await session.scalar(
+                select(AdvisoryDecisionAttemptRecord)
+                .where(AdvisoryDecisionAttemptRecord.attempt_id == attempt_id)
+                .with_for_update()
+            )
+            if (
+                evidence is None
+                or invocation is None
+                or attempt is None
+                or invocation.evidence_id != evidence.evidence_id
+                or invocation.evidence_hash != evidence.evidence_hash
+                or attempt.decision_invocation_id != invocation.decision_invocation_id
+                or attempt.attempt_state != ATTEMPT_STARTED
+                or invocation.state == INVOCATION_FINAL
+            ):
                 return False
             now = await session.scalar(select(func.clock_timestamp()))
             if not isinstance(now, datetime):
@@ -286,7 +424,9 @@ class AdvisoryRecovery:
             if await self._finalizer.process_lost(attempt_id, retry_allowed=retry_allowed):
                 recovered += 1
                 if retry_allowed and reoffer is not None:
-                    await reoffer(AdvisoryWorkRef(invocation_id, deadline_at))
+                    ref = AdvisoryWorkRef(invocation_id, deadline_at)
+                    if not await reoffer(ref):
+                        await self._finalizer.terminalize_queue_rejection(ref)
         return recovered
 
 

@@ -2,6 +2,8 @@
 
 ## Current Group
 
+PRE-01B-I2 — Advisory durable slice — IMPLEMENTING（`PRE-01B-I2-RESUME-01-C3-FINAL-02-FIX-01`：仅修复已接受 D2 的 P1-01 锁序与 P1-02 queue/resource 边界；repair checkpoint 尚未创建；Implementation Completion Marker = `NOT READY`；Ready For Independent Review = `NO`；Human Acceptance = `NOT PERFORMED`；Real AI / Gate A-B-C / live G2→G3 / Live 均未激活。）
+
 SE-02A — Contracts + Additive Persistence — ACCEPTED / COMPLETE
 
 SE-02B — Opportunity Capture + Attribution — ACCEPTED / COMPLETE

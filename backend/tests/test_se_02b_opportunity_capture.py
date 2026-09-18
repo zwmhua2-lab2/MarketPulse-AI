@@ -69,7 +69,10 @@ from marketpulse.edge.identity import evidence_id as derive_evidence_id
 from marketpulse.edge.models import (
     EVIDENCE_CONTRACT_VERSION,
     EdgeFamily,
+    EvidenceRevision,
     EvidenceSource,
+    ReferenceDataStatus,
+    build_evidence_revision,
     build_opportunity_identity,
 )
 from marketpulse.edge.repository import (
@@ -78,8 +81,10 @@ from marketpulse.edge.repository import (
     EdgeCaptureAnchorConflict,
     EdgeEvidenceConflict,
     append_capture_anchor,
+    append_evidence_revision,
 )
 from marketpulse.g2.models import (
+    AdvisoryWorkRef,
     DirectionBias,
     EventType,
     FeatureSnapshot,
@@ -106,7 +111,7 @@ from marketpulse.g2.runtime import EventRuntime, ScannerPipeline
 from marketpulse.g2.scanner import OpportunityScanner
 from marketpulse.g2.strategy import StrategyEngine
 from marketpulse.market_data.models import DataQuality, MarketType, NormalizedMarketEvent
-from sqlalchemy import func, select, text
+from sqlalchemy import event, func, select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
@@ -767,6 +772,47 @@ def test_retry_gap_queue_rejection_does_not_link_the_historical_attempt():
     assert observed["final_attempt_is_null"] is True
 
 
+def test_initial_queue_full_terminalization_uses_advisory_capacity_only():
+    with _capture_database("initial_queue_full") as url:
+        observed = asyncio.run(_initial_queue_full_scenario(url))
+
+    assert observed == {
+        "rejected": True,
+        "terminalized": True,
+        "state": "FINAL",
+        "reason": "ADVISORY_QUEUE_REJECTED",
+        "final_attempt_is_null": True,
+        "protection_held": 0,
+    }
+
+
+def test_recovery_queue_full_terminalizes_without_relinking_or_provider_work():
+    with _capture_database("recovery_queue_full") as url:
+        observed = asyncio.run(_recovery_queue_full_scenario(url))
+
+    assert observed == {
+        "recovered": 1,
+        "attempt_state": "PROCESS_LOST",
+        "state": "FINAL",
+        "reason": "ADVISORY_QUEUE_REJECTED",
+        "final_attempt_is_null": True,
+        "protection_held": 0,
+    }
+
+
+def test_queue_terminal_capacity_unavailable_retains_prior_state_without_reserve_borrow():
+    with _capture_database("queue_terminal_capacity_unavailable") as url:
+        observed = asyncio.run(_queue_terminal_capacity_unavailable_scenario(url))
+
+    assert observed == {
+        "rejected": True,
+        "terminalized": False,
+        "state": "ACTIVE",
+        "finalized": False,
+        "protection_held": 0,
+    }
+
+
 def test_retry_gap_db_capacity_rejection_does_not_create_a_replacement_attempt():
     with _capture_database("retry_gap_db_capacity_rejection") as url:
         observed = asyncio.run(_gate_a_admission_scenario(url, retry_gap_db_capacity=True))
@@ -795,6 +841,39 @@ def test_finalizer_first_keeps_its_winner_immutable_when_a_new_evidence_revision
     assert observed["final_reason"] == "VALID_PROVIDER_DECISION"
     assert observed["evidence_revision_count"] == 2
     assert observed["invocation_evidence_superseded"] is True
+
+
+def test_supersede_writer_lock_precedes_finalizer_and_forces_stale_terminalization():
+    """The real N+1 writer holds N before the finalizer can lock the same Evidence."""
+
+    with _capture_database("supersede_writer_lock") as url:
+        observed = asyncio.run(_supersede_writer_first_lock_race(url))
+
+    assert observed == {"writer": INSERTED, "finalized": True, "reason": "EVIDENCE_SUPERSEDED"}
+
+
+def test_finalizer_lock_precedes_supersede_writer_and_keeps_terminal_winner_immutable():
+    """A held Invocation proves finalizer locks Evidence before it can wait on Invocation."""
+
+    with _capture_database("finalizer_lock_first") as url:
+        observed = asyncio.run(_finalizer_first_lock_race(url))
+
+    assert observed == {
+        "writer": INSERTED,
+        "finalized": True,
+        "reason": "VALID_PROVIDER_DECISION",
+        "evidence_revisions": 2,
+    }
+
+
+def test_attempt_start_locks_evidence_before_a_blocked_invocation():
+    with _capture_database("attempt_start_lock_order") as url:
+        assert asyncio.run(_attempt_start_lock_order(url)) is True
+
+
+def test_process_lost_recovery_locks_evidence_invocation_then_exact_attempt():
+    with _capture_database("recovery_lock_order") as url:
+        assert asyncio.run(_recovery_lock_order(url)) is True
 
 
 def test_shutdown_cancellation_without_a_durable_cleanup_commit_recovers_as_process_lost():
@@ -974,6 +1053,7 @@ async def _gate_a_admission_scenario(
                 if retry_gap_queue_reject:
                     assert ingress.queue_size == 1
                     assert not await ingress.post_commit_offer(result.advisory_work_ref)
+                    assert await ingress.terminalize_queue_rejection(result.advisory_work_ref)
                 elif retry_once:
                     assert ingress.queue_size == 1
                     assert await ingress.consume_one(worker.consume)
@@ -1056,40 +1136,453 @@ async def _gate_a_admission_scenario(
 
 
 async def _append_test_superseding_evidence(fence: AdvisoryDbFence) -> None:
-    """Fixture-only predecessor-chain write; it does not alter Edge production behavior."""
+    """Append N+1 through the production predecessor-chain writer."""
 
     async with fence.transaction() as session:
         old = (await session.scalars(select(EdgeOpportunityEvidenceRecord))).one()
-        session.add(
-            EdgeOpportunityEvidenceRecord(
-                evidence_id=f"{old.evidence_id[:-1]}9",
-                opportunity_id=old.opportunity_id,
-                candidate_id=old.candidate_id,
-                family_id=old.family_id,
-                family_version=old.family_version,
-                instrument_id=old.instrument_id,
-                market_type=old.market_type,
-                evidence_revision=2,
-                evidence_contract_version=old.evidence_contract_version,
-                evidence_hash="d" * 64,
-                feature_snapshot_hash="e" * 64,
-                feature_snapshot_hash_version=old.feature_snapshot_hash_version,
-                supersedes_evidence_id=old.evidence_id,
-                detected_at=old.detected_at,
-                evidence_at=old.evidence_at,
-                expires_at=old.expires_at,
-                source_type=old.source_type,
-                source_identity=old.source_identity,
-                source_manifest_id=old.source_manifest_id,
-                reference_bid=old.reference_bid,
-                reference_ask=old.reference_ask,
-                reference_received_at=old.reference_received_at,
-                reference_data_status=old.reference_data_status,
-                evidence_payload=old.evidence_payload,
-                feature_snapshot_payload=old.feature_snapshot_payload,
-                created_at=old.created_at,
+        assert await append_evidence_revision(session, _next_evidence_revision(old)) == INSERTED
+
+
+def _next_evidence_revision(old: EdgeOpportunityEvidenceRecord) -> EvidenceRevision:
+    opportunity = build_opportunity_identity(
+        family_id=EdgeFamily(old.family_id),
+        family_version=old.family_version,
+        instrument_id=old.instrument_id,
+        market_type=MarketType(old.market_type),
+        candidate_id=old.candidate_id,
+    )
+    return build_evidence_revision(
+        opportunity=opportunity,
+        evidence_revision=old.evidence_revision + 1,
+        evidence_contract_version=old.evidence_contract_version,
+        supersedes_evidence_id=old.evidence_id,
+        detected_at=old.detected_at,
+        evidence_at=old.evidence_at,
+        expires_at=old.expires_at,
+        source_type=EvidenceSource(old.source_type),
+        source_identity=old.source_identity,
+        source_manifest_id=old.source_manifest_id,
+        reference_bid=old.reference_bid,
+        reference_ask=old.reference_ask,
+        reference_received_at=old.reference_received_at,
+        reference_data_status=ReferenceDataStatus(old.reference_data_status),
+        evidence_payload=dict(old.evidence_payload),
+        feature_snapshot_payload=dict(old.feature_snapshot_payload),
+        created_at=old.created_at,
+    )
+
+
+async def _admitted_attempt_fixture(sessions, *, start_attempt: bool = True):
+    config = AdvisoryAdmissionConfig(
+        epoch=AdvisoryActivationEpoch("GATE_A_SHADOW", epoch_id="lock-race-epoch"),
+        config_version="lock-race-config",
+        configured_provider_id="fake-provider",
+        configured_model_id="fake-model",
+        deadline_duration_ms=30_000,
+        experiment_definition={
+            "placement": "C_TRADE_DECISION",
+            "family": "BREAKOUT_RETEST",
+            "version": "lock-race-fixture",
+        },
+    )
+    fence = AdvisoryDbFence(
+        effective_db_capacity=4,
+        protection_reserve=1,
+        session_factory=sessions,
+    )
+    fence.install_pool_listeners(sessions.kw["bind"].sync_engine)
+    facts = _facts()
+    authority = _live_authority()
+    result = await PostgresG2Repository(
+        sessions,
+        capture=_context(),
+        reference_quote_for=lambda _: _quote(),
+        forward_admission_verifier=authority.verifier(),
+        advisory_admission_writer=AdvisoryAdmissionWriter(config),
+        advisory_db_fence=fence,
+    ).persist(
+        facts["event"],
+        facts["timeline"],
+        facts["state"],
+        facts["transition"],
+        facts["candidates"],
+        facts["features"],
+        precondition_state=SymbolStateRecord(
+            instrument_id=facts["event"].instrument_id,
+            symbol=facts["event"].symbol,
+        ),
+        forward_admission_proof=_admitted(authority, facts["event"]),
+    )
+    assert result.advisory_work_ref is not None
+    attempt_id = None
+    if start_attempt:
+        attempt_id = await AdvisoryAttemptStarter(fence).start(result.advisory_work_ref)
+        assert attempt_id is not None
+    return fence, result.advisory_work_ref, attempt_id
+
+
+def _is_evidence_for_update(statement: str) -> bool:
+    normalized = statement.lower()
+    return "edge_opportunity_evidence" in normalized and "for update" in normalized
+
+
+async def _wait_for(event_to_wait: asyncio.Event) -> None:
+    await asyncio.wait_for(event_to_wait.wait(), timeout=5)
+
+
+async def _supersede_writer_first_lock_race(url: str) -> dict[str, object]:
+    """Use a real PostgreSQL row lock, pausing only after production acquired it."""
+
+    async with _sessions(url) as sessions:
+        fence, _ref, attempt_id = await _admitted_attempt_fixture(sessions)
+        async with sessions() as session:
+            old = (await session.scalars(select(EdgeOpportunityEvidenceRecord))).one()
+        revision = _next_evidence_revision(old)
+        predecessor_locked = asyncio.Event()
+        release_writer = asyncio.Event()
+        finalizer_lock_attempted = asyncio.Event()
+        loop = asyncio.get_running_loop()
+        engine = sessions.kw["bind"].sync_engine
+        writer_session = sessions()
+        original_scalar = writer_session.scalar
+
+        async def paused_scalar(statement, *args, **kwargs):
+            value = await original_scalar(statement, *args, **kwargs)
+            if (
+                not predecessor_locked.is_set()
+                and _is_evidence_for_update(str(statement))
+                and getattr(value, "evidence_id", None) == old.evidence_id
+            ):
+                predecessor_locked.set()
+                await release_writer.wait()
+            return value
+
+        writer_session.scalar = paused_scalar  # type: ignore[method-assign]
+
+        def observe_finalizer_lock(_connection, _cursor, statement, *_args) -> None:
+            if _is_evidence_for_update(statement):
+                loop.call_soon_threadsafe(finalizer_lock_attempted.set)
+
+        async def append_n_plus_one() -> str:
+            async with writer_session, writer_session.begin():
+                return await append_evidence_revision(writer_session, revision)
+
+        event.listen(engine, "before_cursor_execute", observe_finalizer_lock)
+        writer = asyncio.create_task(append_n_plus_one())
+        finalizer = None
+        try:
+            await _wait_for(predecessor_locked)
+            finalizer = asyncio.create_task(
+                AdvisoryFinalizer(fence).finalize(attempt_id, FakeProviderResult())
             )
+            await _wait_for(finalizer_lock_attempted)
+            assert not finalizer.done(), "finalizer must wait on the writer-held N row lock"
+            release_writer.set()
+            assert await writer == INSERTED
+            assert await finalizer is None
+        finally:
+            event.remove(engine, "before_cursor_execute", observe_finalizer_lock)
+            for task in (writer, finalizer):
+                if task is not None and not task.done():
+                    task.cancel()
+            await asyncio.gather(
+                *(task for task in (writer, finalizer) if task is not None),
+                return_exceptions=True,
+            )
+        async with sessions() as session:
+            invocation = (await session.scalars(select(AdvisoryDecisionInvocationRecord))).one()
+            return {
+                "writer": INSERTED,
+                "finalized": invocation.state == "FINAL",
+                "reason": invocation.final_reason_code,
+            }
+
+
+async def _finalizer_first_lock_race(url: str) -> dict[str, object]:
+    """Hold only Invocation so the finalizer demonstrably holds Evidence first."""
+
+    async with _sessions(url) as sessions:
+        fence, ref, attempt_id = await _admitted_attempt_fixture(sessions)
+        async with sessions() as session:
+            old = (await session.scalars(select(EdgeOpportunityEvidenceRecord))).one()
+        revision = _next_evidence_revision(old)
+        finalizer_evidence_locked = asyncio.Event()
+        finalizer_invocation_attempted = asyncio.Event()
+        writer_evidence_attempted = asyncio.Event()
+        loop = asyncio.get_running_loop()
+        engine = sessions.kw["bind"].sync_engine
+        phase = {"evidence_locked": False}
+
+        def observe_after_lock(_connection, _cursor, statement, *_args) -> None:
+            if not phase["evidence_locked"] and _is_evidence_for_update(statement):
+                phase["evidence_locked"] = True
+                loop.call_soon_threadsafe(finalizer_evidence_locked.set)
+
+        def observe_lock_attempt(_connection, _cursor, statement, *_args) -> None:
+            normalized = statement.lower()
+            if phase["evidence_locked"] and "advisory_decision_invocations" in normalized and "for update" in normalized:
+                loop.call_soon_threadsafe(finalizer_invocation_attempted.set)
+            elif phase["evidence_locked"] and _is_evidence_for_update(statement):
+                loop.call_soon_threadsafe(writer_evidence_attempted.set)
+
+        blocker = sessions()
+        await blocker.begin()
+        finalizer = None
+        writer = None
+        event.listen(engine, "after_cursor_execute", observe_after_lock)
+        event.listen(engine, "before_cursor_execute", observe_lock_attempt)
+        try:
+            assert await blocker.scalar(
+                select(AdvisoryDecisionInvocationRecord)
+                .where(AdvisoryDecisionInvocationRecord.decision_invocation_id == ref.decision_invocation_id)
+                .with_for_update()
+            ) is not None
+            finalizer = asyncio.create_task(
+                AdvisoryFinalizer(fence).finalize(attempt_id, FakeProviderResult())
+            )
+            await _wait_for(finalizer_evidence_locked)
+            await _wait_for(finalizer_invocation_attempted)
+            assert not finalizer.done(), "finalizer must wait on the separately held Invocation"
+
+            async def append_n_plus_one() -> str:
+                async with sessions() as session, session.begin():
+                    return await append_evidence_revision(session, revision)
+
+            writer = asyncio.create_task(append_n_plus_one())
+            await _wait_for(writer_evidence_attempted)
+            assert not writer.done(), "N+1 writer must wait on the finalizer-held Evidence"
+            await blocker.rollback()
+            assert await finalizer is None
+            assert await writer == INSERTED
+        finally:
+            event.remove(engine, "after_cursor_execute", observe_after_lock)
+            event.remove(engine, "before_cursor_execute", observe_lock_attempt)
+            if blocker.in_transaction():
+                await blocker.rollback()
+            await blocker.close()
+            for task in (finalizer, writer):
+                if task is not None and not task.done():
+                    task.cancel()
+            await asyncio.gather(
+                *(task for task in (finalizer, writer) if task is not None),
+                return_exceptions=True,
+            )
+        async with sessions() as session:
+            invocation = (await session.scalars(select(AdvisoryDecisionInvocationRecord))).one()
+            return {
+                "writer": INSERTED,
+                "finalized": invocation.state == "FINAL",
+                "reason": invocation.final_reason_code,
+                "evidence_revisions": await _count(session, EdgeOpportunityEvidenceRecord),
+            }
+
+
+async def _attempt_start_lock_order(url: str) -> bool:
+    async with _sessions(url) as sessions:
+        fence, ref, attempt_id = await _admitted_attempt_fixture(sessions, start_attempt=False)
+        assert attempt_id is None
+        engine = sessions.kw["bind"].sync_engine
+        loop = asyncio.get_running_loop()
+        evidence_locked = asyncio.Event()
+        invocation_attempted = asyncio.Event()
+        lock_order: list[str] = []
+        phase = {"evidence_locked": False}
+
+        def after_lock(_connection, _cursor, statement, *_args) -> None:
+            if not phase["evidence_locked"] and _is_evidence_for_update(statement):
+                phase["evidence_locked"] = True
+                lock_order.append("evidence")
+                loop.call_soon_threadsafe(evidence_locked.set)
+
+        def before_lock(_connection, _cursor, statement, *_args) -> None:
+            normalized = statement.lower()
+            if (
+                phase["evidence_locked"]
+                and "advisory_decision_invocations" in normalized
+                and "for update" in normalized
+            ):
+                lock_order.append("invocation")
+                loop.call_soon_threadsafe(invocation_attempted.set)
+
+        blocker = sessions()
+        await blocker.begin()
+        starter = None
+        event.listen(engine, "after_cursor_execute", after_lock)
+        event.listen(engine, "before_cursor_execute", before_lock)
+        try:
+            assert await blocker.scalar(
+                select(AdvisoryDecisionInvocationRecord)
+                .where(AdvisoryDecisionInvocationRecord.decision_invocation_id == ref.decision_invocation_id)
+                .with_for_update()
+            ) is not None
+            starter = asyncio.create_task(AdvisoryAttemptStarter(fence).start(ref))
+            await _wait_for(evidence_locked)
+            await _wait_for(invocation_attempted)
+            assert not starter.done(), "starter must wait after locking Evidence, before Invocation"
+            assert lock_order == ["evidence", "invocation"]
+            await blocker.rollback()
+            assert await starter is not None
+            return True
+        finally:
+            event.remove(engine, "after_cursor_execute", after_lock)
+            event.remove(engine, "before_cursor_execute", before_lock)
+            if blocker.in_transaction():
+                await blocker.rollback()
+            await blocker.close()
+            if starter is not None and not starter.done():
+                starter.cancel()
+                await asyncio.gather(starter, return_exceptions=True)
+
+
+async def _recovery_lock_order(url: str) -> bool:
+    async with _sessions(url) as sessions:
+        fence, ref, attempt_id = await _admitted_attempt_fixture(sessions)
+        assert attempt_id is not None
+        engine = sessions.kw["bind"].sync_engine
+        loop = asyncio.get_running_loop()
+        evidence_locked = asyncio.Event()
+        invocation_attempted = asyncio.Event()
+        attempt_lock_attempted = asyncio.Event()
+        lock_order: list[str] = []
+        phase = {"evidence_locked": False}
+
+        def after_lock(_connection, _cursor, statement, *_args) -> None:
+            if not phase["evidence_locked"] and _is_evidence_for_update(statement):
+                phase["evidence_locked"] = True
+                lock_order.append("evidence")
+                loop.call_soon_threadsafe(evidence_locked.set)
+
+        def before_lock(_connection, _cursor, statement, *_args) -> None:
+            normalized = statement.lower()
+            if (
+                phase["evidence_locked"]
+                and "advisory_decision_invocations" in normalized
+                and "for update" in normalized
+            ):
+                lock_order.append("invocation")
+                loop.call_soon_threadsafe(invocation_attempted.set)
+            elif (
+                phase["evidence_locked"]
+                and "advisory_decision_attempts" in normalized
+                and "for update" in normalized
+            ):
+                lock_order.append("attempt")
+                loop.call_soon_threadsafe(attempt_lock_attempted.set)
+
+        blocker = sessions()
+        await blocker.begin()
+        recovery = None
+        event.listen(engine, "after_cursor_execute", after_lock)
+        event.listen(engine, "before_cursor_execute", before_lock)
+        try:
+            assert await blocker.scalar(
+                select(AdvisoryDecisionInvocationRecord)
+                .where(AdvisoryDecisionInvocationRecord.decision_invocation_id == ref.decision_invocation_id)
+                .with_for_update()
+            ) is not None
+            recovery = asyncio.create_task(
+                AdvisoryFinalizer(fence).process_lost(attempt_id, retry_allowed=False)
+            )
+            await _wait_for(evidence_locked)
+            await _wait_for(invocation_attempted)
+            assert not recovery.done(), "recovery must wait after Evidence, before Invocation"
+            assert lock_order == ["evidence", "invocation"]
+            await blocker.rollback()
+            await _wait_for(attempt_lock_attempted)
+            assert lock_order == ["evidence", "invocation", "attempt"]
+            assert await recovery
+            return True
+        finally:
+            event.remove(engine, "after_cursor_execute", after_lock)
+            event.remove(engine, "before_cursor_execute", before_lock)
+            if blocker.in_transaction():
+                await blocker.rollback()
+            await blocker.close()
+            if recovery is not None and not recovery.done():
+                recovery.cancel()
+                await asyncio.gather(recovery, return_exceptions=True)
+
+
+async def _initial_queue_full_scenario(url: str) -> dict[str, object]:
+    async with _sessions(url) as sessions:
+        fence, ref, attempt_id = await _admitted_attempt_fixture(sessions, start_attempt=False)
+        assert attempt_id is None
+        ingress = AdvisoryIngress(fence, queue_capacity=1)
+        assert await ingress.post_commit_offer(AdvisoryWorkRef("occupied", ref.decision_deadline_at))
+        rejected = not await ingress.post_commit_offer(ref)
+        terminalized = await ingress.terminalize_queue_rejection(ref)
+        async with sessions() as session:
+            invocation = (await session.scalars(select(AdvisoryDecisionInvocationRecord))).one()
+            return {
+                "rejected": rejected,
+                "terminalized": terminalized,
+                "state": invocation.state,
+                "reason": invocation.final_reason_code,
+                "final_attempt_is_null": invocation.final_attempt_id is None,
+                "protection_held": fence._protection_held,
+            }
+
+
+async def _recovery_queue_full_scenario(url: str) -> dict[str, object]:
+    async with _sessions(url) as sessions:
+        fence, ref, attempt_id = await _admitted_attempt_fixture(sessions)
+        assert attempt_id is not None
+        ingress = AdvisoryIngress(fence, queue_capacity=1)
+        assert await ingress.post_commit_offer(AdvisoryWorkRef("occupied", ref.decision_deadline_at))
+        recovered = await AdvisoryRecovery(fence, AdvisoryFinalizer(fence)).recover_process_lost(
+            retry_allowed=True,
+            reoffer=ingress.post_commit_offer,
         )
+        async with sessions() as session:
+            invocation = (await session.scalars(select(AdvisoryDecisionInvocationRecord))).one()
+            attempt = (await session.scalars(select(AdvisoryDecisionAttemptRecord))).one()
+            return {
+                "recovered": recovered,
+                "attempt_state": attempt.attempt_state,
+                "state": invocation.state,
+                "reason": invocation.final_reason_code,
+                "final_attempt_is_null": invocation.final_attempt_id is None,
+                "protection_held": fence._protection_held,
+            }
+
+
+async def _queue_terminal_capacity_unavailable_scenario(url: str) -> dict[str, object]:
+    async with _sessions(url) as sessions:
+        fence, ref, attempt_id = await _admitted_attempt_fixture(sessions)
+        assert attempt_id is not None
+        all_holders_ready = asyncio.Event()
+        release_holders = asyncio.Event()
+        ready_count = 0
+
+        async def hold_advisory_capacity() -> None:
+            nonlocal ready_count
+            async with fence.transaction():
+                ready_count += 1
+                if ready_count == fence.capacity:
+                    all_holders_ready.set()
+                await release_holders.wait()
+
+        holders = [asyncio.create_task(hold_advisory_capacity()) for _ in range(fence.capacity)]
+        try:
+            await _wait_for(all_holders_ready)
+            ingress = AdvisoryIngress(fence, queue_capacity=1)
+            assert await ingress.post_commit_offer(
+                AdvisoryWorkRef("occupied", ref.decision_deadline_at)
+            )
+            rejected = not await ingress.post_commit_offer(ref)
+            terminalized = await ingress.terminalize_queue_rejection(ref)
+        finally:
+            release_holders.set()
+            await asyncio.gather(*holders)
+        async with sessions() as session:
+            invocation = (await session.scalars(select(AdvisoryDecisionInvocationRecord))).one()
+            return {
+                "rejected": rejected,
+                "terminalized": terminalized,
+                "state": invocation.state,
+                "finalized": invocation.finalized_at is not None,
+                "protection_held": fence._protection_held,
+            }
 
 
 async def _disabled_g2_caller_scenario(url: str) -> dict[str, object]:

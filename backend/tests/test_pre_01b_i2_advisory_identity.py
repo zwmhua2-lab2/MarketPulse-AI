@@ -16,6 +16,7 @@ Covers the D2 acceptance criteria that are decidable without a database:
 from __future__ import annotations
 
 import ast
+import asyncio
 from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
 
@@ -41,6 +42,7 @@ from marketpulse.advisory.identity import (
     snapshot_payload_hash,
     treatment_arm_id,
 )
+from marketpulse.advisory.ingress import AdvisoryIngress
 from marketpulse.advisory.vocabulary import (
     ACTIVATION_DISABLED,
     ADMISSION_STATES,
@@ -58,6 +60,7 @@ from marketpulse.advisory.vocabulary import (
     TREATMENT_ARM_LABEL,
 )
 from marketpulse.edge.hashing import canonical_digest
+from marketpulse.g2.models import AdvisoryWorkRef
 
 START = datetime(2026, 9, 17, 2, 14, 42, 123456, tzinfo=UTC)
 DEADLINE = START + timedelta(seconds=30)
@@ -141,6 +144,24 @@ def test_db_fence_is_immediate_bounded_and_never_consumes_protection_reserve():
         "uncertain": 0,
         "closed": False,
     }
+
+
+def test_post_commit_offer_is_queue_only_when_full_and_never_acquires_a_db_lease():
+    async def scenario() -> None:
+        # No session factory is deliberately configured: any DB/session path would
+        # fail this test.  A full offer reports only the immediate queue result.
+        fence = AdvisoryDbFence(effective_db_capacity=3, protection_reserve=1)
+        ingress = AdvisoryIngress(fence, queue_capacity=1)
+        first = AdvisoryWorkRef("invocation-1", DEADLINE)
+        rejected = AdvisoryWorkRef("invocation-2", DEADLINE)
+
+        assert await ingress.post_commit_offer(first)
+        before = fence.snapshot()
+        assert not await ingress.post_commit_offer(rejected)
+        assert ingress.take_nowait() == first
+        assert fence.snapshot() == before
+
+    asyncio.run(scenario())
 
 
 def _lease_key(fence: AdvisoryDbFence, generation: int = 1) -> AdvisoryCheckoutKey:
