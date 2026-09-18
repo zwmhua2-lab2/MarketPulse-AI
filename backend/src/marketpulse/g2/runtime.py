@@ -268,8 +268,12 @@ class EventRuntime:
         if persisted:
             self.state_manager.commit(state)
             work_ref = getattr(persist_result, "advisory_work_ref", None)
-            if work_ref is not None and self._advisory_ingress is not None:
-                await self._advisory_ingress.post_commit_offer(work_ref)
+            if (
+                work_ref is not None
+                and self._advisory_ingress is not None
+                and not await self._advisory_ingress.post_commit_offer(work_ref)
+            ):
+                await self._advisory_ingress.terminalize_queue_rejection(work_ref)
         else:
             state = self.state_manager.snapshot_for(event.instrument_id, event.symbol)
         return ApplyOutcome(
@@ -316,8 +320,12 @@ class EventRuntime:
                 self.state_manager.commit(state)
                 self._remember_deduped(event.event_id)
                 work_ref = getattr(persist_result, "advisory_work_ref", None)
-                if work_ref is not None and self._advisory_ingress is not None:
-                    await self._advisory_ingress.post_commit_offer(work_ref)
+                if (
+                    work_ref is not None
+                    and self._advisory_ingress is not None
+                    and not await self._advisory_ingress.post_commit_offer(work_ref)
+                ):
+                    await self._advisory_ingress.terminalize_queue_rejection(work_ref)
             else:
                 state = self.state_manager.snapshot_for(event.instrument_id, event.symbol)
             return ApplyOutcome(

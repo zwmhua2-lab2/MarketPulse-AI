@@ -2,6 +2,8 @@
 
 ## Current Group
 
+PRE-01B-I2 — Advisory durable slice — IMPLEMENTING（`PRE-01B-I2-RESUME-01-INTEGRATE-05`：已在 latest accepted main `08b6c5d` 上重建 integrated-v5，P1-01 lock serialization 与 P1-02 queue / reserve boundary 的已验证修复已重放并完成 combined-tree 验证；本提交为 v5 Repair Checkpoint；Implementation Completion Marker = `NOT READY`；Ready For Independent Review = `NO`；Human Acceptance = `NOT PERFORMED`；Real AI / Gate A-B-C / live G2→G3 / Live 均未激活。）
+
 SE-02A — Contracts + Additive Persistence — ACCEPTED / COMPLETE
 
 SE-02B — Opportunity Capture + Attribution — ACCEPTED / COMPLETE

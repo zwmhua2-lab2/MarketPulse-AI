@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Awaitable, Callable
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Any
 
 from sqlalchemy import func, select, update
@@ -43,14 +43,12 @@ from .vocabulary import (
     ADMISSION_UNSTAGED,
     ADVISORY_SEED_DIGEST_DOMAIN,
     ADVISORY_SEED_VERSION,
-    FINAL_STATUS_CAPACITY_BLOCKED,
     INVOCATION_ADMITTED,
-    INVOCATION_FINAL,
     PARTICIPATION_NO_LONG_UNBOUND,
     PARTICIPATION_PARTICIPATE_LONG,
     REASON_ADMISSION_STAGING_FAILED_UNBOUND,
-    REASON_ADVISORY_QUEUE_REJECTED,
 )
+from .worker import AdvisoryFinalizer
 
 
 class AdvisoryAdmissionError(RuntimeError):
@@ -334,14 +332,18 @@ class AdvisoryIngress:
         return self._queue.get_nowait()
 
     async def post_commit_offer(self, ref: AdvisoryWorkRef) -> bool:
-        """Offer without waiting; a full queue durably rejects only this Invocation."""
+        """Offer one committed ref without DB work, waiting, or capacity acquisition."""
 
         try:
             self._queue.put_nowait(ref)
         except asyncio.QueueFull:
-            await self._terminalize_queue_rejection(ref.decision_invocation_id)
             return False
         return True
+
+    async def terminalize_queue_rejection(self, ref: AdvisoryWorkRef) -> bool:
+        """Explicit bounded terminal step after a rejected queue offer."""
+
+        return await AdvisoryFinalizer(self._fence).terminalize_queue_rejection(ref)
 
     async def consume_one(
         self, consume: Callable[[AdvisoryWorkRef], Awaitable[AdvisoryWorkRef | None]]
@@ -354,35 +356,10 @@ class AdvisoryIngress:
             return False
         try:
             retry_ref = await consume(ref)
-            if retry_ref is not None:
-                await self.post_commit_offer(retry_ref)
+            if retry_ref is not None and not await self.post_commit_offer(retry_ref):
+                await self.terminalize_queue_rejection(retry_ref)
             return True
         finally:
             self._queue.task_done()
-
-    async def _terminalize_queue_rejection(self, decision_invocation_id: str) -> None:
-        async with self._fence.protection_transaction() as session:
-            invocation = await session.scalar(
-                select(AdvisoryDecisionInvocationRecord)
-                .where(
-                    AdvisoryDecisionInvocationRecord.decision_invocation_id
-                    == decision_invocation_id
-                )
-                .with_for_update()
-            )
-            if invocation is None:
-                raise AdvisoryAdmissionError("committed Advisory invocation is missing")
-            if invocation.state == INVOCATION_FINAL:
-                return
-            finalized_at = await session.scalar(select(func.clock_timestamp()))
-            if not isinstance(finalized_at, datetime):
-                raise AdvisoryAdmissionError("PostgreSQL finalization clock is unavailable")
-            invocation.state = INVOCATION_FINAL
-            invocation.final_status = FINAL_STATUS_CAPACITY_BLOCKED
-            invocation.final_reason_code = REASON_ADVISORY_QUEUE_REJECTED
-            invocation.finalized_at = finalized_at
-            invocation.final_attempt_id = None
-            invocation.final_decision_id = None
-            invocation.updated_at = finalized_at
 
 __all__ = ["AdvisoryAdmissionError", "AdvisoryAdmissionWriter", "AdvisoryIngress"]
