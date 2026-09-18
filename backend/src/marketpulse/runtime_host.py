@@ -64,6 +64,8 @@ import anyio.lowlevel
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from marketpulse.advisory.contracts import AdvisoryActivationEpoch, AdvisoryConfigurationError
+from marketpulse.advisory.fence import AdvisoryDbFence
 from marketpulse.clock import Clock, SystemClock
 from marketpulse.config import Settings
 from marketpulse.db.models import PaperOrderRecord, PositionRecord, TradePlanRecord
@@ -288,6 +290,7 @@ class HostDependencies:
     lock_database: DatabaseResources | None = None
     clock: Clock | None = None
     health: HealthRegistry | None = None
+    advisory_db_fence: AdvisoryDbFence | None = None
 
 
 @dataclass
@@ -941,6 +944,15 @@ class RuntimeHost:
             raise HostConfigurationError("REPLAY_IS_NOT_A_RUNTIME_HOST_MODE")
         if self.run_mode is RunMode.TEST and self.dependencies is None:
             raise HostConfigurationError("HOST_TEST_REQUIRES_INJECTED_DEPENDENCIES")
+        try:
+            advisory_epoch = AdvisoryActivationEpoch(settings.advisory_activation_level)
+        except AdvisoryConfigurationError as exc:
+            raise HostConfigurationError(f"invalid_advisory_activation:{exc}") from exc
+        if advisory_epoch.disabled_evidence_classification is None:
+            # I2 has an injectable, fake-provider-tested Gate-A persistence seam,
+            # but no authorised production activation configuration. Refuse a
+            # mutable setting rather than silently constructing partial resources.
+            raise HostConfigurationError("ADVISORY_GATE_A_REQUIRES_SEPARATE_ACTIVATION")
         if not self.instruments:
             raise HostConfigurationError("NO_INSTRUMENTS_CONFIGURED")
         missing_v1 = sorted(set(V1_REQUIRED_INSTRUMENTS) - set(self.instruments))
@@ -1003,6 +1015,12 @@ class RuntimeHost:
             )
             self._owns_database = True
         self._sessions = self._db.session_factory
+        fence = self.dependencies.advisory_db_fence if self.dependencies is not None else None
+        if fence is not None:
+            # The Host owns this composition point and reuses its sole primary engine.
+            # DISABLED production does not invent a Pack-B fence; test/approved active
+            # composition supplies the already-constructed authority explicitly.
+            fence.install_pool_listeners(self._db.engine.sync_engine)
 
     @property
     def database_application_name(self) -> str:
@@ -1091,7 +1109,11 @@ class RuntimeHost:
     def _compose_services(self) -> None:
         assert self._sessions is not None
         sessions = self._sessions
-        self._g2_repository = PostgresG2Repository(sessions)
+        advisory_epoch = AdvisoryActivationEpoch(self.settings.advisory_activation_level)
+        self._g2_repository = PostgresG2Repository(
+            sessions,
+            advisory_admission_state=advisory_epoch.disabled_evidence_classification,
+        )
         self._event_runtime = EventRuntime(self._g2_repository)
         self._pipeline = ScannerPipeline(OpportunityScanner(), self._event_runtime)
         self._state_service = SystemStateService(sessions, clock=self.clock)
