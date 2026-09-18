@@ -26,6 +26,7 @@ from .cursor import (
     incident_filter_fingerprint,
 )
 from .models import (
+    PRODUCT_READ_CONTRACT_VERSION,
     AIActivationDTO,
     DatabaseSingletonDTO,
     HealthCheckDTO,
@@ -40,7 +41,8 @@ from .models import (
     OperationalAvailability,
     OperationalContextDTO,
     OperatorSystemStateDTO,
-    ProductFailureResponse,
+    ProductInternalErrorResponse,
+    ProductUnavailableResponse,
     ProjectionMetaDTO,
     ProjectionState,
     ProviderDTO,
@@ -155,12 +157,6 @@ async def _incident_page(
 ) -> _IncidentRead:
     """Read the current run-mode incident page; ``None`` page represents a source failure."""
     assert context.host is not None
-    sessions = context.sessions
-    # The DB source owns its own snapshot instant: the moment this query read began. It is not
-    # the Host snapshot and is not derived from when the DTO happens to be constructed.
-    query_snapshot_at = _now()
-    if sessions is None:
-        return _IncidentRead(page=None, next_cursor=None, snapshot_at=query_snapshot_at)
     fingerprint = incident_filter_fingerprint(
         incident_status=None if incident_status is None else incident_status.value,
         incident_type=None if incident_type is None else incident_type.value,
@@ -174,6 +170,12 @@ async def _incident_page(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="invalid product incident cursor",
             ) from exc
+    sessions = context.sessions
+    # The DB source owns its own snapshot instant: the moment this query read began. It is not
+    # the Host snapshot and is not derived from when the DTO happens to be constructed.
+    query_snapshot_at = _now()
+    if sessions is None:
+        return _IncidentRead(page=None, next_cursor=None, snapshot_at=query_snapshot_at)
     statement = select(IncidentRecord).where(IncidentRecord.run_mode == context.host.run_mode.value)
     if incident_status is not None:
         statement = statement.where(IncidentRecord.status == incident_status.value)
@@ -229,20 +231,28 @@ async def _incident_page(
     )
 
 
-def _product_failure_response(
-    *,
-    status_code: int,
-    reason: ReadFailureReason | None,
-    correlation_id: str,
+def _product_unavailable_response(
+    *, reason: ReadFailureReason, correlation_id: str
 ) -> JSONResponse:
-    """The frozen Product failure body. It deliberately has no diagnostic free-text field."""
-    body = ProductFailureResponse(
+    """The formal ``503`` body requires an authoritative failure classification."""
+    body = ProductUnavailableResponse(
         projection=PROJECTION,
+        contract_version=PRODUCT_READ_CONTRACT_VERSION,
         read_surface_class=ReadSurfaceClass.A,
         read_failure_reason=reason,
         correlation_id=correlation_id,
     )
-    return JSONResponse(status_code=status_code, content=body.model_dump(mode="json"))
+    return JSONResponse(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE, content=body.model_dump(mode="json")
+    )
+
+
+def _product_internal_error_response(*, correlation_id: str) -> JSONResponse:
+    """The frozen ``500`` body must contain only the correlation id."""
+    body = ProductInternalErrorResponse(correlation_id=correlation_id)
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content=body.model_dump(mode="json")
+    )
 
 
 def _product_snapshot_failure(*, exc: BaseException | None) -> JSONResponse:
@@ -254,10 +264,8 @@ def _product_snapshot_failure(*, exc: BaseException | None) -> JSONResponse:
         correlation_id,
         exc_info=exc,
     )
-    return _product_failure_response(
-        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-        reason=ReadFailureReason.SNAPSHOT_FAILED,
-        correlation_id=correlation_id,
+    return _product_unavailable_response(
+        reason=ReadFailureReason.SNAPSHOT_FAILED, correlation_id=correlation_id
     )
 
 
@@ -266,14 +274,14 @@ def _product_snapshot_failure(*, exc: BaseException | None) -> JSONResponse:
     response_model=SystemIncidentReadResponse,
     responses={
         status.HTTP_503_SERVICE_UNAVAILABLE: {
-            "model": ProductFailureResponse,
+            "model": ProductUnavailableResponse,
             "description": (
                 "Endpoint-wide Product read failure. `read_failure_reason` keeps the frozen "
                 "distinction between SOURCE_UNAVAILABLE and SNAPSHOT_FAILED."
             ),
         },
         status.HTTP_500_INTERNAL_SERVER_ERROR: {
-            "model": ProductFailureResponse,
+            "model": ProductInternalErrorResponse,
             "description": (
                 "Unclassified internal failure. Carries a sanitized correlation id only: no "
                 "traceback, exception message, SQL, DSN or provider/secret detail."
@@ -316,11 +324,7 @@ async def system_incident_read(
             PROJECTION,
             correlation_id,
         )
-        return _product_failure_response(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            reason=None,
-            correlation_id=correlation_id,
-        )
+        return _product_internal_error_response(correlation_id=correlation_id)
 
 
 async def _read_system_projection(

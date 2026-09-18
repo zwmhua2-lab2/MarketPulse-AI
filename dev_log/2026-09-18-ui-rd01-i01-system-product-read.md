@@ -115,6 +115,13 @@
 - **Independent Re-Review pending；Human Acceptance pending；`main` integration forbidden。**
 - 非阻塞观察（既有行为，未在本 fix 范围内改动）：`system.py` 中 `HTTP_422_UNPROCESSABLE_ENTITY` 常量触发 Starlette 弃用告警；`_source()` 现仅由 `_section()` 调用。
 
+## UI-RD01-I01-FIX-02｜Independent Re-Review Finding Closure
+
+- Reviewed Candidate：`99e59b06135ef92cb690edb761ddbc4650c2fb78`；Task Base / remote `main`：`2cabc7311e041566011be59fb139cac9a082fe24`。
+- Closed `RR2-P1-01`：503 uses required `ProductUnavailableResponse` including `read_failure_reason`; snapshot failure = `503 SNAPSHOT_FAILED`. Closed `RR2-P2-01`：500 uses `ProductInternalErrorResponse` with only `correlation_id`. Closed `RR2-P1-02`：cursor validation precedes session availability; `sessions=None` malformed/mismatch = 422, valid/no cursor remains partial 200 `SOURCE_UNAVAILABLE`.
+- Verification：focused `21 passed, 3 warnings`; ruff PASS; generate/drift/typecheck/frontend `44` tests/build PASS; exclusive-window full backend `$env:PYTHONPATH='backend/src'; py -3.14 -m pytest backend/tests -q` = **`706 passed, 3 warnings, exit 0, 637.22s`** (outer `640.896s`); `DATABASE_URL` UNSET; DB current/heads = `20260913_0009`; `git diff --check` PASS.
+- Scope integrity：only allowed Product models/system/tests, generated API and state/dev-log changed; RuntimeHost, migrations/schema/index/manifests, I02-I05 and main = ZERO CHANGE. Result：**`UI-RD01-I01-FIX-02 = IMPLEMENTED / READY FOR INDEPENDENT RE-REVIEW`**；Independent Re-Review / Human Acceptance pending；main integration forbidden。
+
 ### Evidence
 
 - Parent（Reviewed Candidate）：`2b47b8fae7c47e53f73bfe3a7e75884bb615d221`；Task Base / `origin/main`：`2cabc7311e041566011be59fb139cac9a082fe24`（提交前复读，未变）。

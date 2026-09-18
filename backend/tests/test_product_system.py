@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import FrozenInstanceError, dataclass, replace
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any, Self, cast
 
 import marketpulse.api.app as app_module
@@ -323,6 +324,31 @@ def test_product_system_cursor_filter_mismatch_is_422(active_product_host: Runti
     ] == ["incident-a"]
 
 
+def test_product_system_prevalidates_cursor_before_unavailable_incident_source(
+    active_product_host: RuntimeHost,
+) -> None:
+    """Cursor validity is a request contract, not contingent on the borrowed DB source."""
+    client = TestClient(app_module.app)
+    headers = _headers(client)
+    first = _product_system(client, headers, "limit=2")
+    cursor = first.json()["meta"]["next_cursor"]
+    assert cursor
+
+    active_product_host._sessions = None
+    malformed = _product_system(client, headers, "cursor=not-a-product-cursor")
+    assert malformed.status_code == 422
+    mismatched = _product_system(
+        client, headers, f"incident_type={UNSEEDED_INCIDENT_TYPE}&cursor={cursor}"
+    )
+    assert mismatched.status_code == 422
+
+    for query in ("", f"cursor={cursor}"):
+        partial = _product_system(client, headers, query)
+        assert partial.status_code == 200
+        assert partial.json()["meta"]["is_partial"] is True
+        assert partial.json()["data"]["incidents"]["read_failure_reason"] == "SOURCE_UNAVAILABLE"
+
+
 def test_product_system_empty_incidents_and_section_local_database_failure(
     active_product_host: RuntimeHost,
 ) -> None:
@@ -377,6 +403,13 @@ def test_product_system_snapshot_acquisition_failure_is_formal_503_snapshot_fail
         failed = client.get("/api/v1/product/system", headers=headers)
     assert failed.status_code == 503
     body = failed.json()
+    assert set(body) == {
+        "projection",
+        "contract_version",
+        "read_surface_class",
+        "read_failure_reason",
+        "correlation_id",
+    }
     assert body["read_failure_reason"] == "SNAPSHOT_FAILED"
     assert body["projection"] == "SystemIncidentRead"
     assert body["read_surface_class"] == "A"
@@ -485,14 +518,7 @@ def test_product_system_unclassified_failure_is_a_sanitized_500(
 
     assert response.status_code == 500
     body = response.json()
-    assert set(body) == {
-        "projection",
-        "contract_version",
-        "read_surface_class",
-        "read_failure_reason",
-        "correlation_id",
-    }
-    assert body["read_failure_reason"] is None
+    assert set(body) == {"correlation_id"}
     correlation_id = body["correlation_id"]
     assert correlation_id and correlation_id.isalnum() and len(correlation_id) >= 16
     assert correlation_id in caplog.text
@@ -579,22 +605,43 @@ def test_product_system_openapi_declares_enum_filters_and_formal_failures() -> N
     responses = operation["responses"]
     assert "503" in responses
     assert "500" in responses
-    for code in ("503", "500"):
-        content = responses[code]["content"]["application/json"]["schema"]
-        assert content["$ref"] == "#/components/schemas/ProductFailureResponse"
-    failure = schemas["ProductFailureResponse"]
-    assert set(failure["required"]) == {"projection", "read_surface_class", "correlation_id"}
-    assert set(failure["properties"]) == {
+    unavailable_content = responses["503"]["content"]["application/json"]["schema"]
+    assert unavailable_content["$ref"] == "#/components/schemas/ProductUnavailableResponse"
+    unavailable = schemas["ProductUnavailableResponse"]
+    assert set(unavailable["required"]) == {
         "projection",
         "contract_version",
         "read_surface_class",
         "read_failure_reason",
         "correlation_id",
     }
+    assert unavailable["properties"]["read_failure_reason"] == {
+        "$ref": "#/components/schemas/ReadFailureReason"
+    }
+    internal_content = responses["500"]["content"]["application/json"]["schema"]
+    assert internal_content["$ref"] == "#/components/schemas/ProductInternalErrorResponse"
+    assert schemas["ProductInternalErrorResponse"] == {
+        "type": "object",
+        "title": "ProductInternalErrorResponse",
+        "description": "Frozen ``500`` body: no product or diagnostic detail leaves the process.",
+        "properties": {"correlation_id": {"type": "string", "title": "Correlation Id"}},
+        "required": ["correlation_id"],
+    }
     assert set(schemas["ReadFailureReason"]["enum"]) == {
         "SOURCE_UNAVAILABLE",
         "SNAPSHOT_FAILED",
     }
+
+
+def test_product_system_generated_types_keep_503_required_and_500_minimal() -> None:
+    generated = (Path(__file__).parents[2] / "frontend" / "src" / "api" / "generated.ts").read_text(
+        encoding="utf-8"
+    )
+    assert 'ProductUnavailableResponse: {' in generated
+    assert 'read_failure_reason: components["schemas"]["ReadFailureReason"];' in generated
+    assert 'ProductInternalErrorResponse: {' in generated
+    assert '"application/json": components["schemas"]["ProductUnavailableResponse"];' in generated
+    assert '"application/json": components["schemas"]["ProductInternalErrorResponse"];' in generated
 
 
 def test_recovery_snapshot_is_published_after_report_and_is_immutable() -> None:

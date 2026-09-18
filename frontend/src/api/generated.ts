@@ -378,25 +378,25 @@ export interface components {
             system_state: string | null;
         };
         /**
-         * ProductFailureResponse
-         * @description Formal sanitized body for an endpoint-wide Product read failure.
-         *
-         *     Frozen by UI-RD01 §18: a ``503`` preserves the distinction between
-         *     ``SOURCE_UNAVAILABLE`` and ``SNAPSHOT_FAILED``, and an unclassified ``500`` carries only a
-         *     sanitized correlation id. No traceback, exception message, SQL, DSN, provider detail or
-         *     secret may reach this body, so it deliberately has no free-text diagnostic field.
+         * ProductInternalErrorResponse
+         * @description Frozen ``500`` body: no product or diagnostic detail leaves the process.
          */
-        ProductFailureResponse: {
-            /**
-             * Contract Version
-             * @default ui-rd01-product-read-v1
-             */
+        ProductInternalErrorResponse: {
+            /** Correlation Id */
+            correlation_id: string;
+        };
+        /**
+         * ProductUnavailableResponse
+         * @description Formal ``503`` body for an endpoint-wide Product snapshot failure.
+         */
+        ProductUnavailableResponse: {
+            /** Contract Version */
             contract_version: string;
             /** Correlation Id */
             correlation_id: string;
             /** Projection */
             projection: string;
-            read_failure_reason?: components["schemas"]["ReadFailureReason"] | null;
+            read_failure_reason: components["schemas"]["ReadFailureReason"];
             read_surface_class: components["schemas"]["ReadSurfaceClass"];
         };
         /** ProjectionMetaDTO */
@@ -913,7 +913,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ProductFailureResponse"];
+                    "application/json": components["schemas"]["ProductInternalErrorResponse"];
                 };
             };
             /** @description Endpoint-wide Product read failure. `read_failure_reason` keeps the frozen distinction between SOURCE_UNAVAILABLE and SNAPSHOT_FAILED. */
@@ -922,7 +922,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ProductFailureResponse"];
+                    "application/json": components["schemas"]["ProductUnavailableResponse"];
                 };
             };
         };

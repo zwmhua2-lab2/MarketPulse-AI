@@ -274,17 +274,17 @@ class SystemIncidentReadResponse(BaseModel):
     data: SystemIncidentDataDTO | None
 
 
-class ProductFailureResponse(BaseModel):
-    """Formal sanitized body for an endpoint-wide Product read failure.
-
-    Frozen by UI-RD01 §18: a ``503`` preserves the distinction between
-    ``SOURCE_UNAVAILABLE`` and ``SNAPSHOT_FAILED``, and an unclassified ``500`` carries only a
-    sanitized correlation id. No traceback, exception message, SQL, DSN, provider detail or
-    secret may reach this body, so it deliberately has no free-text diagnostic field.
-    """
+class ProductUnavailableResponse(BaseModel):
+    """Formal ``503`` body for an endpoint-wide Product snapshot failure."""
 
     projection: str
-    contract_version: str = PRODUCT_READ_CONTRACT_VERSION
+    contract_version: str
     read_surface_class: ReadSurfaceClass
-    read_failure_reason: ReadFailureReason | None = None
+    read_failure_reason: ReadFailureReason
+    correlation_id: str
+
+
+class ProductInternalErrorResponse(BaseModel):
+    """Frozen ``500`` body: no product or diagnostic detail leaves the process."""
+
     correlation_id: str
