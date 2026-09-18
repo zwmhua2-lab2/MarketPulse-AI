@@ -1117,6 +1117,7 @@ async def capture_opportunity(
     context: EdgeCaptureContext,
     reference_quote: ReferenceQuote | None = None,
     expected_evidence_hash: str | None = None,
+    advisory_admission_state: str | None = None,
 ) -> str | None:
     """Persist the qualifying opportunity through the accepted append-only writer.
 
@@ -1154,4 +1155,8 @@ async def capture_opportunity(
     )
     if expected_evidence_hash is not None and revision.evidence_hash != expected_evidence_hash:
         raise ValueError("formal evidence hash differs from the durable capture anchor")
-    return await append_evidence_revision(session, revision)
+    return await append_evidence_revision(
+        session,
+        revision,
+        advisory_admission_state=advisory_admission_state,
+    )
