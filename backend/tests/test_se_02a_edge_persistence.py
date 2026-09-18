@@ -7,6 +7,7 @@ forward-outcome calculator and no G2/G3/G4/G5 integration is exercised here.
 """
 
 import asyncio
+import os
 from contextlib import asynccontextmanager, contextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -53,6 +54,7 @@ from marketpulse.edge.repository import (
     record_bbo_observation,
 )
 from marketpulse.market_data.models import DataQuality, MarketType
+from sqlalchemy import event as sqlalchemy_event
 from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -68,7 +70,7 @@ PREVIOUS_REVISION = "20260905_0004"
 # then FIX-02 outcome revision scope at `20260913_0009`. SE-02A's four evidence
 # tables are unchanged: this cycle still walks head -> 0004 -> head and requires
 # those tables at head and their absence at 0004.
-HEAD_REVISION = "20260913_0009"
+HEAD_REVISION = "20260917_0010"
 EDGE_TABLES = frozenset(
     {
         "edge_opportunity_evidence",
@@ -98,8 +100,13 @@ async def _execute(url: str, statement: str) -> None:
 
 
 @asynccontextmanager
-async def _session(url: str):
+async def _session(url: str, *, statement_log: list[str] | None = None):
     engine = create_async_engine(url, poolclass=NullPool)
+    if statement_log is not None:
+        def record_statement(*args) -> None:
+            statement_log.append(str(args[2]))
+
+        sqlalchemy_event.listen(engine.sync_engine, "before_cursor_execute", record_statement)
     factory = async_sessionmaker(engine, expire_on_commit=False)
     try:
         async with factory() as session:
@@ -117,11 +124,21 @@ def _alembic_config(url: str) -> Config:
 
 
 def _upgrade(url: str, revision: str) -> None:
-    command.upgrade(_alembic_config(url), revision)
+    inherited_database_url = os.environ.pop("DATABASE_URL", None)
+    try:
+        command.upgrade(_alembic_config(url), revision)
+    finally:
+        if inherited_database_url is not None:
+            os.environ["DATABASE_URL"] = inherited_database_url
 
 
 def _downgrade(url: str, revision: str) -> None:
-    command.downgrade(_alembic_config(url), revision)
+    inherited_database_url = os.environ.pop("DATABASE_URL", None)
+    try:
+        command.downgrade(_alembic_config(url), revision)
+    finally:
+        if inherited_database_url is not None:
+            os.environ["DATABASE_URL"] = inherited_database_url
 
 
 @contextmanager
@@ -450,6 +467,55 @@ def test_first_evidence_revision_is_persisted_with_its_full_provenance():
         assert row.reference_data_status == "OK"
         assert row.evidence_payload == {"setup": "breakout"}
         assert row.feature_snapshot_payload == {"retest": True, "level": 99.5}
+        assert row.advisory_admission_state == "UNSTAGED"
+
+
+def test_disabled_admission_is_on_the_original_evidence_insert_without_extra_sql():
+    """SA-01: a frozen disabled epoch changes only the original INSERT column value."""
+
+    with _edge_database("advisory_disabled_original_insert") as (_, url):
+        record = _evidence(_opportunity())
+        statements: list[str] = []
+
+        async def scenario():
+            async with _session(url, statement_log=statements) as session:
+                outcome = await append_evidence_revision(
+                    session,
+                    record,
+                    advisory_admission_state="GATE_A_DISABLED",
+                )
+                await session.commit()
+                row = await session.scalar(
+                    select(EdgeOpportunityEvidenceRecord).where(
+                        EdgeOpportunityEvidenceRecord.evidence_id == record.evidence_id
+                    )
+                )
+                return outcome, row
+
+        outcome, row = asyncio.run(scenario())
+
+    assert outcome == INSERTED
+    assert row is not None
+    assert row.advisory_admission_state == "GATE_A_DISABLED"
+    assert row.evidence_id == record.evidence_id
+    assert row.opportunity_id == record.opportunity_id
+    assert row.evidence_hash == record.evidence_hash
+    assert row.feature_snapshot_hash == record.feature_snapshot_hash
+    assert row.evidence_payload == record.evidence_payload
+    assert row.feature_snapshot_payload == record.feature_snapshot_payload
+
+    inserts = [
+        statement
+        for statement in statements
+        if "INSERT INTO edge_opportunity_evidence" in statement
+    ]
+    assert len(inserts) == 1
+    assert "advisory_admission_state" in inserts[0]
+    assert not any(
+        statement.lstrip().upper().startswith("UPDATE EDGE_OPPORTUNITY_EVIDENCE")
+        for statement in statements
+    )
+    assert not any("SAVEPOINT" in statement.upper() for statement in statements)
 
 
 @pytest.mark.parametrize(
@@ -532,6 +598,35 @@ def test_exact_duplicate_revision_is_idempotent():
 
         assert (first, second) == (INSERTED, IDEMPOTENT)
         assert asyncio.run(_count(url, EdgeOpportunityEvidenceRecord)) == 1
+
+
+def test_idempotency_does_not_rewrite_an_existing_admission_classification():
+    with _edge_database("advisory_idempotent_no_rewrite") as (_, url):
+        record = _evidence(_opportunity())
+        statements: list[str] = []
+
+        async def scenario():
+            async with _session(url, statement_log=statements) as session:
+                first = await append_evidence_revision(session, record)
+                second = await append_evidence_revision(
+                    session,
+                    record,
+                    advisory_admission_state="GATE_A_DISABLED",
+                )
+                await session.commit()
+                row = await session.scalar(
+                    select(EdgeOpportunityEvidenceRecord).where(
+                        EdgeOpportunityEvidenceRecord.evidence_id == record.evidence_id
+                    )
+                )
+                return first, second, row
+
+        first, second, row = asyncio.run(scenario())
+
+    assert (first, second) == (INSERTED, IDEMPOTENT)
+    assert row is not None
+    assert row.advisory_admission_state == "UNSTAGED"
+    assert not any("UPDATE EDGE_OPPORTUNITY_EVIDENCE" in statement.upper() for statement in statements)
 
 
 def test_same_revision_with_a_different_hash_fails_closed():
@@ -1366,10 +1461,45 @@ async def _constraint_definition(url: str, name: str) -> str:
 
 
 async def _stage_evidence(url: str, rows: list[EdgeOpportunityEvidenceRecord]) -> None:
+    # These fixtures deliberately stage historical 0008 rows before exercising the
+    # 0008 -> 0009 migration. The current ORM includes I2's additive 0010 columns,
+    # which did not exist in that historical schema, so use the exact pre-I2 column
+    # set rather than asking the current ORM to write future columns.
+    legacy_columns = (
+        "evidence_id",
+        "opportunity_id",
+        "candidate_id",
+        "family_id",
+        "family_version",
+        "instrument_id",
+        "market_type",
+        "evidence_revision",
+        "evidence_contract_version",
+        "evidence_hash",
+        "feature_snapshot_hash",
+        "feature_snapshot_hash_version",
+        "supersedes_evidence_id",
+        "detected_at",
+        "evidence_at",
+        "expires_at",
+        "source_type",
+        "source_identity",
+        "source_manifest_id",
+        "reference_bid",
+        "reference_ask",
+        "reference_received_at",
+        "reference_data_status",
+        "evidence_payload",
+        "feature_snapshot_payload",
+        "created_at",
+    )
     async with _session(url) as session:
         for row in rows:
-            session.add(row)
-            await session.flush()
+            await session.execute(
+                EdgeOpportunityEvidenceRecord.__table__.insert().values(
+                    **{column: getattr(row, column) for column in legacy_columns}
+                )
+            )
         await session.commit()
 
 
@@ -1741,8 +1871,8 @@ def test_fix02_valid_legacy_outcome_chain_survives_and_the_scoped_fk_is_enforced
         )
 
 
-def test_fix02_clean_migration_chain_reaches_0009_and_round_trips():
-    """§19: 0005 -> 0006 -> 0007 -> 0008 -> 0009, plus downgrade and re-upgrade."""
+def test_fix02_clean_migration_chain_reaches_current_head_and_round_trips():
+    """§19: reach 0009, downgrade, then re-upgrade through the current I2 head."""
 
     with _edge_database("fix02_clean_chain", revision="20260911_0005") as (_, url):
         assert asyncio.run(_alembic_version(url)) == "20260911_0005"
@@ -1759,5 +1889,5 @@ def test_fix02_clean_migration_chain_reaches_0009_and_round_trips():
         assert _ID_ONLY_UNIQUE in asyncio.run(_constraint_names(url, _OUTCOME_TABLE))
 
         _upgrade(url, "head")
-        assert asyncio.run(_alembic_version(url)) == _FIX02_HEAD
+        assert asyncio.run(_alembic_version(url)) == HEAD_REVISION
         assert EDGE_TABLES <= asyncio.run(_table_names(url))

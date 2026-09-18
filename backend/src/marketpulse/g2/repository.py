@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from marketpulse.advisory.fence import AdvisoryDbLeaseOwner
 from marketpulse.db.models import (
     DerivedObservationRecord,
     EdgeOpportunityCaptureAnchorOrphanRecord,
@@ -42,6 +44,7 @@ from marketpulse.edge.repository import (
 
 from .models import (
     FeatureSnapshot,
+    G2PersistResult,
     MarketEvent,
     SignalTimelineEvent,
     StateTransition,
@@ -49,6 +52,10 @@ from .models import (
     SymbolStateRecord,
     deterministic_id,
 )
+
+if TYPE_CHECKING:
+    from marketpulse.advisory.fence import AdvisoryDbFence
+    from marketpulse.advisory.ingress import AdvisoryAdmissionWriter
 
 # Bounded accessor for the caller's *current* reference quote of one instrument.
 # It is consulted once per persisted event, so the quote it returns belongs to the
@@ -106,16 +113,16 @@ class InMemoryG2Repository:
         *,
         precondition_state: SymbolStateRecord | None = None,
         forward_admission_proof: ForwardAdmissionProof | None = None,
-    ) -> bool:
+    ) -> G2PersistResult:
         if event.event_id in self.events:
-            return False
+            return G2PersistResult(persisted=False)
         self.events[event.event_id] = event
         self.timeline.append(timeline)
         self.states[state.instrument_id] = state.model_copy(deep=True)
         self.transitions.append(transition)
         self.candidates.extend(candidates)
         self.observations.append(observation)
-        return True
+        return G2PersistResult(persisted=True)
 
 
 class PostgresG2Repository:
@@ -126,6 +133,9 @@ class PostgresG2Repository:
         capture: EdgeCaptureContext | None = None,
         reference_quote_for: ReferenceQuoteFor | None = None,
         forward_admission_verifier: ForwardAdmissionVerifier | None = None,
+        advisory_admission_state: str | None = None,
+        advisory_admission_writer: AdvisoryAdmissionWriter | None = None,
+        advisory_db_fence: AdvisoryDbFence | None = None,
         pending_capture_anchor_capacity: int = 2048,
     ) -> None:
         if pending_capture_anchor_capacity <= 0:
@@ -142,6 +152,17 @@ class PostgresG2Repository:
         # authority held by ``ScannerPipeline``; this repository is deliberately
         # given no API that could sign an arbitrary historical event.
         self._forward_admission_verifier = forward_admission_verifier
+        # PRE-01B-I2 passes a startup-frozen classification as an inert value. This
+        # repository does not inspect activation configuration or create Advisory
+        # resources; it only carries the caller-owned value to the existing Edge
+        # capture/write boundary.
+        self._advisory_admission_state = advisory_admission_state
+        if (advisory_admission_writer is None) != (advisory_db_fence is None):
+            raise ValueError("Advisory writer and DB fence must be supplied together")
+        if advisory_admission_writer is not None and advisory_admission_state is not None:
+            raise ValueError("active Advisory admission cannot use the disabled Edge classification")
+        self._advisory_admission_writer = advisory_admission_writer
+        self._advisory_db_fence = advisory_db_fence
         # Bounded by in-flight G2 event ids in the caller's runtime. It exists
         # only until the admission transaction succeeds or the process dies;
         # it is deliberately not a queue/WAL/recovery mechanism.
@@ -361,7 +382,7 @@ class PostgresG2Repository:
         *,
         precondition_state: SymbolStateRecord | None = None,
         forward_admission_proof: ForwardAdmissionProof | None = None,
-    ) -> bool:
+    ) -> G2PersistResult:
         anchored = await self._admit_or_load_capture_anchor(
             precondition_state=precondition_state,
             event=event,
@@ -390,14 +411,18 @@ class PostgresG2Repository:
             )
         )
         orphan_error: CaptureAnchorOrphan | None = None
-        async with self._session_factory() as session, session.begin():
+        advisory_lease_owner = AdvisoryDbLeaseOwner()
+        advisory_work_ref = None
+        # The lease owner is deliberately outermost: its completion report runs only
+        # after the Session context has returned the exact checkout to SQLAlchemy.
+        async with advisory_lease_owner, self._session_factory() as session, session.begin():
             if anchored is not None:
                 # An already-committed event is an ordinary G2 replay, not a
                 # delayed anchor recovery. Its own resulting state naturally
                 # differs from the admission precondition, so classify neither
                 # a new orphan nor a second formalization attempt.
                 if await session.get(MarketEventRecord, event.event_id) is not None:
-                    return False
+                    return G2PersistResult(persisted=False)
                 actual_precondition = await self._durable_anchor_precondition_mismatch(session, anchored)
                 if actual_precondition is not None:
                     existing_orphan = await load_capture_anchor_orphan(
@@ -429,7 +454,7 @@ class PostgresG2Repository:
                     .returning(MarketEventRecord.event_id)
                 )
                 if inserted_event_id is None:
-                    return False
+                    return G2PersistResult(persisted=False)
                 session.add(SignalTimelineRecord(**timeline.model_dump(mode="python")))
                 await session.merge(SymbolStateStore(**state.model_dump(mode="python")))
                 session.add(StateTransitionRecord(**transition.model_dump(mode="python")))
@@ -453,7 +478,69 @@ class PostgresG2Repository:
                     expected_evidence_hash=(
                         None if anchored is None else anchored.formal_evidence_hash
                     ),
+                    advisory_admission_state=self._advisory_admission_state,
                 )
+                # The existing Edge append flushed its INSERT; this explicit flush
+                # names the D2 core boundary. No Advisory token, SQL or SAVEPOINT
+                # exists before it succeeds.
+                await session.flush()
+                if self._advisory_admission_writer is not None:
+                    candidate = qualifies(
+                        event=event,
+                        timeline=timeline,
+                        state=state,
+                        transition=transition,
+                        candidates=candidates,
+                        observation=observation,
+                    )
+                    if candidate is not None:
+                        from marketpulse.edge.capture import build_opportunity_evidence
+
+                        evidence = build_opportunity_evidence(
+                            event=event,
+                            timeline=timeline,
+                            state=state,
+                            transition=transition,
+                            candidate=candidate,
+                            observation=observation,
+                            context=formal_context,
+                            reference_quote=formal_quote,
+                        )
+                        # A full fence returns immediately and intentionally causes
+                        # zero nested transaction / Advisory SQL.
+                        advisory_lease_owner.lease = self._advisory_db_fence.try_acquire()
+                        if advisory_lease_owner.lease is not None:
+                            try:
+                                connection = await session.connection()
+                                checkout_key = connection.info.get("advisory_checkout_key")
+                                if checkout_key is None:
+                                    advisory_lease_owner.lease.retire_uncertain()
+                                    raise RuntimeError("advisory_checkout_identity_unavailable")
+                                advisory_lease_owner.lease.bind(
+                                    checkout_key, advisory_lease_owner.cleanup_attempt_id
+                                )
+                                async with session.begin_nested():
+                                    advisory_work_ref = await self._advisory_admission_writer.admit(
+                                        session,
+                                        evidence_id=evidence.evidence_id,
+                                        state_version=state.state_version,
+                                    )
+                            except Exception:  # staging must not destroy market truth
+                                logger.exception(
+                                    "advisory_admission_staging_failed evidence_id=%s",
+                                    evidence.evidence_id,
+                                )
+                                try:
+                                    async with session.begin_nested():
+                                        await self._advisory_admission_writer.terminalize_unbound(
+                                            session, evidence_id=evidence.evidence_id
+                                        )
+                                except Exception:
+                                    logger.exception(
+                                        "advisory_unbound_terminalization_failed evidence_id=%s",
+                                        evidence.evidence_id,
+                                    )
+            # `advisory_lease_owner` exits only after Session close/context-exit.
         if orphan_error is not None:
             raise orphan_error
-        return True
+        return G2PersistResult(persisted=True, advisory_work_ref=advisory_work_ref)
