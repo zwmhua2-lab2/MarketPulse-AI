@@ -1,11 +1,18 @@
-import { screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
+import { MemoryRouter } from "react-router";
 import { describe, expect, it } from "vitest";
 
+import { AppProviders } from "../app/AppProviders";
+import { AppRoutes } from "../app/router";
+import { queryClient } from "../app/queryClient";
+import { UnauthorizedError } from "../api/errors";
+import { AuthSessionProvider } from "./AuthSessionProvider";
 import { AUTH_TOKEN_STORAGE_KEY, readAccessToken } from "./session";
 import { PROTECTED_PING_PATH, TEST_ACCESS_TOKEN, TEST_PASSWORD, TEST_USERNAME } from "../test/handlers";
 import { renderApp, seedSession } from "../test/render";
+import { ProtectedRequestProbe } from "../test/probe";
 import { server } from "../test/server";
 
 function storedValues(): string[] {
@@ -26,6 +33,29 @@ async function loginThroughUi(): Promise<void> {
   await user.type(screen.getByLabelText("密码"), TEST_PASSWORD);
   await user.click(screen.getByRole("button", { name: "登录" }));
   await screen.findByRole("heading", { name: "总览" });
+}
+
+function sessionTree(
+  providerKey: string,
+  mountProbe: boolean,
+  onOldRequestSettled: () => void,
+  onOldRequestRejected: (error: unknown) => void,
+) {
+  return (
+    <AppProviders>
+      <MemoryRouter initialEntries={["/trading"]}>
+        <AuthSessionProvider key={providerKey}>
+          <AppRoutes />
+          {mountProbe ? (
+            <ProtectedRequestProbe
+              onSettled={onOldRequestSettled}
+              onRejected={onOldRequestRejected}
+            />
+          ) : null}
+        </AuthSessionProvider>
+      </MemoryRouter>
+    </AppProviders>
+  );
 }
 
 describe("auth session boundary", () => {
@@ -82,5 +112,60 @@ describe("auth session boundary", () => {
     expect(readAccessToken()).toBeNull();
     expect(window.sessionStorage.getItem(AUTH_TOKEN_STORAGE_KEY)).toBeNull();
     expect(await screen.findByRole("heading", { name: "登录" })).toBeInTheDocument();
+  });
+
+  it("fences a late old-lifetime 401 after a new AuthSessionProvider mounts", async () => {
+    const oldToken = "OLD_PROVIDER_TOKEN";
+    const newToken = "NEW_PROVIDER_TOKEN";
+    let markRequestDispatched: () => void = () => undefined;
+    const requestDispatched = new Promise<void>((resolve) => {
+      markRequestDispatched = resolve;
+    });
+    let releaseResponse: () => void = () => undefined;
+    const responseReleased = new Promise<void>((resolve) => {
+      releaseResponse = resolve;
+    });
+    let markRequestSettled: () => void = () => undefined;
+    const requestSettled = new Promise<void>((resolve) => {
+      markRequestSettled = resolve;
+    });
+    let oldRequestFailure: unknown;
+
+    server.use(
+      http.get(PROTECTED_PING_PATH, async ({ request }) => {
+        expect(request.headers.get("Authorization")).toBe(`Bearer ${oldToken}`);
+        markRequestDispatched();
+        await responseReleased;
+        return HttpResponse.json({ detail: "old provider session expired" }, { status: 401 });
+      }),
+    );
+
+    seedSession(oldToken);
+    const view = render(
+      sessionTree("old-provider", true, markRequestSettled, (error) => {
+        oldRequestFailure = error;
+      }),
+    );
+    await requestDispatched;
+
+    // This is a distinct AuthSessionBoundary lifetime sharing the application QueryClient.
+    // If the old client's response is not fenced, its `endSession()` clears this new cache.
+    window.sessionStorage.setItem(AUTH_TOKEN_STORAGE_KEY, newToken);
+    view.rerender(
+      sessionTree("new-provider", false, markRequestSettled, (error) => {
+        oldRequestFailure = error;
+      }),
+    );
+    expect(await screen.findByRole("heading", { name: "交易与仓位" })).toBeInTheDocument();
+    const newLifetimeCache = { cached: "new provider lifetime" };
+    queryClient.setQueryData(["authenticated-probe"], newLifetimeCache);
+
+    releaseResponse();
+    await requestSettled;
+
+    expect(oldRequestFailure).toBeInstanceOf(UnauthorizedError);
+    expect(readAccessToken()).toBe(newToken);
+    expect(screen.getByRole("heading", { name: "交易与仓位" })).toBeInTheDocument();
+    expect(queryClient.getQueryData(["authenticated-probe"])).toEqual(newLifetimeCache);
   });
 });

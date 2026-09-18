@@ -21,8 +21,14 @@ const PUBLIC_ENDPOINTS: readonly string[] = [
 export interface ApiTransportOptions {
   /** The current bearer access token, or `null` when there is no session. */
   readonly getToken: () => string | null;
+  /** The local-only identity for the current Auth Session Boundary lifetime. */
+  readonly getSessionGeneration: () => symbol;
   /** Called when the backend says the bearer session is no longer valid. */
   readonly onUnauthorized: () => void;
+}
+
+function isProtectedRequest(request: Request): boolean {
+  return !PUBLIC_ENDPOINTS.includes(new URL(request.url).pathname);
 }
 
 /**
@@ -43,20 +49,40 @@ export interface ApiTransportOptions {
  */
 export function createApiClient(options: ApiTransportOptions) {
   const client = createClient<paths>({ baseUrl: window.location.origin });
+  // `id` is unique for one openapi-fetch lifecycle. This ownership map is deliberately
+  // local to this client: it is never serialized, persisted, or attached to a request.
+  const requestSessionGenerations = new Map<string, symbol>();
 
   client.use({
-    onRequest({ request }) {
+    onRequest({ request, id }) {
+      if (isProtectedRequest(request)) {
+        // Capture at actual dispatch. Later session transitions must not change this
+        // request's ownership.
+        requestSessionGenerations.set(id, options.getSessionGeneration());
+      }
+
       const token = options.getToken();
       if (token !== null && token !== "") {
         request.headers.set("Authorization", `Bearer ${token}`);
       }
       return request;
     },
-    onResponse({ request, response }) {
-      if (response.status === 401 && !PUBLIC_ENDPOINTS.includes(new URL(request.url).pathname)) {
+    onResponse({ request, response, id }) {
+      const requestSessionGeneration = requestSessionGenerations.get(id);
+      requestSessionGenerations.delete(id);
+
+      if (
+        response.status === 401 &&
+        isProtectedRequest(request) &&
+        requestSessionGeneration !== undefined &&
+        requestSessionGeneration === options.getSessionGeneration()
+      ) {
         options.onUnauthorized();
       }
       return response;
+    },
+    onError({ id }) {
+      requestSessionGenerations.delete(id);
     },
   });
 

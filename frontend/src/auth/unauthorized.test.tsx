@@ -8,6 +8,7 @@ import { AUTH_TOKEN_STORAGE_KEY, readAccessToken } from "./session";
 import { LOGIN_PATH, PROTECTED_PING_PATH, TEST_PASSWORD, TEST_USERNAME } from "../test/handlers";
 import { renderApp, seedSession } from "../test/render";
 import { server } from "../test/server";
+import { UnauthorizedError } from "../api/errors";
 
 /** The backend rejects this session regardless of the token the client presents. */
 function rejectSession(): void {
@@ -51,6 +52,126 @@ describe("protected API 401", () => {
     await user.click(screen.getByRole("button", { name: "登录" }));
 
     expect(await screen.findByRole("heading", { name: "策略研究" })).toBeInTheDocument();
+  });
+
+  it("keeps G2 authenticated when a pending G1 protected request returns 401 late", async () => {
+    const oldToken = "OLD_TOKEN";
+    const newToken = "NEW_TOKEN";
+    let markOldRequestDispatched: () => void = () => undefined;
+    const oldRequestDispatched = new Promise<void>((resolve) => {
+      markOldRequestDispatched = resolve;
+    });
+    let releaseOldResponse: () => void = () => undefined;
+    const oldResponseReleased = new Promise<void>((resolve) => {
+      releaseOldResponse = resolve;
+    });
+    let markOldRequestSettled: () => void = () => undefined;
+    const oldRequestSettled = new Promise<void>((resolve) => {
+      markOldRequestSettled = resolve;
+    });
+    let oldRequestFailure: unknown;
+
+    server.use(
+      http.get(PROTECTED_PING_PATH, async ({ request }) => {
+        expect(request.headers.get("Authorization")).toBe(`Bearer ${oldToken}`);
+        markOldRequestDispatched();
+        await oldResponseReleased;
+        return HttpResponse.json({ detail: "invalid old session" }, { status: 401 });
+      }),
+      http.post(LOGIN_PATH, () =>
+        HttpResponse.json({ access_token: newToken, token_type: "bearer" }),
+      ),
+    );
+
+    seedSession(oldToken);
+    renderApp({
+      initialEntries: ["/trading"],
+      protectedProbe: {
+        onRejected: (error) => {
+          oldRequestFailure = error;
+        },
+        onSettled: markOldRequestSettled,
+      },
+    });
+    await oldRequestDispatched;
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "退出登录" }));
+    await screen.findByRole("heading", { name: "登录" });
+
+    await user.type(screen.getByLabelText("用户名"), TEST_USERNAME);
+    await user.type(screen.getByLabelText("密码"), TEST_PASSWORD);
+    await user.click(screen.getByRole("button", { name: "登录" }));
+    expect(await screen.findByRole("heading", { name: "交易与仓位" })).toBeInTheDocument();
+
+    const g2Cache = { cached: "G2 authenticated data" };
+    queryClient.setQueryData(["authenticated-probe"], g2Cache);
+
+    releaseOldResponse();
+    await oldRequestSettled;
+
+    expect(oldRequestFailure).toBeInstanceOf(UnauthorizedError);
+    expect(readAccessToken()).toBe(newToken);
+    expect(window.sessionStorage.getItem(AUTH_TOKEN_STORAGE_KEY)).toBe(newToken);
+    expect(screen.getByRole("heading", { name: "交易与仓位" })).toBeInTheDocument();
+    expect(queryClient.getQueryData(["authenticated-probe"])).toEqual(g2Cache);
+  });
+
+  it("advances ownership on successful sign-in before an old protected 401 can act", async () => {
+    const oldToken = "OLD_TOKEN";
+    const newToken = "NEW_TOKEN";
+    let markOldRequestDispatched: () => void = () => undefined;
+    const oldRequestDispatched = new Promise<void>((resolve) => {
+      markOldRequestDispatched = resolve;
+    });
+    let releaseOldResponse: () => void = () => undefined;
+    const oldResponseReleased = new Promise<void>((resolve) => {
+      releaseOldResponse = resolve;
+    });
+    let markOldRequestSettled: () => void = () => undefined;
+    const oldRequestSettled = new Promise<void>((resolve) => {
+      markOldRequestSettled = resolve;
+    });
+    let oldRequestFailure: unknown;
+
+    server.use(
+      http.get(PROTECTED_PING_PATH, async () => {
+        markOldRequestDispatched();
+        await oldResponseReleased;
+        return HttpResponse.json({ detail: "invalid old session" }, { status: 401 });
+      }),
+      http.post(LOGIN_PATH, () =>
+        HttpResponse.json({ access_token: newToken, token_type: "bearer" }),
+      ),
+    );
+
+    seedSession(oldToken);
+    renderApp({
+      initialEntries: ["/login"],
+      protectedProbe: {
+        onRejected: (error) => {
+          oldRequestFailure = error;
+        },
+        onSettled: markOldRequestSettled,
+      },
+    });
+    await oldRequestDispatched;
+
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText("用户名"), TEST_USERNAME);
+    await user.type(screen.getByLabelText("密码"), TEST_PASSWORD);
+    await user.click(screen.getByRole("button", { name: "登录" }));
+    expect(await screen.findByRole("heading", { name: "总览" })).toBeInTheDocument();
+
+    const g2Cache = { cached: "replacement session data" };
+    queryClient.setQueryData(["authenticated-probe"], g2Cache);
+    releaseOldResponse();
+    await oldRequestSettled;
+
+    expect(oldRequestFailure).toBeInstanceOf(UnauthorizedError);
+    expect(readAccessToken()).toBe(newToken);
+    expect(screen.getByRole("heading", { name: "总览" })).toBeInTheDocument();
+    expect(queryClient.getQueryData(["authenticated-probe"])).toEqual(g2Cache);
   });
 });
 

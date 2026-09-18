@@ -1,5 +1,14 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 
 import { createApiClient, type ApiClient } from "../api/client";
 import { clearAccessToken, readAccessToken, writeAccessToken } from "./session";
@@ -30,10 +39,11 @@ const AuthSessionContext = createContext<AuthSession | null>(null);
 /**
  * The one Auth Session Boundary.
  *
- * It owns exactly three things: the bearer token, the API transport bound to that
- * token, and what happens when the backend rejects the session. It does not parse the
- * token, does not decide whether a token is still valid, and does not invent a
- * refresh mechanism — the backend's `401` is the only auth authority (UI-F01 §7, §8).
+ * It owns exactly four things: the bearer token, a local-only session generation, the
+ * API transport bound to that token, and what happens when the backend rejects the
+ * session. It does not parse the token, does not decide whether a token is still valid,
+ * and does not invent a refresh mechanism — the backend's `401` is the only auth
+ * authority (UI-F01 §7, §8).
  *
  * On an authoritative `401` it clears the persisted token and the authenticated Query
  * cache; navigation to the Login boundary is then a declarative consequence of the
@@ -49,16 +59,41 @@ export function AuthSessionProvider({ children }: { children: ReactNode }) {
   // The transport reads the token on every request, so an always-current ref keeps the
   // client instance stable across token changes instead of rebuilding it.
   const tokenRef = useRef<string | null>(accessToken);
+  // Symbols are local-only identities. A new Provider lifetime and every session
+  // transition receive a fresh identity without deriving anything from the bearer.
+  const generationRef = useRef<symbol>(Symbol("marketpulse-session-generation"));
+
+  const advanceGeneration = useCallback(() => {
+    generationRef.current = Symbol("marketpulse-session-generation");
+  }, []);
 
   const endSession = useCallback(() => {
+    // Advance first so every already-dispatched request becomes stale before token or
+    // cache teardown. This also fences sibling late 401 responses.
+    advanceGeneration();
     tokenRef.current = null;
     clearAccessToken();
     setAccessToken(null);
     queryClient.clear();
-  }, [queryClient]);
+  }, [advanceGeneration, queryClient]);
+
+  useEffect(
+    () => () => {
+      // An unmounted Provider can still receive an old fetch response. Move its
+      // generation forward so that response cannot clear a QueryClient used by a new
+      // AuthSessionBoundary lifetime.
+      advanceGeneration();
+    },
+    [advanceGeneration],
+  );
 
   const client = useMemo(
-    () => createApiClient({ getToken: () => tokenRef.current, onUnauthorized: endSession }),
+    () =>
+      createApiClient({
+        getToken: () => tokenRef.current,
+        getSessionGeneration: () => generationRef.current,
+        onUnauthorized: endSession,
+      }),
     [endSession],
   );
 
@@ -82,12 +117,15 @@ export function AuthSessionProvider({ children }: { children: ReactNode }) {
         return { ok: false, reason: "unavailable" };
       }
 
+      // A successful login begins a new local request-ownership lifetime before the
+      // token becomes visible to subsequent protected dispatches.
+      advanceGeneration();
       tokenRef.current = token;
       writeAccessToken(token);
       setAccessToken(token);
       return { ok: true };
     },
-    [client],
+    [advanceGeneration, client],
   );
 
   const signOut = useCallback(() => {

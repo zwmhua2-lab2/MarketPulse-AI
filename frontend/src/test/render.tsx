@@ -20,7 +20,10 @@ export interface RenderAppOptions {
    * When present, mounts a probe that issues one authenticated protected request
    * inside the provider tree, so the `401` lifecycle can be observed end to end.
    */
-  readonly protectedProbe?: { readonly onSettled?: () => void };
+  readonly protectedProbe?: {
+    readonly onSettled?: () => void;
+    readonly onRejected?: (error: unknown) => void;
+  };
 }
 
 /**
@@ -38,7 +41,10 @@ export function renderApp(options: RenderAppOptions = {}) {
         <AuthSessionProvider>
           <AppRoutes />
           {protectedProbe === undefined ? null : (
-            <ProtectedRequestProbe onSettled={protectedProbe.onSettled} />
+            <ProtectedRequestProbe
+              onSettled={protectedProbe.onSettled}
+              onRejected={protectedProbe.onRejected}
+            />
           )}
         </AuthSessionProvider>
       </MemoryRouter>

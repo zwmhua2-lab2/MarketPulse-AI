@@ -10,9 +10,14 @@ import { requestData } from "./transport";
 
 /** A protected endpoint that is not `/ready`, used for the generic transport cases. */
 const RUNTIME_PATH = "/api/v1/runtime";
+const DEFAULT_SESSION_GENERATION = Symbol("test-session-generation");
 
-function client(onUnauthorized: () => void = () => undefined, token: string | null = null) {
-  return createApiClient({ getToken: () => token, onUnauthorized });
+function client(
+  onUnauthorized: () => void = () => undefined,
+  token: string | null = null,
+  getSessionGeneration: () => symbol = () => DEFAULT_SESSION_GENERATION,
+) {
+  return createApiClient({ getToken: () => token, getSessionGeneration, onUnauthorized });
 }
 
 describe("transport error classification", () => {
@@ -127,7 +132,64 @@ describe("401 lifecycle ownership", () => {
 
     await client(() => invalidations.push(1), "stale-token").GET(PROTECTED_PING_PATH);
 
-    expect(invalidations).toHaveLength(1);
+    expect(invalidations).toEqual([1]);
+  });
+
+  it("does not invalidate a newer session for a late 401 owned by an old generation", async () => {
+    let currentGeneration = Symbol("old-session");
+    let markRequestDispatched: () => void = () => undefined;
+    const requestDispatched = new Promise<void>((resolve) => {
+      markRequestDispatched = resolve;
+    });
+    let releaseResponse: () => void = () => undefined;
+    const responseReleased = new Promise<void>((resolve) => {
+      releaseResponse = resolve;
+    });
+    const invalidations: number[] = [];
+
+    server.use(
+      http.get(PROTECTED_PING_PATH, async () => {
+        markRequestDispatched();
+        await responseReleased;
+        return HttpResponse.json({ detail: "invalid session" }, { status: 401 });
+      }),
+    );
+
+    const oldRequest = requestData(() =>
+      client(() => invalidations.push(1), "old-token", () => currentGeneration).GET(
+        PROTECTED_PING_PATH,
+      ),
+    ).catch((cause: unknown) => cause);
+    await requestDispatched;
+
+    currentGeneration = Symbol("new-session");
+    releaseResponse();
+
+    const failure = await oldRequest;
+    expect(failure).toBeInstanceOf(UnauthorizedError);
+    expect(invalidations).toEqual([]);
+  });
+
+  it("settles request ownership on normal, network-failure, and 401 lifecycles", async () => {
+    const invalidations: number[] = [];
+    const api = client(() => invalidations.push(1), "token");
+
+    server.use(http.get(PROTECTED_PING_PATH, () => HttpResponse.json({ status: "ok" })));
+    await api.GET(PROTECTED_PING_PATH);
+
+    server.use(http.get(PROTECTED_PING_PATH, () => HttpResponse.error()));
+    await expect(requestData(() => api.GET(PROTECTED_PING_PATH))).rejects.toBeInstanceOf(NetworkError);
+
+    server.use(
+      http.get(PROTECTED_PING_PATH, () =>
+        HttpResponse.json({ detail: "invalid session" }, { status: 401 }),
+      ),
+    );
+    await expect(requestData(() => api.GET(PROTECTED_PING_PATH))).rejects.toBeInstanceOf(
+      UnauthorizedError,
+    );
+
+    expect(invalidations).toEqual([1]);
   });
 
   it("does not invalidate the session on a 503 readiness response", async () => {
@@ -138,7 +200,7 @@ describe("401 lifecycle ownership", () => {
           {
             ready: false,
             status: "FAIL_CLOSED",
-            reasons: ["READINESS_HOST_DISABLED"],
+            reasons: ["HOST_DISABLED"],
             evaluated_at: "2026-09-18T00:00:00+00:00",
             run_mode: "TEST",
             local_only: true,

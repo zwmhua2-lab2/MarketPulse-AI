@@ -8,7 +8,11 @@ import { HttpError, NetworkError, UnauthorizedError, UnexpectedResponse } from "
 import { READINESS_PATH, readReadiness, type ReadinessPayload } from "./readiness";
 
 function readinessClient() {
-  return createApiClient({ getToken: () => null, onUnauthorized: () => undefined });
+  return createApiClient({
+    getToken: () => null,
+    getSessionGeneration: () => Symbol("readiness-test-session-generation"),
+    onUnauthorized: () => undefined,
+  });
 }
 
 function readinessPayload(overrides: Partial<ReadinessPayload> = {}): ReadinessPayload {
@@ -37,13 +41,16 @@ describe("readiness", () => {
     await expect(readReadiness(readinessClient())).resolves.toEqual({ kind: "READY", payload });
   });
 
-  it.each(["FAIL_CLOSED", "DEGRADED"] as const)(
-    "maps typed 503 + ready=false + %s to NOT_READY without changing its error category",
-    async (status) => {
+  it.each([
+    { status: "FAIL_CLOSED", reason: "HOST_DISABLED" },
+    { status: "DEGRADED", reason: "MARKET_DATA_STALE" },
+  ] as const)(
+    "maps typed 503 + ready=false + $status to NOT_READY without changing its error category",
+    async ({ status, reason }) => {
       const payload = readinessPayload({
         ready: false,
         status,
-        reasons: ["HOST_DISABLED"],
+        reasons: [reason],
         host_state: status,
       });
       server.use(
