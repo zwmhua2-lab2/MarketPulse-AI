@@ -45,6 +45,7 @@ from __future__ import annotations
 
 import asyncio
 import gc
+import os
 import re
 import signal
 import time
@@ -135,7 +136,16 @@ def _disposable_postgres_database() -> Iterator[tuple[str, str]]:
     config.set_main_option("script_location", str(backend / "alembic"))
     config.set_main_option("sqlalchemy.url", database_url)
     try:
-        command.upgrade(config, "head")
+        # Alembic's environment accepts DATABASE_URL for normal process startup.
+        # A disposable test must instead honour this helper's explicit per-test URL;
+        # otherwise an inherited process DSN can migrate the admin database while the
+        # newly-created test database remains empty.
+        inherited_database_url = os.environ.pop("DATABASE_URL", None)
+        try:
+            command.upgrade(config, "head")
+        finally:
+            if inherited_database_url is not None:
+                os.environ["DATABASE_URL"] = inherited_database_url
         yield database_name, database_url
     finally:
         asyncio.run(
@@ -379,6 +389,20 @@ def test_test_mode_requires_injected_dependencies():
         with pytest.raises(
             HostConfigurationError, match="HOST_TEST_REQUIRES_INJECTED_DEPENDENCIES"
         ):
+            await host.start()
+
+    asyncio.run(scenario())
+    assert host.state is HostLifecycleState.CREATED
+
+
+def test_gate_a_setting_fails_closed_without_a_separately_authorized_activation_pack():
+    host = RuntimeHost(
+        _settings(advisory_activation_level="GATE_A_SHADOW"),
+        dependencies=HostDependencies(provider=ControlledProvider()),
+    )
+
+    async def scenario() -> None:
+        with pytest.raises(HostConfigurationError, match="invalid_advisory_activation"):
             await host.start()
 
     asyncio.run(scenario())

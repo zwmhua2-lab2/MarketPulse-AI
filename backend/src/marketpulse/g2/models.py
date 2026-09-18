@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any
@@ -10,6 +11,27 @@ from typing import Any
 from pydantic import BaseModel, Field, field_validator
 
 from marketpulse.market_data.models import DataQuality, MarketType
+
+
+@dataclass(frozen=True)
+class AdvisoryWorkRef:
+    """The only post-commit handoff from G2 to the Host-owned Advisory ingress."""
+
+    decision_invocation_id: str
+    decision_deadline_at: datetime
+
+
+@dataclass(frozen=True)
+class G2PersistResult:
+    """Durable G2 commit outcome, with an optional already-durable Advisory handoff."""
+
+    persisted: bool
+    advisory_work_ref: AdvisoryWorkRef | None = None
+
+    def __bool__(self) -> bool:
+        """Keep legacy truthiness callers compatible while exposing the typed contract."""
+
+        return self.persisted
 
 
 class EventType(StrEnum):

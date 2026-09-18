@@ -15,17 +15,32 @@ aggregation is exercised here: those belong to SE-02C / SE-02D.
 
 import asyncio
 import inspect
+import os
 from contextlib import asynccontextmanager, contextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from uuid import uuid4
 
 import marketpulse.g2.repository as g2_repository_module
+import pytest
 from alembic import command
 from alembic.config import Config
+from marketpulse.advisory.attempts import AdvisoryAttemptStarter
+from marketpulse.advisory.contracts import AdvisoryActivationEpoch, AdvisoryAdmissionConfig
+from marketpulse.advisory.fence import AdvisoryDbFence
+from marketpulse.advisory.ingress import AdvisoryAdmissionWriter, AdvisoryIngress
+from marketpulse.advisory.worker import (
+    AdvisoryFinalizer,
+    AdvisoryRecovery,
+    AdvisoryWorker,
+    FakeProviderResult,
+)
 from marketpulse.clock import ReplayClock
 from marketpulse.config import Settings
 from marketpulse.db.models import (
+    AdvisoryDecisionAttemptRecord,
+    AdvisoryDecisionInvocationRecord,
+    DecisionSnapshotRecord,
     DerivedObservationRecord,
     EdgeBboObservationRecord,
     EdgeOpportunityCaptureAnchorOrphanRecord,
@@ -142,7 +157,12 @@ def _capture_database(label: str):
     name = f"marketpulse_se02b_{label}_{uuid4().hex[:12]}"
     asyncio.run(_execute(PRIMARY_URL, f'CREATE DATABASE "{name}"'))
     url = _url_for(name)
-    command.upgrade(_alembic_config(url), "head")
+    inherited_database_url = os.environ.pop("DATABASE_URL", None)
+    try:
+        command.upgrade(_alembic_config(url), "head")
+    finally:
+        if inherited_database_url is not None:
+            os.environ["DATABASE_URL"] = inherited_database_url
     try:
         yield url
     finally:
@@ -450,6 +470,7 @@ async def _persist(
     *,
     quote: ReferenceQuote | None = None,
     quotes_by_instrument: dict[str, ReferenceQuote] | None = None,
+    advisory_admission_state: str | None = None,
 ):
     """Persist one G2 event through the real repository, with a per-capture quote.
 
@@ -474,22 +495,25 @@ async def _persist(
             else lambda instrument_id: quotes_by_instrument.get(instrument_id)
         ),
         forward_admission_verifier=authority.verifier(),
+        advisory_admission_state=advisory_admission_state,
     )
     precondition = await repository.get_state(facts["event"].instrument_id)
-    return await repository.persist(
-        facts["event"],
-        facts["timeline"],
-        facts["state"],
-        facts["transition"],
-        facts["candidates"],
-        facts["features"],
-        precondition_state=precondition
-        or SymbolStateRecord(
-            instrument_id=facts["event"].instrument_id,
-            symbol=facts["event"].symbol,
-        ),
-        forward_admission_proof=_admitted(authority, facts["event"]),
-    )
+    return (
+        await repository.persist(
+            facts["event"],
+            facts["timeline"],
+            facts["state"],
+            facts["transition"],
+            facts["candidates"],
+            facts["features"],
+            precondition_state=precondition
+            or SymbolStateRecord(
+                instrument_id=facts["event"].instrument_id,
+                symbol=facts["event"].symbol,
+            ),
+            forward_admission_proof=_admitted(authority, facts["event"]),
+        )
+    ).persisted
 
 
 # --- A. capture positive ----------------------------------------------------------------
@@ -524,6 +548,7 @@ def test_qualifying_setup_captures_exactly_one_deterministic_evidence_revision()
     assert observed["row"]["source_type"] == "FORWARD_PAPER"
     assert observed["row"]["source_identity"] == "okx-ws-bbo"
     assert observed["row"]["source_manifest_id"] == "manifest-se02b"
+    assert observed["row"]["advisory_admission_state"] == "UNSTAGED"
 
 
 async def _qualifying_capture_scenario(url: str) -> dict[str, object]:
@@ -593,9 +618,566 @@ async def _qualifying_capture_scenario(url: str) -> dict[str, object]:
                     "source_type",
                     "source_identity",
                     "source_manifest_id",
+                    "advisory_admission_state",
                 )
             },
         }
+
+
+def test_disabled_capture_preserves_evidence_facts_and_anchor_hash_validation():
+    """SA-01: capture forwards the frozen literal without changing Edge construction."""
+
+    with _capture_database("disabled_original_insert") as url:
+        observed = asyncio.run(_disabled_capture_scenario(url))
+
+    assert observed["status"] == INSERTED
+    assert observed["admission_state"] == "GATE_A_DISABLED"
+    assert observed["evidence_id"] == observed["expected_evidence_id"]
+    assert observed["opportunity_id"] == observed["expected_opportunity_id"]
+    assert observed["evidence_hash"] == observed["expected_evidence_hash"]
+    assert observed["feature_snapshot_hash"] == observed["expected_feature_snapshot_hash"]
+    assert observed["evidence_payload"] == observed["expected_evidence_payload"]
+    assert observed["feature_snapshot_payload"] == observed["expected_feature_snapshot_payload"]
+    assert observed["wrong_anchor_rejected"] is True
+    assert observed["evidence_rows"] == 1
+
+
+def test_g2_caller_forwards_frozen_disabled_classification_to_the_original_insert():
+    with _capture_database("disabled_g2_caller") as url:
+        observed = asyncio.run(_disabled_g2_caller_scenario(url))
+
+    assert observed == {"persisted": True, "state": "GATE_A_DISABLED", "rows": 1}
+
+
+def test_gate_a_admission_stages_complete_snapshot_and_invocation_after_core_flush():
+    """The active-capable seam is injected; ordinary runtime stays disabled."""
+
+    with _capture_database("gate_a_admission") as url:
+        observed = asyncio.run(_gate_a_admission_scenario(url))
+
+    assert observed["persisted"] is True
+    assert observed["has_work_ref"] is True
+    assert observed["evidence_state"] == "INVOCATION_CREATED"
+    assert observed["seed_complete"] is True
+    assert observed["invocations"] == 1
+    assert observed["snapshots"] == 1
+    assert observed["fence_held_after_commit"] == 0
+    assert observed["ref_matches_invocation"] is True
+    assert observed["attempt_started"] is True
+    assert observed["provider_calls"] == 1
+    assert observed["provider_db_held"] == 0
+    assert observed["invocation_final"] is True
+    assert observed["final_attempt_matches"] is True
+
+
+@pytest.mark.parametrize(
+    ("retry_allowed", "expected_state", "expected_final"),
+    [(True, "RETRY_PENDING", None), (False, "FINAL", "RETRY_EXHAUSTED")],
+)
+def test_process_lost_recovery_uses_the_durable_started_attempt_only(
+    retry_allowed, expected_state, expected_final
+):
+    with _capture_database(f"process_lost_{retry_allowed}") as url:
+        observed = asyncio.run(
+            _gate_a_admission_scenario(url, process_lost_retry_allowed=retry_allowed)
+        )
+
+    assert observed["provider_calls"] == 0
+    assert observed["attempt_state"] == "PROCESS_LOST"
+    assert observed["invocation_state"] == expected_state
+    assert observed["final_reason"] == expected_final
+    assert observed["recovery_queue_size"] == (1 if retry_allowed else None)
+
+
+def test_live_shutdown_abandons_only_the_current_durable_attempt():
+    with _capture_database("abandoned_shutdown") as url:
+        observed = asyncio.run(_gate_a_admission_scenario(url, abandon=True))
+
+    assert observed["provider_calls"] == 0
+    assert observed["attempt_state"] == "ABANDONED"
+    assert observed["invocation_state"] == "FINAL"
+    assert observed["final_reason"] == "SHUTDOWN_CANCELLED_ACTIVE_ATTEMPT"
+    assert observed["final_attempt_matches"] is True
+
+
+def test_completion_shutdown_and_recovery_race_leave_one_authoritative_winner():
+    with _capture_database("concurrent_terminal_contenders") as url:
+        observed = asyncio.run(_gate_a_admission_scenario(url, terminal_race=True))
+
+    assert observed["invocation_state"] == "FINAL"
+    assert observed["final_attempt_matches"] is True
+    assert observed["final_reason"] in {
+        "VALID_PROVIDER_DECISION",
+        "SHUTDOWN_CANCELLED_ACTIVE_ATTEMPT",
+        "RETRY_EXHAUSTED",
+    }
+
+
+def test_concurrent_duplicate_finalization_has_one_immutable_winner():
+    with _capture_database("concurrent_winner") as url:
+        observed = asyncio.run(_gate_a_admission_scenario(url, duplicate_finalize=True))
+
+    assert observed["provider_calls"] == 0
+    assert observed["invocation_state"] == "FINAL"
+    assert observed["final_reason"] == "VALID_PROVIDER_DECISION"
+    assert observed["attempt_state"] == "COMPLETED"
+
+
+def test_late_result_cannot_replace_the_retry_attempt_winner():
+    with _capture_database("late_result") as url:
+        observed = asyncio.run(_gate_a_admission_scenario(url, late_result=True))
+
+    assert observed["invocation_state"] == "FINAL"
+    assert observed["final_reason"] == "VALID_PROVIDER_DECISION"
+    assert observed["attempt_count"] == 2
+    assert observed["attempt_states"] == ["LATE_RESULT", "COMPLETED"]
+    assert observed["final_attempt_matches_latest"] is True
+
+
+def test_retry_reoffers_the_same_invocation_through_the_bounded_ingress():
+    with _capture_database("retry_reoffer") as url:
+        observed = asyncio.run(_gate_a_admission_scenario(url, retry_once=True))
+
+    assert observed["provider_calls"] == 2
+    assert observed["attempt_count"] == 2
+    assert observed["invocation_state"] == "FINAL"
+    assert observed["final_reason"] == "VALID_PROVIDER_DECISION"
+
+
+def test_provider_response_left_only_in_memory_recovers_as_process_lost():
+    with _capture_database("provider_returned_uncommitted") as url:
+        observed = asyncio.run(
+            _gate_a_admission_scenario(url, provider_returned_uncommitted=True)
+        )
+
+    assert observed["provider_calls"] == 1
+    assert observed["attempt_state"] == "PROCESS_LOST"
+    assert observed["invocation_state"] == "FINAL"
+    assert observed["final_reason"] == "RETRY_EXHAUSTED"
+
+
+def test_retry_gap_queue_rejection_does_not_link_the_historical_attempt():
+    with _capture_database("retry_gap_queue_rejection") as url:
+        observed = asyncio.run(_gate_a_admission_scenario(url, retry_gap_queue_reject=True))
+
+    assert observed["provider_calls"] == 1
+    assert observed["attempt_count"] == 1
+    assert observed["invocation_state"] == "FINAL"
+    assert observed["final_reason"] == "ADVISORY_QUEUE_REJECTED"
+    assert observed["final_attempt_is_null"] is True
+
+
+def test_retry_gap_db_capacity_rejection_does_not_create_a_replacement_attempt():
+    with _capture_database("retry_gap_db_capacity_rejection") as url:
+        observed = asyncio.run(_gate_a_admission_scenario(url, retry_gap_db_capacity=True))
+
+    assert observed["provider_calls"] == 0
+    assert observed["attempt_count"] == 1
+    assert observed["invocation_state"] == "FINAL"
+    assert observed["final_reason"] == "ADVISORY_DB_CAPACITY_UNAVAILABLE"
+    assert observed["final_attempt_is_null"] is True
+
+
+def test_supersede_before_finalizer_fences_the_old_attempt_as_stale():
+    with _capture_database("supersede_before_finalizer") as url:
+        observed = asyncio.run(_gate_a_admission_scenario(url, supersede_before_finalize=True))
+
+    assert observed["invocation_state"] == "FINAL"
+    assert observed["final_reason"] == "EVIDENCE_SUPERSEDED"
+    assert observed["final_attempt_is_null"] is False
+
+
+def test_finalizer_first_keeps_its_winner_immutable_when_a_new_evidence_revision_arrives():
+    with _capture_database("finalizer_before_supersede") as url:
+        observed = asyncio.run(_gate_a_admission_scenario(url, supersede_after_finalize=True))
+
+    assert observed["invocation_state"] == "FINAL"
+    assert observed["final_reason"] == "VALID_PROVIDER_DECISION"
+    assert observed["evidence_revision_count"] == 2
+    assert observed["invocation_evidence_superseded"] is True
+
+
+def test_shutdown_cancellation_without_a_durable_cleanup_commit_recovers_as_process_lost():
+    with _capture_database("shutdown_crash_before_abandon_commit") as url:
+        observed = asyncio.run(_gate_a_admission_scenario(url, shutdown_crash_boundary=True))
+
+    assert observed["provider_calls"] == 0
+    assert observed["attempt_state"] == "PROCESS_LOST"
+    assert observed["invocation_state"] == "FINAL"
+    assert observed["final_reason"] == "RETRY_EXHAUSTED"
+
+
+async def _gate_a_admission_scenario(
+    url: str,
+    *,
+    process_lost_retry_allowed: bool | None = None,
+    abandon: bool = False,
+    terminal_race: bool = False,
+    duplicate_finalize: bool = False,
+    late_result: bool = False,
+    retry_once: bool = False,
+    provider_returned_uncommitted: bool = False,
+    retry_gap_queue_reject: bool = False,
+    retry_gap_db_capacity: bool = False,
+    supersede_before_finalize: bool = False,
+    supersede_after_finalize: bool = False,
+    shutdown_crash_boundary: bool = False,
+) -> dict[str, object]:
+    config = AdvisoryAdmissionConfig(
+        epoch=AdvisoryActivationEpoch("GATE_A_SHADOW", epoch_id="fixture-epoch-1"),
+        config_version="fixture-config-1",
+        configured_provider_id="fake-provider",
+        configured_model_id="fake-model",
+        deadline_duration_ms=30_000,
+        experiment_definition={
+            "placement": "C_TRADE_DECISION",
+            "family": "BREAKOUT_RETEST",
+            "version": "fixture-experiment-1",
+        },
+    )
+    async with _sessions(url) as sessions:
+        fence = AdvisoryDbFence(
+            effective_db_capacity=4 if terminal_race else (3 if duplicate_finalize else 2),
+            protection_reserve=1,
+            session_factory=sessions,
+        )
+        # Test composition uses the same public PoolEvents authority as the
+        # RuntimeHost-owned primary engine.  No checkout key is fabricated.
+        fence.install_pool_listeners(sessions.kw["bind"].sync_engine)
+        facts = _facts()
+        authority = _live_authority()
+        repository = PostgresG2Repository(
+            sessions,
+            capture=_context(),
+            reference_quote_for=lambda _: _quote(),
+            forward_admission_verifier=authority.verifier(),
+            advisory_admission_writer=AdvisoryAdmissionWriter(config),
+            advisory_db_fence=fence,
+        )
+        result = await repository.persist(
+            facts["event"],
+            facts["timeline"],
+            facts["state"],
+            facts["transition"],
+            facts["candidates"],
+            facts["features"],
+            precondition_state=SymbolStateRecord(
+                instrument_id=facts["event"].instrument_id,
+                symbol=facts["event"].symbol,
+            ),
+            forward_admission_proof=_admitted(authority, facts["event"]),
+        )
+        started_attempt = None
+        provider_calls = 0
+        provider_db_held = -1
+        if result.advisory_work_ref is not None:
+            class FakeProvider:
+                async def decide(self, _ref, attempt_id):
+                    nonlocal provider_calls, provider_db_held
+                    provider_calls += 1
+                    provider_db_held = fence.held
+                    return FakeProviderResult(
+                        retry=(retry_once or retry_gap_queue_reject) and provider_calls == 1,
+                        payload={"attempt_id": attempt_id},
+                    )
+
+            starter = AdvisoryAttemptStarter(fence)
+            finalizer = AdvisoryFinalizer(fence)
+            if abandon:
+                started_attempt = await starter.start(result.advisory_work_ref)
+                assert started_attempt is not None
+                assert await finalizer.abandon(started_attempt, cancellation_observed=True)
+            elif terminal_race:
+                started_attempt = await starter.start(result.advisory_work_ref)
+                assert started_attempt is not None
+                await asyncio.gather(
+                    finalizer.finalize(started_attempt, FakeProviderResult()),
+                    finalizer.abandon(started_attempt, cancellation_observed=True),
+                    AdvisoryRecovery(fence, finalizer).recover_process_lost(retry_allowed=False),
+                )
+            elif provider_returned_uncommitted:
+                started_attempt = await starter.start(result.advisory_work_ref)
+                assert started_attempt is not None
+                await FakeProvider().decide(result.advisory_work_ref, started_attempt)
+                assert await AdvisoryRecovery(fence, finalizer).recover_process_lost(
+                    retry_allowed=False
+                ) == 1
+            elif shutdown_crash_boundary:
+                # Cancellation acknowledgement existed only in the dead process's
+                # memory. No ABANDONED transaction ran, so the new owner sees the
+                # durable STARTED record and must classify PROCESS_LOST.
+                started_attempt = await starter.start(result.advisory_work_ref)
+                assert started_attempt is not None
+                assert await AdvisoryRecovery(fence, finalizer).recover_process_lost(
+                    retry_allowed=False
+                ) == 1
+            elif duplicate_finalize:
+                started_attempt = await starter.start(result.advisory_work_ref)
+                assert started_attempt is not None
+                await asyncio.gather(
+                    finalizer.finalize(started_attempt, FakeProviderResult()),
+                    finalizer.finalize(started_attempt, FakeProviderResult()),
+                )
+            elif late_result:
+                started_attempt = await starter.start(result.advisory_work_ref)
+                assert started_attempt is not None
+                retry_ref = await finalizer.finalize(
+                    started_attempt, FakeProviderResult(retry=True)
+                )
+                assert retry_ref == result.advisory_work_ref
+                winning_attempt = await starter.start(retry_ref)
+                assert winning_attempt is not None
+                await finalizer.finalize(winning_attempt, FakeProviderResult())
+                await finalizer.finalize(started_attempt, FakeProviderResult())
+            elif supersede_before_finalize:
+                started_attempt = await starter.start(result.advisory_work_ref)
+                assert started_attempt is not None
+                await _append_test_superseding_evidence(fence)
+                await finalizer.finalize(started_attempt, FakeProviderResult())
+            elif supersede_after_finalize:
+                started_attempt = await starter.start(result.advisory_work_ref)
+                assert started_attempt is not None
+                await finalizer.finalize(started_attempt, FakeProviderResult())
+                await _append_test_superseding_evidence(fence)
+            elif retry_gap_db_capacity:
+                started_attempt = await starter.start(result.advisory_work_ref)
+                assert started_attempt is not None
+                retry_ref = await finalizer.finalize(
+                    started_attempt, FakeProviderResult(retry=True)
+                )
+                assert retry_ref == result.advisory_work_ref
+                release_holder = asyncio.Event()
+                holder_ready = asyncio.Event()
+
+                async def hold_advisory_capacity() -> None:
+                    async with fence.transaction():
+                        holder_ready.set()
+                        await release_holder.wait()
+
+                holder = asyncio.create_task(hold_advisory_capacity())
+                await holder_ready.wait()
+                worker = AdvisoryWorker(starter, finalizer, FakeProvider())
+                # The first terminal-write lease is unavailable too.  Worker must
+                # fail closed: no replacement Attempt, no Provider, no synthetic
+                # terminal record while the real holder remains authoritative.
+                assert await worker.consume(retry_ref) is None
+                release_holder.set()
+                await holder
+                assert await finalizer.terminalize_db_capacity_unavailable(retry_ref)
+                # A concurrent/external terminal winner remains immutable.
+                assert not await finalizer.terminalize_db_capacity_unavailable(retry_ref)
+            elif process_lost_retry_allowed is None:
+                worker = AdvisoryWorker(starter, finalizer, FakeProvider())
+                ingress = AdvisoryIngress(fence, queue_capacity=1)
+                assert await ingress.post_commit_offer(result.advisory_work_ref)
+                assert await ingress.consume_one(worker.consume)
+                if retry_gap_queue_reject:
+                    assert ingress.queue_size == 1
+                    assert not await ingress.post_commit_offer(result.advisory_work_ref)
+                elif retry_once:
+                    assert ingress.queue_size == 1
+                    assert await ingress.consume_one(worker.consume)
+                assert ingress.queue_size == (1 if retry_gap_queue_reject else 0)
+            else:
+                started_attempt = await starter.start(result.advisory_work_ref)
+                assert started_attempt is not None
+                ingress = AdvisoryIngress(fence, queue_capacity=1)
+                assert await AdvisoryRecovery(fence, finalizer).recover_process_lost(
+                    retry_allowed=process_lost_retry_allowed,
+                    reoffer=ingress.post_commit_offer if process_lost_retry_allowed else None,
+                ) == 1
+            async with sessions() as session:
+                started_attempt = await session.scalar(
+                    select(AdvisoryDecisionAttemptRecord.attempt_id)
+                )
+        async with sessions() as session:
+            evidence = (
+                await session.scalars(
+                    select(EdgeOpportunityEvidenceRecord).where(
+                        EdgeOpportunityEvidenceRecord.evidence_revision == 1
+                    )
+                )
+            ).one()
+            invocation = (await session.scalars(select(AdvisoryDecisionInvocationRecord))).one()
+            attempt_state = await session.scalar(select(AdvisoryDecisionAttemptRecord.attempt_state))
+            attempt_states = list(
+                await session.scalars(
+                    select(AdvisoryDecisionAttemptRecord.attempt_state).order_by(
+                        AdvisoryDecisionAttemptRecord.attempt_number
+                    )
+                )
+            )
+            attempt_count = await _count(session, AdvisoryDecisionAttemptRecord)
+            invocations = await _count(session, AdvisoryDecisionInvocationRecord)
+            snapshots = await _count(session, DecisionSnapshotRecord)
+            evidence_revision_count = await _count(session, EdgeOpportunityEvidenceRecord)
+            latest_attempt_id = await session.scalar(
+                select(AdvisoryDecisionAttemptRecord.attempt_id)
+                .order_by(AdvisoryDecisionAttemptRecord.attempt_number.desc())
+                .limit(1)
+            )
+        return {
+            "persisted": result.persisted,
+            "has_work_ref": result.advisory_work_ref is not None,
+            "evidence_state": evidence.advisory_admission_state,
+            "seed_complete": all(
+                value is not None
+                for value in (
+                    evidence.advisory_admission_seed_version,
+                    evidence.advisory_admission_seed_digest,
+                    evidence.advisory_admission_seed,
+                )
+            ),
+            "invocations": invocations,
+            "snapshots": snapshots,
+            "fence_held_after_commit": fence.held,
+            "ref_matches_invocation": result.advisory_work_ref is not None
+            and result.advisory_work_ref.decision_invocation_id
+            == invocation.decision_invocation_id,
+            "attempt_started": started_attempt is not None,
+            "provider_calls": provider_calls,
+            "provider_db_held": provider_db_held,
+            "invocation_final": invocation.state == "FINAL",
+            "final_attempt_matches": invocation.final_attempt_id == started_attempt,
+            "attempt_state": attempt_state,
+            "invocation_state": invocation.state,
+            "final_reason": invocation.final_reason_code,
+            "attempt_count": attempt_count,
+            "attempt_states": attempt_states,
+            "final_attempt_is_null": invocation.final_attempt_id is None,
+            "final_attempt_matches_latest": invocation.final_attempt_id == latest_attempt_id,
+            "recovery_queue_size": ingress.queue_size
+            if process_lost_retry_allowed is True
+            else None,
+            "evidence_revision_count": evidence_revision_count,
+            "invocation_evidence_superseded": evidence_revision_count
+            > invocation.evidence_revision,
+        }
+
+
+async def _append_test_superseding_evidence(fence: AdvisoryDbFence) -> None:
+    """Fixture-only predecessor-chain write; it does not alter Edge production behavior."""
+
+    async with fence.transaction() as session:
+        old = (await session.scalars(select(EdgeOpportunityEvidenceRecord))).one()
+        session.add(
+            EdgeOpportunityEvidenceRecord(
+                evidence_id=f"{old.evidence_id[:-1]}9",
+                opportunity_id=old.opportunity_id,
+                candidate_id=old.candidate_id,
+                family_id=old.family_id,
+                family_version=old.family_version,
+                instrument_id=old.instrument_id,
+                market_type=old.market_type,
+                evidence_revision=2,
+                evidence_contract_version=old.evidence_contract_version,
+                evidence_hash="d" * 64,
+                feature_snapshot_hash="e" * 64,
+                feature_snapshot_hash_version=old.feature_snapshot_hash_version,
+                supersedes_evidence_id=old.evidence_id,
+                detected_at=old.detected_at,
+                evidence_at=old.evidence_at,
+                expires_at=old.expires_at,
+                source_type=old.source_type,
+                source_identity=old.source_identity,
+                source_manifest_id=old.source_manifest_id,
+                reference_bid=old.reference_bid,
+                reference_ask=old.reference_ask,
+                reference_received_at=old.reference_received_at,
+                reference_data_status=old.reference_data_status,
+                evidence_payload=old.evidence_payload,
+                feature_snapshot_payload=old.feature_snapshot_payload,
+                created_at=old.created_at,
+            )
+        )
+
+
+async def _disabled_g2_caller_scenario(url: str) -> dict[str, object]:
+    async with _sessions(url) as sessions:
+        facts = _facts()
+        persisted = await _persist(
+            sessions,
+            facts,
+            _context(),
+            quote=_quote(),
+            advisory_admission_state="GATE_A_DISABLED",
+        )
+        async with sessions() as session:
+            row = (await session.scalars(select(EdgeOpportunityEvidenceRecord))).one()
+            return {
+                "persisted": persisted,
+                "state": row.advisory_admission_state,
+                "rows": await _count(session, EdgeOpportunityEvidenceRecord),
+            }
+
+
+async def _disabled_capture_scenario(url: str) -> dict[str, object]:
+    async with _sessions(url) as sessions:
+        facts = _facts()
+        context = _context()
+        candidate = _breakout_candidate(facts["candidates"])
+        expected = build_opportunity_evidence(
+            event=facts["event"],
+            timeline=facts["timeline"],
+            state=facts["state"],
+            transition=facts["transition"],
+            candidate=candidate,
+            observation=facts["features"],
+            context=context,
+            reference_quote=_quote(),
+        )
+        async with sessions() as session, session.begin():
+            status = await capture_opportunity(
+                session,
+                event=facts["event"],
+                timeline=facts["timeline"],
+                state=facts["state"],
+                transition=facts["transition"],
+                candidates=facts["candidates"],
+                observation=facts["features"],
+                context=context,
+                reference_quote=_quote(),
+                expected_evidence_hash=expected.evidence_hash,
+                advisory_admission_state="GATE_A_DISABLED",
+            )
+        wrong_anchor_rejected = False
+        try:
+            async with sessions() as session, session.begin():
+                await capture_opportunity(
+                    session,
+                    event=facts["event"],
+                    timeline=facts["timeline"],
+                    state=facts["state"],
+                    transition=facts["transition"],
+                    candidates=facts["candidates"],
+                    observation=facts["features"],
+                    context=context,
+                    reference_quote=_quote(),
+                    expected_evidence_hash="0" * 64,
+                    advisory_admission_state="GATE_A_DISABLED",
+                )
+        except ValueError:
+            wrong_anchor_rejected = True
+        async with sessions() as session:
+            row = (await session.scalars(select(EdgeOpportunityEvidenceRecord))).one()
+            return {
+                "status": status,
+                "admission_state": row.advisory_admission_state,
+                "evidence_id": row.evidence_id,
+                "expected_evidence_id": expected.evidence_id,
+                "opportunity_id": row.opportunity_id,
+                "expected_opportunity_id": expected.opportunity_id,
+                "evidence_hash": row.evidence_hash,
+                "expected_evidence_hash": expected.evidence_hash,
+                "feature_snapshot_hash": row.feature_snapshot_hash,
+                "expected_feature_snapshot_hash": expected.feature_snapshot_hash,
+                "evidence_payload": row.evidence_payload,
+                "expected_evidence_payload": expected.evidence_payload,
+                "feature_snapshot_payload": row.feature_snapshot_payload,
+                "expected_feature_snapshot_payload": expected.feature_snapshot_payload,
+                "wrong_anchor_rejected": wrong_anchor_rejected,
+                "evidence_rows": await _count(session, EdgeOpportunityEvidenceRecord),
+            }
 
 
 def test_rebuilding_the_same_facts_twice_is_deterministic():
@@ -2217,7 +2799,7 @@ async def _replay_separation_scenario(url: str, facts: dict[str, object]) -> dic
         )
         async with sessions() as session:
             return {
-                "persisted": int(persisted),
+                "persisted": int(persisted.persisted),
                 "anchors": await _count(session, EdgeOpportunityCaptureAnchorRecord),
                 "historical_evidence": int(
                     await session.scalar(
