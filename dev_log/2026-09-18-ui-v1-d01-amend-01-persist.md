@@ -3,7 +3,7 @@
 ## Result
 
 - Task type: `ACCEPTED AMENDMENT REPOSITORY PERSISTENCE / DOCS + STATE ONLY`.
-- Result: `IMPLEMENTED / READY FOR INDEPENDENT REVIEW` for Amendment repository persistence only.
+- Result: `UI-V1-D01-AMEND-01-PERSIST-FIX-01 = IMPLEMENTED / READY FOR INDEPENDENT RE-REVIEW` for Amendment repository-persistence finding closure only.
 - Human-confirmed Amendment: `UI-V1-D01-AMEND-01 = ACCEPTED / FROZEN`.
 - Formal artifact: `docs/design/UI-V1/UI-V1-D01-AMEND-01-Post-Freeze-Amendment.md`.
 
@@ -13,8 +13,11 @@
 - `UI-V1-D01 = ACCEPTED / FROZEN — AS AMENDED BY UI-V1-D01-AMEND-01`.
 - `UI-RD01 = ACCEPTED / FROZEN — AS AMENDED BY UI-V1-D01-AMEND-01`.
 - `UI-RD01-I01 = ACCEPTED / COMPLETE` is preserved; `I02–I05 = NOT STARTED / NOT AUTHORIZED`.
-- CR-01 and CR-02: contract accepted; Foundation implementation remediation = `REQUIRED / NOT STARTED`.
-- CR-03 through CR-06: accepted future implementation contracts; no current Product Read implementation is claimed.
+- CR-01 and CR-02: contract accepted; current Foundation implementation remediation = `REQUIRED / NOT STARTED`.
+- CR-03: contract accepted; current implementation remediation = `NOT APPLICABLE YET`; future OpportunityTraceRead implementation must comply.
+- CR-04: contract accepted; current implementation remediation = `NOT APPLICABLE YET`; future EdgeAggregateRead implementation must comply.
+- CR-05: contract accepted; current shared Product Read contract remediation = `REQUIRED / NOT STARTED`. `UI-RD01-I01` historically remains `ACCEPTED / COMPLETE` and has already implemented `backend/src/marketpulse/api/product/models.py::TraceNodeState`, whose current enum lacks `NOT_YET_DUE`. The later post-freeze CR-05 contract requires remediation; it does not revoke or downgrade I01 acceptance. Future OpportunityTraceRead / trace consumers must comply.
+- CR-06: contract accepted; current implementation remediation = `NOT APPLICABLE YET`; future EdgeAggregateRead implementation must comply.
 
 ## Boundaries
 

@@ -96,8 +96,9 @@ or the current canonical head.
 
 `PRE-01B-I2` remains `NOT STARTED / NOT ACTIVATED`: this contract freezes future exact-binding
 semantics and does not describe future AdvisoryIngress live binding as currently live capability.
-Disposition: `CR-03 Contract Amendment = ACCEPTED`; future relevant OpportunityTraceRead
-implementation must comply.
+Disposition: `CR-03 Contract Amendment = ACCEPTED`; current implementation remediation is
+`NOT APPLICABLE YET`; future relevant OpportunityTraceRead implementation must comply. This does
+not claim that OpportunityTraceRead is already implemented.
 
 ## 5. CR-04 P1 — Full Edge Product Query Bounded Resource Boundary
 
@@ -132,8 +133,9 @@ query budget it must fail closed / `UNAVAILABLE`. This amendment freezes no nume
 queue, timeout, memory, or latency values, and authorizes no Celery, Redis, Kafka, separate
 worker service, daemon, scheduler, persistence, or materialized aggregate.
 
-Disposition: `CR-04 Contract Amendment = ACCEPTED`; future EdgeAggregateRead implementation must
-comply.
+Disposition: `CR-04 Contract Amendment = ACCEPTED`; current implementation remediation is
+`NOT APPLICABLE YET`; future EdgeAggregateRead implementation must comply. This does not start or
+claim an Edge endpoint.
 
 ## 6. CR-05 P2 — NOT_REACHED vs NOT_YET_DUE
 
@@ -158,8 +160,13 @@ NOT_YET_DUE != NO_PROVABLE_RECORD != UNAVAILABLE != CAPABILITY_NOT_INTEGRATED`. 
 remain: `NOT_YET_DUE != missing` and it does not enter the mature denominator. UI Chinese terms
 are `未到达` for causal `NOT_REACHED` and `尚未到期` for temporal `NOT_YET_DUE`.
 
-Disposition: `CR-05 Contract Amendment = ACCEPTED`; future relevant trace implementation must
-comply.
+Disposition: `CR-05 Contract Amendment = ACCEPTED`; current shared Product Read contract
+implementation remediation is `REQUIRED / NOT STARTED`. `UI-RD01-I01 = ACCEPTED / COMPLETE`
+remains historically accepted: its shared Product Read contract already created
+`backend/src/marketpulse/api/product/models.py::TraceNodeState`, but that accepted current enum
+lacks `NOT_YET_DUE`. The later post-freeze CR-05 contract therefore requires remediation without
+revoking, downgrading, or rewriting I01 historical acceptance. Future OpportunityTraceRead and
+trace consumers must also comply.
 
 ## 7. CR-06 P2 — EdgeAggregateRead Audit Identity
 
@@ -191,8 +198,9 @@ contract semantics. Product UI/Product DTO need not expose the full `input_manif
 existing SE-02D manifest/fingerprint authority remains unchanged and `input_fingerprint` is the
 V1 minimum audit reference.
 
-Disposition: `CR-06 Contract Amendment = ACCEPTED`; future EdgeAggregateRead implementation must
-comply.
+Disposition: `CR-06 Contract Amendment = ACCEPTED`; current implementation remediation is
+`NOT APPLICABLE YET`; future EdgeAggregateRead implementation must comply. This does not start or
+claim an Edge endpoint.
 
 ## 8. Preserved Boundaries and Implementation Status
 
@@ -201,7 +209,9 @@ UI-RD01 R1–R8. The five-page IA, no independent AI page, Read-Only Product Bou
 direction, SE-02D formulas, Population Key, folding, fingerprint algorithm, and all frozen
 Product Read boundaries remain unchanged.
 
-`UI-RD01-I01 = ACCEPTED / COMPLETE` is preserved. `UI-RD01-I02` through `UI-RD01-I05` remain
-`NOT STARTED / NOT AUTHORIZED`. `PRE-01B-I2`, Real AI, live G2→G3, Gate A/B/C, and Live receive
-no activation or implementation progress from this artifact. This task makes no production-code,
-test, schema, migration, index, runtime/configuration, or dependency change.
+`UI-RD01-I01 = ACCEPTED / COMPLETE` is preserved. It is historically accepted while its existing
+shared `TraceNodeState` surface has a new post-freeze CR-05 remediation requirement. `UI-RD01-I02`
+through `UI-RD01-I05` remain `NOT STARTED / NOT AUTHORIZED`. `PRE-01B-I2`, Real AI, live G2→G3,
+Gate A/B/C, and Live receive no activation or implementation progress from this artifact. This
+task makes no production-code, test, schema, migration, index, runtime/configuration, or
+dependency change.
