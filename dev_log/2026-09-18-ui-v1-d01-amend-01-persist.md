@@ -3,7 +3,10 @@
 ## Result
 
 - Task type: `ACCEPTED AMENDMENT REPOSITORY PERSISTENCE / DOCS + STATE ONLY`.
-- Result: `UI-V1-D01-AMEND-01-PERSIST-FIX-01 = IMPLEMENTED / READY FOR INDEPENDENT RE-REVIEW` for Amendment repository-persistence finding closure only.
+- Result: `UI-V1-D01-AMEND-01-PERSIST = ACCEPTED / COMPLETE` (Final Human Acceptance Closeout only; not CR code completion).
+- Independent Re-Review: `PASS`.
+- Human Acceptance: `CONFIRMED — 2026-09-18`.
+- Human-Accepted Reviewed Candidate: `73cae6a47e147ec655f660cecf235864ffdbbb9c` (immutable).
 - Human-confirmed Amendment: `UI-V1-D01-AMEND-01 = ACCEPTED / FROZEN`.
 - Formal artifact: `docs/design/UI-V1/UI-V1-D01-AMEND-01-Post-Freeze-Amendment.md`.
 
