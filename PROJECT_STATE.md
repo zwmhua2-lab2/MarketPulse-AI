@@ -2337,3 +2337,13 @@ UI-RD01-I02-REQ-01 — Market Scanner & Opportunity Product Read Implementation 
 - 无实现面变更 ⇒ `ruff` / `pytest` / frontend typecheck / frontend tests / frontend build = `NOT REQUIRED / NOT RUN`（**不**据此声称任何运行时行为已验证）。
 - 边界保持（未解锁）：`PRE-01B-I2` = `NOT STARTED / NOT ACTIVATED`；Real AI = `NOT ACTIVATED`；live `G2→G3` = `NOT ACTIVE`；Gate A/B/C = `NOT ACTIVATED` / `NOT PASSED`；Live = `NOT AUTHORIZED`；Live Trading = `DISABLED`。
 - 详见 `dev_log/2026-09-19-ui-rd01-i02-requirements-final-freeze.md`。
+
+## UI-RD01-I02-A MarketScannerRead Internal Checkpoint
+
+- 任务：`UI-RD01-I02-A-RESUME-01`｜`I02-A｜市场扫描读取`；Task Base / isolated worktree HEAD = `e5476b46d0d84f0bb4e495e9dc806a6adaa390c7`；candidate branch = `ui-rd01-i02-a-market-scanner-read`。状态：`I02-A IMPLEMENTED / INTERNAL CHECKPOINT`，仅待独立审查；**不**构成 `UI-RD01-I02 ACCEPTED` 或任何 Human Acceptance。Parent `UI-RD01-I02 = IMPLEMENTING`；`I02-B = NOT STARTED`。
+- 实现范围：仅 `GET /api/v1/product/market-scanner`。新增 RuntimeHost 非 owning、immutable Current Market snapshot，通过 `ProductReadContext` 暴露；Scanner 历史从 Host-borrowed session factory 读取 `MarketEventRecord`，使用 `(event_time DESC, event_id DESC)` keyset、opaque/versioned cursor、冻结 effective range，PostgreSQL 成功页的 `as_of` = 同一 `REPEATABLE READ, READ ONLY` 事务的 `statement_timestamp()`。事件 DTO 只含冻结允许字段，`producer_source = source`、`runtime_binding_status = NOT_RECORDED`，不暴露 payload/run mode/runtime id/current quote quality。
+- 语义：Host absent = `200 / A / NOT_ACTIVATED / UNAVAILABLE / null failure`；成功零历史 = `EMPTY`；任一可用 section 可形成 200 partial，双方不可形成可信投影 = typed sanitized `503 SNAPSHOT_FAILED`；未分类异常 = correlation-id-only `500`。Operational provenance 固定 `FORWARD_PAPER`，无 replay fallback。
+- 验证：I02-A focused = `24 passed`（含随机名、测试后删除的 disposable PostgreSQL database；未写 business primary DB）；I01 Product regression = `22 passed`；RuntimeHost regression = `51 passed`；相关 ruff = pass；OpenAPI regenerate + drift check = pass；frontend typecheck = pass；frontend tests = `7 files / 57 tests passed`；frontend production build = pass。详见对应 dev log；warnings 仅 Starlette/TestClient deprecation，未影响 exit 0。
+- 边界保持：Schema / Migration / Index / package manifests / frozen requirement/design/Amendment / `DECISIONS.md` = `ZERO CHANGE`；不启动 I02-B、I03–I05、PRE-01B-I2、Real AI、live G2→G3、Gate 或 Live；不创建 provider、second market cache、second RuntimeHost 或 second engine。
+- 时间：任务启动时刻未被可靠捕获，故 `Execution Started At` / `Run Duration` / `Estimate Delta` = `NOT VERIFIED`，不伪造；最终端到端 Completed At 在候选 commit、push 和远端复读后于 Completion Report 记录。
+- 详见 `dev_log/2026-09-19-ui-rd01-i02-a-market-scanner-read.md`。

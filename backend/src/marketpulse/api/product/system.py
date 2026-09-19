@@ -25,6 +25,7 @@ from .cursor import (
     encode_incident_cursor,
     incident_filter_fingerprint,
 )
+from .market_scanner import router as market_scanner_router
 from .models import (
     PRODUCT_READ_CONTRACT_VERSION,
     AIActivationDTO,
@@ -62,6 +63,7 @@ from .models import (
 )
 
 router = APIRouter(prefix="/api/v1/product", tags=["product-read"])
+router.include_router(market_scanner_router)
 
 logger = logging.getLogger(__name__)
 

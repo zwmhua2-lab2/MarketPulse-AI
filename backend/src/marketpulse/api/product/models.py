@@ -275,6 +275,55 @@ class SystemIncidentReadResponse(BaseModel):
     data: SystemIncidentDataDTO | None
 
 
+class CurrentMarketQuoteDTO(BaseModel):
+    instrument_id: str
+    bid: float | None
+    ask: float | None
+    received_at: datetime | None
+    tradable: bool
+    data_quality: str
+    age_seconds: float | None
+    snapshot_at: datetime
+
+
+class CurrentMarketDataDTO(BaseModel):
+    quotes: list[CurrentMarketQuoteDTO] = Field(default_factory=list)
+
+
+class ScannerEventDTO(BaseModel):
+    event_id: str
+    instrument_id: str
+    symbol: str
+    market_type: str
+    event_type: str
+    event_time: datetime
+    received_time: datetime
+    strength: float
+    priority: int
+    state_version: int
+    config_version: str
+    producer_source: str
+    runtime_binding_status: str = "NOT_RECORDED"
+
+
+class ScannerEventPageDTO(BaseModel):
+    items: list[ScannerEventDTO] = Field(default_factory=list)
+    next_cursor: str | None = None
+    as_of: datetime
+
+
+class MarketScannerDataDTO(BaseModel):
+    current_market: SystemSectionDTO[CurrentMarketDataDTO]
+    scanner_events: SystemSectionDTO[ScannerEventPageDTO]
+
+
+class MarketScannerReadResponse(BaseModel):
+    meta: ProjectionMetaDTO
+    operational_context: OperationalContextDTO
+    range_context: RangeContextDTO
+    data: MarketScannerDataDTO | None
+
+
 class ProductUnavailableResponse(BaseModel):
     """Formal ``503`` body for an endpoint-wide Product snapshot failure."""
 

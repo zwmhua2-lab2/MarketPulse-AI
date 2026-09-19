@@ -141,8 +141,10 @@ __all__ = [
     "HostStartupError",
     "HostTerminalResult",
     "LiveMarketState",
+    "ProductCurrentMarketSnapshot",
     "ProductHealthCheckSnapshot",
     "ProductLaneSnapshot",
+    "ProductMarketQuoteSnapshot",
     "ProductMarketSnapshot",
     "ProductRuntimeSnapshot",
     "RecoverySnapshot",
@@ -278,6 +280,28 @@ class ProductMarketSnapshot:
     present: bool
     fresh: bool
     quality: str
+
+
+@dataclass(frozen=True)
+class ProductMarketQuoteSnapshot:
+    """An immutable Product projection of one Host-owned latest quote."""
+
+    instrument_id: str
+    bid: float | None
+    ask: float | None
+    received_at: datetime | None
+    tradable: bool
+    data_quality: str
+    age_seconds: float | None
+
+
+@dataclass(frozen=True)
+class ProductCurrentMarketSnapshot:
+    """A narrow, non-owning snapshot of the Host's current market authority."""
+
+    snapshot_at: datetime
+    instance_id: str
+    quotes: tuple[ProductMarketQuoteSnapshot, ...]
 
 
 @dataclass(frozen=True)
@@ -945,6 +969,48 @@ class RuntimeHost:
             operator_state=self._durable_operator_state,
             system_state=self._durable_system_state,
             blocking_incident_count=self._blocking_incident_count,
+        )
+
+    def product_market_snapshot(self) -> ProductCurrentMarketSnapshot:
+        """Copy the current Host-owned quote authority into an immutable Product snapshot.
+
+        The Product boundary receives scalar facts only.  It never receives a mutable
+        ``LiveMarketState`` or ``BestBidAsk`` object, and it delegates freshness and age to
+        the existing Host-owned monotonic-clock authority.
+        """
+        snapshot_at = datetime.now(UTC)
+        quotes: list[ProductMarketQuoteSnapshot] = []
+        for instrument_id in self.required_instruments():
+            bbo = self._market.latest(instrument_id)
+            quality = self._market.quality(instrument_id)
+            if bbo is None:
+                quotes.append(
+                    ProductMarketQuoteSnapshot(
+                        instrument_id=instrument_id,
+                        bid=None,
+                        ask=None,
+                        received_at=None,
+                        tradable=False,
+                        data_quality=quality.value,
+                        age_seconds=None,
+                    )
+                )
+                continue
+            quotes.append(
+                ProductMarketQuoteSnapshot(
+                    instrument_id=instrument_id,
+                    bid=bbo.bid,
+                    ask=bbo.ask,
+                    received_at=bbo.received_at,
+                    tradable=bbo.tradable,
+                    data_quality=quality.value,
+                    age_seconds=self._market.age_seconds(instrument_id),
+                )
+            )
+        return ProductCurrentMarketSnapshot(
+            snapshot_at=snapshot_at,
+            instance_id=self.instance_id,
+            quotes=tuple(quotes),
         )
 
     def ownership_snapshot(self) -> dict[str, Any]:

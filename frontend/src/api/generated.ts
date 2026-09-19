@@ -78,6 +78,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/product/market-scanner": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Market Scanner Read
+         * @description Read the operational Market Scanner projection without activating any runtime resource.
+         */
+        get: operations["market_scanner_read_api_v1_product_market_scanner_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/product/system": {
         parameters: {
             query?: never;
@@ -201,6 +221,33 @@ export interface components {
              * @default NOT_ACTIVATED
              */
             status: string;
+        };
+        /** CurrentMarketDataDTO */
+        CurrentMarketDataDTO: {
+            /** Quotes */
+            quotes?: components["schemas"]["CurrentMarketQuoteDTO"][];
+        };
+        /** CurrentMarketQuoteDTO */
+        CurrentMarketQuoteDTO: {
+            /** Age Seconds */
+            age_seconds: number | null;
+            /** Ask */
+            ask: number | null;
+            /** Bid */
+            bid: number | null;
+            /** Data Quality */
+            data_quality: string;
+            /** Instrument Id */
+            instrument_id: string;
+            /** Received At */
+            received_at: string | null;
+            /**
+             * Snapshot At
+             * Format: date-time
+             */
+            snapshot_at: string;
+            /** Tradable */
+            tradable: boolean;
         };
         /** DatabaseSingletonDTO */
         DatabaseSingletonDTO: {
@@ -354,6 +401,18 @@ export interface components {
             market: components["schemas"]["MarketInstrumentDTO"][];
             provider: components["schemas"]["ProviderDTO"];
         };
+        /** MarketScannerDataDTO */
+        MarketScannerDataDTO: {
+            current_market: components["schemas"]["SystemSectionDTO_CurrentMarketDataDTO_"];
+            scanner_events: components["schemas"]["SystemSectionDTO_ScannerEventPageDTO_"];
+        };
+        /** MarketScannerReadResponse */
+        MarketScannerReadResponse: {
+            data: components["schemas"]["MarketScannerDataDTO"] | null;
+            meta: components["schemas"]["ProjectionMetaDTO"];
+            operational_context: components["schemas"]["OperationalContextDTO"];
+            range_context: components["schemas"]["RangeContextDTO"];
+        };
         /**
          * OperationalAvailability
          * @enum {string}
@@ -454,6 +513,23 @@ export interface components {
             channel: string;
             /** Instrument Id */
             instrument_id: string;
+        };
+        /** RangeContextDTO */
+        RangeContextDTO: {
+            /**
+             * Effective End
+             * Format: date-time
+             */
+            effective_end: string;
+            /**
+             * Effective Start
+             * Format: date-time
+             */
+            effective_start: string;
+            /** Requested Range */
+            requested_range: string;
+            /** Time Authority Field */
+            time_authority_field: string;
         };
         /**
          * ReadFailureReason
@@ -585,6 +661,61 @@ export interface components {
             /** Started At */
             started_at: string | null;
         };
+        /** ScannerEventDTO */
+        ScannerEventDTO: {
+            /** Config Version */
+            config_version: string;
+            /** Event Id */
+            event_id: string;
+            /**
+             * Event Time
+             * Format: date-time
+             */
+            event_time: string;
+            /** Event Type */
+            event_type: string;
+            /** Instrument Id */
+            instrument_id: string;
+            /** Market Type */
+            market_type: string;
+            /** Priority */
+            priority: number;
+            /** Producer Source */
+            producer_source: string;
+            /**
+             * Received Time
+             * Format: date-time
+             */
+            received_time: string;
+            /**
+             * Runtime Binding Status
+             * @default NOT_RECORDED
+             */
+            runtime_binding_status: string;
+            /** State Version */
+            state_version: number;
+            /** Strength */
+            strength: number;
+            /** Symbol */
+            symbol: string;
+        };
+        /** ScannerEventPageDTO */
+        ScannerEventPageDTO: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Items */
+            items?: components["schemas"]["ScannerEventDTO"][];
+            /** Next Cursor */
+            next_cursor?: string | null;
+        };
+        /**
+         * ScannerRange
+         * @enum {string}
+         */
+        ScannerRange: "15m" | "30m" | "1h" | "4h" | "6h" | "24h" | "7d" | "30d" | "custom";
         /** SessionResponse */
         SessionResponse: {
             /** Access Token */
@@ -631,6 +762,18 @@ export interface components {
         /** SystemSectionDTO[AIActivationDTO] */
         SystemSectionDTO_AIActivationDTO_: {
             data?: components["schemas"]["AIActivationDTO"] | null;
+            read_failure_reason?: components["schemas"]["ReadFailureReason"] | null;
+            /**
+             * Snapshot At
+             * Format: date-time
+             */
+            snapshot_at: string;
+            source: components["schemas"]["SourceContextDTO"];
+            state: components["schemas"]["ProjectionState"];
+        };
+        /** SystemSectionDTO[CurrentMarketDataDTO] */
+        SystemSectionDTO_CurrentMarketDataDTO_: {
+            data?: components["schemas"]["CurrentMarketDataDTO"] | null;
             read_failure_reason?: components["schemas"]["ReadFailureReason"] | null;
             /**
              * Snapshot At
@@ -772,6 +915,18 @@ export interface components {
             source: components["schemas"]["SourceContextDTO"];
             state: components["schemas"]["ProjectionState"];
         };
+        /** SystemSectionDTO[ScannerEventPageDTO] */
+        SystemSectionDTO_ScannerEventPageDTO_: {
+            data?: components["schemas"]["ScannerEventPageDTO"] | null;
+            read_failure_reason?: components["schemas"]["ReadFailureReason"] | null;
+            /**
+             * Snapshot At
+             * Format: date-time
+             */
+            snapshot_at: string;
+            source: components["schemas"]["SourceContextDTO"];
+            state: components["schemas"]["ProjectionState"];
+        };
         /** ValidationError */
         ValidationError: {
             /** Context */
@@ -898,6 +1053,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    market_scanner_read_api_v1_product_market_scanner_get: {
+        parameters: {
+            query?: {
+                range?: components["schemas"]["ScannerRange"];
+                start?: string | null;
+                end?: string | null;
+                limit?: number;
+                cursor?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MarketScannerReadResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductInternalErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductUnavailableResponse"];
                 };
             };
         };
