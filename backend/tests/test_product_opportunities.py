@@ -7,10 +7,12 @@ import time
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 from uuid import uuid4
 
 import marketpulse.api.app as app_module
+import marketpulse.api.product.opportunities as opportunities_module
 import pytest
 from alembic import command
 from alembic.config import Config
@@ -20,6 +22,7 @@ from marketpulse.config import Settings
 from marketpulse.db.models import (
     AIDecisionRecord,
     EdgeAttributionEventRecord,
+    EdgeOpportunityEvidenceRecord,
     MarketEventRecord,
     StrategyCandidateRecord,
 )
@@ -44,7 +47,8 @@ from marketpulse.edge.repository import (
 from marketpulse.market_data.models import MarketType
 from marketpulse.runtime import HostLifecycleState
 from marketpulse.runtime_host import RuntimeHost
-from sqlalchemy import delete, text
+from sqlalchemy import delete, select, text
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
@@ -339,3 +343,313 @@ def test_detail_ai_not_reached_is_not_guessed(opportunity_host: tuple[RuntimeHos
     client = TestClient(app_module.app)
     body = _request(client, _headers(client), f"/{ids['opportunity']}").json()["data"]
     assert body["trading_decision"]["state"] == "NOT_REACHED"
+
+
+def test_cross_provenance_chain_folds_before_projection_and_keeps_historical_binding(
+    opportunity_host: tuple[RuntimeHost, dict[str, str]],
+) -> None:
+    host, _ = opportunity_host
+    identity = build_opportunity_identity(
+        family_id=EdgeFamily.BREAKOUT_RETEST,
+        family_version="edge-v1",
+        instrument_id="SOL-USDT",
+        market_type=MarketType.SPOT,
+        candidate_id="candidate-cross-provenance",
+    )
+    rev1 = build_evidence_revision(
+        opportunity=identity,
+        evidence_revision=1,
+        detected_at=START + timedelta(minutes=2),
+        evidence_at=START,
+        expires_at=START + timedelta(minutes=10),
+        source_type=EvidenceSource.FORWARD_PAPER,
+        source_identity="forward-cross",
+        source_manifest_id="manifest-cross-forward",
+        reference_data_status=ReferenceDataStatus.REFERENCE_MISSING,
+        evidence_payload={},
+        feature_snapshot_payload={},
+        created_at=START,
+    )
+    rev2 = build_evidence_revision(
+        opportunity=identity,
+        evidence_revision=2,
+        supersedes_evidence_id=rev1.evidence_id,
+        detected_at=START + timedelta(minutes=3),
+        evidence_at=START + timedelta(seconds=1),
+        expires_at=START + timedelta(minutes=10),
+        source_type=EvidenceSource.HISTORICAL_REPLAY,
+        source_identity="replay-cross",
+        source_manifest_id="manifest-cross-replay",
+        reference_data_status=ReferenceDataStatus.REFERENCE_MISSING,
+        evidence_payload={},
+        feature_snapshot_payload={},
+        created_at=START + timedelta(seconds=1),
+    )
+    attribution = build_attribution_event(
+        subject_type=AttributionSubjectType.AI,
+        subject_id="decision-cross",
+        event_type=AttributionEventType.AI_ACCEPTED_LONG.value,
+        opportunity_id=identity.opportunity_id,
+        evidence_id=rev1.evidence_id,
+        payload={},
+        occurred_at=START,
+        recorded_at=START,
+    )
+
+    async def append_cross_chain() -> None:
+        async with host._sessions() as session, session.begin():
+            session.add(
+                AIDecisionRecord(
+                    decision_id="decision-cross", snapshot_id="snapshot-cross", run_mode="TEST",
+                    state_version=3, config_version="g3-v1", prompt_version="p1", schema_version="s1",
+                    model="fake", status="VALID", raw_prompt="", raw_response={}, error=None, created_at=START,
+                )
+            )
+            await append_evidence_revision(session, rev1)
+            await append_evidence_revision(session, rev2)
+            await append_attribution_event(session, attribution)
+
+    asyncio.run(append_cross_chain())
+    client = TestClient(app_module.app)
+    headers = _headers(client)
+    query = "?range=custom&start=2026-09-18T10:00:00Z&end=2026-09-18T11:00:00Z"
+    forward = _request(client, headers, query)
+    assert forward.status_code == 200
+    assert identity.opportunity_id not in {item["opportunity_id"] for item in forward.json()["data"]["items"]}
+    replay = _request(client, headers, query + "&source_type=HISTORICAL_REPLAY")
+    assert replay.status_code == 200
+    replay_item = next(item for item in replay.json()["data"]["items"] if item["opportunity_id"] == identity.opportunity_id)
+    assert replay_item["current_canonical_evidence"]["evidence_revision"] == 2
+    detail = _request(client, headers, f"/{identity.opportunity_id}?source_type=HISTORICAL_REPLAY")
+    assert detail.status_code == 200
+    trace = detail.json()["data"]
+    assert trace["current_canonical_evidence"]["evidence_revision"] == 2
+    assert trace["trading_decision"]["data"]["decisions"][0]["decision_bound_evidence"]["data"]["evidence_revision"] == 1
+    assert _request(client, headers, f"/{identity.opportunity_id}").status_code == 404
+
+
+def test_cross_provenance_chain_corruption_is_not_hidden(
+    opportunity_host: tuple[RuntimeHost, dict[str, str]],
+) -> None:
+    host, _ = opportunity_host
+    identity = build_opportunity_identity(
+        family_id=EdgeFamily.BREAKOUT_RETEST,
+        family_version="edge-v1",
+        instrument_id="XRP-USDT",
+        market_type=MarketType.SPOT,
+        candidate_id="candidate-corrupt-cross-provenance",
+    )
+    rev1 = build_evidence_revision(
+        opportunity=identity, evidence_revision=1, detected_at=START, evidence_at=START,
+        expires_at=START + timedelta(minutes=10), source_type=EvidenceSource.FORWARD_PAPER,
+        source_identity="forward-corrupt", source_manifest_id="manifest-corrupt-forward",
+        reference_data_status=ReferenceDataStatus.REFERENCE_MISSING, evidence_payload={},
+        feature_snapshot_payload={}, created_at=START,
+    )
+    rev2 = build_evidence_revision(
+        opportunity=identity, evidence_revision=2, supersedes_evidence_id=rev1.evidence_id,
+        detected_at=START, evidence_at=START + timedelta(seconds=1), expires_at=START + timedelta(minutes=10),
+        source_type=EvidenceSource.HISTORICAL_REPLAY, source_identity="replay-corrupt",
+        source_manifest_id="manifest-corrupt-replay", reference_data_status=ReferenceDataStatus.REFERENCE_MISSING,
+        evidence_payload={}, feature_snapshot_payload={}, created_at=START + timedelta(seconds=1),
+    )
+    rev3 = build_evidence_revision(
+        opportunity=identity, evidence_revision=3, supersedes_evidence_id=rev1.evidence_id,
+        detected_at=START, evidence_at=START + timedelta(seconds=1), expires_at=START + timedelta(minutes=10),
+        source_type=EvidenceSource.HISTORICAL_REPLAY, source_identity="replay-corrupt",
+        source_manifest_id="manifest-corrupt-replay", reference_data_status=ReferenceDataStatus.REFERENCE_MISSING,
+        evidence_payload={}, feature_snapshot_payload={}, created_at=START + timedelta(seconds=1),
+    )
+
+    async def append_corruption() -> None:
+        async with host._sessions() as session, session.begin():
+            await append_evidence_revision(session, rev1)
+            await append_evidence_revision(session, rev2)
+            persisted = await session.get(EdgeOpportunityEvidenceRecord, rev2.evidence_id)
+            assert persisted is not None
+            persisted.evidence_id = rev3.evidence_id
+            persisted.evidence_revision = rev3.evidence_revision
+            persisted.evidence_hash = rev3.evidence_hash
+
+    asyncio.run(append_corruption())
+    client = TestClient(app_module.app)
+    response = _request(client, _headers(client), "?range=custom&start=2026-09-18T10:00:00Z&end=2026-09-18T11:00:00Z")
+    assert response.status_code == 503
+    assert response.json()["read_failure_reason"] == "SNAPSHOT_FAILED"
+
+
+def test_unprovable_decision_binding_uses_frozen_absence_semantics(
+    opportunity_host: tuple[RuntimeHost, dict[str, str]],
+) -> None:
+    host, ids = opportunity_host
+
+    async def replace_attribution(subject_id: str | None, evidence_id: str | None) -> None:
+        async with host._sessions() as session, session.begin():
+            await session.execute(delete(EdgeAttributionEventRecord))
+            event = build_attribution_event(
+                subject_type=AttributionSubjectType.AI, subject_id=subject_id,
+                event_type=AttributionEventType.AI_ACCEPTED_LONG.value, opportunity_id=ids["opportunity"],
+                evidence_id=evidence_id, payload={}, occurred_at=START, recorded_at=START,
+            )
+            await append_attribution_event(session, event)
+
+    client = TestClient(app_module.app)
+    headers = _headers(client)
+    asyncio.run(replace_attribution("decision-a", None))
+    null_binding = _request(client, headers, f"/{ids['opportunity']}")
+    assert null_binding.status_code == 200
+    decision = null_binding.json()["data"]["trading_decision"]
+    assert decision["state"] == "PRESENT"
+    assert decision["data"]["decisions"][0]["decision_bound_evidence"]["state"] == "NO_PROVABLE_RECORD"
+    asyncio.run(replace_attribution("missing-decision", None))
+    unprovable_decision = _request(client, headers, f"/{ids['opportunity']}")
+    assert unprovable_decision.status_code == 200
+    assert unprovable_decision.json()["data"]["trading_decision"]["state"] == "NO_PROVABLE_RECORD"
+    async def clear_attributions() -> None:
+        async with host._sessions() as session, session.begin():
+            await session.execute(delete(EdgeAttributionEventRecord))
+
+    asyncio.run(clear_attributions())
+    no_attribution = _request(client, headers, f"/{ids['opportunity']}")
+    assert no_attribution.status_code == 200
+    assert no_attribution.json()["data"]["trading_decision"]["state"] == "NO_PROVABLE_RECORD"
+
+
+def test_corrupt_exact_decision_bindings_remain_snapshot_failures(
+    opportunity_host: tuple[RuntimeHost, dict[str, str]],
+) -> None:
+    host, ids = opportunity_host
+
+    async def evidence_ids() -> tuple[str, str, str]:
+        async with host._sessions() as session:
+            records = list(
+                (
+                    await session.scalars(
+                        select(EdgeOpportunityEvidenceRecord).where(
+                            EdgeOpportunityEvidenceRecord.opportunity_id == ids["opportunity"]
+                        )
+                    )
+                ).all()
+            )
+            replay = await session.scalar(
+                select(EdgeOpportunityEvidenceRecord).where(
+                    EdgeOpportunityEvidenceRecord.opportunity_id == ids["replay"]
+                )
+            )
+            assert replay is not None
+            ordered = sorted(records, key=lambda record: record.evidence_revision)
+            return ordered[0].evidence_id, ordered[1].evidence_id, replay.evidence_id
+
+    first, second, cross_opportunity = asyncio.run(evidence_ids())
+
+    async def replace_attributions(*, evidence_id: str, competing: bool = False) -> None:
+        async with host._sessions() as session, session.begin():
+            await session.execute(delete(EdgeAttributionEventRecord))
+            first_event = build_attribution_event(
+                subject_type=AttributionSubjectType.AI, subject_id="decision-a",
+                event_type=AttributionEventType.AI_ACCEPTED_LONG.value, opportunity_id=ids["opportunity"],
+                evidence_id=evidence_id, payload={}, occurred_at=START, recorded_at=START,
+            )
+            await append_attribution_event(session, first_event)
+            if competing:
+                second_event = build_attribution_event(
+                    subject_type=AttributionSubjectType.AI, subject_id="decision-a",
+                    event_type=AttributionEventType.AI_ACCEPTED_LONG.value, opportunity_id=ids["opportunity"],
+                    evidence_id=second, payload={}, occurred_at=START + timedelta(seconds=1),
+                    recorded_at=START + timedelta(seconds=1),
+                )
+                await append_attribution_event(session, second_event)
+
+    client = TestClient(app_module.app)
+    headers = _headers(client)
+    asyncio.run(replace_attributions(evidence_id="missing-evidence"))
+    missing = _request(client, headers, f"/{ids['opportunity']}")
+    assert missing.status_code == 503
+    assert missing.json()["read_failure_reason"] == "SNAPSHOT_FAILED"
+    asyncio.run(replace_attributions(evidence_id=cross_opportunity))
+    cross = _request(client, headers, f"/{ids['opportunity']}")
+    assert cross.status_code == 503
+    assert cross.json()["read_failure_reason"] == "SNAPSHOT_FAILED"
+    asyncio.run(replace_attributions(evidence_id=first, competing=True))
+    conflicting = _request(client, headers, f"/{ids['opportunity']}")
+    assert conflicting.status_code == 503
+    assert conflicting.json()["read_failure_reason"] == "SNAPSHOT_FAILED"
+
+
+def test_product_error_boundaries_are_typed_and_sanitized(
+    opportunity_host: tuple[RuntimeHost, dict[str, str]], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _, ids = opportunity_host
+    client = TestClient(app_module.app)
+    headers = _headers(client)
+    original_begin_snapshot = opportunities_module._begin_snapshot
+    original_fold_evidence_records = opportunities_module.fold_evidence_records
+    original_opportunity_dto = opportunities_module._opportunity_dto
+
+    async def source_failure(_: object) -> datetime:
+        raise OperationalError("SELECT source", {}, RuntimeError("source-secret"))
+
+    monkeypatch.setattr(opportunities_module, "_begin_snapshot", source_failure)
+    collection_suffix = "?range=custom&start=2026-09-18T10:00:00Z&end=2026-09-18T11:00:00Z"
+    for suffix in (collection_suffix, f"/{ids['opportunity']}"):
+        response = _request(client, headers, suffix)
+        assert response.status_code == 503
+        assert response.json()["read_failure_reason"] == "SOURCE_UNAVAILABLE"
+        assert "source-secret" not in response.text
+
+    monkeypatch.setattr(opportunities_module, "_begin_snapshot", original_begin_snapshot)
+
+    def integrity_failure(_: object) -> object:
+        raise opportunities_module.SnapshotIntegrityError(("injected-integrity-secret",))
+
+    monkeypatch.setattr(opportunities_module, "fold_evidence_records", integrity_failure)
+    for suffix in (collection_suffix, f"/{ids['opportunity']}"):
+        response = _request(client, headers, suffix)
+        assert response.status_code == 503
+        assert response.json()["read_failure_reason"] == "SNAPSHOT_FAILED"
+        assert "injected-integrity-secret" not in response.text
+
+    monkeypatch.setattr(opportunities_module, "fold_evidence_records", original_fold_evidence_records)
+
+    def internal_failure(*_: object, **__: object) -> object:
+        raise RuntimeError("internal-mapper-secret")
+
+    monkeypatch.setattr(opportunities_module, "_opportunity_dto", internal_failure)
+    for suffix in (collection_suffix, f"/{ids['opportunity']}"):
+        response = _request(client, headers, suffix)
+        assert response.status_code == 500
+        assert "correlation_id" in response.json()
+        assert "internal-mapper-secret" not in response.text
+    monkeypatch.setattr(opportunities_module, "_opportunity_dto", original_opportunity_dto)
+
+
+def test_forward_due_authority_is_reused_for_all_horizons_and_boundaries(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    evidence = SimpleNamespace(opportunity_id="opportunity", evidence_id="evidence", evidence_at=START)
+    original_forward_due_at = opportunities_module.forward_due_at
+    calls: list[ForwardHorizon] = []
+
+    def controlled_due_at(evidence_at: datetime, horizon: ForwardHorizon) -> datetime:
+        calls.append(horizon)
+        return evidence_at + timedelta(days=1)
+
+    monkeypatch.setattr(opportunities_module, "forward_due_at", controlled_due_at)
+    controlled = opportunities_module._forward_nodes(
+        evidence=evidence, outcome_records=[], as_of=START,
+    )
+    assert set(calls) == set(ForwardHorizon)
+    assert {node.state for node in controlled.values()} == {opportunities_module.TraceNodeState.NOT_YET_DUE}
+
+    monkeypatch.setattr(opportunities_module, "forward_due_at", original_forward_due_at)
+    due_at = original_forward_due_at(START, ForwardHorizon.M5)
+    before = opportunities_module._forward_nodes(
+        evidence=evidence, outcome_records=[], as_of=due_at - timedelta(microseconds=1),
+    )
+    exactly_due = opportunities_module._forward_nodes(evidence=evidence, outcome_records=[], as_of=due_at)
+    after = opportunities_module._forward_nodes(
+        evidence=evidence, outcome_records=[], as_of=due_at + timedelta(microseconds=1),
+    )
+    assert before["5m"].state == opportunities_module.TraceNodeState.NOT_YET_DUE
+    assert exactly_due["5m"].state != opportunities_module.TraceNodeState.NOT_YET_DUE
+    assert after["5m"].state != opportunities_module.TraceNodeState.NOT_YET_DUE

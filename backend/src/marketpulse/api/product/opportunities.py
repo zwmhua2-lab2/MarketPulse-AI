@@ -15,6 +15,7 @@ from enum import StrEnum
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import JSONResponse
 from sqlalchemy import func, select, text
+from sqlalchemy.exc import SQLAlchemyError
 
 from marketpulse.api.auth import verify_session
 from marketpulse.config import Settings, get_settings
@@ -33,6 +34,7 @@ from marketpulse.edge.aggregation_snapshot import (
     validate_canonical_outcome,
 )
 from marketpulse.edge.attribution import AttributionEventType
+from marketpulse.edge.forward import forward_due_at
 from marketpulse.edge.models import AttributionSubjectType, EvidenceSource, ForwardHorizon
 from marketpulse.ids import new_id
 
@@ -75,6 +77,10 @@ logger = logging.getLogger(__name__)
 COLLECTION_PROJECTION = "OpportunityCollectionRead"
 TRACE_PROJECTION = "OpportunityTraceRead"
 OPERATIONAL_PROVENANCE = EvidenceSource.FORWARD_PAPER.value
+
+
+class _OpportunitySourceUnavailableError(Exception):
+    """Typed boundary for failures while acquiring the durable Product source."""
 
 
 class OpportunityRange(StrEnum):
@@ -297,55 +303,51 @@ async def _collection_page(
     context: ProductReadContext, *, range_value: _ResolvedRange, limit: int
 ) -> OpportunityPageDTO:
     if context.sessions is None:
-        raise RuntimeError("product session factory unavailable")
-    async with context.sessions() as session, session.begin():
-        as_of = await _begin_snapshot(session)
-        records = list(
-            (
-                await session.scalars(
-                    select(EdgeOpportunityEvidenceRecord).where(
-                        EdgeOpportunityEvidenceRecord.source_type == range_value.source_type.value
+        raise _OpportunitySourceUnavailableError("product session factory unavailable")
+    try:
+        async with context.sessions() as session, session.begin():
+            as_of = await _begin_snapshot(session)
+            records = list((await session.scalars(select(EdgeOpportunityEvidenceRecord))).all())
+            folds = fold_evidence_records(records)
+            canonical = [
+                (fold, _logical_detected_at(fold))
+                for fold in folds.values()
+                if fold.canonical.source_type == range_value.source_type
+                and range_value.effective_start <= _logical_detected_at(fold) < range_value.effective_end
+            ]
+            canonical.sort(key=lambda item: (item[1], item[0].opportunity_id), reverse=True)
+            if range_value.cursor is not None:
+                after = range_value.cursor
+                canonical = [
+                    item
+                    for item in canonical
+                    if (item[1], item[0].opportunity_id)
+                    < (after.detected_at, after.opportunity_id)
+                ]
+            page, extra = canonical[:limit], canonical[limit:]
+            next_cursor = None
+            if extra and page:
+                last, last_detected_at = page[-1]
+                next_cursor = encode_opportunity_cursor(
+                    OpportunityCursor(
+                        requested_range=range_value.requested_range.value,
+                        effective_start=range_value.effective_start,
+                        effective_end=range_value.effective_end,
+                        source_type=range_value.source_type.value,
+                        detected_at=last_detected_at,
+                        opportunity_id=last.opportunity_id,
                     )
                 )
-            ).all()
-        )
-        folds = fold_evidence_records(records)
-        canonical = [
-            (fold, _logical_detected_at(fold))
-            for fold in folds.values()
-            if range_value.effective_start <= _logical_detected_at(fold) < range_value.effective_end
-        ]
-        canonical.sort(key=lambda item: (item[1], item[0].opportunity_id), reverse=True)
-        if range_value.cursor is not None:
-            after = range_value.cursor
-            canonical = [
-                item
-                for item in canonical
-                if (item[1], item[0].opportunity_id)
-                < (after.detected_at, after.opportunity_id)
-            ]
-        page, extra = canonical[:limit], canonical[limit:]
-        next_cursor = None
-        if extra and page:
-            last, last_detected_at = page[-1]
-            next_cursor = encode_opportunity_cursor(
-                OpportunityCursor(
-                    requested_range=range_value.requested_range.value,
-                    effective_start=range_value.effective_start,
-                    effective_end=range_value.effective_end,
-                    source_type=range_value.source_type.value,
-                    detected_at=last_detected_at,
-                    opportunity_id=last.opportunity_id,
-                )
+            return OpportunityPageDTO(
+                items=[
+                    _opportunity_dto(fold.canonical, logical_detected_at=detected_at)
+                    for fold, detected_at in page
+                ],
+                next_cursor=next_cursor,
+                as_of=as_of,
             )
-        return OpportunityPageDTO(
-            items=[
-                _opportunity_dto(fold.canonical, logical_detected_at=detected_at)
-                for fold, detected_at in page
-            ],
-            next_cursor=next_cursor,
-            as_of=as_of,
-        )
+    except SQLAlchemyError as exc:
+        raise _OpportunitySourceUnavailableError("opportunity source acquisition failed") from exc
 
 
 def _node(state: TraceNodeState, data: object | None = None, basis: str | None = None) -> TraceNodeDTO[object]:
@@ -355,6 +357,7 @@ def _node(state: TraceNodeState, data: object | None = None, basis: str | None =
 def _forward_nodes(*, evidence: object, outcome_records: list[EdgeForwardOutcomeRecord], as_of: datetime) -> dict[str, TraceNodeDTO[ForwardOutcomeTraceDTO]]:
     nodes: dict[str, TraceNodeDTO[ForwardOutcomeTraceDTO]] = {}
     for horizon in ForwardHorizon:
+        due_at = forward_due_at(evidence.evidence_at, horizon)
         records = [record for record in outcome_records if record.horizon == horizon.value]
         folds = fold_outcome_records(records)
         fold = folds.get((evidence.opportunity_id, evidence.evidence_id))
@@ -372,7 +375,7 @@ def _forward_nodes(*, evidence: object, outcome_records: list[EdgeForwardOutcome
                 ),
                 evidence_basis="canonical_forward_outcome_revision",
             )
-        elif as_of < evidence.evidence_at + timedelta(seconds=horizon.duration_seconds):
+        elif as_of < due_at:
             nodes[horizon.value] = TraceNodeDTO(state=TraceNodeState.NOT_YET_DUE)
         else:
             nodes[horizon.value] = TraceNodeDTO(state=TraceNodeState.CAPABILITY_NOT_INTEGRATED)
@@ -398,31 +401,43 @@ def _decision_node(
 
     grouped: dict[str, list[EdgeAttributionEventRecord]] = {}
     for row in ai_events:
-        if row.subject_id is None or row.evidence_id is None:
-            raise SnapshotIntegrityError((f"incomplete_ai_attribution:{opportunity_id}",))
+        if row.evidence_id is not None:
+            evidence = evidence_by_id.get(row.evidence_id)
+            if evidence is None or evidence.opportunity_id != opportunity_id:
+                raise SnapshotIntegrityError((f"invalid_ai_attribution_evidence:{opportunity_id}:{row.evidence_id}",))
+        if row.subject_id is None:
+            continue
         grouped.setdefault(row.subject_id, []).append(row)
     traces: list[DecisionTraceDTO] = []
     for decision_id, rows in grouped.items():
-        if len(rows) != 1:
-            raise SnapshotIntegrityError((f"conflicting_ai_attribution:{opportunity_id}:{decision_id}",))
-        row = rows[0]
-        if row.opportunity_id != opportunity_id or decision_id not in decisions:
+        if decision_id not in decisions:
+            continue
+        if any(row.opportunity_id != opportunity_id for row in rows):
             raise SnapshotIntegrityError((f"invalid_ai_attribution_subject:{opportunity_id}:{decision_id}",))
-        evidence = evidence_by_id.get(row.evidence_id)
-        if evidence is None or evidence.opportunity_id != opportunity_id:
-            raise SnapshotIntegrityError((f"invalid_ai_attribution_evidence:{opportunity_id}:{row.evidence_id}",))
+        exact_rows = [row for row in rows if row.evidence_id is not None]
+        if len(exact_rows) > 1:
+            raise SnapshotIntegrityError((f"conflicting_ai_attribution:{opportunity_id}:{decision_id}",))
+        exact = None if not exact_rows else exact_rows[0]
+        decision_bound_evidence: TraceNodeDTO[EvidenceIdentityDTO]
+        if exact is None:
+            decision_bound_evidence = TraceNodeDTO(state=TraceNodeState.NO_PROVABLE_RECORD)
+        else:
+            evidence = evidence_by_id[exact.evidence_id]
+            decision_bound_evidence = TraceNodeDTO(
+                state=TraceNodeState.PRESENT,
+                data=_evidence_identity(evidence),
+                evidence_basis="exact_edge_attribution",
+            )
         traces.append(
             DecisionTraceDTO(
                 decision_id=decision_id,
                 status=decisions[decision_id].status,
-                attribution_event_type=row.event_type,
-                decision_bound_evidence=TraceNodeDTO(
-                    state=TraceNodeState.PRESENT,
-                    data=_evidence_identity(evidence),
-                    evidence_basis="exact_edge_attribution",
-                ),
+                attribution_event_type=rows[0].event_type,
+                decision_bound_evidence=decision_bound_evidence,
             )
         )
+    if not traces:
+        return TraceNodeDTO(state=TraceNodeState.NO_PROVABLE_RECORD)
     traces.sort(key=lambda item: item.decision_id)
     return TraceNodeDTO(
         state=TraceNodeState.PRESENT,
@@ -435,52 +450,56 @@ async def _trace(
     context: ProductReadContext, *, opportunity_id: str, source_type: EvidenceSource
 ) -> OpportunityTraceDataDTO | None:
     if context.sessions is None:
-        raise RuntimeError("product session factory unavailable")
-    async with context.sessions() as session, session.begin():
-        as_of = await _begin_snapshot(session)
-        evidence_records = list(
-            (
-                await session.scalars(
-                    select(EdgeOpportunityEvidenceRecord).where(
-                        EdgeOpportunityEvidenceRecord.opportunity_id == opportunity_id,
-                        EdgeOpportunityEvidenceRecord.source_type == source_type.value,
+        raise _OpportunitySourceUnavailableError("product session factory unavailable")
+    try:
+        async with context.sessions() as session, session.begin():
+            as_of = await _begin_snapshot(session)
+            evidence_records = list(
+                (
+                    await session.scalars(
+                        select(EdgeOpportunityEvidenceRecord).where(
+                            EdgeOpportunityEvidenceRecord.opportunity_id == opportunity_id
+                        )
                     )
-                )
-            ).all()
-        )
-        if not evidence_records:
-            return None
-        evidence_fold = fold_evidence_records(evidence_records).get(opportunity_id)
-        if evidence_fold is None:
-            return None
-        evidence = evidence_fold.canonical
-        outcome_records = list(
-            (
-                await session.scalars(
-                    select(EdgeForwardOutcomeRecord).where(
-                        EdgeForwardOutcomeRecord.opportunity_id == opportunity_id
+                ).all()
+            )
+            if not evidence_records:
+                return None
+            evidence_fold = fold_evidence_records(evidence_records).get(opportunity_id)
+            if evidence_fold is None or evidence_fold.canonical.source_type != source_type:
+                return None
+            evidence = evidence_fold.canonical
+            outcome_records = list(
+                (
+                    await session.scalars(
+                        select(EdgeForwardOutcomeRecord).where(
+                            EdgeForwardOutcomeRecord.opportunity_id == opportunity_id
+                        )
                     )
-                )
-            ).all()
-        )
-        candidate = await session.get(StrategyCandidateRecord, evidence.candidate_id)
-        market_event = None if candidate is None else await session.get(MarketEventRecord, candidate.event_id)
-        attributions = list(
-            (
-                await session.scalars(
-                    select(EdgeAttributionEventRecord).where(
-                        EdgeAttributionEventRecord.opportunity_id == opportunity_id
+                ).all()
+            )
+            candidate = await session.get(StrategyCandidateRecord, evidence.candidate_id)
+            market_event = None if candidate is None else await session.get(MarketEventRecord, candidate.event_id)
+            attributions = list(
+                (
+                    await session.scalars(
+                        select(EdgeAttributionEventRecord).where(
+                            EdgeAttributionEventRecord.opportunity_id == opportunity_id
+                        )
                     )
-                )
-            ).all()
-        )
-        decision_ids = {row.subject_id for row in attributions if row.subject_id is not None and row.subject_type == AttributionSubjectType.AI.value}
-        decision_rows = [] if not decision_ids else list((await session.scalars(select(AIDecisionRecord).where(AIDecisionRecord.decision_id.in_(decision_ids)))).all())
-        decisions = {row.decision_id: row for row in decision_rows}
-        evidence_by_id = {
-            revision.evidence_id: revision
-            for revision in (evidence_fold.canonical, *evidence_fold.folded)
-        }
+                ).all()
+            )
+            decision_ids = {
+                row.subject_id
+                for row in attributions
+                if row.subject_id is not None and row.subject_type == AttributionSubjectType.AI.value
+            }
+            decision_rows = [] if not decision_ids else list((await session.scalars(select(AIDecisionRecord).where(AIDecisionRecord.decision_id.in_(decision_ids)))).all())
+            decisions = {row.decision_id: row for row in decision_rows}
+            evidence_by_id = {
+                revision.evidence_id: revision
+                for revision in (evidence_fold.canonical, *evidence_fold.folded)
+            }
         candidate_node: TraceNodeDTO[StrategyCandidateTraceDTO]
         event_node: TraceNodeDTO[MarketEventTraceDTO]
         if candidate is None:
@@ -528,6 +547,8 @@ async def _trace(
             ),
             as_of=as_of,
         )
+    except SQLAlchemyError as exc:
+        raise _OpportunitySourceUnavailableError("opportunity source acquisition failed") from exc
 
 
 @router.get(
@@ -565,10 +586,14 @@ async def opportunity_collection_read(
         correlation_id = new_id().hex
         logger.error("opportunity_collection_integrity_failed correlation_id=%s", correlation_id, exc_info=exc)
         return _unavailable(projection=COLLECTION_PROJECTION, reason=ReadFailureReason.SNAPSHOT_FAILED, correlation_id=correlation_id)
-    except Exception as exc:
+    except _OpportunitySourceUnavailableError as exc:
         correlation_id = new_id().hex
         logger.error("opportunity_collection_source_failed correlation_id=%s", correlation_id, exc_info=exc)
         return _unavailable(projection=COLLECTION_PROJECTION, reason=ReadFailureReason.SOURCE_UNAVAILABLE, correlation_id=correlation_id)
+    except Exception as exc:
+        correlation_id = new_id().hex
+        logger.error("opportunity_collection_internal_failed correlation_id=%s", correlation_id, exc_info=exc)
+        return _internal_error(correlation_id=correlation_id)
 
 
 @router.get(
@@ -602,7 +627,11 @@ async def opportunity_trace_read(
         correlation_id = new_id().hex
         logger.error("opportunity_trace_integrity_failed correlation_id=%s", correlation_id, exc_info=exc)
         return _unavailable(projection=TRACE_PROJECTION, reason=ReadFailureReason.SNAPSHOT_FAILED, correlation_id=correlation_id)
-    except Exception as exc:
+    except _OpportunitySourceUnavailableError as exc:
         correlation_id = new_id().hex
         logger.error("opportunity_trace_source_failed correlation_id=%s", correlation_id, exc_info=exc)
         return _unavailable(projection=TRACE_PROJECTION, reason=ReadFailureReason.SOURCE_UNAVAILABLE, correlation_id=correlation_id)
+    except Exception as exc:
+        correlation_id = new_id().hex
+        logger.error("opportunity_trace_internal_failed correlation_id=%s", correlation_id, exc_info=exc)
+        return _internal_error(correlation_id=correlation_id)

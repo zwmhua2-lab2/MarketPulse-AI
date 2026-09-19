@@ -2359,18 +2359,23 @@ UI-RD01-I02-REQ-01 — Market Scanner & Opportunity Product Read Implementation 
 
 ## UI-RD01-I02 Opportunity Read Candidate
 
-- Task: `UI-RD01-I02-B-VERIFY-RESUME-01`; Task Base / I02-A verified base =
-  `8b59307c44070251e1f6e2c17d5df70765ff261a`; candidate branch =
-  `ui-rd01-i02-b-opportunity-read`.
-- Status: `UI-RD01-I02 = IMPLEMENTED / READY FOR INDEPENDENT REVIEW`; formal task_state =
-  `IMPLEMENTING`. This is **not** an Independent Review, Human Acceptance, or `ACCEPTED` claim.
-- I02-B implements the two typed Opportunity Product reads, reuses accepted canonical revision
-  folding, preserves CR-03 decision-bound Evidence distinction, CR-05 six-value trace states,
-  stable durable snapshots, and generated OpenAPI types. Schema / Migration / Index / package
-  manifests / frozen Requirement and Design / `DECISIONS.md` = `ZERO CHANGE`.
-- Resume verification used a dedicated ephemeral PostgreSQL authority with parent
-  `PYTHONPATH=backend/src` and process `DATABASE_URL` unset. Full backend = `748 passed, 20
-  warnings in 660.47s`, exit `0`; relevant Product/SE-02D rerun = `107 passed`; Ruff, OpenAPI
-  drift, frontend typecheck, `7 files / 57 tests`, build, and `git diff --check` = PASS.
+- Task: `UI-RD01-I02-FIX-01`; Fix Base / reviewed candidate =
+  `9ee1fc7253555ad2d7bc3ea1be97017d0700b148` on immutable
+  `ui-rd01-i02-b-opportunity-read`; fix branch = `ui-rd01-i02-fix-01-review-blockers`.
+- Status: `UI-RD01-I02-FIX-01 = IMPLEMENTED / READY FOR INDEPENDENT RE-REVIEW`; parent formal
+  task_state = `REVIEW`. This is **not** an Independent Review, Human Acceptance, or `ACCEPTED`
+  claim.
+- R1 folds the complete Evidence revision chain before provenance projection; R2 reports
+  unprovable durable Decision bindings as `NO_PROVABLE_RECORD`; R3 separates source-unavailable,
+  snapshot-integrity, and sanitized internal failures; R4 reuses accepted `forward_due_at`.
+  Schema / Migration / Index / package manifests / frozen Requirement and Design / `DECISIONS.md` =
+  `ZERO CHANGE`.
+- The prior missing-table run was a test-environment targeting defect: process `DATABASE_URL`
+  overrides fixture-supplied Alembic URLs. Corrected verification used a task-owned tmpfs PostgreSQL
+  instance, worktree-local ignored `.env`, parent `DATABASE_URL` unset, and `PYTHONPATH=backend/src`.
+  Primary and disposable probe databases independently reached `20260913_0009` with
+  `ai_decisions` present. Full backend = `754 passed, 20 warnings in 618.78s`, exit `0`; related
+  rerun = `164 passed, 20 warnings in 68.49s`, exit `0`; Ruff, OpenAPI drift, frontend typecheck,
+  `7 files / 57 tests`, build, and `git diff --check` = PASS.
 - I03–I05 remain `NOT STARTED / NOT AUTHORIZED`; PRE-01B-I2 / Real AI / live G2→G3 / Gate / Live
-  remain unchanged and inactive. Full evidence: `dev_log/2026-09-19-ui-rd01-i02-b-opportunity-read.md`.
+  remain unchanged and inactive. Full evidence: `dev_log/2026-09-20-ui-rd01-i02-fix-01-review-blockers.md`.
