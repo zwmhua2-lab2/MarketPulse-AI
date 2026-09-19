@@ -54,7 +54,7 @@
 | Effective Settings target | worktree-local ignored `.env` resolved `Settings().database_url` to isolated `127.0.0.1:49846/marketpulse`. |
 | PostgreSQL isolation | ephemeral `postgres:16-alpine` container `marketpulse-ui-rd01-i02-verify-pg`, random host port `49846`, no mounts, tmpfs data directory, no restart policy; no other MarketPulse pytest process shared it. |
 | Migration preparation | isolated empty `marketpulse` upgraded through Alembic `20260913_0009 (head)`. |
-| Full backend | `py -3.14 -m pytest -q backend/tests` from candidate worktree with `PYTHONPATH=backend/src`: `748 passed, 20 warnings in 660.47s (0:11:00)`, exit `0`; stderr empty. Warnings are existing FastAPI/TestClient and Starlette deprecations. |
+| Full backend | `py -3.14 -m pytest -q backend/tests` from candidate worktree with `PYTHONPATH=backend/src`: `748 passed, 0 failed, 0 skipped, 20 warnings in 660.47s (0:11:00)`, exit `0`; stderr empty. Warnings are existing FastAPI/TestClient and Starlette deprecations. |
 | Temporary DB cleanup | after the full run, isolated instance contained no `marketpulse_*` disposable databases. |
 | Relevant backend rerun | Ruff passed; `test_product_opportunities.py`, `test_product_market_scanner.py`, `test_product_system.py`, and `test_se_02d_aggregation_snapshot.py`: `107 passed, 20 warnings in 14.16s`. |
 | OpenAPI | `npm run generate:api` regenerated `frontend/src/api/generated.ts`; `npm run check:api-drift` passed. |
