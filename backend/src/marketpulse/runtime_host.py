@@ -507,23 +507,45 @@ class LiveMarketState:
     def instruments(self) -> tuple[str, ...]:
         return tuple(sorted(self._latest))
 
-    def age_seconds(self, instrument_id: str) -> float | None:
+    def age_seconds(
+        self, instrument_id: str, *, now_monotonic: float | None = None
+    ) -> float | None:
         received = self._received_monotonic.get(instrument_id)
-        return None if received is None else max(0.0, time.monotonic() - received)
+        if received is None:
+            return None
+        now = time.monotonic() if now_monotonic is None else now_monotonic
+        return max(0.0, now - received)
 
     def frames(self, instrument_id: str) -> int:
         return self._frames.get(instrument_id, 0)
 
-    def quality(self, instrument_id: str) -> DataQuality:
-        bbo = self._latest.get(instrument_id)
+    def _quality_for(self, bbo: BestBidAsk | None, age: float | None) -> DataQuality:
         if bbo is None:
             return DataQuality.UNAVAILABLE
         if bbo.data_quality is DataQuality.UNAVAILABLE:
             return DataQuality.UNAVAILABLE
-        age = self.age_seconds(instrument_id)
         if age is None or age > self.freshness_seconds:
             return DataQuality.STALE
         return DataQuality.FRESH
+
+    def quality(
+        self, instrument_id: str, *, now_monotonic: float | None = None
+    ) -> DataQuality:
+        return self._quality_for(
+            self._latest.get(instrument_id),
+            self.age_seconds(instrument_id, now_monotonic=now_monotonic),
+        )
+
+    def quote_snapshot(
+        self, instrument_id: str
+    ) -> tuple[BestBidAsk | None, float | None, DataQuality]:
+        """Read one quote, age, and quality from one Host-authoritative monotonic sample."""
+        bbo = self._latest.get(instrument_id)
+        if bbo is None:
+            return None, None, DataQuality.UNAVAILABLE
+        now_monotonic = time.monotonic()
+        age = self.age_seconds(instrument_id, now_monotonic=now_monotonic)
+        return bbo, age, self._quality_for(bbo, age)
 
     def fresh_tradable(self, instrument_id: str) -> bool:
         bbo = self._latest.get(instrument_id)
@@ -981,8 +1003,7 @@ class RuntimeHost:
         snapshot_at = datetime.now(UTC)
         quotes: list[ProductMarketQuoteSnapshot] = []
         for instrument_id in self.required_instruments():
-            bbo = self._market.latest(instrument_id)
-            quality = self._market.quality(instrument_id)
+            bbo, age_seconds, quality = self._market.quote_snapshot(instrument_id)
             if bbo is None:
                 quotes.append(
                     ProductMarketQuoteSnapshot(
@@ -1004,7 +1025,7 @@ class RuntimeHost:
                     received_at=bbo.received_at,
                     tradable=bbo.tradable,
                     data_quality=quality.value,
-                    age_seconds=self._market.age_seconds(instrument_id),
+                    age_seconds=age_seconds,
                 )
             )
         return ProductCurrentMarketSnapshot(

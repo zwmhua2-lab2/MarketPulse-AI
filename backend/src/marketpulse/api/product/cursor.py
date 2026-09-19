@@ -117,6 +117,7 @@ def decode_market_scanner_cursor(value: str) -> MarketScannerCursor:
             or effective_end.tzinfo is None
             or event_time.tzinfo is None
             or effective_start >= effective_end
+            or not effective_start <= event_time < effective_end
             or not isinstance(requested_range, str)
             or not requested_range
             or not isinstance(event_id, str)

@@ -8,10 +8,12 @@ from contextlib import contextmanager
 from dataclasses import FrozenInstanceError
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 from uuid import uuid4
 
 import marketpulse.api.app as app_module
+import marketpulse.runtime_host as runtime_host_module
 import pytest
 import sqlalchemy.ext.asyncio as sqlalchemy_asyncio
 from alembic import command
@@ -142,6 +144,36 @@ def _request(client: TestClient, headers: dict[str, str], query: str = "") -> An
     return client.get(f"/api/v1/product/market-scanner{'?' if query else ''}{query}", headers=headers)
 
 
+def _assert_validation_error(response: Any) -> None:
+    assert response.status_code == 422
+    detail = response.json()["detail"]
+    assert isinstance(detail, list) and detail
+    for error in detail:
+        assert {"loc", "msg", "type"} <= set(error)
+        assert isinstance(error["loc"], list)
+        assert isinstance(error["msg"], str)
+        assert isinstance(error["type"], str)
+
+
+def _scanner_cursor(*, event_time: datetime = START) -> str:
+    return encode_market_scanner_cursor(
+        MarketScannerCursor(
+            requested_range="custom",
+            effective_start=START,
+            effective_end=END,
+            event_time=event_time,
+            event_id="event-a",
+        )
+    )
+
+
+def _alter_cursor(cursor: str, **updates: object) -> str:
+    padded = cursor + "=" * (-len(cursor) % 4)
+    payload = json.loads(base64.urlsafe_b64decode(padded))
+    payload.update(updates)
+    return base64.urlsafe_b64encode(json.dumps(payload).encode()).decode().rstrip("=")
+
+
 @pytest.fixture
 def active_scanner_host(monkeypatch: pytest.MonkeyPatch):
     sessions, engine = asyncio.run(_sessions())
@@ -172,7 +204,7 @@ def test_market_scanner_host_absent_preserves_not_activated_and_validates_cursor
     assert body["meta"]["projection_state"] == "UNAVAILABLE"
     assert body["meta"]["read_failure_reason"] is None
     assert body["data"] is None
-    assert _request(client, headers, "cursor=not-a-product-cursor").status_code == 422
+    _assert_validation_error(_request(client, headers, "cursor=not-a-product-cursor"))
 
 
 @pytest.mark.parametrize("value", ["15m", "30m", "1h", "4h", "6h", "24h", "7d", "30d"])
@@ -262,6 +294,46 @@ def test_market_scanner_typed_quote_is_immutable_and_uses_host_freshness_authori
     assert stale_quote["age_seconds"] >= 99
 
 
+@pytest.mark.parametrize(
+    ("age_seconds", "expected_quality"),
+    [(4.999, "FRESH"), (5.0, "FRESH"), (5.001, "STALE")],
+)
+def test_market_scanner_quote_age_and_quality_share_one_monotonic_observation(
+    active_scanner_host: RuntimeHost,
+    monkeypatch: pytest.MonkeyPatch,
+    age_seconds: float,
+    expected_quality: str,
+) -> None:
+    host = active_scanner_host
+    received_monotonic = 100.0
+    host.market_state.update(
+        BestBidAsk(
+            instrument_id="BTC-USDT",
+            bid=100.0,
+            ask=101.0,
+            received_at=START,
+        ),
+        now_monotonic=received_monotonic,
+    )
+    samples = iter([received_monotonic + age_seconds])
+    with monkeypatch.context() as scoped:
+        scoped.setattr(
+            runtime_host_module,
+            "time",
+            SimpleNamespace(monotonic=lambda: next(samples)),
+        )
+        quote = next(
+            item
+            for item in host.product_market_snapshot().quotes
+            if item.instrument_id == "BTC-USDT"
+        )
+        with pytest.raises(StopIteration):
+            next(samples)
+
+    assert quote.age_seconds == pytest.approx(age_seconds)
+    assert quote.data_quality == expected_quality
+
+
 def test_market_scanner_uses_event_time_orders_keysets_and_freezes_cursor_range(
     active_scanner_host: RuntimeHost,
 ) -> None:
@@ -307,30 +379,39 @@ def test_market_scanner_rejects_malformed_endpoint_provenance_and_sort_cursors(
 ) -> None:
     client = TestClient(app_module.app)
     headers = _headers(client)
-    cursor = encode_market_scanner_cursor(
-        MarketScannerCursor(
-            requested_range="1h",
-            effective_start=START,
-            effective_end=END,
-            event_time=START,
-            event_id="event-a",
-        )
-    )
-
-    def altered(**updates: object) -> str:
-        padded = cursor + "=" * (-len(cursor) % 4)
-        payload = json.loads(base64.urlsafe_b64decode(padded))
-        payload.update(updates)
-        return base64.urlsafe_b64encode(json.dumps(payload).encode()).decode().rstrip("=")
-
+    cursor = _scanner_cursor()
     for invalid in (
         "not-a-cursor",
-        altered(endpoint="system.incidents"),
-        altered(v="wrong"),
-        altered(provenance="HISTORICAL_REPLAY"),
-        altered(event_id=""),
+        _alter_cursor(cursor, endpoint="system.incidents"),
+        _alter_cursor(cursor, v="wrong"),
+        _alter_cursor(cursor, provenance="HISTORICAL_REPLAY"),
+        _alter_cursor(cursor, event_id=""),
     ):
-        assert _request(client, headers, f"range=1h&cursor={invalid}").status_code == 422
+        _assert_validation_error(_request(client, headers, f"range=1h&cursor={invalid}"))
+
+
+def test_market_scanner_cursor_sort_tuple_must_stay_in_its_effective_range(
+    active_scanner_host: RuntimeHost, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    client = TestClient(app_module.app)
+    headers = _headers(client)
+    query = "range=custom&start=2026-09-18T10:00:00Z&end=2026-09-18T11:00:00Z"
+
+    assert _request(client, headers, f"{query}&cursor={_scanner_cursor()}").status_code == 200
+    for event_time in (END, START - timedelta(microseconds=1), END + timedelta(microseconds=1)):
+        _assert_validation_error(
+            _request(client, headers, f"{query}&cursor={_scanner_cursor(event_time=event_time)}")
+        )
+
+    active_scanner_host._sessions = None
+    _assert_validation_error(
+        _request(client, headers, f"{query}&cursor={_scanner_cursor(event_time=END)}")
+    )
+
+    monkeypatch.setattr(app_module.app.state, "host", None, raising=False)
+    _assert_validation_error(
+        _request(client, headers, f"{query}&cursor={_scanner_cursor(event_time=END)}")
+    )
 
 
 def test_market_scanner_empty_partial_endpoint_failure_and_sanitized_500(
@@ -385,6 +466,55 @@ def test_market_scanner_empty_partial_endpoint_failure_and_sanitized_500(
     assert INJECTED_SECRET not in internal.text
 
 
+def test_market_scanner_market_failure_uses_its_own_observation_and_assembly_times(
+    active_scanner_host: RuntimeHost, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from marketpulse.api.product import market_scanner
+
+    market_failure_at = datetime(2026, 9, 19, 4, 0, tzinfo=UTC)
+    database_as_of = datetime(2026, 9, 19, 5, 0, tzinfo=UTC)
+    response_observed_at = datetime(2026, 9, 19, 6, 0, tzinfo=UTC)
+
+    def _explode() -> object:
+        raise RuntimeError("market snapshot unavailable")
+
+    async def _scanner_success(*_args: object, **_kwargs: object) -> object:
+        page = market_scanner.ScannerEventPageDTO(
+            items=[], next_cursor=None, as_of=database_as_of
+        )
+        return market_scanner._ScannerRead(page=page, snapshot_at=database_as_of)
+
+    observations = iter([market_failure_at, response_observed_at])
+    monkeypatch.setattr(active_scanner_host, "product_market_snapshot", _explode)
+    monkeypatch.setattr(market_scanner, "_scanner_page", _scanner_success)
+    monkeypatch.setattr(market_scanner, "_now", lambda: next(observations))
+
+    client = TestClient(app_module.app)
+    response = _request(
+        client,
+        _headers(client),
+        "range=custom&start=2026-09-18T10:00:00Z&end=2026-09-18T11:00:00Z",
+    )
+    assert response.status_code == 200
+    body = response.json()
+    current_market = body["data"]["current_market"]
+    scanner_events = body["data"]["scanner_events"]
+    assert current_market["snapshot_at"] == market_failure_at.isoformat().replace("+00:00", "Z")
+    assert current_market["source"]["snapshot_at"] == current_market["snapshot_at"]
+    assert scanner_events["snapshot_at"] == database_as_of.isoformat().replace("+00:00", "Z")
+    assert scanner_events["data"]["as_of"] == scanner_events["snapshot_at"]
+    assert body["meta"]["snapshot_at"] == response_observed_at.isoformat().replace("+00:00", "Z")
+    assert body["meta"]["observed_at"] == body["meta"]["snapshot_at"]
+    assert body["operational_context"]["context_snapshot_at"] == body["meta"]["snapshot_at"]
+    assert len(
+        {
+            current_market["snapshot_at"],
+            scanner_events["snapshot_at"],
+            body["meta"]["snapshot_at"],
+        }
+    ) == 3
+
+
 def test_market_scanner_openapi_and_generated_contract_include_formal_failures() -> None:
     document = app_module.app.openapi()
     operation = document["paths"]["/api/v1/product/market-scanner"]["get"]
@@ -396,12 +526,35 @@ def test_market_scanner_openapi_and_generated_contract_include_formal_failures()
         "cursor",
     }
     assert {"503", "500"} <= set(operation["responses"])
+    assert operation["responses"]["422"]["content"]["application/json"]["schema"]["$ref"].endswith(
+        "/HTTPValidationError"
+    )
     assert operation["responses"]["503"]["content"]["application/json"]["schema"]["$ref"].endswith(
         "/ProductUnavailableResponse"
     )
     assert operation["responses"]["500"]["content"]["application/json"]["schema"]["$ref"].endswith(
         "/ProductInternalErrorResponse"
     )
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "cursor=not-a-product-cursor",
+        "range=1h&cursor=" + _scanner_cursor(),
+        "range=custom&start=2026-09-18T10:00:00Z&end=2026-09-18T11:00:00Z&cursor="
+        + _alter_cursor(_scanner_cursor(), provenance="HISTORICAL_REPLAY"),
+        "range=custom",
+        "range=invalid",
+        "range=custom&start=not-a-datetime&end=2026-09-18T11:00:00Z",
+        "limit=0",
+    ],
+)
+def test_market_scanner_manual_and_parameter_422s_share_openapi_validation_contract(
+    active_scanner_host: RuntimeHost, query: str
+) -> None:
+    client = TestClient(app_module.app)
+    _assert_validation_error(_request(client, _headers(client), query))
 
 
 def test_market_scanner_postgresql_page_uses_database_as_of_authority(

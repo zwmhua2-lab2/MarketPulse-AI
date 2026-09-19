@@ -112,7 +112,11 @@ class _ScannerRead:
 
 
 def _invalid_request(detail: str) -> HTTPException:
-    return HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=detail)
+    """Match FastAPI's declared ``HTTPValidationError`` response schema."""
+    return HTTPException(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        detail=[{"loc": ["query"], "msg": detail, "type": "value_error"}],
+    )
 
 
 def _resolve_range(
@@ -222,7 +226,7 @@ async def _scanner_page(
 ) -> _ScannerRead:
     """Read one immutable page from the Host-borrowed database factory.
 
-    PostgreSQL's transaction timestamp is selected in the same READ ONLY / REPEATABLE READ
+    PostgreSQL's statement timestamp is selected in the same READ ONLY / REPEATABLE READ
     transaction as the page, and is the only successful-page ``as_of`` authority.
     """
     failure_observed_at = _now()
@@ -371,10 +375,12 @@ async def market_scanner_read(
 
         host = context.host
         market_snapshot: ProductCurrentMarketSnapshot | None
+        market_failure_observed_at: datetime | None = None
         try:
             market_snapshot = context.market_snapshot()
         except Exception:  # noqa: BLE001 - classification remains sanitized below
             market_snapshot = None
+            market_failure_observed_at = _now()
         scanner_read = await _scanner_page(context, range_value=range_context, limit=limit)
 
         if market_snapshot is None and scanner_read.page is None:
@@ -389,11 +395,11 @@ async def market_scanner_read(
         host_source_identity = host.instance_id
         db_source_identity = host.database_application_name
         if market_snapshot is None:
-            market_observed_at = scanner_read.snapshot_at
+            assert market_failure_observed_at is not None
             current_market = _unavailable_section(
                 source_type="RUNTIME_HOST",
                 source_identity=host_source_identity,
-                snapshot_at=market_observed_at,
+                snapshot_at=market_failure_observed_at,
                 reason=ReadFailureReason.SNAPSHOT_FAILED,
             )
         else:
@@ -420,17 +426,16 @@ async def market_scanner_read(
                 ),
                 data=scanner_read.page,
             )
-        top_snapshot = (
-            market_snapshot.snapshot_at if market_snapshot is not None else scanner_read.snapshot_at
-        )
+        # This is an API assembly observation, not a shared snapshot claim for the two sources.
+        response_observed_at = _now()
         return MarketScannerReadResponse(
             meta=ProjectionMetaDTO(
                 projection=PROJECTION,
                 read_surface_class=ReadSurfaceClass.A,
                 operational_availability=OperationalAvailability.ACTIVE,
                 projection_state=ProjectionState.FRESH,
-                snapshot_at=top_snapshot,
-                observed_at=top_snapshot,
+                snapshot_at=response_observed_at,
+                observed_at=response_observed_at,
                 is_partial=market_snapshot is None or scanner_read.page is None,
                 next_cursor=None if scanner_read.page is None else scanner_read.page.next_cursor,
             ),
@@ -439,7 +444,7 @@ async def market_scanner_read(
                 runtime_instance_id=host.instance_id,
                 host_state=host.state,
                 operational_provenance=OPERATIONAL_PROVENANCE,
-                context_snapshot_at=top_snapshot,
+                context_snapshot_at=response_observed_at,
             ),
             range_context=_range_context(range_context),
             data=MarketScannerDataDTO(
