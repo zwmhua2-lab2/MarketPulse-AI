@@ -473,9 +473,14 @@
 - 11. I02-A / I02-B 均由独立 Formal Task 授权；本 Freeze **不**创建、**不**执行、**不**启动任何 I02 任务。
 - 边界：`I03`–`I05` = `NOT STARTED / NOT AUTHORIZED`；`PRE-01B-I2` = `NOT STARTED / NOT ACTIVATED`；Real AI = `NOT ACTIVATED`；live `G2→G3` = `NOT ACTIVE`；Gate A/B/C = `NOT ACTIVATED` / `NOT PASSED`；Live = `NOT AUTHORIZED`。
 
-## Human-Confirmed Recovery Authority Amendment — Pending Independent Review / Formal Acceptance
+## Human-Confirmed Recovery Authority Amendment — R1 Candidate / Pending Independent Re-Review
 
-- `PRE-01B-I2-AUTH-D01-AMEND-01 = IMPLEMENTED / READY FOR INDEPENDENT REVIEW`（Human Content Confirmation = `CONFIRMED — 2026-09-19`；Independent Review / Formal Human Acceptance = `NOT PERFORMED`；artifact = `docs/design/PRE-01B/PRE-01B-I2-AUTH-D01-Recovery-Authority-Amendment.md`，status = `CANDIDATE / PENDING INDEPENDENT REVIEW`）。这是对已接受 D2 的窄范围修订记录，不重写或降级既有 D2。
-- DF-01 = `APPROVED`：仅在 `DISABLED` startup，existing `RuntimeHost` 可在不构造 provider、active queue/worker、active admission writer 或 G3/经济 authority 的前提下，以 provider-free `AdvisoryRecoveryCore` 分类/恢复既有 durable Advisory state；Pack B 不因此成为前置条件，Gate A 不激活。
-- DF-02 = `APPROVED WITH TRANSACTION-ADMISSION AUTHORITY`：canonical `Evidence → Invocation → Attempt` row locks 后、首个 lifecycle mutation 前必须最终验证 Host-issued capability；成功即仅准入该 exact transition，之后 singleton loss 不追溯撤销；exactly-one-winner 仍由 PostgreSQL serialization + Invocation final fence 负责。
-- D1–D7 已确认：`CurrentAdvisoryAuthority`、`AdvisoryPredicateEvaluator`、`LiveAttemptCapability`、`RestartRecoveryCapability`、provider-free recovery composition、typed `RecoveryInput`、startup ordering；完整语义只在该 candidate artifact。`Schema / migration / activation = ZERO CHANGE`，implementation 仍未由本任务授权。
+- `PRE-01B-I2-AUTH-D01-AMEND-01-R1 = IMPLEMENTED / READY FOR INDEPENDENT RE-REVIEW`; artifact remains `CANDIDATE / PENDING INDEPENDENT RE-REVIEW`. Independent Review `PRE-01B-I2-AUTH-D01-AMEND-01-IR-01 = FAIL — FIX REQUIRED`; Formal Human Acceptance = `NOT PERFORMED`; FIX-02 remains blocked.
+- DF-01 remains unchanged: narrow DISABLED provider-free startup recovery under the existing RuntimeHost, with no provider/active dispatch/Gate activation introduced.
+- DF-02 R1: transaction admission requires canonical durable row locks, then PostgreSQL-observable proof from `pg_locks + pg_stat_activity` that the exact recorded singleton backend still owns the exact existing RuntimeHost advisory singleton lock, then exact Host capability validation, then admission, then first lifecycle mutation.
+- Authoritative PostgreSQL backend identity is exact `PID + backend_start`; PID alone is insufficient and PID reuse with mismatched `backend_start` fails closed.
+- Successful PostgreSQL ownership proof + exact Host capability validation is the transaction-admission ownership linearization point. Ownership loss before admission rejects with no lifecycle mutation; ownership loss after successful admission does not retrospectively revoke that transaction.
+- `LiveAttemptCapability` and `RestartRecoveryCapability` remain mandatory local authority but are not independently sufficient for current singleton ownership proof. Live `ABANDONED` and restart `PROCESS_LOST` both require the PostgreSQL proof at lifecycle transaction admission; Recovery still cannot receive `LiveAttemptCapability`.
+- No local boolean, heartbeat, liveness probe, Python object identity, Host generation boolean, or test-fixture boolean may substitute for PostgreSQL ownership proof.
+- R1 introduces zero schema/table/column/migration, zero second singleton lock, zero second durable owner identity/ownership service, and zero second engine/session factory. The existing RuntimeHost advisory singleton lock remains the only cross-process Host singleton fence.
+- Status: `CANDIDATE / PENDING INDEPENDENT RE-REVIEW`; **NOT ACCEPTED**, **NOT FROZEN**, **NOT implementation authorization**.

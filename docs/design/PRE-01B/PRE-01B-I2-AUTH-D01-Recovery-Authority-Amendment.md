@@ -1,13 +1,15 @@
 # PRE-01B-I2-AUTH-D01｜Recovery Authority Amendment
 
 ```text
-Task: PRE-01B-I2-AUTH-D01-AMEND-01-PERSIST
-Status: CANDIDATE / PENDING INDEPENDENT REVIEW
-Task type: DOCS / DESIGN PERSISTENCE + STATE SYNC ONLY
-Human Content Confirmation: CONFIRMED — 2026-09-19
-Independent Review: NOT PERFORMED
+Task: PRE-01B-I2-AUTH-D01-AMEND-01-R1-PERSIST
+Status: CANDIDATE / PENDING INDEPENDENT RE-REVIEW
+Task type: DOCS / DESIGN CANDIDATE FIX + STATE SYNC ONLY
+Human R1 Decision: CONFIRMED — 2026-09-19
+Independent Review: FAIL — FIX REQUIRED
+Independent Review Findings: IR-P1-01 / IR-P3-01 / IR-P3-02
+R1 Candidate State: IMPLEMENTED / READY FOR INDEPENDENT RE-REVIEW
 Formal Human Acceptance: NOT PERFORMED
-Implementation Authorization: NOT GRANTED BY THIS TASK
+Implementation Authorization: NOT GRANTED
 ```
 
 ## 1. Purpose and authority boundary
@@ -29,7 +31,7 @@ business semantics.
 | Decision | Human ruling | Amendment meaning |
 |---|---|---|
 | DF-01 | APPROVED | Narrow DISABLED provider-free startup recovery exception |
-| DF-02 | APPROVED WITH TRANSACTION-ADMISSION AUTHORITY | Final host capability validation admits a lifecycle transaction after canonical row locks |
+| DF-02 | APPROVED WITH TRANSACTION-ADMISSION AUTHORITY | Canonical row locks → PostgreSQL-observable singleton ownership proof → exact Host capability validation → transaction admission |
 | D1–D7 | CONFIRMED | Subject to the exact DF-01 / DF-02 rulings in this amendment |
 
 ## 3. DF-01 — DISABLED provider-free recovery exception
@@ -55,38 +57,115 @@ ACTIVATED`; DISABLED startup recovery does not construct active dispatch.
 
 ## 4. DF-02 — transaction-admission ownership authority
 
-The system does not require loss of the singleton session lock to retroactively revoke
-commit ability of every transaction already admitted on another primary DB connection.
-No durable owner/fencing schema is introduced.
+The existing `RuntimeHost` PostgreSQL session advisory singleton lock remains the only
+cross-process Host singleton fence. No new database row, column, migration, second
+singleton lock, durable owner identity, ownership service, engine, or session factory is
+introduced.
 
-The canonical ownership linearization point is:
+When RuntimeHost successfully acquires that existing singleton advisory lock, the Host
+authority issuer conceptually records:
+
+- the exact existing singleton advisory-lock identity, preserving the existing namespace
+  and run-mode-derived key semantics;
+- the PostgreSQL singleton backend PID;
+- that backend's `pg_stat_activity.backend_start`;
+- Host lifetime/generation correlation.
+
+The authoritative PostgreSQL backend identity is **PID + `backend_start`**. PID alone is
+insufficient because a later PostgreSQL backend may reuse a PID. Host generation remains
+process-local correlation and is not a substitute for PostgreSQL ownership proof.
+
+### Canonical PostgreSQL ownership proof
+
+Every lifecycle transaction requiring `LiveAttemptCapability` or
+`RestartRecoveryCapability` MUST use this transaction-admission sequence:
 
 ```text
-acquire applicable canonical PostgreSQL row locks
+canonical durable row locks
   Evidence → Invocation → Attempt
-→ final validation of the Host-issued authority capability
+→ PostgreSQL singleton ownership proof on the transaction's existing primary connection
+→ exact Host capability / local binding validation
+→ TRANSACTION ADMITTED
 → first lifecycle mutation
 ```
 
-If final capability validation fails, no lifecycle mutation may be written and the
-transaction fails closed / rolls back.  If it succeeds, the winner-fenced transaction is
-admitted for that exact lifecycle transition.  Subsequent singleton loss does not
-retroactively revoke that already-admitted transaction.
+The ownership-proof query MUST establish from current PostgreSQL catalog truth using
+`pg_locks` + `pg_stat_activity`:
 
-Exactly-one-winner correctness remains owned by PostgreSQL row serialization plus the
-Invocation final winner fence, not by Python object identity, a one-time liveness probe,
-or a process-local lock alone.  If an admitted old-owner transaction commits before a
-new-owner recovery transaction obtains the same rows, the new owner observes the durable
-FINAL state and creates no second winner.  If it rolls back, the new owner may obtain the
-rows and apply the normal `PROCESS_LOST` recovery tree.
+- the advisory lock exists and is granted;
+- the advisory lock identity exactly matches the existing RuntimeHost singleton lock;
+- the lock owner PID equals the recorded singleton backend PID;
+- `pg_stat_activity.backend_start` for that PID equals the recorded `backend_start`.
 
-### Singleton-loss consequence
+The implementation may encode the existing two-key advisory lock identity using
+PostgreSQL's documented `pg_locks` representation, but MUST NOT create a second lock
+identity.
 
-Once singleton ownership is lost, the old `RuntimeHost` must immediately fail closed,
-stop issuing new live-owner capabilities and cancellation receipts, refuse lifecycle
-transactions not yet admitted by final capability validation, and enter the existing D1
-fatal/failure lifecycle.  Already-admitted transactions may commit or roll back according
-to PostgreSQL outcome.  No new work may be admitted after authority loss.
+The successful PostgreSQL singleton ownership-proof statement together with successful
+exact Host capability validation is the transaction-admission ownership linearization
+point. Before `TRANSACTION ADMITTED`, no lifecycle write is authorized. After admission,
+that exact transaction has authority for that one lifecycle transition.
+
+### Loss before admission
+
+If singleton ownership is lost before successful transaction admission, the PostgreSQL
+ownership proof MUST fail. The transaction writes no lifecycle mutation and rolls back /
+fails closed.
+
+Rejection is also required for: matching lock absent, lock not granted, wrong lock
+identity, PID mismatch, `backend_start` mismatch, PID reuse by a different backend,
+catalog-query failure, insufficient catalog visibility, or ambiguous catalog result.
+No fallback is permitted.
+
+`_lock_held`, `_lock_lost`, heartbeat, periodic liveness probe, Python object identity,
+Host generation boolean, and test-fixture boolean may exist only as local correlation /
+telemetry facts. None is singleton ownership authority.
+
+### Loss after admission
+
+If PostgreSQL singleton proof PASS + exact Host capability validation PASS has already
+made the transaction ADMITTED, later singleton loss before commit does not
+retrospectively revoke that admitted transaction. It may complete according to
+PostgreSQL transaction outcome.
+
+### New-owner race
+
+If a new RuntimeHost acquires singleton ownership while an old already-admitted
+lifecycle transaction still owns the same canonical durable rows, new-owner recovery
+serializes behind those PostgreSQL row locks.
+
+If the old transaction commits, the new owner re-reads committed state, observes the
+authoritative FINAL/lifecycle result, and MUST NOT create a second winner. If the old
+transaction rolls back, the new owner may acquire the rows and evaluate normal
+`PROCESS_LOST` recovery. Exactly-one winner remains PostgreSQL row serialization plus
+the Invocation final winner fence.
+
+### Local capability role and failure semantics
+
+`LiveAttemptCapability` and `RestartRecoveryCapability` remain mandatory. They prove the
+correct Host lifetime/generation, phase, Invocation, Attempt where applicable, and
+live/recovery authority role, but are not independently sufficient to prove current
+singleton ownership.
+
+Required authority is:
+
+```text
+PostgreSQL singleton ownership proof
+AND
+exact Host-issued capability validation
+```
+
+Any inability to prove exact current ownership is FAIL CLOSED. Ownership-proof failure
+alone MUST NOT become `SHUTDOWN_BEFORE_PROVIDER`, `ACTIVATION_DISABLED`,
+`OPPORTUNITY_STALE`, `BINDING_INVALID`, `PROCESS_LOST`, `ABANDONED`, or another semantic
+terminal. Where no exact semantic terminal predicate is independently established,
+preserve existing durable state, roll back, and allow a later authoritative owner/restart
+to re-evaluate.
+
+Once singleton ownership is lost, the old RuntimeHost stops issuing new live-owner
+capabilities and cancellation receipts and refuses lifecycle transactions not already
+admitted by the canonical PostgreSQL proof + capability validation. Already-admitted
+transactions may commit or roll back according to PostgreSQL outcome.
 
 ## 5. D1 — CurrentAdvisoryAuthority
 
@@ -129,30 +208,57 @@ authority.
 
 ## 7. D3 — LiveAttemptCapability
 
-One Host-issued process-local `LiveAttemptCapability` is frozen.  It is tied to the exact
+One Host-issued process-local `LiveAttemptCapability` is frozen. It is tied to the exact
 RuntimeHost lifetime/generation, Invocation, Attempt, and live provider-task/cancellation
-ownership.  Only the current RuntimeHost authority issuer may create it; Recovery MUST
+ownership. Only the current RuntimeHost authority issuer may create it; Recovery MUST
 NOT obtain one.
 
-`ABANDONED` requires a valid current capability, Host shutdown in progress, a positive
-cancellation-completion receipt, the exact Attempt still current `STARTED`, Invocation
-still `ACTIVE`, and final capability validation after canonical locks and before mutation.
-Only then may one transaction atomically commit exact Attempt `ABANDONED`, Invocation
-`FINAL`, `INVALID_SCHEMA / SHUTDOWN_CANCELLED_ACTIVE_ATTEMPT`, the exact
-`final_attempt_id`, and `final_decision_id = NULL`.  Stale generation, wrong Attempt, or
-revoked authority fails closed.
+The capability is mandatory local authority but is not independently sufficient to prove
+current singleton ownership.
+
+`ABANDONED` admission requires:
+
+```text
+canonical Evidence → Invocation → Attempt row locks
+→ PostgreSQL singleton ownership proof
+→ valid exact LiveAttemptCapability
+→ current shutdown/cancellation requirements
+→ lifecycle mutation
+```
+
+Only after the PostgreSQL proof and exact capability validation pass may one transaction
+atomically commit exact Attempt `ABANDONED`, Invocation `FINAL`,
+`INVALID_SCHEMA / SHUTDOWN_CANCELLED_ACTIVE_ATTEMPT`, the exact `final_attempt_id`, and
+`final_decision_id = NULL`. Stale generation, wrong Attempt, revoked authority, or
+ownership-proof failure fails closed with no lifecycle mutation. Ownership-proof failure
+is not itself an `ABANDONED` predicate.
 
 ## 8. D4 — RestartRecoveryCapability
 
 One startup-only `RestartRecoveryCapability`, issued by the same RuntimeHost ownership
-root as live authority, is frozen.  It is issued only after primary DB availability,
-existing RuntimeHost singleton acquisition, entry into startup/recovery phase, and before
-normal Advisory dispatch runs.  It permits `PROCESS_LOST` classification and provider-free
-Advisory restart recovery only; it does not permit `ABANDONED`.
+root as live authority, is frozen. It is issued only after primary DB availability,
+successful acquisition of the existing RuntimeHost singleton lock, recording of the
+exact lock identity plus singleton backend PID + `backend_start`, and entry into
+startup/recovery phase before normal Advisory dispatch runs.
 
-It is revoked when Advisory startup recovery completes, singleton authority is lost, the
-Host fails/stops, or normal lifecycle exits recovery.  No second durable ownership
-mechanism is created.
+It permits `PROCESS_LOST` classification and provider-free Advisory restart recovery
+only; it does not permit `ABANDONED`. It is mandatory local recovery authority but is
+not independently sufficient to prove current singleton ownership.
+
+`PROCESS_LOST` recovery admission requires:
+
+```text
+canonical Evidence → Invocation → Attempt row locks
+→ PostgreSQL singleton ownership proof
+→ valid exact RestartRecoveryCapability
+→ existing winner / external-precedence evaluation
+→ lifecycle mutation
+```
+
+Recovery cannot obtain `LiveAttemptCapability`. The RestartRecoveryCapability is revoked
+when Advisory startup recovery completes, singleton authority is lost, the Host
+fails/stops, or normal lifecycle exits recovery. No second durable ownership mechanism
+is created.
 
 ## 9. D5 — provider-free recovery composition
 
@@ -210,11 +316,13 @@ retry policy, and re-offers only with active queue capability.  Queue-full retry
 mapping remains `CAPACITY_BLOCKED / ADVISORY_QUEUE_REJECTED` with
 `final_attempt_id = NULL` and `final_decision_id = NULL`.
 
-For `ACTIVE + STARTED`, recovery validates `RestartRecoveryCapability`, locks
-`Evidence → Invocation → Attempt`, rechecks existing final/winner, classifies the exact
+For `ACTIVE + STARTED`, recovery locks `Evidence → Invocation → Attempt`, performs the
+DF-02 PostgreSQL singleton ownership proof, validates the exact
+`RestartRecoveryCapability`, rechecks existing final/winner, then classifies the exact
 current STARTED Attempt `PROCESS_LOST`, evaluates external authority before retry policy,
 and atomically produces exactly one external FINAL, `RETRY_PENDING`, or
-`INVALID_SCHEMA / RETRY_EXHAUSTED`.  No provider response, usage, cost, or `AIDecision`
+`INVALID_SCHEMA / RETRY_EXHAUSTED`. Ownership loss before admission rejects with no
+`PROCESS_LOST` mutation.  No provider response, usage, cost, or `AIDecision`
 may be reconstructed from process memory.
 
 Attempt Start, Finalizer, and Recovery reuse the same minimal predicate evaluator where
@@ -242,8 +350,9 @@ ABANDONED semantics: UNCHANGED
 winner final authority: Invocation row + PostgreSQL transaction / constraints
 winner precedence and retry semantics: UNCHANGED
 schema / migration: ZERO CHANGE
-new durable owner identity / second config authority / second RuntimeHost /
-second engine-session factory: ZERO
+new table / column / migration: ZERO
+second singleton lock / second durable owner identity / second ownership service: ZERO
+second config authority / second RuntimeHost / second engine-session factory: ZERO
 Real AI: NOT ACTIVATED
 Gate A: NOT ACTIVATED
 Gate B: NOT ACTIVATED
@@ -254,7 +363,9 @@ Live: NOT AUTHORIZED
 
 ## 14. Non-authorization
 
-This candidate has not received Independent Review or Formal Human Acceptance.  It does
-not make PRE-01B-I2 ready for independent review, complete, or implementation-authorized.
+This R1 candidate repairs Independent Review `PRE-01B-I2-AUTH-D01-AMEND-01-IR-01`
+(`FAIL — FIX REQUIRED`) and is `IMPLEMENTED / READY FOR INDEPENDENT RE-REVIEW`. It has
+not received Independent Re-Review or Formal Human Acceptance and is not implementation
+authorization.
 It does not resume FIX-02, create authority classes, change recovery behavior, call a
 provider, create configuration defaults, run economic actions, or activate any Gate.
