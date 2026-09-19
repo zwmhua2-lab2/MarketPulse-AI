@@ -324,6 +324,93 @@ class MarketScannerReadResponse(BaseModel):
     data: MarketScannerDataDTO | None
 
 
+class EvidenceIdentityDTO(BaseModel):
+    evidence_id: str
+    evidence_revision: int
+    evidence_hash: str
+    feature_snapshot_hash: str
+
+
+class OpportunityDTO(BaseModel):
+    opportunity_id: str
+    candidate_id: str
+    family_id: str
+    family_version: str
+    instrument_id: str
+    market_type: str
+    detected_at: datetime
+    evidence_at: datetime
+    expires_at: datetime
+    source_type: str
+    source_identity: str
+    evidence_contract_version: str
+    current_canonical_evidence: EvidenceIdentityDTO
+
+
+class OpportunityPageDTO(BaseModel):
+    items: list[OpportunityDTO] = Field(default_factory=list)
+    next_cursor: str | None = None
+    as_of: datetime
+
+
+class OpportunityCollectionReadResponse(BaseModel):
+    meta: ProjectionMetaDTO
+    operational_context: OperationalContextDTO
+    range_context: RangeContextDTO
+    data: OpportunityPageDTO | None
+
+
+class MarketEventTraceDTO(BaseModel):
+    event_id: str
+    event_type: str
+    event_time: datetime
+    instrument_id: str
+    market_type: str
+
+
+class StrategyCandidateTraceDTO(BaseModel):
+    candidate_id: str
+    event_id: str
+    strategy_id: str
+    strategy_version: str
+    created_at: datetime
+
+
+class ForwardOutcomeTraceDTO(BaseModel):
+    outcome_id: str
+    outcome_revision: int
+    outcome_record_hash: str
+    calculation_status: str
+    due_at: datetime
+
+
+class DecisionTraceDTO(BaseModel):
+    decision_id: str
+    status: str
+    attribution_event_type: str
+    decision_bound_evidence: TraceNodeDTO[EvidenceIdentityDTO]
+
+
+class TradingDecisionBranchDTO(BaseModel):
+    decisions: list[DecisionTraceDTO] = Field(default_factory=list)
+
+
+class OpportunityTraceDataDTO(BaseModel):
+    market_event: TraceNodeDTO[MarketEventTraceDTO]
+    strategy_candidate: TraceNodeDTO[StrategyCandidateTraceDTO]
+    opportunity: OpportunityDTO
+    current_canonical_evidence: EvidenceIdentityDTO
+    forward_outcomes: dict[str, TraceNodeDTO[ForwardOutcomeTraceDTO]]
+    trading_decision: TraceNodeDTO[TradingDecisionBranchDTO]
+    as_of: datetime
+
+
+class OpportunityTraceReadResponse(BaseModel):
+    meta: ProjectionMetaDTO
+    operational_context: OperationalContextDTO
+    data: OpportunityTraceDataDTO | None
+
+
 class ProductUnavailableResponse(BaseModel):
     """Formal ``503`` body for an endpoint-wide Product snapshot failure."""
 

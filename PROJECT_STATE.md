@@ -2356,3 +2356,21 @@ UI-RD01-I02-REQ-01 — Market Scanner & Opportunity Product Read Implementation 
 - 验证：focused MarketScanner = `36 passed`；disposable PostgreSQL = `1 passed`，临时 `marketpulse_i02a_*` database cleanup = `[]`；Product System = `22 passed`；RuntimeHost = `51 passed`；relevant Ruff = pass；API generate / drift / typecheck = pass；frontend = `7 files / 57 tests passed`；production build = pass；`git diff --check` = pass。完整命令与 warning 见 `dev_log/2026-09-19-ui-rd01-i02-a-fix-01-review-blockers.md`。
 - Git / timing：实现 commit 推送后远端复读为上述 SHA；remote `main` = `e5476b46d0d84f0bb4e495e9dc806a6adaa390c7`，candidate remote = `caab8be179199868caccf7673ca96599233b7620`。Estimated = `00:15:00–00:30:00`；Execution Started At = `2026-09-19T13:20:43.4014300+08:00`；implementation delivery Completed At = `2026-09-19T13:30:40.2269689+08:00`；Run Duration = `00:09:56`；Estimate Delta = `-00:05:03 vs lower bound`。后续仅待 independent re-review；不得自行开始 I02-B。
 - 详见 `dev_log/2026-09-19-ui-rd01-i02-a-market-scanner-read.md`。
+
+## UI-RD01-I02 Opportunity Read Candidate
+
+- Task: `UI-RD01-I02-B-VERIFY-RESUME-01`; Task Base / I02-A verified base =
+  `8b59307c44070251e1f6e2c17d5df70765ff261a`; candidate branch =
+  `ui-rd01-i02-b-opportunity-read`.
+- Status: `UI-RD01-I02 = IMPLEMENTED / READY FOR INDEPENDENT REVIEW`; formal task_state =
+  `IMPLEMENTING`. This is **not** an Independent Review, Human Acceptance, or `ACCEPTED` claim.
+- I02-B implements the two typed Opportunity Product reads, reuses accepted canonical revision
+  folding, preserves CR-03 decision-bound Evidence distinction, CR-05 six-value trace states,
+  stable durable snapshots, and generated OpenAPI types. Schema / Migration / Index / package
+  manifests / frozen Requirement and Design / `DECISIONS.md` = `ZERO CHANGE`.
+- Resume verification used a dedicated ephemeral PostgreSQL authority with parent
+  `PYTHONPATH=backend/src` and process `DATABASE_URL` unset. Full backend = `748 passed, 20
+  warnings in 660.47s`, exit `0`; relevant Product/SE-02D rerun = `107 passed`; Ruff, OpenAPI
+  drift, frontend typecheck, `7 files / 57 tests`, build, and `git diff --check` = PASS.
+- I03–I05 remain `NOT STARTED / NOT AUTHORIZED`; PRE-01B-I2 / Real AI / live G2→G3 / Gate / Live
+  remain unchanged and inactive. Full evidence: `dev_log/2026-09-19-ui-rd01-i02-b-opportunity-read.md`.

@@ -61,9 +61,11 @@ from .models import (
     SystemIncidentReadResponse,
     SystemSectionDTO,
 )
+from .opportunities import router as opportunities_router
 
 router = APIRouter(prefix="/api/v1/product", tags=["product-read"])
 router.include_router(market_scanner_router)
+router.include_router(opportunities_router)
 
 logger = logging.getLogger(__name__)
 
