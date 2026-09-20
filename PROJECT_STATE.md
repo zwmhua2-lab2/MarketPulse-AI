@@ -2366,3 +2366,22 @@ UI-RD01-I02-REQ-01 — Market Scanner & Opportunity Product Read Implementation 
   `NOT PERFORMED`; I03/I04/I05 = `NOT STARTED`; accepted PRE-01B state, `DECISIONS.md`,
   schema/migration/index, and frozen artifacts remain unchanged. Evidence:
   `dev_log/2026-09-20-ui-rd01-i02-fix-03-review-blockers.md`.
+
+## UI-RD01-I02 FIX-04 Result
+
+- `UI-RD01-I02-FIX-04 = IMPLEMENTED / READY FOR INDEPENDENT RE-REVIEW` on
+  `ui-rd01-i02-fix-04-review-blockers`, exact Fix-03 descendant
+  `764cdb2b4ed0695deb6da4e9b1412908f61831da` and accepted-main descendant
+  `df02073521140e7ae599e03f2e04190b6a5ae590`. `RR3-P2-01` is closed: Product,
+  `SnapshotIntegrityError`, source, and cancellation primary failures survive transaction/session
+  cleanup source failures; both exits are attempted, and successful-body cleanup source errors
+  remain visible. `RR3-P2-02` is closed: real source auth/refused probes now derive from the
+  parsed effective test URL and a locally reserved non-listening ephemeral port.
+- Final isolated PostgreSQL (`127.0.0.1:54755`, non-default local role/password, `marketpulse`)
+  had Alembic `20260913_0009 (head)`; focused `18 passed`, required targeted `171 passed`, and
+  full backend `761 passed, 20 warnings` all exit `0`. OpenAPI drift, frontend typecheck,
+  `7 files / 57 tests`, build, Ruff, compileall, and diff check pass. Parent
+  `UI-RD01-I02 task_state = REVIEW`; Human Acceptance / main integration = `NOT PERFORMED`;
+  I03/I04/I05 = `NOT STARTED`. `DECISIONS.md`, schema/migration/index, frozen artifacts, and
+  PRE-01B state remain unchanged. Evidence:
+  `dev_log/2026-09-20-ui-rd01-i02-fix-04-review-blockers.md`.

@@ -137,20 +137,45 @@ async def _source_transaction(context: ProductReadContext):
     try:
         await _source_await(transaction_context.__aenter__())
     except BaseException as exc:
-        await _source_await(session_context.__aexit__(type(exc), exc, exc.__traceback__))
+        try:
+            await _source_await(session_context.__aexit__(type(exc), exc, exc.__traceback__))
+        except BaseException as cleanup_exc:
+            logger.warning(
+                "opportunity source session cleanup failed while preserving transaction entry failure",
+                exc_info=cleanup_exc,
+            )
         raise
     try:
         yield session
     except BaseException as exc:
         try:
             await _source_await(transaction_context.__aexit__(type(exc), exc, exc.__traceback__))
-        finally:
+        except BaseException as cleanup_exc:
+            logger.warning(
+                "opportunity source transaction cleanup failed while preserving primary failure",
+                exc_info=cleanup_exc,
+            )
+        try:
             await _source_await(session_context.__aexit__(type(exc), exc, exc.__traceback__))
+        except BaseException as cleanup_exc:
+            logger.warning(
+                "opportunity source session cleanup failed while preserving primary failure",
+                exc_info=cleanup_exc,
+            )
         raise
     else:
         try:
             await _source_await(transaction_context.__aexit__(None, None, None))
-        finally:
+        except BaseException as exc:
+            try:
+                await _source_await(session_context.__aexit__(type(exc), exc, exc.__traceback__))
+            except BaseException as cleanup_exc:
+                logger.warning(
+                    "opportunity source session cleanup failed after transaction cleanup failure",
+                    exc_info=cleanup_exc,
+                )
+            raise
+        else:
             await _source_await(session_context.__aexit__(None, None, None))
 
 

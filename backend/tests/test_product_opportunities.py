@@ -3,12 +3,13 @@ from __future__ import annotations
 import asyncio
 import base64
 import json
+import socket
 import time
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, Self
 from uuid import uuid4
 
 import asyncpg
@@ -49,6 +50,7 @@ from marketpulse.market_data.models import MarketType
 from marketpulse.runtime import HostLifecycleState
 from marketpulse.runtime_host import RuntimeHost
 from sqlalchemy import delete, select, text
+from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
@@ -76,6 +78,81 @@ async def _sessions(url: str) -> tuple[async_sessionmaker[AsyncSession], Any]:
 def _url_for(database_name: str) -> str:
     return f"{PRIMARY_URL.rsplit('/', 1)[0]}/{database_name}"
 
+
+def _asyncpg_url(url: str, **updates: Any) -> str:
+    """Render a real asyncpg URL from the effective task-owned source URL."""
+
+    return make_url(url).set(drivername="postgresql", **updates).render_as_string(
+        hide_password=False
+    )
+
+
+class _CleanupFailureSessionContext:
+    """Test-only wrapper that fails only after the real session exit is attempted."""
+
+    def __init__(self, session_context: Any) -> None:
+        self._session_context = session_context
+        self.exited = False
+
+    async def __aenter__(self) -> Any:
+        return await self._session_context.__aenter__()
+
+    async def __aexit__(self, *args: object) -> object:
+        try:
+            return await self._session_context.__aexit__(*args)
+        finally:
+            self.exited = True
+            raise OSError("injected-source-cleanup-failure")
+
+
+class _SourceTransactionProbe:
+    """Minimal source context probe for cancellation and success-path cleanup semantics."""
+
+    def __init__(
+        self,
+        *,
+        transaction_cleanup_error: BaseException | None = None,
+        session_cleanup_error: BaseException | None = None,
+    ) -> None:
+        self.calls: list[tuple[str, type[BaseException] | None]] = []
+        self._transaction_cleanup_error = transaction_cleanup_error
+        self._session_cleanup_error = session_cleanup_error
+
+    async def __aenter__(self) -> Self:
+        self.calls.append(("session_enter", None))
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        _: BaseException | None,
+        __: object,
+    ) -> None:
+        self.calls.append(("session_exit", exc_type))
+        if self._session_cleanup_error is not None:
+            raise self._session_cleanup_error
+
+    def begin(self) -> _SourceTransactionExitProbe:
+        return _SourceTransactionExitProbe(self)
+
+
+class _SourceTransactionExitProbe:
+    def __init__(self, session: _SourceTransactionProbe) -> None:
+        self._session = session
+
+    async def __aenter__(self) -> _SourceTransactionProbe:
+        self._session.calls.append(("transaction_enter", None))
+        return self._session
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        _: BaseException | None,
+        __: object,
+    ) -> None:
+        self._session.calls.append(("transaction_exit", exc_type))
+        if self._session._transaction_cleanup_error is not None:
+            raise self._session._transaction_cleanup_error
 
 async def _admin_execute(statement: str) -> None:
     engine = create_async_engine(PRIMARY_URL, poolclass=NullPool)
@@ -1055,6 +1132,185 @@ def test_attribution_authority_validates_conflicts_before_decision_existence(
     assert missing_binding_conflict.json()["read_failure_reason"] == "SNAPSHOT_FAILED"
 
 
+def test_cleanup_preserves_primary_api_semantics_and_attempts_real_session_exit(
+    opportunity_host: tuple[RuntimeHost, dict[str, str]], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    host, ids = opportunity_host
+    client = TestClient(app_module.app)
+    headers = _headers(client)
+    original_sessions = host._sessions
+    original_fold = opportunities_module.fold_evidence_records
+    original_begin_snapshot = opportunities_module._begin_snapshot
+    collection_suffix = "?range=custom&start=2026-09-18T10:00:00Z&end=2026-09-18T11:00:00Z"
+
+    def install_cleanup_failure() -> list[_CleanupFailureSessionContext]:
+        wrappers: list[_CleanupFailureSessionContext] = []
+
+        def sessions() -> _CleanupFailureSessionContext:
+            wrapper = _CleanupFailureSessionContext(original_sessions())
+            wrappers.append(wrapper)
+            return wrapper
+
+        monkeypatch.setattr(host, "_sessions", sessions)
+        return wrappers
+
+    def restore_real_sessions() -> None:
+        monkeypatch.setattr(host, "_sessions", original_sessions)
+
+    def inject_primary(factory: Any) -> None:
+        def fail(*_: object) -> object:
+            raise factory()
+
+        monkeypatch.setattr(opportunities_module, "fold_evidence_records", fail)
+
+    # C1/C4: normal cleanup retains Product and Snapshot primary classification.
+    for factory, expected_status, expected_reason in (
+        (lambda: RuntimeError("product-runtime-primary"), 500, None),
+        (
+            lambda: opportunities_module.SnapshotIntegrityError(("snapshot-primary",)),
+            503,
+            "SNAPSHOT_FAILED",
+        ),
+    ):
+        inject_primary(factory)
+        for suffix in (collection_suffix, f"/{ids['opportunity']}"):
+            response = _request(client, headers, suffix)
+            assert response.status_code == expected_status
+            if expected_reason is not None:
+                assert response.json()["read_failure_reason"] == expected_reason
+        monkeypatch.setattr(opportunities_module, "fold_evidence_records", original_fold)
+
+    # C2/C3/C5: a real session exit occurs first, then its source failure must not replace primary.
+    for factory, expected_status, expected_reason in (
+        (lambda: RuntimeError("product-runtime-primary"), 500, None),
+        (lambda: TimeoutError("product-timeout-primary"), 500, None),
+        (lambda: OSError("product-oserror-primary"), 500, None),
+        (
+            lambda: opportunities_module.SnapshotIntegrityError(("snapshot-primary",)),
+            503,
+            "SNAPSHOT_FAILED",
+        ),
+    ):
+        wrappers = install_cleanup_failure()
+        inject_primary(factory)
+        for suffix in (collection_suffix, f"/{ids['opportunity']}"):
+            response = _request(client, headers, suffix)
+            assert response.status_code == expected_status
+            if expected_reason is not None:
+                assert response.json()["read_failure_reason"] == expected_reason
+        assert wrappers and all(wrapper.exited for wrapper in wrappers)
+        monkeypatch.setattr(opportunities_module, "fold_evidence_records", original_fold)
+        restore_real_sessions()
+
+    # C6: source failure remains source failure even when the session exit also fails.
+    wrappers = install_cleanup_failure()
+
+    async def source_primary(_: object) -> datetime:
+        raise opportunities_module._OpportunitySourceUnavailableError("source-primary")
+
+    monkeypatch.setattr(opportunities_module, "_begin_snapshot", source_primary)
+    for suffix in (collection_suffix, f"/{ids['opportunity']}"):
+        response = _request(client, headers, suffix)
+        assert response.status_code == 503
+        assert response.json()["read_failure_reason"] == "SOURCE_UNAVAILABLE"
+    assert wrappers and all(wrapper.exited for wrapper in wrappers)
+    restore_real_sessions()
+
+    # C7: a success-path session cleanup source failure remains visible as SOURCE_UNAVAILABLE.
+    wrappers = install_cleanup_failure()
+    monkeypatch.setattr(opportunities_module, "_begin_snapshot", original_begin_snapshot)
+    for suffix in (collection_suffix, f"/{ids['opportunity']}"):
+        response = _request(client, headers, suffix)
+        assert response.status_code == 503
+        assert response.json()["read_failure_reason"] == "SOURCE_UNAVAILABLE"
+    assert wrappers and all(wrapper.exited for wrapper in wrappers)
+    restore_real_sessions()
+
+
+def test_source_transaction_preserves_cancellation_and_attempts_both_cleanups() -> None:
+    probe = _SourceTransactionProbe(
+        transaction_cleanup_error=OSError("transaction-cleanup"),
+        session_cleanup_error=OSError("session-cleanup"),
+    )
+    primary = asyncio.CancelledError("request-cancelled")
+
+    async def cancelled_body() -> None:
+        async with opportunities_module._source_transaction(
+            SimpleNamespace(sessions=lambda: probe)
+        ):
+            raise primary
+
+    with pytest.raises(asyncio.CancelledError) as captured:
+        asyncio.run(cancelled_body())
+    assert captured.value is primary
+    assert probe.calls == [
+        ("session_enter", None),
+        ("transaction_enter", None),
+        ("transaction_exit", asyncio.CancelledError),
+        ("session_exit", asyncio.CancelledError),
+    ]
+
+
+def test_source_transaction_success_cleanup_failure_is_not_swallowed() -> None:
+    probe = _SourceTransactionProbe(transaction_cleanup_error=OSError("transaction-cleanup"))
+
+    async def successful_body() -> None:
+        async with opportunities_module._source_transaction(
+            SimpleNamespace(sessions=lambda: probe)
+        ):
+            return
+
+    with pytest.raises(opportunities_module._OpportunitySourceUnavailableError):
+        asyncio.run(successful_body())
+    assert probe.calls == [
+        ("session_enter", None),
+        ("transaction_enter", None),
+        ("transaction_exit", None),
+        ("session_exit", opportunities_module._OpportunitySourceUnavailableError),
+    ]
+
+
+def test_real_postgres_cleanup_failure_preserves_primary_and_releases_connection(
+    opportunity_host: tuple[RuntimeHost, dict[str, str]], caplog: pytest.LogCaptureFixture
+) -> None:
+    host, _ = opportunity_host
+
+    async def terminate_then_raise_primary() -> None:
+        session_context = host._sessions()
+        async with opportunities_module._source_transaction(
+            SimpleNamespace(sessions=lambda: session_context)
+        ) as session:
+            backend_pid = await session.scalar(text("SELECT pg_backend_pid()"))
+            admin_engine = create_async_engine(
+                session.get_bind().url.render_as_string(hide_password=False), poolclass=NullPool
+            )
+            try:
+                async with admin_engine.begin() as admin:
+                    terminated = await admin.scalar(
+                        text("SELECT pg_terminate_backend(:backend_pid)"),
+                        {"backend_pid": backend_pid},
+                    )
+                assert terminated is True
+            finally:
+                await admin_engine.dispose()
+            raise RuntimeError("product-primary-after-real-termination")
+
+    async def verify_independent_writer() -> None:
+        async with host._sessions() as writer, writer.begin():
+            await writer.execute(
+                text("UPDATE edge_opportunity_evidence SET source_identity = source_identity")
+            )
+
+    with pytest.raises(RuntimeError, match="product-primary-after-real-termination"):
+        asyncio.run(terminate_then_raise_primary())
+    asyncio.run(verify_independent_writer())
+    assert any(
+        "opportunity source transaction cleanup failed while preserving primary failure"
+        in record.getMessage()
+        for record in caplog.records
+    )
+
+
 def test_product_error_boundaries_are_typed_and_sanitized(
     opportunity_host: tuple[RuntimeHost, dict[str, str]], monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1082,9 +1338,7 @@ def test_product_error_boundaries_are_typed_and_sanitized(
         assert "source-secret" not in response.text
 
     async def timeout_failure(_: object) -> datetime:
-        connection = await asyncpg.connect(
-            PRIMARY_URL.replace("postgresql+asyncpg://", "postgresql://", 1)
-        )
+        connection = await asyncpg.connect(_asyncpg_url(PRIMARY_URL))
         try:
             await connection.execute("SELECT pg_sleep(0.2)", timeout=0.001)
         finally:
@@ -1098,10 +1352,9 @@ def test_product_error_boundaries_are_typed_and_sanitized(
         assert "timeout-secret" not in response.text
 
     async def auth_failure(_: object) -> datetime:
-        await asyncpg.connect(
-            PRIMARY_URL.replace("marketpulse:marketpulse@", "marketpulse:auth-secret@")
-            .replace("postgresql+asyncpg://", "postgresql://", 1)
-        )
+        invalid_auth_url = _asyncpg_url(PRIMARY_URL, password="invalid-auth-probe-password")
+        assert invalid_auth_url != _asyncpg_url(PRIMARY_URL)
+        await asyncpg.connect(invalid_auth_url)
         raise AssertionError("invalid password probe unexpectedly connected")
 
     monkeypatch.setattr(opportunities_module, "_begin_snapshot", auth_failure)
@@ -1112,9 +1365,12 @@ def test_product_error_boundaries_are_typed_and_sanitized(
         assert "auth-secret" not in response.text
 
     async def refused_failure(_: object) -> datetime:
-        refused_url = PRIMARY_URL.replace(":54134/", ":54135/")
-        await asyncpg.connect(refused_url.replace("postgresql+asyncpg://", "postgresql://", 1))
-        raise AssertionError("connection-refused probe unexpectedly connected")
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as reserved_endpoint:
+            reserved_endpoint.bind(("127.0.0.1", 0))
+            refused_port = reserved_endpoint.getsockname()[1]
+            refused_url = _asyncpg_url(PRIMARY_URL, host="127.0.0.1", port=refused_port)
+            await asyncpg.connect(refused_url)
+            raise AssertionError("connection-refused probe unexpectedly connected")
 
     monkeypatch.setattr(opportunities_module, "_begin_snapshot", refused_failure)
     for suffix in (collection_suffix, f"/{ids['opportunity']}"):

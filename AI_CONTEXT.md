@@ -1319,11 +1319,12 @@ disposable 库保持空表（症状 `relation "edge_opportunity_evidence" does n
 
 ## UI-RD01-I02 Current Implementation Pointer
 
-- `UI-RD01-I02-FIX-03 = IMPLEMENTED / READY FOR INDEPENDENT RE-REVIEW` on
-  `ui-rd01-i02-fix-03-review-blockers`, direct descendant of Fix-02
-  `a2f895181b6955721a12b5e4944a386606e50b8f` and accepted main
-  `df02073521140e7ae599e03f2e04190b6a5ae590`. It closes RR2 F1 by restricting logical range and
-  cursor authority to revision-1 `detected_at` (rootless malformed sentinels only), and closes RR2
-  F4 by limiting bare timeout/OS source classification to durable-source operations. Parent
+- `UI-RD01-I02-FIX-04 = IMPLEMENTED / READY FOR INDEPENDENT RE-REVIEW` on
+  `ui-rd01-i02-fix-04-review-blockers`, direct descendant of Fix-03
+  `764cdb2b4ed0695deb6da4e9b1412908f61831da` and accepted main
+  `df02073521140e7ae599e03f2e04190b6a5ae590`. It closes `RR3-P2-01` by preserving a body primary
+  Product/Snapshot/source/cancellation failure through transaction and session cleanup failures,
+  while preserving success-path cleanup source errors. It closes `RR3-P2-02` with structural
+  parsed-URL auth/refused probes that have no fixed credentials or port dependency. Parent
   task_state = `REVIEW`; Human Acceptance and main integration are `NOT PERFORMED`; I03/I04/I05
-  remain `NOT STARTED`. See `dev_log/2026-09-20-ui-rd01-i02-fix-03-review-blockers.md`.
+  remain `NOT STARTED`. See `dev_log/2026-09-20-ui-rd01-i02-fix-04-review-blockers.md`.
