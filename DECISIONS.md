@@ -473,9 +473,9 @@
 - 11. I02-A / I02-B 均由独立 Formal Task 授权；本 Freeze **不**创建、**不**执行、**不**启动任何 I02 任务。
 - 边界：`I03`–`I05` = `NOT STARTED / NOT AUTHORIZED`；`PRE-01B-I2` = `NOT STARTED / NOT ACTIVATED`；Real AI = `NOT ACTIVATED`；live `G2→G3` = `NOT ACTIVE`；Gate A/B/C = `NOT ACTIVATED` / `NOT PASSED`；Live = `NOT AUTHORIZED`。
 
-## Human-Confirmed Recovery Authority Amendment — R3 Candidate / Pending Independent Re-Review
+## Human-Confirmed Recovery Authority Amendment — R3 Accepted / Complete
 
-- `PRE-01B-I2-AUTH-D01-AMEND-01-R3 = IMPLEMENTED / READY FOR INDEPENDENT RE-REVIEW`; artifact remains `CANDIDATE / PENDING INDEPENDENT RE-REVIEW`. Human R3 Design Confirmation = `CONFIRMED — 2026-09-20`; R2 Independent Re-Review = `FAIL — R3 REQUIRED`; `R2IR-P1-01 = IMPLEMENTED / READY FOR INDEPENDENT RE-REVIEW`; `R1IR-P1-01` / `R1IR-P1-02` / `IR-P3-01` / `IR-P3-02` remain closed. Independent Re-Review = `PENDING`; Formal Human Acceptance = `NOT PERFORMED`; FIX-02 remains blocked.
+- `PRE-01B-I2-AUTH-D01-AMEND-01 = ACCEPTED / COMPLETE`; accepted revision = R3; Human-Accepted candidate = `64407bec418ccd32791f200d12caf74f5ac0975a` on `design/pre-01b-i2-auth-d01-amend-01-r3`. R3 Independent Re-Review = `PASS — READY FOR HUMAN ACCEPTANCE`; Formal Human Acceptance = `CONFIRMED — 2026-09-20`; `IR-P1-01` / `IR-P3-01` / `IR-P3-02` / `R1IR-P1-01` / `R1IR-P1-02` / `R2IR-P1-01 = CLOSED / PASS`; P0 / P1 / P2 / P3 = `NONE`. `PRE-01B-I2 = IMPLEMENTING`; `P1-03` / `P1-04` / `P1-05` / `P1-06 = OPEN`; `FIX-02 = UNBLOCKED / READY FOR FORMAL IMPLEMENTATION TASK`; FIX-02 implementation = `NOT STARTED BY THIS CLOSEOUT`.
 - DF-01 remains unchanged: narrow DISABLED provider-free startup recovery under the existing RuntimeHost, with no provider/active dispatch/Gate activation introduced.
 - DF-02 R3: singleton ownership admission authority = FINAL OWNER-SESSION PROOF executed by the actual existing dedicated singleton-owner PostgreSQL session. The existing owner session and advisory lock are unique; `SingletonOwnerSessionGate` is process-local coordination only, not ownership authority.
 - Authoritative PostgreSQL backend identity is exact `PID + backend_start`; PID alone is insufficient and PID reuse with mismatched `backend_start` fails closed.
@@ -483,4 +483,4 @@
 - `LiveAttemptCapability` and `RestartRecoveryCapability` remain mandatory local authority but are not independently sufficient for current singleton ownership proof. Live `ABANDONED` and restart `PROCESS_LOST` both require the PostgreSQL proof at lifecycle transaction admission; Recovery still cannot receive `LiveAttemptCapability`.
 - No local boolean, heartbeat, liveness probe, Python object identity, Host generation boolean, or test-fixture boolean may substitute for PostgreSQL ownership proof.
 - R1 introduces zero schema/table/column/migration, zero second singleton lock, zero second durable owner identity/ownership service, and zero second engine/session factory. The existing RuntimeHost advisory singleton lock remains the only cross-process Host singleton fence.
-- Status: `CANDIDATE / PENDING INDEPENDENT RE-REVIEW`; **NOT ACCEPTED**, **NOT FROZEN**, **NOT implementation authorization**.
+- Status: `ACCEPTED / COMPLETE`; acceptance preserves the R3 authority contract and is **NOT implementation authorization**. No implementation/Gate/Real-AI/live activation is authorized by this closeout.

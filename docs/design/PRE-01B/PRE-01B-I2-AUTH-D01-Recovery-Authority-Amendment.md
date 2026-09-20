@@ -1,15 +1,16 @@
 # PRE-01B-I2-AUTH-D01｜Recovery Authority Amendment
 
 ```text
-Task: PRE-01B-I2-AUTH-D01-AMEND-01-R3-PERSIST
-Status: CANDIDATE / PENDING INDEPENDENT RE-REVIEW
-Task type: DOCS / DESIGN CANDIDATE FIX + STATE SYNC ONLY
+Task: PRE-01B-I2-AUTH-D01-AMEND-01-R3-FINAL-ACCEPTANCE-CLOSEOUT-R1
+Status: ACCEPTED / COMPLETE
+Task type: DOCS / DESIGN ACCEPTANCE CLOSEOUT + STATE SYNC ONLY
 Human R1 Decision: CONFIRMED — 2026-09-19
 Human R3 Design Confirmation: CONFIRMED — 2026-09-20
-R2 Independent Re-Review: FAIL — R3 REQUIRED
-Independent Review Findings: R2IR-P1-01; R1IR-P1-01 / R1IR-P1-02 and IR-P3-01 / IR-P3-02 remain closed
-R3 Candidate State: IMPLEMENTED / READY FOR INDEPENDENT RE-REVIEW
-Formal Human Acceptance: NOT PERFORMED
+R2 Independent Re-Review: FAIL — R3 REQUIRED (historical)
+R3 Independent Re-Review: PASS — READY FOR HUMAN ACCEPTANCE
+Independent Review Findings: IR-P1-01 / IR-P3-01 / IR-P3-02 / R1IR-P1-01 / R1IR-P1-02 / R2IR-P1-01 = CLOSED / PASS; P0 / P1 / P2 / P3 = NONE
+Human-Accepted R3 Candidate: 64407bec418ccd32791f200d12caf74f5ac0975a
+Formal Human Acceptance: CONFIRMED — 2026-09-20
 Implementation Authorization: NOT GRANTED
 ```
 
@@ -374,10 +375,11 @@ Live: NOT AUTHORIZED
 
 ## 14. Non-authorization
 
-This R3 candidate repairs R2 Independent Re-Review finding `R2IR-P1-01`
-(observer-side `pg_locks` proof cannot itself provide admission linearization). It is
-`IMPLEMENTED / READY FOR INDEPENDENT RE-REVIEW`, not independently closed. `R1IR-P1-01`,
-`R1IR-P1-02`, `IR-P3-01`, and `IR-P3-02` remain closed. This candidate has not received
-Independent Re-Review or Formal Human Acceptance and is not implementation authorization.
-It does not resume FIX-02, create authority classes, change recovery behavior, call a
-provider, create configuration defaults, run economic actions, or activate any Gate.
+R3 repairs R2 Independent Re-Review finding `R2IR-P1-01` (observer-side `pg_locks`
+proof cannot itself provide admission linearization). R3 Independent Re-Review is
+`PASS — READY FOR HUMAN ACCEPTANCE`; Formal Human Acceptance is `CONFIRMED — 2026-09-20`;
+all recorded amendment findings are `CLOSED / PASS` and P0 / P1 / P2 / P3 are `NONE`.
+This acceptance closeout is not implementation authorization. It only unblocks FIX-02
+for a separate formal implementation task; FIX-02 implementation is not started by this
+closeout. It does not create authority classes, change recovery behavior, call a provider,
+create configuration defaults, run economic actions, or activate any Gate.
