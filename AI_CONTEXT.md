@@ -1331,3 +1331,12 @@ disposable 库保持空表（症状 `relation "edge_opportunity_evidence" does n
   `dev_log/2026-09-20-ui-rd01-i02-final-acceptance-closeout.md`.
 - Main lineage integration method = `FAST-FORWARD ONLY`. I03/I04/I05 remain `NOT STARTED`; this
   acceptance does not activate PRE-01B-I2, Real AI, live G2→G3, Gate A/B/C, Live, or Live Trading.
+
+## PRE-01B-I2 FIX-03-R1 Current Pointer
+
+- `PRE-01B-I2 = IMPLEMENTING`；`FIX-03-R1 = IMPLEMENTED / READY FOR INDEPENDENT RE-REVIEW`。
+  `PREI2-IR-P1-01 / PREI2-IR-P1-02 = REMEDIATED / AWAITING INDEPENDENT RE-REVIEW`：restart/live
+  capability 现由 RuntimeHost authority root 发行、绑定并撤销，任何有效 lifecycle admission 仍经
+  `SingletonOwnerSessionGate → FINAL OWNER-SESSION PROOF`。不得据此宣称 Independent Review、Human
+  Acceptance、`ACCEPTED` 或任何 Gate / Real AI / live activation；详见
+  `dev_log/2026-09-20-pre-01b-i2-final02-fix03-r1-capability-authority.md`。

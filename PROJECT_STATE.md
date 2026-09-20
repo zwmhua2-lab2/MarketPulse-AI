@@ -2405,3 +2405,14 @@ UI-RD01-I02-REQ-01 — Market Scanner & Opportunity Product Read Implementation 
   Trading remain unchanged and unactivated. `DECISIONS.md`, frozen requirements/design, implementation,
   schema/migration/index, and historical Fix-01/02/03/04 evidence remain unchanged. Evidence:
   `dev_log/2026-09-20-ui-rd01-i02-final-acceptance-closeout.md`.
+
+## PRE-01B-I2 FIX-03-R1 Current Result
+
+- `PRE-01B-I2 = IMPLEMENTING`；`FIX-03-R1 = IMPLEMENTED / READY FOR INDEPENDENT RE-REVIEW`。
+  本候选以 current Accepted Main `f09245ab346495f60556a7eba49980d947a4781f` 为父提交，重建 immutable
+  FIX-02 内容并修复 `PREI2-IR-P1-01 / PREI2-IR-P1-02` capability authority；两项均为
+  `REMEDIATED / AWAITING INDEPENDENT RE-REVIEW`。Fresh collection / full backend = `845 / 845`，
+  Missing / Unexpected / Failures = `0 / 0 / 0`；schema verifier = `60/60 PASS`，head =
+  `20260917_0010`。Independent Re-Review、Human Acceptance 与 `ACCEPTED` 均尚未发生。Real AI、
+  Gate A/B/C、live `G2→G3`、Live 保持未激活；详见
+  `dev_log/2026-09-20-pre-01b-i2-final02-fix03-r1-capability-authority.md`。

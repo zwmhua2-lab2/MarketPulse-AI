@@ -45,6 +45,7 @@ from __future__ import annotations
 
 import asyncio
 import gc
+import os
 import re
 import signal
 import time
@@ -135,7 +136,16 @@ def _disposable_postgres_database() -> Iterator[tuple[str, str]]:
     config.set_main_option("script_location", str(backend / "alembic"))
     config.set_main_option("sqlalchemy.url", database_url)
     try:
-        command.upgrade(config, "head")
+        # Alembic's environment accepts DATABASE_URL for normal process startup.
+        # A disposable test must instead honour this helper's explicit per-test URL;
+        # otherwise an inherited process DSN can migrate the admin database while the
+        # newly-created test database remains empty.
+        inherited_database_url = os.environ.pop("DATABASE_URL", None)
+        try:
+            command.upgrade(config, "head")
+        finally:
+            if inherited_database_url is not None:
+                os.environ["DATABASE_URL"] = inherited_database_url
         yield database_name, database_url
     finally:
         asyncio.run(
@@ -385,6 +395,20 @@ def test_test_mode_requires_injected_dependencies():
     assert host.state is HostLifecycleState.CREATED
 
 
+def test_gate_a_setting_fails_closed_without_a_separately_authorized_activation_pack():
+    host = RuntimeHost(
+        _settings(advisory_activation_level="GATE_A_SHADOW"),
+        dependencies=HostDependencies(provider=ControlledProvider()),
+    )
+
+    async def scenario() -> None:
+        with pytest.raises(HostConfigurationError, match="invalid_advisory_activation"):
+            await host.start()
+
+    asyncio.run(scenario())
+    assert host.state is HostLifecycleState.CREATED
+
+
 def test_replay_is_not_a_runtime_host_mode():
     host = RuntimeHost(
         _settings(run_mode="REPLAY"), dependencies=HostDependencies(provider=ControlledProvider())
@@ -609,6 +633,64 @@ def test_startup_reaches_ready_with_the_accepted_order_and_conjunction():
             assert host.children_live == ()
             assert await _settled_orphan_tasks() == []
         finally:
+            await harness.dispose()
+
+    _run(scenario)
+
+
+def test_host_capabilities_use_the_real_owner_proof_and_cleanup_revokes_them():
+    """FIX-03-R1: lifecycle capabilities never outlive their RuntimeHost root."""
+
+    async def scenario(url: str) -> None:
+        harness = Harness(_settings(url), ControlledProvider())
+        live = None
+        try:
+            await harness.seed()
+            host = harness.build()
+            await host.start()
+            issuer = host._advisory_authority_issuer
+            assert issuer is not None
+            assert host._restart_recovery_capability is None
+            with pytest.raises(ValueError, match="closed"):
+                issuer.issue_restart_recovery()
+            live = issuer.issue_live_attempt(
+                decision_invocation_id="invocation", attempt_id="attempt", cancellation_receipt="receipt"
+            )
+            assert await live.admit_owner_session()
+            assert live.matches(
+                host_lifetime=host.instance_id,
+                decision_invocation_id="invocation",
+                attempt_id="attempt",
+            )
+            original_connection = host._lock_connection
+
+            class FailingOwnerProofConnection:
+                async def execute(self, _statement: object) -> None:
+                    return None
+
+                async def scalar(self, _statement: object, _params: object) -> bool:
+                    raise RuntimeError("injected_owner_proof_loss")
+
+                async def rollback(self) -> None:
+                    return None
+
+            host._lock_connection = FailingOwnerProofConnection()
+            assert not await live.admit_owner_session()
+            assert not live.matches(
+                host_lifetime=host.instance_id,
+                decision_invocation_id="invocation",
+                attempt_id="attempt",
+            )
+            host._lock_connection = original_connection
+            await host.stop()
+            assert not live.matches(
+                host_lifetime=host.instance_id,
+                decision_invocation_id="invocation",
+                attempt_id="attempt",
+            )
+            assert not await live.admit_owner_session()
+        finally:
+            await host.stop()
             await harness.dispose()
 
     _run(scenario)
@@ -1154,6 +1236,9 @@ def test_the_fence_connection_is_never_idle_in_transaction():
             try:
                 assert host.state is HostLifecycleState.READY
                 assert host.ownership_snapshot()["singleton_lock_held"] is True
+                # R3: the exact dedicated owner session, not a primary-connection
+                # observation or cached local flag, establishes admission.
+                assert await host.admit_singleton_owner_session() is True
 
                 rows: list[tuple[str | None, int]] = []
                 deadline = time.monotonic() + 10.0
