@@ -141,8 +141,10 @@ __all__ = [
     "HostStartupError",
     "HostTerminalResult",
     "LiveMarketState",
+    "ProductCurrentMarketSnapshot",
     "ProductHealthCheckSnapshot",
     "ProductLaneSnapshot",
+    "ProductMarketQuoteSnapshot",
     "ProductMarketSnapshot",
     "ProductRuntimeSnapshot",
     "RecoverySnapshot",
@@ -278,6 +280,28 @@ class ProductMarketSnapshot:
     present: bool
     fresh: bool
     quality: str
+
+
+@dataclass(frozen=True)
+class ProductMarketQuoteSnapshot:
+    """An immutable Product projection of one Host-owned latest quote."""
+
+    instrument_id: str
+    bid: float | None
+    ask: float | None
+    received_at: datetime | None
+    tradable: bool
+    data_quality: str
+    age_seconds: float | None
+
+
+@dataclass(frozen=True)
+class ProductCurrentMarketSnapshot:
+    """A narrow, non-owning snapshot of the Host's current market authority."""
+
+    snapshot_at: datetime
+    instance_id: str
+    quotes: tuple[ProductMarketQuoteSnapshot, ...]
 
 
 @dataclass(frozen=True)
@@ -483,23 +507,45 @@ class LiveMarketState:
     def instruments(self) -> tuple[str, ...]:
         return tuple(sorted(self._latest))
 
-    def age_seconds(self, instrument_id: str) -> float | None:
+    def age_seconds(
+        self, instrument_id: str, *, now_monotonic: float | None = None
+    ) -> float | None:
         received = self._received_monotonic.get(instrument_id)
-        return None if received is None else max(0.0, time.monotonic() - received)
+        if received is None:
+            return None
+        now = time.monotonic() if now_monotonic is None else now_monotonic
+        return max(0.0, now - received)
 
     def frames(self, instrument_id: str) -> int:
         return self._frames.get(instrument_id, 0)
 
-    def quality(self, instrument_id: str) -> DataQuality:
-        bbo = self._latest.get(instrument_id)
+    def _quality_for(self, bbo: BestBidAsk | None, age: float | None) -> DataQuality:
         if bbo is None:
             return DataQuality.UNAVAILABLE
         if bbo.data_quality is DataQuality.UNAVAILABLE:
             return DataQuality.UNAVAILABLE
-        age = self.age_seconds(instrument_id)
         if age is None or age > self.freshness_seconds:
             return DataQuality.STALE
         return DataQuality.FRESH
+
+    def quality(
+        self, instrument_id: str, *, now_monotonic: float | None = None
+    ) -> DataQuality:
+        return self._quality_for(
+            self._latest.get(instrument_id),
+            self.age_seconds(instrument_id, now_monotonic=now_monotonic),
+        )
+
+    def quote_snapshot(
+        self, instrument_id: str
+    ) -> tuple[BestBidAsk | None, float | None, DataQuality]:
+        """Read one quote, age, and quality from one Host-authoritative monotonic sample."""
+        bbo = self._latest.get(instrument_id)
+        if bbo is None:
+            return None, None, DataQuality.UNAVAILABLE
+        now_monotonic = time.monotonic()
+        age = self.age_seconds(instrument_id, now_monotonic=now_monotonic)
+        return bbo, age, self._quality_for(bbo, age)
 
     def fresh_tradable(self, instrument_id: str) -> bool:
         bbo = self._latest.get(instrument_id)
@@ -945,6 +991,47 @@ class RuntimeHost:
             operator_state=self._durable_operator_state,
             system_state=self._durable_system_state,
             blocking_incident_count=self._blocking_incident_count,
+        )
+
+    def product_market_snapshot(self) -> ProductCurrentMarketSnapshot:
+        """Copy the current Host-owned quote authority into an immutable Product snapshot.
+
+        The Product boundary receives scalar facts only.  It never receives a mutable
+        ``LiveMarketState`` or ``BestBidAsk`` object, and it delegates freshness and age to
+        the existing Host-owned monotonic-clock authority.
+        """
+        snapshot_at = datetime.now(UTC)
+        quotes: list[ProductMarketQuoteSnapshot] = []
+        for instrument_id in self.required_instruments():
+            bbo, age_seconds, quality = self._market.quote_snapshot(instrument_id)
+            if bbo is None:
+                quotes.append(
+                    ProductMarketQuoteSnapshot(
+                        instrument_id=instrument_id,
+                        bid=None,
+                        ask=None,
+                        received_at=None,
+                        tradable=False,
+                        data_quality=quality.value,
+                        age_seconds=None,
+                    )
+                )
+                continue
+            quotes.append(
+                ProductMarketQuoteSnapshot(
+                    instrument_id=instrument_id,
+                    bid=bbo.bid,
+                    ask=bbo.ask,
+                    received_at=bbo.received_at,
+                    tradable=bbo.tradable,
+                    data_quality=quality.value,
+                    age_seconds=age_seconds,
+                )
+            )
+        return ProductCurrentMarketSnapshot(
+            snapshot_at=snapshot_at,
+            instance_id=self.instance_id,
+            quotes=tuple(quotes),
         )
 
     def ownership_snapshot(self) -> dict[str, Any]:

@@ -7,7 +7,12 @@ from dataclasses import dataclass
 from fastapi import Request
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from marketpulse.runtime_host import ProductRuntimeSnapshot, RecoverySnapshot, RuntimeHost
+from marketpulse.runtime_host import (
+    ProductCurrentMarketSnapshot,
+    ProductRuntimeSnapshot,
+    RecoverySnapshot,
+    RuntimeHost,
+)
 
 
 @dataclass(frozen=True)
@@ -26,6 +31,9 @@ class ProductReadContext:
 
     def runtime_snapshot(self) -> ProductRuntimeSnapshot | None:
         return None if self.host is None else self.host.product_runtime_snapshot()
+
+    def market_snapshot(self) -> ProductCurrentMarketSnapshot | None:
+        return None if self.host is None else self.host.product_market_snapshot()
 
     def recovery_snapshot(self) -> RecoverySnapshot | None:
         return None if self.host is None else self.host.recovery_snapshot

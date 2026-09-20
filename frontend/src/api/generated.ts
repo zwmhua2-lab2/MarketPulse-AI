@@ -78,6 +78,60 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/product/market-scanner": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Market Scanner Read
+         * @description Read the operational Market Scanner projection without activating any runtime resource.
+         */
+        get: operations["market_scanner_read_api_v1_product_market_scanner_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/product/opportunities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Opportunity Collection Read */
+        get: operations["opportunity_collection_read_api_v1_product_opportunities_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/product/opportunities/{opportunity_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Opportunity Trace Read */
+        get: operations["opportunity_trace_read_api_v1_product_opportunities__opportunity_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/product/system": {
         parameters: {
             query?: never;
@@ -202,6 +256,33 @@ export interface components {
              */
             status: string;
         };
+        /** CurrentMarketDataDTO */
+        CurrentMarketDataDTO: {
+            /** Quotes */
+            quotes?: components["schemas"]["CurrentMarketQuoteDTO"][];
+        };
+        /** CurrentMarketQuoteDTO */
+        CurrentMarketQuoteDTO: {
+            /** Age Seconds */
+            age_seconds: number | null;
+            /** Ask */
+            ask: number | null;
+            /** Bid */
+            bid: number | null;
+            /** Data Quality */
+            data_quality: string;
+            /** Instrument Id */
+            instrument_id: string;
+            /** Received At */
+            received_at: string | null;
+            /**
+             * Snapshot At
+             * Format: date-time
+             */
+            snapshot_at: string;
+            /** Tradable */
+            tradable: boolean;
+        };
         /** DatabaseSingletonDTO */
         DatabaseSingletonDTO: {
             /** Application Name */
@@ -216,6 +297,48 @@ export interface components {
             singleton_lock_held: boolean;
             /** Singleton Lock Lost */
             singleton_lock_lost: boolean;
+        };
+        /** DecisionTraceDTO */
+        DecisionTraceDTO: {
+            /** Attribution Event Type */
+            attribution_event_type: string;
+            decision_bound_evidence: components["schemas"]["TraceNodeDTO_EvidenceIdentityDTO_"];
+            /** Decision Id */
+            decision_id: string;
+            /** Status */
+            status: string;
+        };
+        /** EvidenceIdentityDTO */
+        EvidenceIdentityDTO: {
+            /** Evidence Hash */
+            evidence_hash: string;
+            /** Evidence Id */
+            evidence_id: string;
+            /** Evidence Revision */
+            evidence_revision: number;
+            /** Feature Snapshot Hash */
+            feature_snapshot_hash: string;
+        };
+        /**
+         * EvidenceSource
+         * @enum {string}
+         */
+        EvidenceSource: "HISTORICAL_REPLAY" | "FORWARD_PAPER";
+        /** ForwardOutcomeTraceDTO */
+        ForwardOutcomeTraceDTO: {
+            /** Calculation Status */
+            calculation_status: string;
+            /**
+             * Due At
+             * Format: date-time
+             */
+            due_at: string;
+            /** Outcome Id */
+            outcome_id: string;
+            /** Outcome Record Hash */
+            outcome_record_hash: string;
+            /** Outcome Revision */
+            outcome_revision: number;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -337,6 +460,22 @@ export interface components {
             /** Username */
             username: string;
         };
+        /** MarketEventTraceDTO */
+        MarketEventTraceDTO: {
+            /** Event Id */
+            event_id: string;
+            /**
+             * Event Time
+             * Format: date-time
+             */
+            event_time: string;
+            /** Event Type */
+            event_type: string;
+            /** Instrument Id */
+            instrument_id: string;
+            /** Market Type */
+            market_type: string;
+        };
         /** MarketInstrumentDTO */
         MarketInstrumentDTO: {
             /** Fresh */
@@ -353,6 +492,18 @@ export interface components {
             /** Market */
             market: components["schemas"]["MarketInstrumentDTO"][];
             provider: components["schemas"]["ProviderDTO"];
+        };
+        /** MarketScannerDataDTO */
+        MarketScannerDataDTO: {
+            current_market: components["schemas"]["SystemSectionDTO_CurrentMarketDataDTO_"];
+            scanner_events: components["schemas"]["SystemSectionDTO_ScannerEventPageDTO_"];
+        };
+        /** MarketScannerReadResponse */
+        MarketScannerReadResponse: {
+            data: components["schemas"]["MarketScannerDataDTO"] | null;
+            meta: components["schemas"]["ProjectionMetaDTO"];
+            operational_context: components["schemas"]["OperationalContextDTO"];
+            range_context: components["schemas"]["RangeContextDTO"];
         };
         /**
          * OperationalAvailability
@@ -382,6 +533,90 @@ export interface components {
             operator_state: string | null;
             /** System State */
             system_state: string | null;
+        };
+        /** OpportunityCollectionReadResponse */
+        OpportunityCollectionReadResponse: {
+            data: components["schemas"]["OpportunityPageDTO"] | null;
+            meta: components["schemas"]["ProjectionMetaDTO"];
+            operational_context: components["schemas"]["OperationalContextDTO"];
+            range_context: components["schemas"]["RangeContextDTO"];
+        };
+        /** OpportunityDTO */
+        OpportunityDTO: {
+            /** Candidate Id */
+            candidate_id: string;
+            current_canonical_evidence: components["schemas"]["EvidenceIdentityDTO"];
+            /**
+             * Detected At
+             * Format: date-time
+             */
+            detected_at: string;
+            /**
+             * Evidence At
+             * Format: date-time
+             */
+            evidence_at: string;
+            /** Evidence Contract Version */
+            evidence_contract_version: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Family Id */
+            family_id: string;
+            /** Family Version */
+            family_version: string;
+            /** Instrument Id */
+            instrument_id: string;
+            /** Market Type */
+            market_type: string;
+            /** Opportunity Id */
+            opportunity_id: string;
+            /** Source Identity */
+            source_identity: string;
+            /** Source Type */
+            source_type: string;
+        };
+        /** OpportunityPageDTO */
+        OpportunityPageDTO: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Items */
+            items?: components["schemas"]["OpportunityDTO"][];
+            /** Next Cursor */
+            next_cursor?: string | null;
+        };
+        /**
+         * OpportunityRange
+         * @enum {string}
+         */
+        OpportunityRange: "15m" | "30m" | "1h" | "4h" | "6h" | "24h" | "7d" | "30d" | "custom";
+        /** OpportunityTraceDataDTO */
+        OpportunityTraceDataDTO: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            current_canonical_evidence: components["schemas"]["EvidenceIdentityDTO"];
+            /** Forward Outcomes */
+            forward_outcomes: {
+                [key: string]: components["schemas"]["TraceNodeDTO_ForwardOutcomeTraceDTO_"];
+            };
+            market_event: components["schemas"]["TraceNodeDTO_MarketEventTraceDTO_"];
+            opportunity: components["schemas"]["OpportunityDTO"];
+            strategy_candidate: components["schemas"]["TraceNodeDTO_StrategyCandidateTraceDTO_"];
+            trading_decision: components["schemas"]["TraceNodeDTO_TradingDecisionBranchDTO_"];
+        };
+        /** OpportunityTraceReadResponse */
+        OpportunityTraceReadResponse: {
+            data: components["schemas"]["OpportunityTraceDataDTO"] | null;
+            meta: components["schemas"]["ProjectionMetaDTO"];
+            operational_context: components["schemas"]["OperationalContextDTO"];
         };
         /**
          * ProductInternalErrorResponse
@@ -454,6 +689,23 @@ export interface components {
             channel: string;
             /** Instrument Id */
             instrument_id: string;
+        };
+        /** RangeContextDTO */
+        RangeContextDTO: {
+            /**
+             * Effective End
+             * Format: date-time
+             */
+            effective_end: string;
+            /**
+             * Effective Start
+             * Format: date-time
+             */
+            effective_start: string;
+            /** Requested Range */
+            requested_range: string;
+            /** Time Authority Field */
+            time_authority_field: string;
         };
         /**
          * ReadFailureReason
@@ -585,6 +837,61 @@ export interface components {
             /** Started At */
             started_at: string | null;
         };
+        /** ScannerEventDTO */
+        ScannerEventDTO: {
+            /** Config Version */
+            config_version: string;
+            /** Event Id */
+            event_id: string;
+            /**
+             * Event Time
+             * Format: date-time
+             */
+            event_time: string;
+            /** Event Type */
+            event_type: string;
+            /** Instrument Id */
+            instrument_id: string;
+            /** Market Type */
+            market_type: string;
+            /** Priority */
+            priority: number;
+            /** Producer Source */
+            producer_source: string;
+            /**
+             * Received Time
+             * Format: date-time
+             */
+            received_time: string;
+            /**
+             * Runtime Binding Status
+             * @default NOT_RECORDED
+             */
+            runtime_binding_status: string;
+            /** State Version */
+            state_version: number;
+            /** Strength */
+            strength: number;
+            /** Symbol */
+            symbol: string;
+        };
+        /** ScannerEventPageDTO */
+        ScannerEventPageDTO: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Items */
+            items?: components["schemas"]["ScannerEventDTO"][];
+            /** Next Cursor */
+            next_cursor?: string | null;
+        };
+        /**
+         * ScannerRange
+         * @enum {string}
+         */
+        ScannerRange: "15m" | "30m" | "1h" | "4h" | "6h" | "24h" | "7d" | "30d" | "custom";
         /** SessionResponse */
         SessionResponse: {
             /** Access Token */
@@ -606,6 +913,22 @@ export interface components {
             source_identity: string;
             /** Source Type */
             source_type: string;
+        };
+        /** StrategyCandidateTraceDTO */
+        StrategyCandidateTraceDTO: {
+            /** Candidate Id */
+            candidate_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Event Id */
+            event_id: string;
+            /** Strategy Id */
+            strategy_id: string;
+            /** Strategy Version */
+            strategy_version: string;
         };
         /** SystemIncidentDataDTO */
         SystemIncidentDataDTO: {
@@ -631,6 +954,18 @@ export interface components {
         /** SystemSectionDTO[AIActivationDTO] */
         SystemSectionDTO_AIActivationDTO_: {
             data?: components["schemas"]["AIActivationDTO"] | null;
+            read_failure_reason?: components["schemas"]["ReadFailureReason"] | null;
+            /**
+             * Snapshot At
+             * Format: date-time
+             */
+            snapshot_at: string;
+            source: components["schemas"]["SourceContextDTO"];
+            state: components["schemas"]["ProjectionState"];
+        };
+        /** SystemSectionDTO[CurrentMarketDataDTO] */
+        SystemSectionDTO_CurrentMarketDataDTO_: {
+            data?: components["schemas"]["CurrentMarketDataDTO"] | null;
             read_failure_reason?: components["schemas"]["ReadFailureReason"] | null;
             /**
              * Snapshot At
@@ -772,6 +1107,63 @@ export interface components {
             source: components["schemas"]["SourceContextDTO"];
             state: components["schemas"]["ProjectionState"];
         };
+        /** SystemSectionDTO[ScannerEventPageDTO] */
+        SystemSectionDTO_ScannerEventPageDTO_: {
+            data?: components["schemas"]["ScannerEventPageDTO"] | null;
+            read_failure_reason?: components["schemas"]["ReadFailureReason"] | null;
+            /**
+             * Snapshot At
+             * Format: date-time
+             */
+            snapshot_at: string;
+            source: components["schemas"]["SourceContextDTO"];
+            state: components["schemas"]["ProjectionState"];
+        };
+        /** TraceNodeDTO[EvidenceIdentityDTO] */
+        TraceNodeDTO_EvidenceIdentityDTO_: {
+            data?: components["schemas"]["EvidenceIdentityDTO"] | null;
+            /** Evidence Basis */
+            evidence_basis?: string | null;
+            state: components["schemas"]["TraceNodeState"];
+        };
+        /** TraceNodeDTO[ForwardOutcomeTraceDTO] */
+        TraceNodeDTO_ForwardOutcomeTraceDTO_: {
+            data?: components["schemas"]["ForwardOutcomeTraceDTO"] | null;
+            /** Evidence Basis */
+            evidence_basis?: string | null;
+            state: components["schemas"]["TraceNodeState"];
+        };
+        /** TraceNodeDTO[MarketEventTraceDTO] */
+        TraceNodeDTO_MarketEventTraceDTO_: {
+            data?: components["schemas"]["MarketEventTraceDTO"] | null;
+            /** Evidence Basis */
+            evidence_basis?: string | null;
+            state: components["schemas"]["TraceNodeState"];
+        };
+        /** TraceNodeDTO[StrategyCandidateTraceDTO] */
+        TraceNodeDTO_StrategyCandidateTraceDTO_: {
+            data?: components["schemas"]["StrategyCandidateTraceDTO"] | null;
+            /** Evidence Basis */
+            evidence_basis?: string | null;
+            state: components["schemas"]["TraceNodeState"];
+        };
+        /** TraceNodeDTO[TradingDecisionBranchDTO] */
+        TraceNodeDTO_TradingDecisionBranchDTO_: {
+            data?: components["schemas"]["TradingDecisionBranchDTO"] | null;
+            /** Evidence Basis */
+            evidence_basis?: string | null;
+            state: components["schemas"]["TraceNodeState"];
+        };
+        /**
+         * TraceNodeState
+         * @enum {string}
+         */
+        TraceNodeState: "PRESENT" | "NOT_OCCURRED" | "NOT_REACHED" | "NOT_YET_DUE" | "NO_PROVABLE_RECORD" | "CAPABILITY_NOT_INTEGRATED";
+        /** TradingDecisionBranchDTO */
+        TradingDecisionBranchDTO: {
+            /** Decisions */
+            decisions?: components["schemas"]["DecisionTraceDTO"][];
+        };
         /** ValidationError */
         ValidationError: {
             /** Context */
@@ -898,6 +1290,171 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    market_scanner_read_api_v1_product_market_scanner_get: {
+        parameters: {
+            query?: {
+                range?: components["schemas"]["ScannerRange"];
+                start?: string | null;
+                end?: string | null;
+                limit?: number;
+                cursor?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MarketScannerReadResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductInternalErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductUnavailableResponse"];
+                };
+            };
+        };
+    };
+    opportunity_collection_read_api_v1_product_opportunities_get: {
+        parameters: {
+            query?: {
+                range?: components["schemas"]["OpportunityRange"];
+                start?: string | null;
+                end?: string | null;
+                source_type?: components["schemas"]["EvidenceSource"];
+                limit?: number;
+                cursor?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpportunityCollectionReadResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductInternalErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductUnavailableResponse"];
+                };
+            };
+        };
+    };
+    opportunity_trace_read_api_v1_product_opportunities__opportunity_id__get: {
+        parameters: {
+            query?: {
+                source_type?: components["schemas"]["EvidenceSource"];
+            };
+            header?: never;
+            path: {
+                opportunity_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpportunityTraceReadResponse"];
+                };
+            };
+            /** @description Opportunity absent in selected provenance */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductInternalErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductUnavailableResponse"];
                 };
             };
         };

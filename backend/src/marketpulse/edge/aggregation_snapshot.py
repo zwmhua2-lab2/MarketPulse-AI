@@ -86,6 +86,14 @@ class _OutcomeFold:
     folded: tuple[ForwardOutcomeContract, ...]
 
 
+# These aliases deliberately expose the accepted folding result without moving any
+# Product API concern into the Edge domain.  Product Read consumes the same pure
+# reconstruction and validation primitive as SE-02D instead of maintaining a
+# second revision algorithm.
+EvidenceFold = _EvidenceFold
+OutcomeFold = _OutcomeFold
+
+
 @dataclass(frozen=True, slots=True)
 class CurrentSnapshotProjection:
     """The revision-aware projection of one database snapshot.
@@ -284,6 +292,23 @@ def _fold_evidence_chains(
     return folds
 
 
+def fold_evidence_records(
+    records: Sequence[EdgeOpportunityEvidenceRecord],
+) -> dict[str, EvidenceFold]:
+    """Reconstruct, validate and fold complete visible Evidence chains.
+
+    Callers must supply the complete authoritative visible record set for their
+    query scope.  This is intentionally a pure record-folding primitive: it
+    owns no session and therefore composes with a caller's existing stable
+    transaction without changing SE-02D snapshot behavior.
+    """
+    evidence_by_opportunity: dict[str, list[EvidenceRevision]] = {}
+    for record in records:
+        revision = _evidence_from_record(record)
+        evidence_by_opportunity.setdefault(revision.opportunity_id, []).append(revision)
+    return _fold_evidence_chains(evidence_by_opportunity)
+
+
 # --- Outcome chain folding ---------------------------------------------------------------
 
 
@@ -361,6 +386,24 @@ def _fold_outcome_chains(
     return folds
 
 
+def fold_outcome_records(
+    records: Sequence[EdgeForwardOutcomeRecord],
+) -> dict[tuple[str, str], OutcomeFold]:
+    """Reconstruct, validate and fold one exact-horizon Outcome record set.
+
+    The caller supplies records for one horizon.  Rehydration validates the
+    accepted enum/hash contracts and the existing fold validates contiguous
+    revision/supersedes semantics.
+    """
+    outcomes_by_scope: dict[tuple[str, str], list[ForwardOutcomeContract]] = {}
+    for record in records:
+        contract = _outcome_from_record(record)
+        outcomes_by_scope.setdefault((contract.opportunity_id, contract.evidence_id), []).append(
+            contract
+        )
+    return _fold_outcome_chains(outcomes_by_scope)
+
+
 # --- Cross-integrity (canonical Evidence <-> canonical Outcome) -------------------------
 
 
@@ -427,6 +470,16 @@ def _check_cross_integrity(
                 f"got={outcome.due_at.isoformat()}"),
             )
         )
+
+
+def validate_canonical_outcome(
+    evidence: EvidenceRevision,
+    outcome: ForwardOutcomeContract | None,
+    *,
+    horizon: ForwardHorizon,
+) -> None:
+    """Apply accepted canonical Evidence/Outcome cross-integrity validation."""
+    _check_cross_integrity(evidence, outcome, horizon=horizon)
 
 
 # --- Projection ---------------------------------------------------------------------------
@@ -649,18 +702,6 @@ class CurrentSnapshotRevisionReader:
         )
         outcome_records = outcome_result.scalars().all()
 
-        evidence_by_opportunity: dict[str, list[EvidenceRevision]] = {}
-        for record in evidence_records:
-            rev = _evidence_from_record(record)
-            evidence_by_opportunity.setdefault(rev.opportunity_id, []).append(rev)
-
-        outcomes_by_scope: dict[tuple[str, str], list[ForwardOutcomeContract]] = {}
-        for record in outcome_records:
-            contract = _outcome_from_record(record)
-            outcomes_by_scope.setdefault(
-                (contract.opportunity_id, contract.evidence_id), []
-            ).append(contract)
-
-        evidence_folds = _fold_evidence_chains(evidence_by_opportunity)
-        outcome_folds = _fold_outcome_chains(outcomes_by_scope)
+        evidence_folds = fold_evidence_records(evidence_records)
+        outcome_folds = fold_outcome_records(outcome_records)
         return _project(evidence_folds, outcome_folds, horizon, as_of)

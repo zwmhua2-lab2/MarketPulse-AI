@@ -2340,3 +2340,13 @@ UI-RD01-I02-REQ-01 — Market Scanner & Opportunity Product Read Implementation 
 - 无实现面变更 ⇒ `ruff` / `pytest` / frontend typecheck / frontend tests / frontend build = `NOT REQUIRED / NOT RUN`（**不**据此声称任何运行时行为已验证）。
 - 边界保持（未解锁）：`PRE-01B-I2` = `NOT STARTED / NOT ACTIVATED`；Real AI = `NOT ACTIVATED`；live `G2→G3` = `NOT ACTIVE`；Gate A/B/C = `NOT ACTIVATED` / `NOT PASSED`；Live = `NOT AUTHORIZED`；Live Trading = `DISABLED`。
 - 详见 `dev_log/2026-09-19-ui-rd01-i02-requirements-final-freeze.md`。
+
+## UI-RD01-I02 FIX-02-R1 Result
+
+- `UI-RD01-I02-FIX-02-R1 = IMPLEMENTED / READY FOR INDEPENDENT RE-REVIEW`。latest-main
+  content-level carry-forward base = `df02073521140e7ae599e03f2e04190b6a5ae590`; F1–F5 closed
+  with isolated PostgreSQL focused/full regression and OpenAPI/frontend gates passing. Parent
+  `UI-RD01-I02 task_state = REVIEW`; Human Acceptance / main integration = `NOT PERFORMED`;
+  I03/I04/I05 = `NOT STARTED`. `DECISIONS.md`, PRE-01B accepted state, schema/migration/index and
+  frozen artifacts remain unchanged. Evidence:
+  `dev_log/2026-09-20-ui-rd01-i02-fix-02-review-blockers.md`.
