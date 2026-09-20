@@ -2360,7 +2360,8 @@ UI-RD01-I02-REQ-01 — Market Scanner & Opportunity Product Read Implementation 
   Opportunity scope to revision-1 `detected_at`, with non-root malformed sentinels limited to
   chains having no revision-1 row. `RR2-P2-01 / F4` limits bare timeout/OS source classification
   to durable-source operations; Product mapper timeout/OS failures are sanitized `500`.
-  Focused, targeted (`167 passed`), full backend (`757 passed`), OpenAPI, and frontend gates pass.
+  Focused, targeted (`167 passed`), real task-owned source probes, final full backend
+  (`757 passed`), OpenAPI, and frontend gates pass.
   Parent `UI-RD01-I02 task_state = REVIEW`; Human Acceptance / main integration =
   `NOT PERFORMED`; I03/I04/I05 = `NOT STARTED`; accepted PRE-01B state, `DECISIONS.md`,
   schema/migration/index, and frozen artifacts remain unchanged. Evidence:

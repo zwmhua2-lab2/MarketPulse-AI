@@ -49,7 +49,6 @@ from marketpulse.market_data.models import MarketType
 from marketpulse.runtime import HostLifecycleState
 from marketpulse.runtime_host import RuntimeHost
 from sqlalchemy import delete, select, text
-from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
@@ -1067,7 +1066,12 @@ def test_product_error_boundaries_are_typed_and_sanitized(
     original_opportunity_dto = opportunities_module._opportunity_dto
 
     async def source_failure(_: object) -> datetime:
-        raise OperationalError("SELECT source", {}, RuntimeError("source-secret"))
+        engine = create_async_engine(PRIMARY_URL, poolclass=NullPool)
+        try:
+            async with engine.connect() as connection:
+                await connection.execute(text("SELECT * FROM product_source_secret"))
+        finally:
+            await engine.dispose()
 
     monkeypatch.setattr(opportunities_module, "_begin_snapshot", source_failure)
     collection_suffix = "?range=custom&start=2026-09-18T10:00:00Z&end=2026-09-18T11:00:00Z"
@@ -1078,7 +1082,13 @@ def test_product_error_boundaries_are_typed_and_sanitized(
         assert "source-secret" not in response.text
 
     async def timeout_failure(_: object) -> datetime:
-        raise TimeoutError("timeout-secret")
+        connection = await asyncpg.connect(
+            PRIMARY_URL.replace("postgresql+asyncpg://", "postgresql://", 1)
+        )
+        try:
+            await connection.execute("SELECT pg_sleep(0.2)", timeout=0.001)
+        finally:
+            await connection.close()
 
     monkeypatch.setattr(opportunities_module, "_begin_snapshot", timeout_failure)
     for suffix in (collection_suffix, f"/{ids['opportunity']}"):
@@ -1088,7 +1098,11 @@ def test_product_error_boundaries_are_typed_and_sanitized(
         assert "timeout-secret" not in response.text
 
     async def auth_failure(_: object) -> datetime:
-        raise asyncpg.exceptions.InvalidPasswordError("auth-secret")
+        await asyncpg.connect(
+            PRIMARY_URL.replace("marketpulse:marketpulse@", "marketpulse:auth-secret@")
+            .replace("postgresql+asyncpg://", "postgresql://", 1)
+        )
+        raise AssertionError("invalid password probe unexpectedly connected")
 
     monkeypatch.setattr(opportunities_module, "_begin_snapshot", auth_failure)
     for suffix in (collection_suffix, f"/{ids['opportunity']}"):
@@ -1098,7 +1112,9 @@ def test_product_error_boundaries_are_typed_and_sanitized(
         assert "auth-secret" not in response.text
 
     async def refused_failure(_: object) -> datetime:
-        raise ConnectionRefusedError("refused-secret")
+        refused_url = PRIMARY_URL.replace(":54134/", ":54135/")
+        await asyncpg.connect(refused_url.replace("postgresql+asyncpg://", "postgresql://", 1))
+        raise AssertionError("connection-refused probe unexpectedly connected")
 
     monkeypatch.setattr(opportunities_module, "_begin_snapshot", refused_failure)
     for suffix in (collection_suffix, f"/{ids['opportunity']}"):

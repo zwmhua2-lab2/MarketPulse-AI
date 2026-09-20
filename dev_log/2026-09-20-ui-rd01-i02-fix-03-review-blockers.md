@@ -42,21 +42,23 @@ or I05.
 - Product DTO mapping after successful materialization is outside that boundary: injected
   `TimeoutError("product-timeout-secret")` and `OSError("product-oserror-secret")` both return
   sanitized `500` with correlation ID. No injected secret is returned.
-- Both endpoints retain the source timeout, invalid-password, connection-refused, SQLAlchemy
-  source failure, `SnapshotIntegrityError`, mapper runtime-error, and sanitization controls.
+- Both endpoints retain real task-owned source probes: PostgreSQL `pg_sleep` timeout, invalid
+  PostgreSQL password, a local disposable refused port, and a SQLAlchemy execution failure;
+  they also retain `SnapshotIntegrityError`, mapper runtime-error, and sanitization controls.
 
 ## Verification
 
 - Environment: task-owned PostgreSQL `marketpulse-ui-rd01-i02-fix03-pg` on `127.0.0.1:54134`;
   worktree-local ignored `.env`; process `DATABASE_URL` unset; `PYTHONPATH=backend/src`.
 - Alembic disposable URL: `current = heads = 20260913_0009`.
-- Focused opportunities regression: `14 passed, 5 warnings in 26.54s`, exit `0`.
+- Focused opportunities regression: `14 passed, 5 warnings in 26.54s`, exit `0`; the real
+  source-probe endpoint control was rerun after fixture hardening: `1 passed, 1 warning in 8.92s`.
 - Required targeted backend regression:
   `backend/tests/test_product_opportunities.py`, `test_product_market_scanner.py`,
   `test_product_system.py`, `test_runtime_host.py`, and
   `test_se_02d_aggregation_snapshot.py` => `167 passed, 20 warnings in 104.81s`, exit `0`.
-- Full backend: `PYTHONPATH=backend/src; py -3.14 -m pytest -q backend/tests` =>
-  `757 passed, 0 failed, 0 errors, 0 skipped, 20 warnings in 797.26s`, exit `0`.
+- Final full backend: `PYTHONPATH=backend/src; py -3.14 -m pytest -q backend/tests` =>
+  `757 passed, 0 failed, 0 errors, 0 skipped, 20 warnings in 818.41s`, exit `0`.
 - Ruff on modified source/test and `compileall`: pass.
 - OpenAPI generate and drift: pass; `frontend/src/api/generated.ts` has no content change.
   Frontend typecheck: pass; `test:run`: `7 files / 57 tests` pass; build: pass.
@@ -74,6 +76,6 @@ or I05.
 
 - Estimated Run Duration: `00:25:00–00:45:00`.
 - Execution Started At: `2026-09-20T14:06:08.2011837+08:00`.
-- Completed At: `2026-09-20T14:38:24.0423379+08:00`.
-- Run Duration: `00:32:16`.
-- Estimate Delta: `-00:12:44 vs upper bound`.
+- Completed At: `2026-09-20T14:56:49.5683878+08:00`.
+- Run Duration: `00:50:41`.
+- Estimate Delta: `+00:05:41 vs upper bound`.
