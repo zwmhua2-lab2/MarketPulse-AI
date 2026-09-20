@@ -673,15 +673,15 @@ def test_collection_validation_is_query_scoped_and_pagination_is_provenance_comp
         async with host._sessions() as session, session.begin():
             for record in (outside, replay_only, replay_early, forward_later):
                 await append_evidence_revision(session, record)
-            for identity, corrupt in (
-                (outside_identity, outside),
-                (replay_only_identity, replay_only),
+            for identity, corrupt, revised_detected_at in (
+                (outside_identity, outside, START + timedelta(minutes=10)),
+                (replay_only_identity, replay_only, replay_only.detected_at),
             ):
                 revision_two = build_evidence_revision(
                     opportunity=identity,
                     evidence_revision=2,
                     supersedes_evidence_id=corrupt.evidence_id,
-                    detected_at=corrupt.detected_at,
+                    detected_at=revised_detected_at,
                     evidence_at=corrupt.evidence_at + timedelta(seconds=1),
                     expires_at=corrupt.expires_at,
                     source_type=corrupt.source_type,
@@ -707,6 +707,53 @@ def test_collection_validation_is_query_scoped_and_pagination_is_provenance_comp
     assert forward.status_code == 200
     assert forward.json()["data"]["items"][0]["opportunity_id"] == forward_later.opportunity_id
 
+    cursor_identity, cursor_root = revision(
+        candidate_id="cursor-root-outside",
+        instrument_id="AVAX-USDT",
+        detected_at=START + timedelta(minutes=40),
+        source_type=EvidenceSource.FORWARD_PAPER,
+    )
+
+    async def append_cursor_corruption() -> None:
+        async with host._sessions() as session, session.begin():
+            await append_evidence_revision(session, cursor_root)
+            revision_two = build_evidence_revision(
+                opportunity=cursor_identity,
+                evidence_revision=2,
+                supersedes_evidence_id=cursor_root.evidence_id,
+                detected_at=START + timedelta(minutes=10),
+                evidence_at=cursor_root.evidence_at + timedelta(seconds=1),
+                expires_at=cursor_root.expires_at,
+                source_type=cursor_root.source_type,
+                source_identity=cursor_root.source_identity,
+                source_manifest_id=cursor_root.source_manifest_id,
+                reference_data_status=cursor_root.reference_data_status,
+                evidence_payload={},
+                feature_snapshot_payload={},
+                created_at=cursor_root.created_at + timedelta(seconds=1),
+            )
+            await append_evidence_revision(session, revision_two)
+            persisted = await session.get(EdgeOpportunityEvidenceRecord, revision_two.evidence_id)
+            assert persisted is not None
+            persisted.evidence_revision = 3
+
+    asyncio.run(append_cursor_corruption())
+    cursor = encode_opportunity_cursor(
+        OpportunityCursor(
+            requested_range="custom",
+            effective_start=START,
+            effective_end=END,
+            source_type=EvidenceSource.FORWARD_PAPER.value,
+            detected_at=START + timedelta(minutes=30),
+            opportunity_id="zzzz",
+        )
+    )
+    cursor_page = _request(client, headers, query + f"&cursor={cursor}")
+    assert cursor_page.status_code == 200
+    assert cursor_identity.opportunity_id not in {
+        item["opportunity_id"] for item in cursor_page.json()["data"]["items"]
+    }
+
     async def corrupt_in_scope() -> None:
         async with host._sessions() as session, session.begin():
             record = await session.scalar(
@@ -716,12 +763,74 @@ def test_collection_validation_is_query_scoped_and_pagination_is_provenance_comp
                 )
             )
             assert record is not None
+            record.detected_at = END + timedelta(minutes=1)
             record.evidence_revision = 3
 
     asyncio.run(corrupt_in_scope())
     in_scope = _request(client, headers, query)
     assert in_scope.status_code == 503
     assert in_scope.json()["read_failure_reason"] == "SNAPSHOT_FAILED"
+
+
+def test_collection_rootless_malformed_chain_fails_closed(
+    opportunity_host: tuple[RuntimeHost, dict[str, str]],
+) -> None:
+    host, _ = opportunity_host
+    identity = build_opportunity_identity(
+        family_id=EdgeFamily.BREAKOUT_RETEST,
+        family_version="edge-v1",
+        instrument_id="LINK-USDT",
+        market_type=MarketType.SPOT,
+        candidate_id="rootless-malformed",
+    )
+    root = build_evidence_revision(
+        opportunity=identity,
+        evidence_revision=1,
+        detected_at=START + timedelta(minutes=20),
+        evidence_at=START,
+        expires_at=START + timedelta(minutes=30),
+        source_type=EvidenceSource.FORWARD_PAPER,
+        source_identity="forward-rootless",
+        source_manifest_id="manifest-rootless",
+        reference_data_status=ReferenceDataStatus.REFERENCE_MISSING,
+        evidence_payload={},
+        feature_snapshot_payload={},
+        created_at=START,
+    )
+    revision_two = build_evidence_revision(
+        opportunity=identity,
+        evidence_revision=2,
+        supersedes_evidence_id=root.evidence_id,
+        detected_at=START + timedelta(minutes=21),
+        evidence_at=START + timedelta(seconds=1),
+        expires_at=START + timedelta(minutes=30),
+        source_type=EvidenceSource.FORWARD_PAPER,
+        source_identity="forward-rootless",
+        source_manifest_id="manifest-rootless",
+        reference_data_status=ReferenceDataStatus.REFERENCE_MISSING,
+        evidence_payload={},
+        feature_snapshot_payload={},
+        created_at=START + timedelta(seconds=1),
+    )
+
+    async def append_rootless_malformed_chain() -> None:
+        async with host._sessions() as session, session.begin():
+            await append_evidence_revision(session, root)
+            await append_evidence_revision(session, revision_two)
+            persisted_root = await session.get(EdgeOpportunityEvidenceRecord, root.evidence_id)
+            assert persisted_root is not None
+            persisted_root.evidence_revision = 3
+            persisted_root.supersedes_evidence_id = revision_two.evidence_id
+
+    asyncio.run(append_rootless_malformed_chain())
+    client = TestClient(app_module.app)
+    response = _request(
+        client,
+        _headers(client),
+        "?range=custom&start=2026-09-18T10:00:00Z&end=2026-09-18T11:00:00Z",
+    )
+    assert response.status_code == 503
+    assert response.json()["read_failure_reason"] == "SNAPSHOT_FAILED"
 
 
 def test_unprovable_decision_binding_uses_frozen_absence_semantics(
@@ -988,6 +1097,16 @@ def test_product_error_boundaries_are_typed_and_sanitized(
         assert response.json()["read_failure_reason"] == "SOURCE_UNAVAILABLE"
         assert "auth-secret" not in response.text
 
+    async def refused_failure(_: object) -> datetime:
+        raise ConnectionRefusedError("refused-secret")
+
+    monkeypatch.setattr(opportunities_module, "_begin_snapshot", refused_failure)
+    for suffix in (collection_suffix, f"/{ids['opportunity']}"):
+        response = _request(client, headers, suffix)
+        assert response.status_code == 503
+        assert response.json()["read_failure_reason"] == "SOURCE_UNAVAILABLE"
+        assert "refused-secret" not in response.text
+
     monkeypatch.setattr(opportunities_module, "_begin_snapshot", original_begin_snapshot)
 
     def integrity_failure(_: object) -> object:
@@ -1013,6 +1132,26 @@ def test_product_error_boundaries_are_typed_and_sanitized(
         assert response.status_code == 500
         assert "correlation_id" in response.json()
         assert "internal-mapper-secret" not in response.text
+
+    def product_timeout(*_: object, **__: object) -> object:
+        raise TimeoutError("product-timeout-secret")
+
+    monkeypatch.setattr(opportunities_module, "_opportunity_dto", product_timeout)
+    for suffix in (collection_suffix, f"/{ids['opportunity']}"):
+        response = _request(client, headers, suffix)
+        assert response.status_code == 500
+        assert "correlation_id" in response.json()
+        assert "product-timeout-secret" not in response.text
+
+    def product_os_error(*_: object, **__: object) -> object:
+        raise OSError("product-oserror-secret")
+
+    monkeypatch.setattr(opportunities_module, "_opportunity_dto", product_os_error)
+    for suffix in (collection_suffix, f"/{ids['opportunity']}"):
+        response = _request(client, headers, suffix)
+        assert response.status_code == 500
+        assert "correlation_id" in response.json()
+        assert "product-oserror-secret" not in response.text
     monkeypatch.setattr(opportunities_module, "_opportunity_dto", original_opportunity_dto)
 
 

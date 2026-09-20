@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
@@ -109,6 +110,48 @@ def _is_source_unavailable_error(exc: BaseException) -> bool:
         cause = current.__cause__
         current = cause if cause is not None else current.__context__
     return False
+
+
+async def _source_await(awaitable: object) -> object:
+    """Translate only failures from an actual durable-source await."""
+
+    try:
+        return await awaitable
+    except Exception as exc:
+        if _is_source_unavailable_error(exc):
+            raise _OpportunitySourceUnavailableError(
+                "opportunity source acquisition failed"
+            ) from exc
+        raise
+
+
+@asynccontextmanager
+async def _source_transaction(context: ProductReadContext):
+    """Enter and leave the Product durable source at the source boundary."""
+
+    if context.sessions is None:
+        raise _OpportunitySourceUnavailableError("product session factory unavailable")
+    session_context = context.sessions()
+    session = await _source_await(session_context.__aenter__())
+    transaction_context = session.begin()
+    try:
+        await _source_await(transaction_context.__aenter__())
+    except BaseException as exc:
+        await _source_await(session_context.__aexit__(type(exc), exc, exc.__traceback__))
+        raise
+    try:
+        yield session
+    except BaseException as exc:
+        try:
+            await _source_await(transaction_context.__aexit__(type(exc), exc, exc.__traceback__))
+        finally:
+            await _source_await(session_context.__aexit__(type(exc), exc, exc.__traceback__))
+        raise
+    else:
+        try:
+            await _source_await(transaction_context.__aexit__(None, None, None))
+        finally:
+            await _source_await(session_context.__aexit__(None, None, None))
 
 
 class OpportunityRange(StrEnum):
@@ -340,11 +383,9 @@ async def _begin_snapshot(session: object) -> datetime:
 async def _collection_page(
     context: ProductReadContext, *, range_value: _ResolvedRange, limit: int
 ) -> OpportunityPageDTO:
-    if context.sessions is None:
-        raise _OpportunitySourceUnavailableError("product session factory unavailable")
-    try:
-        async with context.sessions() as session, session.begin():
-            as_of = await _begin_snapshot(session)
+    async with _source_transaction(context) as session:
+        try:
+            as_of = await _source_await(_begin_snapshot(session))
             root = aliased(EdgeOpportunityEvidenceRecord)
             provenance = aliased(EdgeOpportunityEvidenceRecord)
             root_scope = [
@@ -366,16 +407,25 @@ async def _collection_page(
                 )
             rooted_ids = set(
                 (
-                    await session.scalars(
+                    await _source_await(session.scalars(
                         select(root.opportunity_id)
                         .join(provenance, provenance.opportunity_id == root.opportunity_id)
                         .where(*root_scope)
                         .distinct()
-                    )
+                    ))
                 ).all()
+            )
+            root_exists = (
+                select(root.opportunity_id)
+                .where(
+                    root.opportunity_id == EdgeOpportunityEvidenceRecord.opportunity_id,
+                    root.evidence_revision == 1,
+                )
+                .exists()
             )
             malformed_scope = [
                 EdgeOpportunityEvidenceRecord.evidence_revision != 1,
+                ~root_exists,
                 EdgeOpportunityEvidenceRecord.source_type == range_value.source_type.value,
                 EdgeOpportunityEvidenceRecord.detected_at >= range_value.effective_start,
                 EdgeOpportunityEvidenceRecord.detected_at < range_value.effective_end,
@@ -393,11 +443,11 @@ async def _collection_page(
                 )
             malformed_ids = set(
                 (
-                    await session.scalars(
+                    await _source_await(session.scalars(
                         select(EdgeOpportunityEvidenceRecord.opportunity_id)
                         .where(*malformed_scope)
                         .distinct()
-                    )
+                    ))
                 ).all()
             )
             scoped_ids = rooted_ids | malformed_ids
@@ -406,11 +456,11 @@ async def _collection_page(
                 if not scoped_ids
                 else list(
                     (
-                        await session.scalars(
+                        await _source_await(session.scalars(
                             select(EdgeOpportunityEvidenceRecord).where(
                                 EdgeOpportunityEvidenceRecord.opportunity_id.in_(scoped_ids)
                             )
-                        )
+                        ))
                     ).all()
                 )
             )
@@ -453,12 +503,10 @@ async def _collection_page(
                 next_cursor=next_cursor,
                 as_of=as_of,
             )
-    except Exception as exc:
-        if _is_source_unavailable_error(exc):
+        except _OpportunitySourceUnavailableError as exc:
             raise _OpportunitySourceUnavailableError(
-                "opportunity source acquisition failed"
+                "opportunity source operation failed"
             ) from exc
-        raise
 
 
 def _node(
@@ -579,18 +627,16 @@ def _decision_node(
 async def _trace(
     context: ProductReadContext, *, opportunity_id: str, source_type: EvidenceSource
 ) -> OpportunityTraceDataDTO | None:
-    if context.sessions is None:
-        raise _OpportunitySourceUnavailableError("product session factory unavailable")
-    try:
-        async with context.sessions() as session, session.begin():
-            as_of = await _begin_snapshot(session)
+    async with _source_transaction(context) as session:
+        try:
+            as_of = await _source_await(_begin_snapshot(session))
             evidence_records = list(
                 (
-                    await session.scalars(
+                    await _source_await(session.scalars(
                         select(EdgeOpportunityEvidenceRecord).where(
                             EdgeOpportunityEvidenceRecord.opportunity_id == opportunity_id
                         )
-                    )
+                    ))
                 ).all()
             )
             if not evidence_records:
@@ -601,26 +647,28 @@ async def _trace(
             evidence = evidence_fold.canonical
             outcome_records = list(
                 (
-                    await session.scalars(
+                    await _source_await(session.scalars(
                         select(EdgeForwardOutcomeRecord).where(
                             EdgeForwardOutcomeRecord.opportunity_id == opportunity_id
                         )
-                    )
+                    ))
                 ).all()
             )
-            candidate = await session.get(StrategyCandidateRecord, evidence.candidate_id)
+            candidate = await _source_await(
+                session.get(StrategyCandidateRecord, evidence.candidate_id)
+            )
             market_event = (
                 None
                 if candidate is None
-                else await session.get(MarketEventRecord, candidate.event_id)
+                else await _source_await(session.get(MarketEventRecord, candidate.event_id))
             )
             attributions = list(
                 (
-                    await session.scalars(
+                    await _source_await(session.scalars(
                         select(EdgeAttributionEventRecord).where(
                             EdgeAttributionEventRecord.opportunity_id == opportunity_id
                         )
-                    )
+                    ))
                 ).all()
             )
             decision_ids = {
@@ -634,11 +682,11 @@ async def _trace(
                 if not decision_ids
                 else list(
                     (
-                        await session.scalars(
+                        await _source_await(session.scalars(
                             select(AIDecisionRecord).where(
                                 AIDecisionRecord.decision_id.in_(decision_ids)
                             )
-                        )
+                        ))
                     ).all()
                 )
             )
@@ -647,6 +695,10 @@ async def _trace(
                 revision.evidence_id: revision
                 for revision in (evidence_fold.canonical, *evidence_fold.folded)
             }
+        except _OpportunitySourceUnavailableError as exc:
+            raise _OpportunitySourceUnavailableError(
+                "opportunity source operation failed"
+            ) from exc
         candidate_node: TraceNodeDTO[StrategyCandidateTraceDTO]
         event_node: TraceNodeDTO[MarketEventTraceDTO]
         if candidate is None:
@@ -696,12 +748,6 @@ async def _trace(
             ),
             as_of=as_of,
         )
-    except Exception as exc:
-        if _is_source_unavailable_error(exc):
-            raise _OpportunitySourceUnavailableError(
-                "opportunity source acquisition failed"
-            ) from exc
-        raise
 
 
 @router.get(

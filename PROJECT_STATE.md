@@ -2350,3 +2350,18 @@ UI-RD01-I02-REQ-01 — Market Scanner & Opportunity Product Read Implementation 
   I03/I04/I05 = `NOT STARTED`. `DECISIONS.md`, PRE-01B accepted state, schema/migration/index and
   frozen artifacts remain unchanged. Evidence:
   `dev_log/2026-09-20-ui-rd01-i02-fix-02-review-blockers.md`.
+
+## UI-RD01-I02 FIX-03 Result
+
+- `UI-RD01-I02-FIX-03 = IMPLEMENTED / READY FOR INDEPENDENT RE-REVIEW` on
+  `ui-rd01-i02-fix-03-review-blockers`, direct descendant of Fix-02
+  `a2f895181b6955721a12b5e4944a386606e50b8f` and accepted main
+  `df02073521140e7ae599e03f2e04190b6a5ae590`. `RR2-P1-01 / F1` closes logical
+  Opportunity scope to revision-1 `detected_at`, with non-root malformed sentinels limited to
+  chains having no revision-1 row. `RR2-P2-01 / F4` limits bare timeout/OS source classification
+  to durable-source operations; Product mapper timeout/OS failures are sanitized `500`.
+  Focused, targeted (`167 passed`), full backend (`757 passed`), OpenAPI, and frontend gates pass.
+  Parent `UI-RD01-I02 task_state = REVIEW`; Human Acceptance / main integration =
+  `NOT PERFORMED`; I03/I04/I05 = `NOT STARTED`; accepted PRE-01B state, `DECISIONS.md`,
+  schema/migration/index, and frozen artifacts remain unchanged. Evidence:
+  `dev_log/2026-09-20-ui-rd01-i02-fix-03-review-blockers.md`.
