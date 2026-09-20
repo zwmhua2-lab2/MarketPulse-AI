@@ -2385,3 +2385,23 @@ UI-RD01-I02-REQ-01 — Market Scanner & Opportunity Product Read Implementation 
   I03/I04/I05 = `NOT STARTED`. `DECISIONS.md`, schema/migration/index, frozen artifacts, and
   PRE-01B state remain unchanged. Evidence:
   `dev_log/2026-09-20-ui-rd01-i02-fix-04-review-blockers.md`.
+
+## UI-RD01-I02 Final Acceptance Closeout Result
+
+- `UI-RD01-I02 = ACCEPTED / COMPLETE`. Human Acceptance = `CONFIRMED — 2026-09-20`.
+  Human-Accepted Reviewed Candidate = `53775379e88f1e414b9f3a688a350acc7d58358f`; reviewed branch
+  `ui-rd01-i02-fix-04-review-blockers` remains immutable. Final Independent Re-Review =
+  `UI-RD01-I02-RR-04`: `PASS WITH NON-BLOCKING FINDINGS — UI-RD01-I02 READY FOR HUMAN ACCEPTANCE`;
+  P0 = none, P1 = none, Blocking P2 = none.
+- Accepted scope = I02-A Market Scanner Product Read (`GET /api/v1/product/market-scanner`) +
+  I02-B Opportunity Product Read (`GET /api/v1/product/opportunities`,
+  `GET /api/v1/product/opportunities/{opportunity_id}`), including F1–F5, R1/R2/R4, CR-03, CR-05,
+  stable snapshot, and source/snapshot/internal-error boundaries. Closed findings: original R1/R2/R3/R4,
+  F1/F2/F3/F4/F5, `RR2-P1-01`, `RR2-P2-01`, `RR3-P2-01`, and `RR3-P2-02`.
+- `RR4-P3-01 = REMAINS / NON-BLOCKING / NOT FIXED`: Fix-04 Worker formal timing evidence lacks
+  reliable standard final timing fields. It does not block acceptance or integration; no historical
+  timing is fabricated or retroactively repaired. Main lineage integration method = `FAST-FORWARD ONLY`.
+- I03/I04/I05 remain `NOT STARTED`. PRE-01B-I2, Real AI, live G2→G3, Gate A/B/C, Live, and Live
+  Trading remain unchanged and unactivated. `DECISIONS.md`, frozen requirements/design, implementation,
+  schema/migration/index, and historical Fix-01/02/03/04 evidence remain unchanged. Evidence:
+  `dev_log/2026-09-20-ui-rd01-i02-final-acceptance-closeout.md`.

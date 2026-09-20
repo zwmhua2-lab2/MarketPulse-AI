@@ -1317,14 +1317,17 @@ disposable 库保持空表（症状 `relation "edge_opportunity_evidence" does n
 
 - CR-05 Final Human Acceptance Closeout: `UI-V1-D01-AMEND-01-CR05-FIX-01 = ACCEPTED / COMPLETE`；`UI-V1-D01-AMEND-01-CR05-FIX-01-R1 = ACCEPTED / CLOSED`；CR-05 shared Product Read contract remediation = `ACCEPTED / COMPLETE`；`CR05-IR-P2-01 = CLOSED`；Independent Re-Review = `PASS — READY FOR HUMAN ACCEPTANCE`；Human Acceptance = `CONFIRMED — 2026-09-19`；Human-Accepted Reviewed Candidate = `125af5e62ab3d67171c06617c7701bfd0f94e37d`；Final Closeout commit is docs/state-only and integrated fast-forward-only into `main`. Exact six-value `TraceNodeState` semantics and the `NOT_REACHED != NOT_YET_DUE` distinction remain frozen; no classifier, endpoint, consumer, frontend trace/maturity, OpenAPI/generated.ts, schema, or dependency change. CR-01 / CR-02 = `ACCEPTED / COMPLETE`；CR-03 / CR-04 / CR-06 = `NOT APPLICABLE YET`；`UI-RD01-I01 = ACCEPTED / COMPLETE`；`I02–I05 = NOT STARTED / NOT AUTHORIZED`。
 
-## UI-RD01-I02 Current Implementation Pointer
+## UI-RD01-I02 Current Accepted Pointer
 
-- `UI-RD01-I02-FIX-04 = IMPLEMENTED / READY FOR INDEPENDENT RE-REVIEW` on
-  `ui-rd01-i02-fix-04-review-blockers`, direct descendant of Fix-03
-  `764cdb2b4ed0695deb6da4e9b1412908f61831da` and accepted main
-  `df02073521140e7ae599e03f2e04190b6a5ae590`. It closes `RR3-P2-01` by preserving a body primary
-  Product/Snapshot/source/cancellation failure through transaction and session cleanup failures,
-  while preserving success-path cleanup source errors. It closes `RR3-P2-02` with structural
-  parsed-URL auth/refused probes that have no fixed credentials or port dependency. Parent
-  task_state = `REVIEW`; Human Acceptance and main integration are `NOT PERFORMED`; I03/I04/I05
-  remain `NOT STARTED`. See `dev_log/2026-09-20-ui-rd01-i02-fix-04-review-blockers.md`.
+- `UI-RD01-I02 = ACCEPTED / COMPLETE`（Human Acceptance = `CONFIRMED — 2026-09-20`）。Human-Accepted
+  reviewed candidate = `53775379e88f1e414b9f3a688a350acc7d58358f` on immutable branch
+  `ui-rd01-i02-fix-04-review-blockers`; Final Independent Re-Review = `UI-RD01-I02-RR-04`,
+  `PASS WITH NON-BLOCKING FINDINGS — UI-RD01-I02 READY FOR HUMAN ACCEPTANCE`。
+- Accepted capability = I02-A Market Scanner Product Read (`GET /api/v1/product/market-scanner`) +
+  I02-B Opportunity Product Read (`GET /api/v1/product/opportunities`,
+  `GET /api/v1/product/opportunities/{opportunity_id}`), including stable snapshot, CR-03 and CR-05
+  obligations. `RR4-P3-01 = REMAINS / NON-BLOCKING / NOT FIXED`: Fix-04 historical formal timing
+  fields are incomplete; no timing evidence is fabricated. Final closeout evidence:
+  `dev_log/2026-09-20-ui-rd01-i02-final-acceptance-closeout.md`.
+- Main lineage integration method = `FAST-FORWARD ONLY`. I03/I04/I05 remain `NOT STARTED`; this
+  acceptance does not activate PRE-01B-I2, Real AI, live G2→G3, Gate A/B/C, Live, or Live Trading.
