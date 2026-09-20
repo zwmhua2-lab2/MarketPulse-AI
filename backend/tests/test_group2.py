@@ -1160,7 +1160,15 @@ def _g2_disposable_postgres_database():
     config.set_main_option("script_location", str(backend / "alembic"))
     config.set_main_option("sqlalchemy.url", database_url)
     try:
-        command.upgrade(config, "head")
+        previous_database_url = os.environ.get("DATABASE_URL")
+        os.environ["DATABASE_URL"] = database_url
+        try:
+            command.upgrade(config, "head")
+        finally:
+            if previous_database_url is None:
+                os.environ.pop("DATABASE_URL", None)
+            else:
+                os.environ["DATABASE_URL"] = previous_database_url
         yield database_url
     finally:
         asyncio.run(

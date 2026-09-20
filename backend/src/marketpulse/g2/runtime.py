@@ -16,6 +16,7 @@ from marketpulse.market_data.models import (
 
 from .models import (
     FeatureSnapshot,
+    G2PersistResult,
     LifecycleAction,
     MarketEvent,
     SignalTimelineEvent,
@@ -32,6 +33,7 @@ from .strategy import StrategyEngine
 from .timeline import SignalLifecycle
 
 if TYPE_CHECKING:
+    from marketpulse.advisory.ingress import AdvisoryIngress
     from marketpulse.edge.capture import ForwardAdmissionAuthority, ForwardAdmissionProof
     from marketpulse.edge.forward_service import ForwardPathRecorder
 
@@ -50,7 +52,7 @@ class G2Repository(Protocol):
         *,
         precondition_state: SymbolStateRecord | None = None,
         forward_admission_proof: ForwardAdmissionProof | None = None,
-    ) -> bool: ...
+    ) -> G2PersistResult | bool: ...
 
     async def resume_capture_anchor(
         self, event: MarketEvent, precondition_state: SymbolStateRecord
@@ -88,6 +90,7 @@ class EventRuntime:
         queue_capacity: int = 2048,
         dedupe_capacity: int = 8192,
         worker_exception_capacity: int = 128,
+        advisory_ingress: AdvisoryIngress | None = None,
     ) -> None:
         if dedupe_capacity <= 0:
             raise ValueError("dedupe_capacity must be positive")
@@ -109,6 +112,9 @@ class EventRuntime:
         self._inflight: dict[str, asyncio.Future[ApplyOutcome]] = {}
         self._worker_exception_capacity = worker_exception_capacity
         self.worker_exceptions: deque[BaseException] = deque(maxlen=worker_exception_capacity)
+        # Host-owned and optional: with no injected ingress the accepted G2 path
+        # has no Advisory queue or post-commit work.
+        self._advisory_ingress = advisory_ingress
 
     async def start(self) -> None:
         if not self._workers:
@@ -248,7 +254,7 @@ class EventRuntime:
                 if transition.result in {StateApplyResult.APPLIED, StateApplyResult.NO_CHANGE}
                 else []
             )
-        persisted = await self.repository.persist(
+        persist_result = await self.repository.persist(
             event,
             timeline,
             state,
@@ -258,8 +264,16 @@ class EventRuntime:
             precondition_state=precondition_state,
             forward_admission_proof=forward_admission_proof,
         )
+        persisted = bool(persist_result)
         if persisted:
             self.state_manager.commit(state)
+            work_ref = getattr(persist_result, "advisory_work_ref", None)
+            if (
+                work_ref is not None
+                and self._advisory_ingress is not None
+                and not await self._advisory_ingress.post_commit_offer(work_ref)
+            ):
+                await self._advisory_ingress.terminalize_queue_rejection(work_ref)
         else:
             state = self.state_manager.snapshot_for(event.instrument_id, event.symbol)
         return ApplyOutcome(
@@ -298,12 +312,20 @@ class EventRuntime:
                 state_version=state.state_version,
                 config_version=event.config_version,
             )
-            persisted = await self.repository.persist(
+            persist_result = await self.repository.persist(
                 event, timeline, state, transition, [], features
             )
+            persisted = bool(persist_result)
             if persisted:
                 self.state_manager.commit(state)
                 self._remember_deduped(event.event_id)
+                work_ref = getattr(persist_result, "advisory_work_ref", None)
+                if (
+                    work_ref is not None
+                    and self._advisory_ingress is not None
+                    and not await self._advisory_ingress.post_commit_offer(work_ref)
+                ):
+                    await self._advisory_ingress.terminalize_queue_rejection(work_ref)
             else:
                 state = self.state_manager.snapshot_for(event.instrument_id, event.symbol)
             return ApplyOutcome(

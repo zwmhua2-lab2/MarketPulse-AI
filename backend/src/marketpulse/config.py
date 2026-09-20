@@ -53,6 +53,10 @@ class Settings(BaseSettings):
     # Stable cross-process namespace for the duplicate-Host advisory lock. Only the
     # namespace + `run_mode` key are used; the lock needs no schema and no migration.
     runtime_advisory_lock_namespace: int = 0x4D50
+    # PRE-01B-I2 is disabled by default. A Gate-A value is intentionally not a
+    # switch: RuntimeHost rejects it until a separate activation batch supplies
+    # the complete Pack-B configuration and authorizes composition.
+    advisory_activation_level: str = "DISABLED"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 

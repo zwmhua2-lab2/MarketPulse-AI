@@ -105,7 +105,12 @@ def _bbo_immutable_content(row: EdgeBboObservationRecord | BboObservation) -> tu
     return tuple(_normalized(getattr(row, field)) for field in _BBO_IMMUTABLE_FIELDS)
 
 
-async def append_evidence_revision(session: AsyncSession, record: EvidenceRevision) -> str:
+async def append_evidence_revision(
+    session: AsyncSession,
+    record: EvidenceRevision,
+    *,
+    advisory_admission_state: str | None = None,
+) -> str:
     """Append one evidence revision. Returns ``INSERTED`` or ``IDEMPOTENT``.
 
     Raises ``EdgeEvidenceConflict`` for the frozen integrity-conflict case and
@@ -130,7 +135,7 @@ async def append_evidence_revision(session: AsyncSession, record: EvidenceRevisi
         predecessor = await session.scalar(
             select(EdgeOpportunityEvidenceRecord).where(
                 EdgeOpportunityEvidenceRecord.evidence_id == record.supersedes_evidence_id
-            )
+            ).with_for_update()
         )
         if predecessor is None:
             raise EdgeInvalidSupersedes("superseded evidence revision does not exist")
@@ -140,35 +145,53 @@ async def append_evidence_revision(session: AsyncSession, record: EvidenceRevisi
             raise EdgeInvalidSupersedes(
                 "supersedes must name the immediately preceding evidence revision"
             )
+        head = await session.scalar(
+            select(EdgeOpportunityEvidenceRecord)
+            .where(EdgeOpportunityEvidenceRecord.opportunity_id == record.opportunity_id)
+            .order_by(EdgeOpportunityEvidenceRecord.evidence_revision.desc())
+            .limit(1)
+            .with_for_update()
+        )
+        if head is None or head.evidence_id != predecessor.evidence_id:
+            raise EdgeInvalidSupersedes("supersedes must name the current evidence head")
+
+    if advisory_admission_state is not None and advisory_admission_state != "GATE_A_DISABLED":
+        raise ValueError("only GATE_A_DISABLED may override the Evidence admission state")
+
+    values = {
+        "evidence_id": record.evidence_id,
+        "opportunity_id": record.opportunity_id,
+        "candidate_id": record.candidate_id,
+        "family_id": record.family_id.value,
+        "family_version": record.family_version,
+        "instrument_id": record.instrument_id,
+        "market_type": record.market_type.value,
+        "evidence_revision": record.evidence_revision,
+        "evidence_contract_version": record.evidence_contract_version,
+        "evidence_hash": record.evidence_hash,
+        "feature_snapshot_hash": record.feature_snapshot_hash,
+        "feature_snapshot_hash_version": record.feature_snapshot_hash_version,
+        "supersedes_evidence_id": record.supersedes_evidence_id,
+        "detected_at": record.detected_at,
+        "evidence_at": record.evidence_at,
+        "expires_at": record.expires_at,
+        "source_type": record.source_type.value,
+        "source_identity": record.source_identity,
+        "source_manifest_id": record.source_manifest_id,
+        "reference_bid": record.reference_bid,
+        "reference_ask": record.reference_ask,
+        "reference_received_at": record.reference_received_at,
+        "reference_data_status": record.reference_data_status.value,
+        "evidence_payload": dict(record.evidence_payload),
+        "feature_snapshot_payload": dict(record.feature_snapshot_payload),
+        "created_at": record.created_at,
+    }
+    if advisory_admission_state is not None:
+        values["advisory_admission_state"] = advisory_admission_state
 
     session.add(
         EdgeOpportunityEvidenceRecord(
-            evidence_id=record.evidence_id,
-            opportunity_id=record.opportunity_id,
-            candidate_id=record.candidate_id,
-            family_id=record.family_id.value,
-            family_version=record.family_version,
-            instrument_id=record.instrument_id,
-            market_type=record.market_type.value,
-            evidence_revision=record.evidence_revision,
-            evidence_contract_version=record.evidence_contract_version,
-            evidence_hash=record.evidence_hash,
-            feature_snapshot_hash=record.feature_snapshot_hash,
-            feature_snapshot_hash_version=record.feature_snapshot_hash_version,
-            supersedes_evidence_id=record.supersedes_evidence_id,
-            detected_at=record.detected_at,
-            evidence_at=record.evidence_at,
-            expires_at=record.expires_at,
-            source_type=record.source_type.value,
-            source_identity=record.source_identity,
-            source_manifest_id=record.source_manifest_id,
-            reference_bid=record.reference_bid,
-            reference_ask=record.reference_ask,
-            reference_received_at=record.reference_received_at,
-            reference_data_status=record.reference_data_status.value,
-            evidence_payload=dict(record.evidence_payload),
-            feature_snapshot_payload=dict(record.feature_snapshot_payload),
-            created_at=record.created_at,
+            **values,
         )
     )
     await session.flush()

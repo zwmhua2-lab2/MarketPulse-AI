@@ -64,6 +64,16 @@ import anyio.lowlevel
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from marketpulse.advisory.contracts import (
+    AdvisoryActivationEpoch,
+    AdvisoryConfigurationError,
+    CurrentAdvisoryAuthority,
+    HostAdvisoryAuthorityIssuer,
+    RecoveryInput,
+    RestartRecoveryCapability,
+)
+from marketpulse.advisory.fence import AdvisoryDbFence
+from marketpulse.advisory.worker import AdvisoryFinalizer, AdvisoryRecovery
 from marketpulse.clock import Clock, SystemClock
 from marketpulse.config import Settings
 from marketpulse.db.models import PaperOrderRecord, PositionRecord, TradePlanRecord
@@ -374,6 +384,15 @@ class _AIDisabledSentinel:
         raise HostInvariantError(f"ai_reevaluation_disabled_in_host_core_v1:{name}")
 
 
+@dataclass(frozen=True)
+class _DisabledAdvisoryRetryPolicy:
+    """DF-01 never re-offers durable work while Gate A is disabled."""
+
+    def allows_retry(self, *, attempt_number: int) -> bool:
+        del attempt_number
+        return False
+
+
 @dataclass
 class HostDependencies:
     """Explicit injection seams.
@@ -388,6 +407,7 @@ class HostDependencies:
     lock_database: DatabaseResources | None = None
     clock: Clock | None = None
     health: HealthRegistry | None = None
+    advisory_db_fence: AdvisoryDbFence | None = None
 
 
 @dataclass
@@ -663,6 +683,12 @@ class RuntimeHost:
         self._lock_connection: Any | None = None
         self._lock_held = False
         self._lock_lost = False
+        # R3: this lock serializes only use/disposal of the *existing* owner
+        # connection.  It is not an ownership or lifecycle-winner authority.
+        self._singleton_owner_session_gate = asyncio.Lock()
+        self._singleton_backend_pid: int | None = None
+        self._singleton_backend_start: Any | None = None
+        self._singleton_admission_closed = False
         self._owns_database = True
         self._provider: Any | None = None
         self._provider_constructed = False
@@ -685,6 +711,12 @@ class RuntimeHost:
         self._safety: SafetyRuntime | None = None
         self._recovery: RecoveryManager | None = None
         self._control: SystemControlService | None = None
+        # DF-01 objects exist in DISABLED mode for provider-free durable
+        # classification only; no ingress, worker or provider is composed here.
+        self._current_advisory_authority: CurrentAdvisoryAuthority | None = None
+        self._advisory_authority_issuer: HostAdvisoryAuthorityIssuer | None = None
+        self._restart_recovery_capability: RestartRecoveryCapability | None = None
+        self._advisory_recovery: AdvisoryRecovery | None = None
 
         # --- market state / lanes --------------------------------------------------
         self._market = LiveMarketState(freshness_seconds=settings.runtime_market_freshness_seconds)
@@ -1083,6 +1115,9 @@ class RuntimeHost:
         self._started_at = self.clock.now()
         self._started_monotonic = time.monotonic()
 
+        # Freeze the sole current source before any durable recovery is inspected.
+        self._current_advisory_authority = CurrentAdvisoryAuthority.disabled()
+
         # 2 — owned engine/session factory plus a bounded connectivity probe.
         self._open_database()
         await self._probe_database()
@@ -1119,6 +1154,10 @@ class RuntimeHost:
         # 7 — recovery, exactly once, through Host-owned market state.
         self._transition(HostLifecycleState.RECOVERING)
         await self._run_recovery()
+        # Startup capability cannot survive into normal runtime operation.
+        self._restart_recovery_capability = None
+        if self._advisory_authority_issuer is not None:
+            self._advisory_authority_issuer.revoke_restart_recovery()
         self._transition(HostLifecycleState.STARTING_RUNTIME)
 
         # 8 — bounded runtime: finite workers, loops and monitors.
@@ -1150,6 +1189,15 @@ class RuntimeHost:
             raise HostConfigurationError("REPLAY_IS_NOT_A_RUNTIME_HOST_MODE")
         if self.run_mode is RunMode.TEST and self.dependencies is None:
             raise HostConfigurationError("HOST_TEST_REQUIRES_INJECTED_DEPENDENCIES")
+        try:
+            advisory_epoch = AdvisoryActivationEpoch(settings.advisory_activation_level)
+        except AdvisoryConfigurationError as exc:
+            raise HostConfigurationError(f"invalid_advisory_activation:{exc}") from exc
+        if advisory_epoch.disabled_evidence_classification is None:
+            # I2 has an injectable, fake-provider-tested Gate-A persistence seam,
+            # but no authorised production activation configuration. Refuse a
+            # mutable setting rather than silently constructing partial resources.
+            raise HostConfigurationError("ADVISORY_GATE_A_REQUIRES_SEPARATE_ACTIVATION")
         if not self.instruments:
             raise HostConfigurationError("NO_INSTRUMENTS_CONFIGURED")
         missing_v1 = sorted(set(V1_REQUIRED_INSTRUMENTS) - set(self.instruments))
@@ -1210,6 +1258,12 @@ class RuntimeHost:
             )
             self._owns_database = True
         self._sessions = self._db.session_factory
+        fence = self.dependencies.advisory_db_fence if self.dependencies is not None else None
+        if fence is not None:
+            # The Host owns this composition point and reuses its sole primary engine.
+            # DISABLED production does not invent a Pack-B fence; test/approved active
+            # composition supplies the already-constructed authority explicitly.
+            fence.install_pool_listeners(self._db.engine.sync_engine)
 
     @property
     def database_application_name(self) -> str:
@@ -1257,8 +1311,74 @@ class RuntimeHost:
         if acquired is not True:
             await self._release_singleton_lock()
             raise DuplicateRuntimeHostError(DuplicateRuntimeHostError.reason_code)
+        identity = await self._lock_connection.execute(
+            text("SELECT pg_backend_pid() AS pid, backend_start "
+                 "FROM pg_stat_activity WHERE pid = pg_backend_pid()")
+        )
+        row = identity.one_or_none()
+        await self._lock_connection.commit()
+        if row is None or not isinstance(row.pid, int) or row.backend_start is None:
+            await self._release_singleton_lock()
+            raise HostInvariantError("singleton_owner_identity_unavailable")
+        self._singleton_backend_pid = row.pid
+        self._singleton_backend_start = row.backend_start
         self._lock_held = True
+        self._advisory_authority_issuer = HostAdvisoryAuthorityIssuer(
+            self.instance_id,
+            owner_session_admission=self.admit_singleton_owner_session,
+        )
+        self._restart_recovery_capability = self._advisory_authority_issuer.issue_restart_recovery()
         self._health.set("SINGLETON_LOCK", HealthStatus.HEALTHY.value)
+
+    async def admit_singleton_owner_session(self) -> bool:
+        """R3's sole final singleton admission proof on the lock-owning session.
+
+        This proves the exact recorded backend still owns the *existing* two-int
+        session advisory lock.  A query/transport uncertainty is indistinguishable
+        from failure: no caller may mutate a lifecycle row from this result.
+        """
+
+        async with self._singleton_owner_session_gate:
+            connection = self._lock_connection
+            if (
+                self._singleton_admission_closed
+                or connection is None
+                or self._lock_lost
+                or not self._lock_held
+                or self._singleton_backend_pid is None
+                or self._singleton_backend_start is None
+            ):
+                return False
+            try:
+                await connection.execute(text("SELECT pg_stat_clear_snapshot()"))
+                proven = await connection.scalar(
+                    text(
+                        "SELECT count(*) = 1 "
+                        "FROM pg_stat_activity a JOIN pg_locks l ON l.pid = a.pid "
+                        "WHERE a.pid = pg_backend_pid() "
+                        "AND a.pid = :pid AND a.backend_start = :backend_start "
+                        "AND l.locktype = 'advisory' AND l.pid = pg_backend_pid() "
+                        "AND l.granted IS TRUE AND l.mode = 'ExclusiveLock' "
+                        "AND l.classid = :namespace AND l.objid = :key "
+                        "AND l.objsubid = 2 AND l.database = (SELECT oid FROM pg_database "
+                        "WHERE datname = current_database())"
+                    ),
+                    {
+                        "pid": self._singleton_backend_pid,
+                        "backend_start": self._singleton_backend_start,
+                        "namespace": self.settings.runtime_advisory_lock_namespace,
+                        "key": self._advisory_lock_key(),
+                    },
+                )
+                # End SQLAlchemy's transaction while preserving the session lock.
+                await connection.commit()
+                return proven is True
+            except Exception:  # noqa: BLE001 - uncertainty is never reconstructed from local flags
+                self._lock_lost = True
+                self._health.set("SINGLETON_LOCK", HealthStatus.UNAVAILABLE.value)
+                with contextlib.suppress(Exception):
+                    await connection.rollback()
+                return False
 
     async def _release_singleton_lock(self) -> None:
         """Release the singleton fence. Every step is attempted and reported separately.
@@ -1268,24 +1388,26 @@ class RuntimeHost:
         held or a connection that never came back is exactly what a "clean stop" must not
         paper over.
         """
-        connection, self._lock_connection = self._lock_connection, None
-        if connection is not None:
-            if self._lock_held:
-                try:
-                    await connection.scalar(
+        async with self._singleton_owner_session_gate:
+            self._singleton_admission_closed = True
+            connection, self._lock_connection = self._lock_connection, None
+            if connection is not None:
+                if self._lock_held:
+                    try:
+                        await connection.scalar(
                         text("SELECT pg_advisory_unlock(:namespace, :key)"),
                         {
                             "namespace": self.settings.runtime_advisory_lock_namespace,
                             "key": self._advisory_lock_key(),
                         },
-                    )
-                    await connection.commit()
+                        )
+                        await connection.commit()
+                    except Exception as exc:  # noqa: BLE001 - recorded, never swallowed
+                        self._record_cleanup_failure("singleton_unlock_failed", exc)
+                try:
+                    await connection.close()
                 except Exception as exc:  # noqa: BLE001 - recorded, never swallowed
-                    self._record_cleanup_failure("singleton_unlock_failed", exc)
-            try:
-                await connection.close()
-            except Exception as exc:  # noqa: BLE001 - recorded, never swallowed
-                self._record_cleanup_failure("singleton_connection_close_failed", exc)
+                    self._record_cleanup_failure("singleton_connection_close_failed", exc)
         self._lock_held = False
         injected = self.dependencies.lock_database if self.dependencies is not None else None
         lock_db, self._lock_db = self._lock_db, None
@@ -1298,7 +1420,19 @@ class RuntimeHost:
     def _compose_services(self) -> None:
         assert self._sessions is not None
         sessions = self._sessions
-        self._g2_repository = PostgresG2Repository(sessions)
+        assert self._current_advisory_authority is not None
+        # DF-01's sole DISABLED exception is a serial provider-free lifecycle
+        # recovery core over the Host's existing primary session authority.
+        self._advisory_recovery = AdvisoryRecovery(
+            None,
+            AdvisoryFinalizer(None, session_factory=sessions),
+            session_factory=sessions,
+        )
+        advisory_epoch = AdvisoryActivationEpoch(self.settings.advisory_activation_level)
+        self._g2_repository = PostgresG2Repository(
+            sessions,
+            advisory_admission_state=advisory_epoch.disabled_evidence_classification,
+        )
         self._event_runtime = EventRuntime(self._g2_repository)
         self._pipeline = ScannerPipeline(OpportunityScanner(), self._event_runtime)
         self._state_service = SystemStateService(sessions, clock=self.clock)
@@ -1464,6 +1598,19 @@ class RuntimeHost:
         report = await self._recovery.recover(
             self.run_mode, bbo_for=self._market.bbo_for, now=self.clock.now()
         )
+        if self._advisory_recovery is not None:
+            if (
+                self._current_advisory_authority is None
+                or self._restart_recovery_capability is None
+            ):
+                raise HostInvariantError("advisory_recovery_authority_unavailable")
+            recovery_input = RecoveryInput(
+                authority=self._current_advisory_authority,
+                capability=self._restart_recovery_capability,
+                retry_policy=_DisabledAdvisoryRetryPolicy(),
+            )
+            await self._advisory_recovery.recover_process_lost(recovery=recovery_input)
+            await self._advisory_recovery.recover_pending(recovery=recovery_input)
         self._recovery_ok = bool(report.ok)
         self._startup_reconciliation_ok = bool(
             report.reconciliation.ok if report.reconciliation is not None else False
@@ -1934,19 +2081,20 @@ class RuntimeHost:
             await self._loops_stop.wait()
 
     async def _singleton_connection_alive(self) -> bool:
-        connection = self._lock_connection
-        if connection is None or self._lock_lost:
-            return False
-        try:
-            await connection.execute(text("SELECT 1"))
+        async with self._singleton_owner_session_gate:
+            connection = self._lock_connection
+            if connection is None or self._lock_lost:
+                return False
+            try:
+                await connection.execute(text("SELECT 1"))
             # End the autobegun transaction: the liveness probe must not leave the dedicated
             # connection `idle in transaction` for the rest of the Host lifetime.
-            await connection.commit()
-        except Exception:  # noqa: BLE001 - losing the fence is a fatal Host invariant
-            self._lock_lost = True
-            self._health.set("SINGLETON_LOCK", HealthStatus.UNAVAILABLE.value)
-            return False
-        return True
+                await connection.commit()
+            except Exception:  # noqa: BLE001 - losing the fence is a fatal Host invariant
+                self._lock_lost = True
+                self._health.set("SINGLETON_LOCK", HealthStatus.UNAVAILABLE.value)
+                return False
+            return True
 
     # ------------------------------------------------------------------ readiness
 

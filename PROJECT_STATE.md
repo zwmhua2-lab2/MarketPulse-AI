@@ -2340,3 +2340,10 @@ UI-RD01-I02-REQ-01 — Market Scanner & Opportunity Product Read Implementation 
 - 无实现面变更 ⇒ `ruff` / `pytest` / frontend typecheck / frontend tests / frontend build = `NOT REQUIRED / NOT RUN`（**不**据此声称任何运行时行为已验证）。
 - 边界保持（未解锁）：`PRE-01B-I2` = `NOT STARTED / NOT ACTIVATED`；Real AI = `NOT ACTIVATED`；live `G2→G3` = `NOT ACTIVE`；Gate A/B/C = `NOT ACTIVATED` / `NOT PASSED`；Live = `NOT AUTHORIZED`；Live Trading = `DISABLED`。
 - 详见 `dev_log/2026-09-19-ui-rd01-i02-requirements-final-freeze.md`。
+
+## PRE-01B-I2 FIX-02 Verification Amendment Result
+
+- `PRE-01B-I2 = IMPLEMENTING`；`FIX-02 = IMPLEMENTED / READY FOR INDEPENDENT REVIEW`。`PREI2-SR-P1-03`、`PREI2-SR-P1-04`、`PREI2-SR-P1-05`、`PREI2-SR-P1-06` 均为 `IMPLEMENTED / READY FOR INDEPENDENT REVIEW`；这不是 Independent Review、Human Acceptance 或 `ACCEPTED` 结论。
+- `PRE-01B-I2-RESUME-01-C3-FINAL-02-FIX-02-VERIFY-AMEND-01` 仅修订单个 pytest node 的执行时限：30 秒不再构成失败或停止条件；指定 50k node 在隔离 PostgreSQL `127.0.0.1:5450` 的前台运行中以 `1 passed in 172.71s`、exit `0` 完成。覆盖要求与测试语义未变。
+- 最终 WIP fresh collection = `789 tests collected`；完整 backend 前台回归 = `789 passed, 4 warnings in 1007.52s`、exit `0`，因此 Collected / Completed = `789 / 789`、Missing / Unexpected / Failures = `0 / 0 / 0`。验证 DB 的 Alembic `heads` / `current` = `20260917_0010 (head)`；PRE-I2 schema verifier = `60/60 PASS`；`ruff`、`compileall`、`git diff --check`、conflict-marker scan、forbidden-path audit 均通过。
+- 冻结边界保持：D1 / D2 / R3 artifacts = zero delta；只存在 `20260917_0010` migration；Real AI、Gate A/B/C、live `G2→G3`、Live 均未激活。候选提交与仅候选分支 push 仍待本任务完成后执行；`main` 未改。
