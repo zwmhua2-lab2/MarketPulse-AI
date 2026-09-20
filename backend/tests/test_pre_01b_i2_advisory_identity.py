@@ -216,6 +216,59 @@ def test_lifecycle_capabilities_are_runtime_host_issued_and_revocable() -> None:
     asyncio.run(scenario())
 
 
+def test_live_capability_identity_is_issuer_owned_immutable_and_revocable() -> None:
+    """FIX-03-R2 P1-02: one credential cannot be rebound to another lifecycle identity."""
+
+    async def scenario() -> None:
+        issuer = _host_issuer_for_contract_test("host-a", admitted=True)
+        live = issuer.issue_live_attempt(
+            decision_invocation_id="invocation-a",
+            attempt_id="attempt-a",
+            cancellation_receipt="receipt-a",
+        )
+
+        assert live.matches(
+            host_lifetime="host-a", decision_invocation_id="invocation-a", attempt_id="attempt-a"
+        )
+        issuance = issuer._live_issuances[live._credential]
+        assert (
+            issuance.host_lifetime,
+            issuance.decision_invocation_id,
+            issuance.attempt_id,
+            issuance.cancellation_receipt,
+        ) == ("host-a", "invocation-a", "attempt-a", "receipt-a")
+
+        for field_name, value in (
+            ("host_lifetime", "host-b"),
+            ("decision_invocation_id", "invocation-b"),
+            ("attempt_id", "attempt-b"),
+            ("cancellation_receipt", "receipt-b"),
+        ):
+            with pytest.raises(AttributeError, match="immutable"):
+                setattr(live, field_name, value)
+
+        assert not live.matches(
+            host_lifetime="host-a", decision_invocation_id="invocation-b", attempt_id="attempt-a"
+        )
+        assert not live.matches(
+            host_lifetime="host-a", decision_invocation_id="invocation-a", attempt_id="attempt-b"
+        )
+        assert live.matches(
+            host_lifetime="host-a", decision_invocation_id="invocation-a", attempt_id="attempt-a"
+        )
+
+        issuer.revoke_all()
+        assert not live.matches(
+            host_lifetime="host-a", decision_invocation_id="invocation-a", attempt_id="attempt-a"
+        )
+        assert not live.matches(
+            host_lifetime="host-a", decision_invocation_id="invocation-b", attempt_id="attempt-b"
+        )
+        assert not await live.admit_owner_session()
+
+    asyncio.run(scenario())
+
+
 def test_db_fence_is_immediate_bounded_and_never_consumes_protection_reserve():
     fence = AdvisoryDbFence(effective_db_capacity=3, protection_reserve=1)
     first = fence.try_acquire()

@@ -639,7 +639,7 @@ def test_startup_reaches_ready_with_the_accepted_order_and_conjunction():
 
 
 def test_host_capabilities_use_the_real_owner_proof_and_cleanup_revokes_them():
-    """FIX-03-R1: lifecycle capabilities never outlive their RuntimeHost root."""
+    """FIX-03-R2 P1-01: a definitive False final proof permanently revokes authority."""
 
     async def scenario(url: str) -> None:
         harness = Harness(_settings(url), ControlledProvider())
@@ -664,24 +664,30 @@ def test_host_capabilities_use_the_real_owner_proof_and_cleanup_revokes_them():
             )
             original_connection = host._lock_connection
 
-            class FailingOwnerProofConnection:
+            class DefinitiveFalseOwnerProofConnection:
                 async def execute(self, _statement: object) -> None:
                     return None
 
                 async def scalar(self, _statement: object, _params: object) -> bool:
-                    raise RuntimeError("injected_owner_proof_loss")
+                    return False
+
+                async def commit(self) -> None:
+                    return None
 
                 async def rollback(self) -> None:
                     return None
 
-            host._lock_connection = FailingOwnerProofConnection()
+            host._lock_connection = DefinitiveFalseOwnerProofConnection()
             assert not await live.admit_owner_session()
+            assert host._lock_lost is True
+            assert host.health.status("SINGLETON_LOCK") == "UNAVAILABLE"
             assert not live.matches(
                 host_lifetime=host.instance_id,
                 decision_invocation_id="invocation",
                 attempt_id="attempt",
             )
             host._lock_connection = original_connection
+            assert not await live.admit_owner_session()
             await host.stop()
             assert not live.matches(
                 host_lifetime=host.instance_id,

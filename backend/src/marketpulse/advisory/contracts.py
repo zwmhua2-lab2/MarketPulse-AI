@@ -108,6 +108,16 @@ class CurrentAdvisoryAuthority:
         return cls(activation_level=ACTIVATION_DISABLED)
 
 
+@dataclass(frozen=True)
+class _LiveAttemptIssuance:
+    """Issuer-owned exact facts for one non-durable live credential."""
+
+    host_lifetime: str
+    decision_invocation_id: str
+    attempt_id: str
+    cancellation_receipt: str
+
+
 class RestartRecoveryCapability:
     """One non-forgeable startup-only capability issued by the RuntimeHost root."""
 
@@ -147,14 +157,7 @@ class RestartRecoveryCapability:
 class LiveAttemptCapability:
     """Exact Host-owned live cancellation authority for one durable Attempt."""
 
-    __slots__ = (
-        "_credential",
-        "_issuer",
-        "attempt_id",
-        "cancellation_receipt",
-        "decision_invocation_id",
-        "host_lifetime",
-    )
+    __slots__ = ("_credential", "_issued", "_issuer")
 
     def __init__(self, *_args: object, **_kwargs: object) -> None:
         raise AdvisoryConfigurationError("LiveAttemptCapability is RuntimeHost-issued only")
@@ -164,22 +167,20 @@ class LiveAttemptCapability:
         cls,
         issuer: HostAdvisoryAuthorityIssuer,
         credential: object,
-        *,
-        decision_invocation_id: str,
-        attempt_id: str,
-        cancellation_receipt: str,
     ) -> LiveAttemptCapability:
         capability = object.__new__(cls)
-        capability.host_lifetime = issuer.host_lifetime
-        capability.decision_invocation_id = decision_invocation_id
-        capability.attempt_id = attempt_id
-        capability.cancellation_receipt = cancellation_receipt
-        capability._issuer = issuer
-        capability._credential = credential
+        object.__setattr__(capability, "_issuer", issuer)
+        object.__setattr__(capability, "_credential", credential)
+        object.__setattr__(capability, "_issued", True)
         return capability
 
+    def __setattr__(self, name: str, value: object) -> None:
+        if getattr(self, "_issued", False):
+            raise AttributeError("LiveAttemptCapability identity is issuer-issued and immutable")
+        object.__setattr__(self, name, value)
+
     def matches(self, *, host_lifetime: str, decision_invocation_id: str, attempt_id: str) -> bool:
-        return self._issuer._live_is_active(
+        return self._issuer._live_matches(
             self,
             host_lifetime=host_lifetime,
             decision_invocation_id=decision_invocation_id,
@@ -220,7 +221,7 @@ class HostAdvisoryAuthorityIssuer:
         issuer._restart_open = True
         issuer._live_open = True
         issuer._restart_credential = object()
-        issuer._live_credentials: set[object] = set()
+        issuer._live_issuances: dict[object, _LiveAttemptIssuance] = {}
         return issuer
 
     def _is_current_host_root(self) -> bool:
@@ -234,7 +235,19 @@ class HostAdvisoryAuthorityIssuer:
             and capability._credential is self._restart_credential
         )
 
-    def _live_is_active(
+    def _live_issuance_for(self, capability: LiveAttemptCapability) -> _LiveAttemptIssuance | None:
+        if capability._issuer is not self:
+            return None
+        return self._live_issuances.get(capability._credential)
+
+    def _live_is_active(self, capability: LiveAttemptCapability) -> bool:
+        return (
+            self._live_open
+            and self._is_current_host_root()
+            and self._live_issuance_for(capability) is not None
+        )
+
+    def _live_matches(
         self,
         capability: LiveAttemptCapability,
         *,
@@ -242,15 +255,14 @@ class HostAdvisoryAuthorityIssuer:
         decision_invocation_id: str,
         attempt_id: str,
     ) -> bool:
+        issuance = self._live_issuance_for(capability)
         return (
-            self._live_open
-            and self._is_current_host_root()
-            and capability._issuer is self
-            and capability._credential in self._live_credentials
-            and bool(capability.cancellation_receipt)
-            and capability.host_lifetime == self.host_lifetime == host_lifetime
-            and capability.decision_invocation_id == decision_invocation_id
-            and capability.attempt_id == attempt_id
+            issuance is not None
+            and self._live_is_active(capability)
+            and bool(issuance.cancellation_receipt)
+            and issuance.host_lifetime == self.host_lifetime == host_lifetime
+            and issuance.decision_invocation_id == decision_invocation_id
+            and issuance.attempt_id == attempt_id
         )
 
     async def _admit_restart(self, capability: RestartRecoveryCapability) -> bool:
@@ -259,12 +271,7 @@ class HostAdvisoryAuthorityIssuer:
         return await self._admit_host_owner_session()
 
     async def _admit_live(self, capability: LiveAttemptCapability) -> bool:
-        if not self._live_is_active(
-            capability,
-            host_lifetime=capability.host_lifetime,
-            decision_invocation_id=capability.decision_invocation_id,
-            attempt_id=capability.attempt_id,
-        ):
+        if not self._live_is_active(capability):
             return False
         return await self._admit_host_owner_session()
 
@@ -289,7 +296,7 @@ class HostAdvisoryAuthorityIssuer:
 
         self._restart_open = False
         self._live_open = False
-        self._live_credentials.clear()
+        self._live_issuances.clear()
 
     def issue_live_attempt(
         self, *, decision_invocation_id: str, attempt_id: str, cancellation_receipt: str
@@ -301,13 +308,15 @@ class HostAdvisoryAuthorityIssuer:
         if not self._live_open or not self._is_current_host_root():
             raise AdvisoryConfigurationError("RuntimeHost authority root is unavailable")
         credential = object()
-        self._live_credentials.add(credential)
-        return LiveAttemptCapability._issue(
-            self,
-            credential,
+        self._live_issuances[credential] = _LiveAttemptIssuance(
+            host_lifetime=self.host_lifetime,
             decision_invocation_id=decision_invocation_id,
             attempt_id=attempt_id,
             cancellation_receipt=cancellation_receipt,
+        )
+        return LiveAttemptCapability._issue(
+            self,
+            credential,
         )
 
 

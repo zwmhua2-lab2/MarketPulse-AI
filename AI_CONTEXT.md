@@ -1334,9 +1334,16 @@ disposable 库保持空表（症状 `relation "edge_opportunity_evidence" does n
 
 ## PRE-01B-I2 FIX-03-R1 Current Pointer
 
-- `PRE-01B-I2 = IMPLEMENTING`；`FIX-03-R1 = IMPLEMENTED / READY FOR INDEPENDENT RE-REVIEW`。
-  `PREI2-IR-P1-01 / PREI2-IR-P1-02 = REMEDIATED / AWAITING INDEPENDENT RE-REVIEW`：restart/live
-  capability 现由 RuntimeHost authority root 发行、绑定并撤销，任何有效 lifecycle admission 仍经
-  `SingletonOwnerSessionGate → FINAL OWNER-SESSION PROOF`。不得据此宣称 Independent Review、Human
-  Acceptance、`ACCEPTED` 或任何 Gate / Real AI / live activation；详见
-  `dev_log/2026-09-20-pre-01b-i2-final02-fix03-r1-capability-authority.md`。
+- R1 candidate `36cfc1fed88e2981dd2fa226eae0e8d122baa51c` failed Independent Re-Review on
+  `PREI2-IR-P1-01 / PREI2-IR-P1-02`; its immutable branch remains historical evidence only.
+
+## PRE-01B-I2 FIX-03-R2 Current Pointer
+
+- `PRE-01B-I2 = IMPLEMENTING`；`FIX-03-R2 = IMPLEMENTED / READY FOR INDEPENDENT RE-REVIEW`；
+  `PREI2-IR-P1-01 / PREI2-IR-P1-02 = REMEDIATED / AWAITING INDEPENDENT RE-REVIEW`。Live
+  capability exact binding is issuer-owned immutable credential state, while definitive FINAL
+  owner-session proof `False` loses local singleton authority and revokes all local lifecycle
+  credentials. Valid admission remains `SingletonOwnerSessionGate → FINAL OWNER-SESSION PROOF`;
+  no second distributed authority exists. Do not claim Independent Review, Human Acceptance,
+  `ACCEPTED` or any Gate / Real AI / live activation; see
+  `dev_log/2026-09-21-pre-01b-i2-final02-fix03-r2-capability-authority.md`.

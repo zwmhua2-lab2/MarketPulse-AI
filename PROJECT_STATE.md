@@ -2408,11 +2408,19 @@ UI-RD01-I02-REQ-01 — Market Scanner & Opportunity Product Read Implementation 
 
 ## PRE-01B-I2 FIX-03-R1 Current Result
 
-- `PRE-01B-I2 = IMPLEMENTING`；`FIX-03-R1 = IMPLEMENTED / READY FOR INDEPENDENT RE-REVIEW`。
-  本候选以 current Accepted Main `f09245ab346495f60556a7eba49980d947a4781f` 为父提交，重建 immutable
-  FIX-02 内容并修复 `PREI2-IR-P1-01 / PREI2-IR-P1-02` capability authority；两项均为
-  `REMEDIATED / AWAITING INDEPENDENT RE-REVIEW`。Fresh collection / full backend = `845 / 845`，
-  Missing / Unexpected / Failures = `0 / 0 / 0`；schema verifier = `60/60 PASS`，head =
-  `20260917_0010`。Independent Re-Review、Human Acceptance 与 `ACCEPTED` 均尚未发生。Real AI、
-  Gate A/B/C、live `G2→G3`、Live 保持未激活；详见
-  `dev_log/2026-09-20-pre-01b-i2-final02-fix03-r1-capability-authority.md`。
+- R1 candidate `36cfc1fed88e2981dd2fa226eae0e8d122baa51c` on immutable branch
+  `pre-01b-i2-final02-fix03-r1-latest-main-capability` failed Independent Re-Review findings
+  `PREI2-IR-P1-01 / PREI2-IR-P1-02`; it remains historical evidence and is not modified.
+
+## PRE-01B-I2 FIX-03-R2 Current Result
+
+- `PRE-01B-I2 = IMPLEMENTING`；`FIX-03-R2 = IMPLEMENTED / READY FOR INDEPENDENT RE-REVIEW`。
+  R2 is based exactly on R1 candidate `36cfc1fed88e2981dd2fa226eae0e8d122baa51c` and remediates
+  `PREI2-IR-P1-01 / PREI2-IR-P1-02` as `REMEDIATED / AWAITING INDEPENDENT RE-REVIEW`.
+  Live credentials now resolve exact host/invocation/attempt/cancellation facts only from
+  issuer-owned immutable issuance state; definitive FINAL owner-session proof `False` permanently
+  loses local singleton authority and revokes lifecycle capabilities. Fresh collection / full backend
+  = `846 / 846`; Missing / Unexpected / Failures = `0 / 0 / 0`; schema verifier = `60/60 PASS`,
+  Alembic head/current = `20260917_0010`. Independent Re-Review, Human Acceptance and `ACCEPTED`
+  have not occurred. Real AI, Gate A/B/C, live `G2→G3` and Live remain unactivated; see
+  `dev_log/2026-09-21-pre-01b-i2-final02-fix03-r2-capability-authority.md`.

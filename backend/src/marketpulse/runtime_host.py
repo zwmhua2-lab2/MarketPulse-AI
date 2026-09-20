@@ -1456,15 +1456,23 @@ class RuntimeHost:
                 )
                 # End SQLAlchemy's transaction while preserving the session lock.
                 await connection.commit()
-                return proven is True
+                if proven is True:
+                    return True
+                self._mark_singleton_authority_lost()
+                return False
             except Exception:  # noqa: BLE001 - uncertainty is never reconstructed from local flags
-                self._lock_lost = True
-                if self._advisory_authority_issuer is not None:
-                    self._advisory_authority_issuer.revoke_all()
-                self._health.set("SINGLETON_LOCK", HealthStatus.UNAVAILABLE.value)
+                self._mark_singleton_authority_lost()
                 with contextlib.suppress(Exception):
                     await connection.rollback()
                 return False
+
+    def _mark_singleton_authority_lost(self) -> None:
+        """Fail closed permanently when the dedicated owner session cannot prove ownership."""
+
+        self._lock_lost = True
+        if self._advisory_authority_issuer is not None:
+            self._advisory_authority_issuer.revoke_all()
+        self._health.set("SINGLETON_LOCK", HealthStatus.UNAVAILABLE.value)
 
     async def _release_singleton_lock(self) -> None:
         """Release the singleton fence. Every step is attempted and reported separately.
