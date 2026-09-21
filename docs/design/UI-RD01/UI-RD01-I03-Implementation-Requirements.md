@@ -1931,10 +1931,10 @@ B. Representative mixed workspace with at least:
 
 C. History-heavy isolated PostgreSQL:
 
-* > = 5,000 Orders
-* > = 5,000 Fills
-* > = 5,000 Ledger entries
-* > = 5,000 PositionEvents
+* >= 5,000 Orders
+* >= 5,000 Fills
+* >= 5,000 Ledger entries
+* >= 5,000 PositionEvents
 
 plus sufficient lineage objects.
 
