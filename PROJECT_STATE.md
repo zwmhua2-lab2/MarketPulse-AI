@@ -2423,4 +2423,17 @@ UI-RD01-I02-REQ-01 — Market Scanner & Opportunity Product Read Implementation 
   = `846 / 846`; Missing / Unexpected / Failures = `0 / 0 / 0`; schema verifier = `60/60 PASS`,
   Alembic head/current = `20260917_0010`. Independent Re-Review, Human Acceptance and `ACCEPTED`
   have not occurred. Real AI, Gate A/B/C, live `G2→G3` and Live remain unactivated; see
-  `dev_log/2026-09-21-pre-01b-i2-final02-fix03-r2-capability-authority.md`.
+   `dev_log/2026-09-21-pre-01b-i2-final02-fix03-r2-capability-authority.md`.
+
+## PRE-01B-I2 FIX-03-R3 Current Result
+
+- `PRE-01B-I2 = IMPLEMENTING`; `FIX-03-R3 = IMPLEMENTED / READY FOR INDEPENDENT RE-REVIEW`.
+  R3 is based exactly on immutable R2 candidate `b1ae41c1c49467e3955ab67fe0e1edb8054a9f46`.
+  `PREI2-IR-P1-01 = CLOSED / PASS`; `PREI2-IR-P1-02 = REMEDIATED / AWAITING INDEPENDENT
+  RE-REVIEW`. A live capability now retains the issuer-issued frozen exact issuance facts, and no
+  caller-reachable credential-keyed issuer registry controls its effective Host / Invocation /
+  Attempt binding. Fresh collection / full backend = `847 / 847`; Missing / Unexpected / Failures
+  = `0 / 0 / 0`; schema verifier = `60/60 PASS`, Alembic head/current = `20260917_0010`.
+  Independent Re-Review, Human Acceptance and `ACCEPTED` have not occurred. Main, Real AI,
+  Gate A/B/C, live `G2→G3` and Live remain unchanged and inactive; see
+  `dev_log/2026-09-21-pre-01b-i2-final02-fix03-r3-binding-integrity.md`.

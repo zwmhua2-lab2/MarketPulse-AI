@@ -110,7 +110,7 @@ class CurrentAdvisoryAuthority:
 
 @dataclass(frozen=True)
 class _LiveAttemptIssuance:
-    """Issuer-owned exact facts for one non-durable live credential."""
+    """Issuer-issued exact facts for one non-durable live credential."""
 
     host_lifetime: str
     decision_invocation_id: str
@@ -157,7 +157,7 @@ class RestartRecoveryCapability:
 class LiveAttemptCapability:
     """Exact Host-owned live cancellation authority for one durable Attempt."""
 
-    __slots__ = ("_credential", "_issued", "_issuer")
+    __slots__ = ("_credential", "_issuance", "_issued", "_issuer")
 
     def __init__(self, *_args: object, **_kwargs: object) -> None:
         raise AdvisoryConfigurationError("LiveAttemptCapability is RuntimeHost-issued only")
@@ -167,10 +167,12 @@ class LiveAttemptCapability:
         cls,
         issuer: HostAdvisoryAuthorityIssuer,
         credential: object,
+        issuance: _LiveAttemptIssuance,
     ) -> LiveAttemptCapability:
         capability = object.__new__(cls)
         object.__setattr__(capability, "_issuer", issuer)
         object.__setattr__(capability, "_credential", credential)
+        object.__setattr__(capability, "_issuance", issuance)
         object.__setattr__(capability, "_issued", True)
         return capability
 
@@ -221,7 +223,6 @@ class HostAdvisoryAuthorityIssuer:
         issuer._restart_open = True
         issuer._live_open = True
         issuer._restart_credential = object()
-        issuer._live_issuances: dict[object, _LiveAttemptIssuance] = {}
         return issuer
 
     def _is_current_host_root(self) -> bool:
@@ -238,7 +239,7 @@ class HostAdvisoryAuthorityIssuer:
     def _live_issuance_for(self, capability: LiveAttemptCapability) -> _LiveAttemptIssuance | None:
         if capability._issuer is not self:
             return None
-        return self._live_issuances.get(capability._credential)
+        return capability._issuance
 
     def _live_is_active(self, capability: LiveAttemptCapability) -> bool:
         return (
@@ -296,7 +297,6 @@ class HostAdvisoryAuthorityIssuer:
 
         self._restart_open = False
         self._live_open = False
-        self._live_issuances.clear()
 
     def issue_live_attempt(
         self, *, decision_invocation_id: str, attempt_id: str, cancellation_receipt: str
@@ -308,7 +308,7 @@ class HostAdvisoryAuthorityIssuer:
         if not self._live_open or not self._is_current_host_root():
             raise AdvisoryConfigurationError("RuntimeHost authority root is unavailable")
         credential = object()
-        self._live_issuances[credential] = _LiveAttemptIssuance(
+        issuance = _LiveAttemptIssuance(
             host_lifetime=self.host_lifetime,
             decision_invocation_id=decision_invocation_id,
             attempt_id=attempt_id,
@@ -317,6 +317,7 @@ class HostAdvisoryAuthorityIssuer:
         return LiveAttemptCapability._issue(
             self,
             credential,
+            issuance,
         )
 
 

@@ -230,7 +230,7 @@ def test_live_capability_identity_is_issuer_owned_immutable_and_revocable() -> N
         assert live.matches(
             host_lifetime="host-a", decision_invocation_id="invocation-a", attempt_id="attempt-a"
         )
-        issuance = issuer._live_issuances[live._credential]
+        issuance = live._issuance
         assert (
             issuance.host_lifetime,
             issuance.decision_invocation_id,
@@ -267,6 +267,56 @@ def test_live_capability_identity_is_issuer_owned_immutable_and_revocable() -> N
         assert not await live.admit_owner_session()
 
     asyncio.run(scenario())
+
+
+def test_live_capability_binding_cannot_be_redirected_through_reachable_issuer_state() -> None:
+    """FIX-03-R3 P1-02: issuer-side replacement must not redirect an issued capability."""
+
+    issuer = _host_issuer_for_contract_test("host-c", admitted=True)
+    live = issuer.issue_live_attempt(
+        decision_invocation_id="invocation-c",
+        attempt_id="attempt-c",
+        cancellation_receipt="receipt-c",
+    )
+
+    assert live.matches(
+        host_lifetime="host-c", decision_invocation_id="invocation-c", attempt_id="attempt-c"
+    )
+    assert not live.matches(
+        host_lifetime="host-c", decision_invocation_id="invocation-d", attempt_id="attempt-d"
+    )
+
+    # Exercise every caller-reachable credential-keyed dictionary on the issuing object.
+    # R2's mutable issuance registry is one such dictionary.  Merely renaming that
+    # registry therefore cannot make this regression pass.
+    replacement_paths: list[dict[object, object]] = []
+    for candidate in vars(live._issuer).values():
+        if not isinstance(candidate, dict) or live._credential not in candidate:
+            continue
+        issuance = candidate[live._credential]
+        candidate[live._credential] = type(issuance)(
+            host_lifetime="host-c",
+            decision_invocation_id="invocation-d",
+            attempt_id="attempt-d",
+            cancellation_receipt="receipt-d",
+        )
+        replacement_paths.append(candidate)
+
+    assert replacement_paths == []
+    assert live.matches(
+        host_lifetime="host-c", decision_invocation_id="invocation-c", attempt_id="attempt-c"
+    )
+    assert not live.matches(
+        host_lifetime="host-c", decision_invocation_id="invocation-d", attempt_id="attempt-d"
+    )
+
+    with pytest.raises(AttributeError, match="immutable"):
+        live._issuance = object()
+
+    issuer.revoke_all()
+    assert not live.matches(
+        host_lifetime="host-c", decision_invocation_id="invocation-c", attempt_id="attempt-c"
+    )
 
 
 def test_db_fence_is_immediate_bounded_and_never_consumes_protection_reserve():

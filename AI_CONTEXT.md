@@ -1346,4 +1346,17 @@ disposable 库保持空表（症状 `relation "edge_opportunity_evidence" does n
   credentials. Valid admission remains `SingletonOwnerSessionGate → FINAL OWNER-SESSION PROOF`;
   no second distributed authority exists. Do not claim Independent Review, Human Acceptance,
   `ACCEPTED` or any Gate / Real AI / live activation; see
-  `dev_log/2026-09-21-pre-01b-i2-final02-fix03-r2-capability-authority.md`.
+   `dev_log/2026-09-21-pre-01b-i2-final02-fix03-r2-capability-authority.md`.
+
+## PRE-01B-I2 FIX-03-R3 Current Pointer
+
+- `PRE-01B-I2 = IMPLEMENTING`; `FIX-03-R3 = IMPLEMENTED / READY FOR INDEPENDENT RE-REVIEW`;
+  `PREI2-IR-P1-01 = CLOSED / PASS`; `PREI2-IR-P1-02 = REMEDIATED / AWAITING INDEPENDENT
+  RE-REVIEW`. The R3 candidate is based exactly on immutable R2
+  `b1ae41c1c49467e3955ab67fe0e1edb8054a9f46`: its issuer-issued frozen issuance facts are held
+  by the issued capability, so no caller-reachable credential-keyed issuer registry can redirect
+  its effective binding. Definitive FINAL owner-session proof `False` still revokes old local
+  capabilities; `SingletonOwnerSessionGate → FINAL OWNER-SESSION PROOF` remains the sole
+  cross-process authority. Do not claim Independent Review, Human Acceptance, `ACCEPTED`, or any
+  Gate / Real AI / live activation; see
+  `dev_log/2026-09-21-pre-01b-i2-final02-fix03-r3-binding-integrity.md`.
