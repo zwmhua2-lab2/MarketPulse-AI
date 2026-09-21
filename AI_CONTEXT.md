@@ -1360,3 +1360,24 @@ disposable 库保持空表（症状 `relation "edge_opportunity_evidence" does n
   cross-process authority. Do not claim Independent Review, Human Acceptance, `ACCEPTED`, or any
   Gate / Real AI / live activation; see
   `dev_log/2026-09-21-pre-01b-i2-final02-fix03-r3-binding-integrity.md`.
+
+## PRE-01B-I2 Current Accepted Pointer
+
+- `PRE-01B-I2 = ACCEPTED / COMPLETE`（Human Acceptance = `CONFIRMED — 2026-09-21`）；
+  `FIX-03-R3 = ACCEPTED / COMPLETE`。Human-Accepted Reviewed Candidate =
+  `f95307717c10a1a0a4a6b28e4fc17ee999bb961b` on immutable branch
+  `pre-01b-i2-final02-fix03-r3-binding-integrity`; Independent Re-Review =
+  `PRE-01B-I2-RESUME-01-C3-FINAL-02-FIX-03-R3-RR-01`, `PASS — READY FOR HUMAN ACCEPTANCE`;
+  `PREI2-IR-P1-01` / `PREI2-IR-P1-02` = `CLOSED / PASS`; P0 / P1 / P2 = `NONE`.
+- Accepted runtime verification basis = the Independent Re-Review of that exact candidate: full
+  backend `847 collected / 847 passed`, Missing 0 / Unexpected 0 / Failures 0; schema verifier
+  `60 / 60 PASS`; Alembic head/current `20260917_0010`. This closeout is docs/state-only and did
+  **not** rerun the full backend regression. P3 remains
+  `NON-BLOCKING / PRE-EXISTING / NOT FIXED`: `requirements-dev.txt` does not declare `aiosqlite`
+  used by tests.
+- Main lineage integration method = `FAST-FORWARD ONLY`. This acceptance does **not** activate
+  Real AI, Gate A/B/C, live `G2→G3`, Live, or Live Trading. Final closeout evidence:
+  `dev_log/2026-09-21-pre-01b-i2-final-acceptance-closeout.md`.
+- **本条取代本文「PRE-01B-I2 FIX-03-R1 / R2 / R3 Current Pointer」三段与「PRE-01B-I2 Recovery
+  Authority Amendment Pointer」中 `PRE-01B-I2 = IMPLEMENTING` 的当前状态含义**
+  （各段其余内容与历史记录保留，**不**改写）。

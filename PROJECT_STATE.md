@@ -2437,3 +2437,33 @@ UI-RD01-I02-REQ-01 — Market Scanner & Opportunity Product Read Implementation 
   Independent Re-Review, Human Acceptance and `ACCEPTED` have not occurred. Main, Real AI,
   Gate A/B/C, live `G2→G3` and Live remain unchanged and inactive; see
   `dev_log/2026-09-21-pre-01b-i2-final02-fix03-r3-binding-integrity.md`.
+
+## PRE-01B-I2 Final Acceptance Closeout Result
+
+- `PRE-01B-I2 = ACCEPTED / COMPLETE`。Human Acceptance = `CONFIRMED — 2026-09-21`；Human-Accepted
+  Reviewed Candidate = `f95307717c10a1a0a4a6b28e4fc17ee999bb961b`，branch
+  `pre-01b-i2-final02-fix03-r3-binding-integrity`（immutable，未被改写、未被移动）；
+  `FIX-03-R3 = ACCEPTED / COMPLETE`。
+- Independent Re-Review = `PRE-01B-I2-RESUME-01-C3-FINAL-02-FIX-03-R3-RR-01`，verdict =
+  `PASS — READY FOR HUMAN ACCEPTANCE`；`PREI2-IR-P1-01 = CLOSED / PASS`；
+  `PREI2-IR-P1-02 = CLOSED / PASS`；P0 / P1 / P2 = `NONE`。
+- Accepted runtime verification basis（该证据由针对上述精确候选的独立复审给出，**本收尾未重跑**
+  full backend regression）：full backend `847 collected / 847 completed / 847 passed`；
+  Missing = 0 / Unexpected = 0 / Failures = 0；schema verifier = `60 / 60 PASS`；
+  Alembic head/current = `20260917_0010`。
+- P3 保留项（**非阻塞 / 既有 / 本收尾未修复**）：`requirements-dev.txt` 未声明测试实际使用的
+  `aiosqlite`。该 finding 不阻塞验收或集成；本收尾**不**修复、**不**移除、**不**升级为 blocker、
+  **不**改变其语义。
+- Accepted D2 blob = `d08d7feebec4c0b8d74b550a75d161659709cd70` unchanged；Accepted Recovery
+  Authority R3 design blob = `b91a6f7772e7894aeb9d801ea7dc62aa57a4ba40` unchanged。
+- closeout branch = `pre-01b-i2-final-acceptance-closeout-r3`（base = 精确候选
+  `f95307717c10a1a0a4a6b28e4fc17ee999bb961b`；docs/state-only closeout commit，直接 parent = 该候选）；
+  集成方法 = `FAST-FORWARD ONLY`；`New Table = ZERO` / `New Column = ZERO` /
+  `New Migration = ZERO` / `Implementation Delta = ZERO` / `Test Delta = ZERO` /
+  `Dependency Delta = ZERO`。
+- 激活边界保持：Real AI = `NOT ACTIVATED`；Gate A = `NOT ACTIVATED`；Gate B = `NOT ACTIVATED`；
+  Gate C = `NOT PASSED`；live `G2→G3` = `NOT ACTIVE`；Live = `NOT AUTHORIZED`；
+  Live Trading = `DISABLED`。`DECISIONS.md`、frozen requirements/design 与 `R1/R2/R3` 历史实现证据
+  均未改动。证据：`dev_log/2026-09-21-pre-01b-i2-final-acceptance-closeout.md`。
+- **本条取代本文「PRE-01B-I2 FIX-03-R1 / R2 / R3 Current Result」三段的当前状态含义**
+  （三段作为历史实现证据保留，**不**改写）。
