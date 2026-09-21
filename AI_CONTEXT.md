@@ -1381,3 +1381,10 @@ disposable 库保持空表（症状 `relation "edge_opportunity_evidence" does n
 - **本条取代本文「PRE-01B-I2 FIX-03-R1 / R2 / R3 Current Pointer」三段与「PRE-01B-I2 Recovery
   Authority Amendment Pointer」中 `PRE-01B-I2 = IMPLEMENTING` 的当前状态含义**
   （各段其余内容与历史记录保留，**不**改写）。
+
+## UI-RD01-I03 Current Frozen Requirement Pointer
+
+- `UI-RD01-I03-REQ-04 = ACCEPTED / FROZEN`（Human Freeze = `CONFIRMED — 2026-09-21`；Independent Requirement Final Review = `PASS WITH NON-BLOCKING FINDING — READY FOR HUMAN FREEZE`）；Accepted Limited Amendment = `UI-RD01-I03-PLA-01 = ACCEPTED`；Remaining Finding = `R04-P2-01 = NON-BLOCKING / REMAINS`。Frozen artifact = `docs/design/UI-RD01/UI-RD01-I03-Implementation-Requirements.md`（自包含 `A0`–`A95`；`UI-RD01-I03` = `TradingAuditRead`，`GET /api/v1/product/trading-audit`）。
+- Freeze Persistence = `READY FOR INDEPENDENT REVIEW`；candidate branch = `ui-rd01-i03-requirements-freeze-persist`；Task Base = `f7715f58f9da6fa57426b1df31a23692ac6a41a1`；**未** merge / fast-forward / push `main`。
+- `Implementation Authorization = NOT GRANTED`；`UI-RD01-I03 implementation = NOT STARTED / NOT AUTHORIZED`：本 Freeze **仅**接受需求，TradingAuditRead implementation 需另开独立 Formal Task。`PLA-01` 仅适用于 TradingAuditRead timeline 排序（第三键 `timeline_event_id DESC`，替代父设计的 `entity_id DESC`）。`R04-P2-01` 边界：Product 对 hypothetical `protection_plan_id = ""` 的 `UNKNOWN` 分类**不**表示 Runtime Protection 已失效 / 已禁用。`Schema` / `Migration` / `Index = ZERO CHANGE`。
+- `PRE-01B-I2 = ACCEPTED / COMPLETE`（**未**被本需求 Freeze reopen）；Real AI / live `G2→G3` / Gate A/B/C / Live 均未激活。完整语义见 artifact；详见 `PROJECT_STATE.md`「UI-RD01-I03 Requirement Freeze Persistence Result」与 `dev_log/2026-09-21-ui-rd01-i03-requirements-freeze-persist.md`。

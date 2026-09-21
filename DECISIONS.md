@@ -484,3 +484,13 @@
 - No local boolean, heartbeat, liveness probe, Python object identity, Host generation boolean, or test-fixture boolean may substitute for PostgreSQL ownership proof.
 - R1 introduces zero schema/table/column/migration, zero second singleton lock, zero second durable owner identity/ownership service, and zero second engine/session factory. The existing RuntimeHost advisory singleton lock remains the only cross-process Host singleton fence.
 - Status: `ACCEPTED / COMPLETE`; acceptance preserves the R3 authority contract and is **NOT implementation authorization**. No implementation/Gate/Real-AI/live activation is authorized by this closeout.
+
+## UI-RD01-I03-REQ-04 Accepted Requirement Decisions
+
+- `UI-RD01-I03-REQ-04 = ACCEPTED / FROZEN`（2026-09-21 Human Freeze = `CONFIRMED — 2026-09-21`；Independent Requirement Final Review = `PASS WITH NON-BLOCKING FINDING — READY FOR HUMAN FREEZE`；Freeze Persistence = `READY FOR INDEPENDENT REVIEW`；candidate branch = `ui-rd01-i03-requirements-freeze-persist`，Task Base = `f7715f58f9da6fa57426b1df31a23692ac6a41a1`）。**完整语义以 accepted artifact `docs/design/UI-RD01/UI-RD01-I03-Implementation-Requirements.md` 为准；本条目仅摘要，不复制 Requirement 正文。**
+- `UI-RD01-I03-PLA-01 = ACCEPTED`（Limited Amendment，随 Human Freeze 一并接受）：TradingAuditRead timeline 的第三排序键由父 UI-RD01 的 `entity_id DESC` 替换为 `timeline_event_id DESC`（`occurred_at DESC` / `entity_kind DESC` 不变），因为一个 business entity 可合法产生多个 timeline event（含同时刻事件）。该 Amendment **仅**适用于 TradingAuditRead，**不**改变 Scanner / Opportunity / Incident / Edge ordering、**不**改 business IDs、**不**新增 schema/persistence、**不**产生 historical-as-of 语义。
+- `R04-P2-01 = REMAINS / NON-BLOCKING`：Product 可对 hypothetical `protection_plan_id = ""` 分类为 `UNKNOWN`，但 `UNKNOWN != Runtime Protection 已失效 / 已禁用`；该差异**不**通过修改 Runtime / Protection / DB constraint 消除。
+- `UI-RD01-I03 implementation = NOT STARTED / NOT AUTHORIZED`：本 Freeze **仅**接受需求，**不**启动、**不**授权 `TradingAuditRead` implementation；Implementation Authorization = `NOT GRANTED`；implementation 需另开独立 Formal Task。
+- I03 默认 `Schema / Migration / Index = ZERO CHANGE`；`backend/**` / `backend/tests/**` / `backend/alembic/**` / `frontend/**` / `scripts/**` / `PRODUCT_REQUIREMENTS.md` / `AGENTS.md` / 已冻结 UI-RD01 Parent Design / UI-V1-D01 Amendment / `UI-RD01-I02` Requirement artifact = `ZERO CHANGE`。
+- 边界：Real AI = `NOT ACTIVATED`；live `G2→G3` = `NOT ACTIVE`；Gate A/B/C = `NOT ACTIVATED` / `NOT PASSED`；Live = `NOT AUTHORIZED`；Live Trading = `DISABLED`。
+- 本批**未**修改 `PRE-01B-I2`（保持 `ACCEPTED / COMPLETE`）；**未** reopen `UI-RD01-I03-REQ-04`；**未**扩大 I03 scope；**未**激活 Real AI；**未**改变经济语义。
