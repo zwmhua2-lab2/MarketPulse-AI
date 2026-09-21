@@ -14,7 +14,12 @@ from marketpulse.g2.models import AdvisoryWorkRef
 from .fence import AdvisoryDbFence
 from .identity import attempt_id
 from .predicates import AdvisoryPredicateEvaluator
-from .vocabulary import ATTEMPT_STARTED, INVOCATION_ACTIVE, INVOCATION_FINAL
+from .vocabulary import (
+    ATTEMPT_STARTED,
+    INVOCATION_ACTIVE,
+    INVOCATION_ADMITTED,
+    INVOCATION_RETRY_PENDING,
+)
 
 
 class AdvisoryAttemptStarter:
@@ -44,6 +49,7 @@ class AdvisoryAttemptStarter:
                 select(EdgeOpportunityEvidenceRecord)
                 .where(EdgeOpportunityEvidenceRecord.evidence_id == target.evidence_id)
                 .with_for_update()
+                .execution_options(populate_existing=True)
             )
             invocation = await session.scalar(
                 select(AdvisoryDecisionInvocationRecord)
@@ -52,12 +58,13 @@ class AdvisoryAttemptStarter:
                     == ref.decision_invocation_id
                 )
                 .with_for_update()
+                .execution_options(populate_existing=True)
             )
             if (
                 evidence is None
                 or invocation is None
                 or invocation.evidence_id != evidence.evidence_id
-                or invocation.state == INVOCATION_FINAL
+                or invocation.state not in (INVOCATION_ADMITTED, INVOCATION_RETRY_PENDING)
                 or evidence.evidence_hash != invocation.evidence_hash
             ):
                 return None
@@ -67,25 +74,18 @@ class AdvisoryAttemptStarter:
             now = await session.scalar(select(func.clock_timestamp()))
             if now is None or now >= invocation.decision_deadline_at:
                 return None
-            number = int(
-                await session.scalar(
-                    select(func.coalesce(func.max(AdvisoryDecisionAttemptRecord.attempt_number), 0))
-                    .where(
-                        AdvisoryDecisionAttemptRecord.decision_invocation_id
-                        == invocation.decision_invocation_id
-                    )
-                )
-                or 0
-            ) + 1
             prior_attempt = await session.scalar(
-                select(AdvisoryDecisionAttemptRecord.attempt_id)
+                select(AdvisoryDecisionAttemptRecord)
                 .where(
                     AdvisoryDecisionAttemptRecord.decision_invocation_id
                     == invocation.decision_invocation_id
                 )
                 .order_by(AdvisoryDecisionAttemptRecord.attempt_number.desc())
                 .limit(1)
+                .with_for_update()
+                .execution_options(populate_existing=True)
             )
+            number = (prior_attempt.attempt_number if prior_attempt is not None else 0) + 1
             identifier = attempt_id(
                 decision_invocation_id=invocation.decision_invocation_id, attempt_number=number
             )
@@ -97,7 +97,7 @@ class AdvisoryAttemptStarter:
                     attempt_state=ATTEMPT_STARTED,
                     retry_class=None,
                     retry_reason=None,
-                    prior_attempt_id=prior_attempt,
+                    prior_attempt_id=prior_attempt.attempt_id if prior_attempt is not None else None,
                     provider_request_id=None,
                     provider_response_id=None,
                     configured_provider_id=invocation.configured_provider_id,

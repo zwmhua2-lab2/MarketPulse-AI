@@ -1382,6 +1382,17 @@ disposable 库保持空表（症状 `relation "edge_opportunity_evidence" does n
   Authority Amendment Pointer」中 `PRE-01B-I2 = IMPLEMENTING` 的当前状态含义**
   （各段其余内容与历史记录保留，**不**改写）。
 
+## PRE-RAI-R01-FIX-01 Current Implementation Pointer
+
+- `PRE-RAI-R01-FIX-01` = `IMPLEMENTING`；`PRE-RAI-R01-FIX-01-R1 = IMPLEMENTED / READY FOR
+  INDEPENDENT RE-REVIEW`。候选 worktree 的 Advisory locked-row freshness、durable current-cycle
+  Attempt gate 与 canonical binding/current-authority integrity 已在 corrected task-only PostgreSQL
+  environment 验证：pytest parent 无 `DATABASE_URL`，gitignored `.env` 将 Settings primary 指向
+  独立 `marketpulse`，fixture-owned Alembic target 未被覆盖；full backend = `856 passed`, exit `0`。
+- 不修改 Alembic/replay contract、schema/migration、accepted D2/I2 semantics、Real AI / Gate A/B/C /
+  live activation；Independent Re-Review 是唯一下一步。详见
+  `dev_log/2026-09-22-pre-rai-r01-fix-01-advisory-lifecycle-binding.md`。
+
 ## UI-RD01-I03 Current Frozen Requirement Pointer
 
 - `UI-RD01-I03-REQ-04 = ACCEPTED / FROZEN`（Human Freeze = `CONFIRMED — 2026-09-21`；Independent Requirement Final Review = `PASS WITH NON-BLOCKING FINDING — READY FOR HUMAN FREEZE`）；Accepted Limited Amendment = `UI-RD01-I03-PLA-01 = ACCEPTED`；Remaining Finding = `R04-P2-01 = NON-BLOCKING / REMAINS`。Frozen artifact = `docs/design/UI-RD01/UI-RD01-I03-Implementation-Requirements.md`（自包含 `A0`–`A95`；`UI-RD01-I03` = `TradingAuditRead`，`GET /api/v1/product/trading-audit`）。

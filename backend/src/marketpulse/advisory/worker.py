@@ -34,6 +34,7 @@ from .vocabulary import (
     FINAL_STATUS_INVALID_SCHEMA,
     FINAL_STATUS_STALE_DECISION,
     FINAL_STATUS_VALID,
+    INVOCATION_ACTIVE,
     INVOCATION_ADMITTED,
     INVOCATION_FINAL,
     INVOCATION_RETRY_PENDING,
@@ -161,6 +162,7 @@ class AdvisoryFinalizer:
                 select(EdgeOpportunityEvidenceRecord)
                 .where(EdgeOpportunityEvidenceRecord.evidence_id == invocation_target.evidence_id)
                 .with_for_update()
+                .execution_options(populate_existing=True)
             )
             invocation = await session.scalar(
                 select(AdvisoryDecisionInvocationRecord)
@@ -169,25 +171,48 @@ class AdvisoryFinalizer:
                     == invocation_target.decision_invocation_id
                 )
                 .with_for_update()
+                .execution_options(populate_existing=True)
             )
-            attempt = await session.scalar(
+            current_attempt = await session.scalar(
                 select(AdvisoryDecisionAttemptRecord)
-                .where(AdvisoryDecisionAttemptRecord.attempt_id == attempt_id)
+                .where(
+                    AdvisoryDecisionAttemptRecord.decision_invocation_id
+                    == invocation_target.decision_invocation_id
+                )
+                .order_by(AdvisoryDecisionAttemptRecord.attempt_number.desc())
+                .limit(1)
                 .with_for_update()
+                .execution_options(populate_existing=True)
             )
             if (
                 evidence is None
                 or invocation is None
-                or attempt is None
+                or current_attempt is None
                 or invocation.evidence_id != evidence.evidence_id
                 or invocation.evidence_hash != evidence.evidence_hash
-                or attempt.decision_invocation_id != invocation.decision_invocation_id
             ):
                 return None
             if invocation.state == INVOCATION_FINAL:
-                if invocation.final_attempt_id != attempt.attempt_id:
-                    attempt.attempt_state = ATTEMPT_LATE_RESULT
+                submitted = await session.scalar(
+                    select(AdvisoryDecisionAttemptRecord)
+                    .where(AdvisoryDecisionAttemptRecord.attempt_id == attempt_id)
+                    .with_for_update()
+                    .execution_options(populate_existing=True)
+                )
+                if (
+                    submitted is not None
+                    and invocation.final_attempt_id != submitted.attempt_id
+                    and submitted.attempt_state not in (ATTEMPT_PROCESS_LOST, ATTEMPT_ABANDONED)
+                ):
+                    submitted.attempt_state = ATTEMPT_LATE_RESULT
                 return None
+            if (
+                invocation.state != INVOCATION_ACTIVE
+                or current_attempt.attempt_id != attempt_id
+                or current_attempt.attempt_state != ATTEMPT_STARTED
+            ):
+                return None
+            attempt = current_attempt
             facts = await self._evaluator.evaluate(
                 session, invocation=invocation, evidence=evidence
             )
@@ -259,6 +284,7 @@ class AdvisoryFinalizer:
                     select(EdgeOpportunityEvidenceRecord)
                     .where(EdgeOpportunityEvidenceRecord.evidence_id == invocation_target.evidence_id)
                     .with_for_update()
+                    .execution_options(populate_existing=True)
                 )
                 invocation = await session.scalar(
                     select(AdvisoryDecisionInvocationRecord)
@@ -267,6 +293,7 @@ class AdvisoryFinalizer:
                         == ref.decision_invocation_id
                     )
                     .with_for_update()
+                    .execution_options(populate_existing=True)
                 )
                 if (
                     evidence is None
@@ -326,6 +353,7 @@ class AdvisoryFinalizer:
                     select(EdgeOpportunityEvidenceRecord)
                     .where(EdgeOpportunityEvidenceRecord.evidence_id == invocation_target.evidence_id)
                     .with_for_update()
+                    .execution_options(populate_existing=True)
                 )
                 invocation = await session.scalar(
                     select(AdvisoryDecisionInvocationRecord)
@@ -334,6 +362,7 @@ class AdvisoryFinalizer:
                         == ref.decision_invocation_id
                     )
                     .with_for_update()
+                    .execution_options(populate_existing=True)
                 )
                 if (
                     evidence is None
@@ -412,6 +441,7 @@ class AdvisoryFinalizer:
                 select(EdgeOpportunityEvidenceRecord)
                 .where(EdgeOpportunityEvidenceRecord.evidence_id == target.evidence_id)
                 .with_for_update()
+                .execution_options(populate_existing=True)
             )
             invocation = await session.scalar(
                 select(AdvisoryDecisionInvocationRecord)
@@ -419,6 +449,7 @@ class AdvisoryFinalizer:
                     AdvisoryDecisionInvocationRecord.decision_invocation_id == decision_invocation_id
                 )
                 .with_for_update()
+                .execution_options(populate_existing=True)
             )
             if (
                 evidence is None
@@ -470,6 +501,7 @@ class AdvisoryFinalizer:
                 select(EdgeOpportunityEvidenceRecord)
                 .where(EdgeOpportunityEvidenceRecord.evidence_id == invocation_target.evidence_id)
                 .with_for_update()
+                .execution_options(populate_existing=True)
             )
             invocation = await session.scalar(
                 select(AdvisoryDecisionInvocationRecord)
@@ -478,11 +510,13 @@ class AdvisoryFinalizer:
                     == invocation_target.decision_invocation_id
                 )
                 .with_for_update()
+                .execution_options(populate_existing=True)
             )
             attempt = await session.scalar(
                 select(AdvisoryDecisionAttemptRecord)
                 .where(AdvisoryDecisionAttemptRecord.attempt_id == attempt_id)
                 .with_for_update()
+                .execution_options(populate_existing=True)
             )
             if (
                 evidence is None

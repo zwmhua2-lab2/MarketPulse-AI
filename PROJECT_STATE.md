@@ -2472,6 +2472,19 @@ UI-RD01-I03-REQ-04 — Trading Audit Read Product Read Implementation Requiremen
 - **本条取代本文「PRE-01B-I2 FIX-03-R1 / R2 / R3 Current Result」三段的当前状态含义**
   （三段作为历史实现证据保留，**不**改写）。
 
+## PRE-RAI-R01-FIX-01 Implementation Status
+
+- `PRE-RAI-R01-FIX-01` formal task_state = `IMPLEMENTING`；`PRE-RAI-R01-FIX-01-R1 =
+  IMPLEMENTED / READY FOR INDEPENDENT RE-REVIEW`。R1 保留原 P1-01 / P1-02 / P1-03 最小实现，
+  并在无共享 volume、独立端口的 PostgreSQL 16 primary `marketpulse` 上复验。
+- pytest parent `DATABASE_URL = None`，worktree-local gitignored `.env` 仅使
+  `Settings().database_url` 指向 task-only primary；故 fixture-created disposable DB 的 Alembic
+  config 不再被覆盖。fresh collection = `856`；full backend = `856 passed, 21 warnings in
+  954.07s`，exit `0`。
+- Schema / migration / `DECISIONS.md` / accepted design 均为 ZERO CHANGE；Real AI、Gate A/B/C、
+  live 和经济语义均未激活或改变。Independent Re-Review pending。详情见
+  `dev_log/2026-09-22-pre-rai-r01-fix-01-advisory-lifecycle-binding.md`。
+
 ## UI-RD01-I03 Requirement Freeze Persistence Result
 
 - 任务：`UI-RD01-I03-REQ-04-FREEZE-PERSIST-01`｜`UI-RD01-I03｜需求冻结落库` → `DOCUMENTATION / STATE / REQUIREMENT FREEZE PERSISTENCE ONLY`（**非** `UI-RD01-I03 implementation`、**非** `TradingAuditRead` implementation、**非** Product Trading DTO / router implementation、**非** tests implementation、**非** OpenAPI / `generated.ts` regeneration、**非** schema change、**非** migration、**非** index、**非** RuntimeHost change、**非** Risk / Execution / Position / Protection / Ledger semantics change）。

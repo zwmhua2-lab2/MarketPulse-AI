@@ -35,6 +35,7 @@ from marketpulse.advisory.contracts import (
     RecoveryInput,
 )
 from marketpulse.advisory.fence import AdvisoryDbFence
+from marketpulse.advisory.identity import experiment_definition_digest
 from marketpulse.advisory.ingress import AdvisoryAdmissionWriter, AdvisoryIngress
 from marketpulse.advisory.predicates import AdvisoryPredicateEvaluator
 from marketpulse.advisory.worker import (
@@ -433,6 +434,7 @@ def _current_advisory_authority(config: AdvisoryAdmissionConfig) -> CurrentAdvis
         activation_level="GATE_A_SHADOW",
         config_version=config.config_version,
         epoch_id=config.epoch.epoch_id,
+        experiment_definition_digest=experiment_definition_digest(config.experiment_definition),
         configured_provider_id=config.configured_provider_id,
         configured_model_id=config.configured_model_id,
         prompt_version=config.prompt_version,
@@ -450,6 +452,13 @@ def _lock_race_authority() -> CurrentAdvisoryAuthority:
         activation_level="GATE_A_SHADOW",
         config_version="lock-race-config",
         epoch_id="lock-race-epoch",
+        experiment_definition_digest=experiment_definition_digest(
+            {
+                "placement": "C_TRADE_DECISION",
+                "family": "BREAKOUT_RETEST",
+                "version": "lock-race-fixture",
+            }
+        ),
         configured_provider_id="fake-provider",
         configured_model_id="fake-model",
         prompt_version="pre01a-trade-decision-prompt-v1",
@@ -798,6 +807,246 @@ def test_late_result_cannot_replace_the_retry_attempt_winner():
     assert observed["attempt_count"] == 2
     assert observed["attempt_states"] == ["LATE_RESULT", "COMPLETED"]
     assert observed["final_attempt_matches_latest"] is True
+
+
+def test_pre_rai_p1_01_preloaded_stale_identity_cannot_replace_first_winner():
+    """A second transaction must reload its preloaded rows after canonical locks."""
+
+    async def scenario(url: str) -> dict[str, object]:
+        async with _sessions(url) as sessions:
+            fence, ref, attempt_id = await _admitted_attempt_fixture(sessions)
+            assert attempt_id is not None
+            evaluator = AdvisoryPredicateEvaluator(_lock_race_authority())
+            preload_session = sessions()
+            await preload_session.begin()
+            try:
+                preloaded_invocation = await preload_session.get(
+                    AdvisoryDecisionInvocationRecord, ref.decision_invocation_id
+                )
+                preloaded_attempt = await preload_session.get(
+                    AdvisoryDecisionAttemptRecord, attempt_id
+                )
+                assert preloaded_invocation is not None and preloaded_invocation.state == "ACTIVE"
+                assert preloaded_attempt is not None and preloaded_attempt.attempt_state == "STARTED"
+
+                assert await AdvisoryFinalizer(fence, evaluator).finalize(
+                    attempt_id, FakeProviderResult(payload={"winner": "A"})
+                ) is None
+
+                class PreloadedSessionFence:
+                    @asynccontextmanager
+                    async def transaction(self):
+                        yield preload_session
+
+                assert await AdvisoryFinalizer(PreloadedSessionFence(), evaluator).finalize(
+                    attempt_id, FakeProviderResult(payload={"winner": "B"})
+                ) is None
+                await preload_session.commit()
+            finally:
+                await preload_session.close()
+
+            async with sessions() as session:
+                invocation = await session.get(
+                    AdvisoryDecisionInvocationRecord, ref.decision_invocation_id
+                )
+                attempt = await session.get(AdvisoryDecisionAttemptRecord, attempt_id)
+                assert invocation is not None and attempt is not None
+                return {
+                    "state": invocation.state,
+                    "status": invocation.final_status,
+                    "reason": invocation.final_reason_code,
+                    "attempt_id": invocation.final_attempt_id,
+                    "finalized_at": invocation.finalized_at,
+                    "payload": attempt.redacted_response_envelope,
+                }
+
+    with _capture_database("pre_rai_p1_01_stale_identity") as url:
+        observed = asyncio.run(scenario(url))
+
+    assert observed["state"] == "FINAL"
+    assert observed["status"] == "VALID"
+    assert observed["reason"] == "VALID_PROVIDER_DECISION"
+    assert observed["attempt_id"] is not None
+    assert observed["finalized_at"] is not None
+    assert observed["payload"] == {"winner": "A"}
+
+
+def test_pre_rai_p1_02_start_gate_rejects_active_and_final_but_permits_retry():
+    async def scenario(url: str) -> dict[str, object]:
+        async with _sessions(url) as sessions:
+            fence, ref, _ = await _admitted_attempt_fixture(sessions, start_attempt=False)
+            evaluator = AdvisoryPredicateEvaluator(_lock_race_authority())
+            starter = AdvisoryAttemptStarter(fence, evaluator)
+            finalizer = AdvisoryFinalizer(fence, evaluator)
+            first = await starter.start(ref)
+            assert first is not None
+            duplicate = await starter.start(ref)
+            retry_ref = await finalizer.finalize(first, FakeProviderResult(retry=True))
+            assert retry_ref == ref
+            second = await starter.start(retry_ref)
+            assert second is not None
+            assert await finalizer.finalize(second, FakeProviderResult()) is None
+            after_final = await starter.start(ref)
+            async with sessions() as session:
+                attempts = list(
+                    await session.scalars(
+                        select(AdvisoryDecisionAttemptRecord.attempt_id).order_by(
+                            AdvisoryDecisionAttemptRecord.attempt_number
+                        )
+                    )
+                )
+                invocation = await session.get(
+                    AdvisoryDecisionInvocationRecord, ref.decision_invocation_id
+                )
+                assert invocation is not None
+                return {
+                    "first": first,
+                    "duplicate": duplicate,
+                    "second": second,
+                    "after_final": after_final,
+                    "attempts": attempts,
+                    "state": invocation.state,
+                }
+
+    with _capture_database("pre_rai_p1_02_start_gate") as url:
+        observed = asyncio.run(scenario(url))
+
+    assert observed["duplicate"] is None
+    assert observed["after_final"] is None
+    assert observed["attempts"] == [observed["first"], observed["second"]]
+    assert observed["state"] == "FINAL"
+
+
+def test_pre_rai_p1_02_historical_attempt_cannot_complete_while_current_attempt_is_active():
+    async def scenario(url: str) -> dict[str, object]:
+        async with _sessions(url) as sessions:
+            fence, ref, _ = await _admitted_attempt_fixture(sessions, start_attempt=False)
+            evaluator = AdvisoryPredicateEvaluator(_lock_race_authority())
+            starter = AdvisoryAttemptStarter(fence, evaluator)
+            finalizer = AdvisoryFinalizer(fence, evaluator)
+            first = await starter.start(ref)
+            assert first is not None
+            retry_ref = await finalizer.finalize(first, FakeProviderResult(retry=True))
+            assert retry_ref == ref
+            second = await starter.start(retry_ref)
+            assert second is not None
+            assert await finalizer.finalize(first, FakeProviderResult(payload={"late": "A1"})) is None
+            async with sessions() as session:
+                invocation = await session.get(
+                    AdvisoryDecisionInvocationRecord, ref.decision_invocation_id
+                )
+                first_attempt = await session.get(AdvisoryDecisionAttemptRecord, first)
+                second_attempt = await session.get(AdvisoryDecisionAttemptRecord, second)
+                assert invocation is not None and first_attempt is not None and second_attempt is not None
+                return {
+                    "state": invocation.state,
+                    "final_attempt_id": invocation.final_attempt_id,
+                    "first_state": first_attempt.attempt_state,
+                    "second_state": second_attempt.attempt_state,
+                }
+
+    with _capture_database("pre_rai_p1_02_historical_active") as url:
+        observed = asyncio.run(scenario(url))
+
+    assert observed == {
+        "state": "ACTIVE",
+        "final_attempt_id": None,
+        "first_state": "COMPLETED",
+        "second_state": "STARTED",
+    }
+
+
+def test_pre_rai_p1_02_process_lost_attempt_cannot_regain_completion_authority():
+    async def scenario(url: str) -> dict[str, object]:
+        class RetryOnce:
+            def allows_retry(self, *, attempt_number: int) -> bool:
+                return attempt_number == 1
+
+        async with _sessions(url) as sessions:
+            fence, ref, first = await _admitted_attempt_fixture(sessions)
+            assert first is not None
+            evaluator = AdvisoryPredicateEvaluator(_lock_race_authority())
+            finalizer = AdvisoryFinalizer(fence, evaluator)
+            issuer = _fixture_host_issuer("pre-rai-process-lost")
+            assert await finalizer.process_lost(
+                first,
+                recovery=RecoveryInput(
+                    authority=_lock_race_authority(),
+                    capability=issuer.issue_restart_recovery(),
+                    retry_policy=RetryOnce(),
+                ),
+            )
+            second = await AdvisoryAttemptStarter(fence, evaluator).start(ref)
+            assert second is not None
+            assert await finalizer.finalize(first, FakeProviderResult(payload={"late": "lost"})) is None
+            async with sessions() as session:
+                invocation = await session.get(
+                    AdvisoryDecisionInvocationRecord, ref.decision_invocation_id
+                )
+                old_attempt = await session.get(AdvisoryDecisionAttemptRecord, first)
+                current_attempt = await session.get(AdvisoryDecisionAttemptRecord, second)
+                assert invocation is not None and old_attempt is not None and current_attempt is not None
+                return {
+                    "state": invocation.state,
+                    "final_attempt_id": invocation.final_attempt_id,
+                    "old_state": old_attempt.attempt_state,
+                    "current_state": current_attempt.attempt_state,
+                }
+
+    with _capture_database("pre_rai_p1_02_process_lost") as url:
+        observed = asyncio.run(scenario(url))
+
+    assert observed == {
+        "state": "ACTIVE",
+        "final_attempt_id": None,
+        "old_state": "PROCESS_LOST",
+        "current_state": "STARTED",
+    }
+
+
+@pytest.mark.parametrize(
+    ("case", "field", "value", "expected_binding_valid", "expected_config_valid"),
+    [
+        ("experiment_digest", "experiment_definition_digest", "mismatch", True, False),
+        ("epoch", "advisory_config_epoch_id", "wrong-epoch", False, False),
+        ("deadline_policy", "deadline_policy_version", "wrong-policy", False, False),
+        ("snapshot_payload", "payload", {"corrupted": True}, False, True),
+        ("input_binding", "input_binding_digest", "0" * 64, False, True),
+    ],
+)
+def test_pre_rai_p1_03_binding_and_current_authority_mismatches_fail_closed(
+    case, field, value, expected_binding_valid, expected_config_valid
+):
+    async def scenario(url: str) -> tuple[bool, bool, bool]:
+        async with _sessions(url) as sessions:
+            _fence, ref, _ = await _admitted_attempt_fixture(sessions, start_attempt=False)
+            async with sessions() as session, session.begin():
+                invocation = await session.get(
+                    AdvisoryDecisionInvocationRecord, ref.decision_invocation_id
+                )
+                assert invocation is not None
+                target = invocation if field in {"experiment_definition_digest", "input_binding_digest"} else await session.get(
+                    DecisionSnapshotRecord, invocation.snapshot_id
+                )
+                assert target is not None
+                setattr(target, field, value)
+            async with sessions() as session:
+                invocation = await session.get(
+                    AdvisoryDecisionInvocationRecord, ref.decision_invocation_id
+                )
+                assert invocation is not None
+                evidence = await session.get(EdgeOpportunityEvidenceRecord, invocation.evidence_id)
+                facts = await AdvisoryPredicateEvaluator(_lock_race_authority()).evaluate(
+                    session, invocation=invocation, evidence=evidence
+                )
+                return facts.binding_valid, facts.config_valid, facts.dispatch_legal
+
+    with _capture_database(f"pre_rai_p1_03_{case}") as url:
+        binding_valid, config_valid, dispatch_legal = asyncio.run(scenario(url))
+
+    assert binding_valid is expected_binding_valid
+    assert config_valid is expected_config_valid
+    assert dispatch_legal is False
 
 
 def test_retry_reoffers_the_same_invocation_through_the_bounded_ingress():
@@ -1693,6 +1942,14 @@ async def _recovery_queue_full_scenario(url: str) -> dict[str, object]:
             authority=CurrentAdvisoryAuthority(
                 activation_level="GATE_A_SHADOW",
                 config_version="lock-race-config",
+                epoch_id="lock-race-epoch",
+                experiment_definition_digest=experiment_definition_digest(
+                    {
+                        "placement": "C_TRADE_DECISION",
+                        "family": "BREAKOUT_RETEST",
+                        "version": "lock-race-fixture",
+                    }
+                ),
                 configured_provider_id="fake-provider",
                 configured_model_id="fake-model",
                 prompt_version="pre01a-trade-decision-prompt-v1",
