@@ -810,16 +810,120 @@ def test_late_result_cannot_replace_the_retry_attempt_winner():
 
 
 def test_pre_rai_p1_01_preloaded_stale_identity_cannot_replace_first_winner():
-    """A second transaction must reload its preloaded rows after canonical locks."""
+    """A real PostgreSQL lock waiter must reload stale identities after A commits."""
 
     async def scenario(url: str) -> dict[str, object]:
         async with _sessions(url) as sessions:
-            fence, ref, attempt_id = await _admitted_attempt_fixture(sessions)
+            _fence, ref, attempt_id = await _admitted_attempt_fixture(sessions)
             assert attempt_id is not None
-            evaluator = AdvisoryPredicateEvaluator(_lock_race_authority())
+            winner_locked = asyncio.Event()
+            release_winner = asyncio.Event()
+            loser_resumed_after_lock = asyncio.Event()
+            release_loser = asyncio.Event()
+
+            class PausedWinnerEvaluator:
+                """Test-only pause after production holds Evidence -> Invocation -> Attempt."""
+
+                def __init__(self) -> None:
+                    self._delegate = AdvisoryPredicateEvaluator(_lock_race_authority())
+
+                async def evaluate(self, session, *, invocation, evidence):
+                    facts = await self._delegate.evaluate(
+                        session, invocation=invocation, evidence=evidence
+                    )
+                    winner_locked.set()
+                    await _wait_for(release_winner)
+                    return facts
+
+            class TransactionFence:
+                def __init__(self, session, *, begin_transaction: bool) -> None:
+                    self._session = session
+                    self._begin_transaction = begin_transaction
+
+                @asynccontextmanager
+                async def transaction(self):
+                    if self._begin_transaction:
+                        async with self._session.begin():
+                            yield self._session
+                    else:
+                        yield self._session
+
+            class PauseAfterEvidenceLockSession:
+                """Pause B only after its real FOR UPDATE lock request has resumed."""
+
+                def __init__(self, session) -> None:
+                    self._session = session
+
+                async def scalar(self, statement, *args, **kwargs):
+                    value = await self._session.scalar(statement, *args, **kwargs)
+                    if (
+                        not loser_resumed_after_lock.is_set()
+                        and _is_evidence_for_update(str(statement))
+                    ):
+                        loser_resumed_after_lock.set()
+                        await _wait_for(release_loser)
+                    return value
+
+                def __getattr__(self, name):
+                    return getattr(self._session, name)
+
+            async def terminal_snapshot(session) -> dict[str, object]:
+                invocation = await session.get(
+                    AdvisoryDecisionInvocationRecord, ref.decision_invocation_id
+                )
+                assert invocation is not None and invocation.final_attempt_id is not None
+                attempt = await session.get(
+                    AdvisoryDecisionAttemptRecord, invocation.final_attempt_id
+                )
+                assert attempt is not None
+                return {
+                    "invocation": {
+                        "state": invocation.state,
+                        "final_status": invocation.final_status,
+                        "final_reason_code": invocation.final_reason_code,
+                        "final_attempt_id": invocation.final_attempt_id,
+                        "final_decision_id": invocation.final_decision_id,
+                        "finalized_at": invocation.finalized_at,
+                        "updated_at": invocation.updated_at,
+                    },
+                    "attempt": {
+                        "attempt_id": attempt.attempt_id,
+                        "attempt_state": attempt.attempt_state,
+                        "normalized_status": attempt.normalized_status,
+                        "provider_outcome": attempt.provider_outcome,
+                        "redacted_response_envelope": attempt.redacted_response_envelope,
+                        "response_received_at": attempt.response_received_at,
+                        "finished_at": attempt.finished_at,
+                    },
+                }
+
+            async def observe_b_lock_wait(backend_pid: int) -> dict[str, object]:
+                async with sessions() as observer:
+                    for _ in range(100):
+                        row = (
+                            await observer.execute(
+                                text(
+                                    "SELECT pid, wait_event_type, wait_event, state "
+                                    "FROM pg_stat_activity WHERE pid = :pid"
+                                ),
+                                {"pid": backend_pid},
+                            )
+                        ).mappings().one_or_none()
+                        if row is not None and row["wait_event_type"] == "Lock":
+                            return dict(row)
+                        await asyncio.sleep(0.01)
+                raise AssertionError(
+                    "B backend PID was never observed waiting on a PostgreSQL lock"
+                )
+
             preload_session = sessions()
-            await preload_session.begin()
+            winner_session = sessions()
+            winner = None
+            loser = None
             try:
+                # T2's identity map is deliberately loaded while the durable rows
+                # are still ACTIVE / STARTED, before T1 can acquire canonical locks.
+                await preload_session.begin()
                 preloaded_invocation = await preload_session.get(
                     AdvisoryDecisionInvocationRecord, ref.decision_invocation_id
                 )
@@ -829,46 +933,84 @@ def test_pre_rai_p1_01_preloaded_stale_identity_cannot_replace_first_winner():
                 assert preloaded_invocation is not None and preloaded_invocation.state == "ACTIVE"
                 assert preloaded_attempt is not None and preloaded_attempt.attempt_state == "STARTED"
 
-                assert await AdvisoryFinalizer(fence, evaluator).finalize(
-                    attempt_id, FakeProviderResult(payload={"winner": "A"})
-                ) is None
+                backend_pid = await preload_session.scalar(select(func.pg_backend_pid()))
+                assert isinstance(backend_pid, int)
 
-                class PreloadedSessionFence:
-                    @asynccontextmanager
-                    async def transaction(self):
-                        yield preload_session
+                # T1 is the real finalizer.  Its evaluator pauses only after the
+                # production finalizer acquired Evidence -> Invocation -> Attempt.
+                winner = asyncio.create_task(
+                    AdvisoryFinalizer(
+                        TransactionFence(winner_session, begin_transaction=True),
+                        PausedWinnerEvaluator(),
+                    ).finalize(attempt_id, FakeProviderResult(payload={"winner": "A"}))
+                )
+                await _wait_for(winner_locked)
 
-                assert await AdvisoryFinalizer(PreloadedSessionFence(), evaluator).finalize(
-                    attempt_id, FakeProviderResult(payload={"winner": "B"})
-                ) is None
+                # T2 uses the preloaded session.  Its first canonical Evidence
+                # FOR UPDATE must wait on T1's uncommitted lock.
+                loser = asyncio.create_task(
+                    AdvisoryFinalizer(
+                        TransactionFence(
+                            PauseAfterEvidenceLockSession(preload_session),
+                            begin_transaction=False,
+                        ),
+                        AdvisoryPredicateEvaluator(_lock_race_authority()),
+                    ).finalize(attempt_id, FakeProviderResult(payload={"winner": "B"}))
+                )
+                waiter = await observe_b_lock_wait(backend_pid)
+                assert waiter["pid"] == backend_pid
+                assert waiter["wait_event_type"] == "Lock"
+                assert not loser.done(), "B must be blocked on T1's PostgreSQL lock"
+
+                release_winner.set()
+                assert await winner is None
+                await _wait_for(loser_resumed_after_lock)
+
+                # B is paused immediately after the actual lock resume.  This is
+                # the committed A snapshot that B must be unable to replace.
+                async with sessions() as session:
+                    committed_a = await terminal_snapshot(session)
+
+                release_loser.set()
+                assert await loser is None
                 await preload_session.commit()
             finally:
+                release_winner.set()
+                release_loser.set()
+                for task in (winner, loser):
+                    if task is not None and not task.done():
+                        task.cancel()
+                await asyncio.gather(
+                    *(task for task in (winner, loser) if task is not None),
+                    return_exceptions=True,
+                )
+                if preload_session.in_transaction():
+                    await preload_session.rollback()
                 await preload_session.close()
+                await winner_session.close()
 
             async with sessions() as session:
-                invocation = await session.get(
-                    AdvisoryDecisionInvocationRecord, ref.decision_invocation_id
-                )
-                attempt = await session.get(AdvisoryDecisionAttemptRecord, attempt_id)
-                assert invocation is not None and attempt is not None
+                final_snapshot = await terminal_snapshot(session)
                 return {
-                    "state": invocation.state,
-                    "status": invocation.final_status,
-                    "reason": invocation.final_reason_code,
-                    "attempt_id": invocation.final_attempt_id,
-                    "finalized_at": invocation.finalized_at,
-                    "payload": attempt.redacted_response_envelope,
+                    "waiter": waiter,
+                    "committed_a": committed_a,
+                    "final_snapshot": final_snapshot,
                 }
 
     with _capture_database("pre_rai_p1_01_stale_identity") as url:
         observed = asyncio.run(scenario(url))
 
-    assert observed["state"] == "FINAL"
-    assert observed["status"] == "VALID"
-    assert observed["reason"] == "VALID_PROVIDER_DECISION"
-    assert observed["attempt_id"] is not None
-    assert observed["finalized_at"] is not None
-    assert observed["payload"] == {"winner": "A"}
+    assert observed["waiter"]["wait_event_type"] == "Lock"
+    assert observed["committed_a"] == observed["final_snapshot"]
+    assert observed["final_snapshot"]["invocation"]["state"] == "FINAL"
+    assert observed["final_snapshot"]["invocation"]["final_status"] == "VALID"
+    assert (
+        observed["final_snapshot"]["invocation"]["final_reason_code"]
+        == "VALID_PROVIDER_DECISION"
+    )
+    assert observed["final_snapshot"]["attempt"]["redacted_response_envelope"] == {
+        "winner": "A"
+    }
 
 
 def test_pre_rai_p1_02_start_gate_rejects_active_and_final_but_permits_retry():
@@ -1047,6 +1189,118 @@ def test_pre_rai_p1_03_binding_and_current_authority_mismatches_fail_closed(
     assert binding_valid is expected_binding_valid
     assert config_valid is expected_config_valid
     assert dispatch_legal is False
+
+
+def test_pre_rai_p1_03_cross_instrument_snapshot_misbinding_fails_closed():
+    """A corrupted snapshot cannot borrow SETUP from a different instrument."""
+
+    async def scenario(url: str) -> dict[str, object]:
+        async with _sessions(url) as sessions:
+            fence, ref, attempt_id = await _admitted_attempt_fixture(sessions, start_attempt=False)
+            assert attempt_id is None
+            evaluator = AdvisoryPredicateEvaluator(_lock_race_authority())
+            async with sessions() as session:
+                invocation = await session.get(
+                    AdvisoryDecisionInvocationRecord, ref.decision_invocation_id
+                )
+                assert invocation is not None
+                evidence = await session.get(EdgeOpportunityEvidenceRecord, invocation.evidence_id)
+                assert evidence is not None and evidence.instrument_id == INSTRUMENT
+                normal = await evaluator.evaluate(session, invocation=invocation, evidence=evidence)
+                snapshot = await session.get(DecisionSnapshotRecord, invocation.snapshot_id)
+                assert snapshot is not None and snapshot.instrument_id == evidence.instrument_id
+                preserved_binding = {
+                    field: getattr(snapshot, field)
+                    for field in (
+                        "snapshot_id",
+                        "payload",
+                        "snapshot_payload_hash",
+                        "input_binding_digest",
+                        "decision_invocation_id",
+                        "opportunity_id",
+                        "evidence_id",
+                        "evidence_revision",
+                        "evidence_hash",
+                        "feature_snapshot_hash",
+                    )
+                }
+
+            async with sessions() as session, session.begin():
+                invocation = await session.get(
+                    AdvisoryDecisionInvocationRecord, ref.decision_invocation_id
+                )
+                assert invocation is not None
+                snapshot = await session.get(DecisionSnapshotRecord, invocation.snapshot_id)
+                btc_state = await session.get(SymbolStateStore, INSTRUMENT)
+                assert snapshot is not None and btc_state is not None
+                snapshot.instrument_id = "ETH-USDT"
+                btc_state.state = "WATCHING"
+                session.add(
+                    SymbolStateStore(
+                        instrument_id="ETH-USDT",
+                        symbol="ETH-USDT",
+                        state="SETUP",
+                        state_version=btc_state.state_version,
+                        last_event_time=btc_state.last_event_time,
+                        watch_expires_at=btc_state.watch_expires_at,
+                        cooldown_until=btc_state.cooldown_until,
+                        structure_fingerprint=btc_state.structure_fingerprint,
+                    )
+                )
+
+            async with sessions() as session:
+                invocation = await session.get(
+                    AdvisoryDecisionInvocationRecord, ref.decision_invocation_id
+                )
+                assert invocation is not None
+                evidence = await session.get(EdgeOpportunityEvidenceRecord, invocation.evidence_id)
+                snapshot = await session.get(DecisionSnapshotRecord, invocation.snapshot_id)
+                btc_state = await session.get(SymbolStateStore, INSTRUMENT)
+                eth_state = await session.get(SymbolStateStore, "ETH-USDT")
+                assert (
+                    evidence is not None
+                    and snapshot is not None
+                    and btc_state is not None
+                    and eth_state is not None
+                )
+                facts = await evaluator.evaluate(session, invocation=invocation, evidence=evidence)
+                started = await AdvisoryAttemptStarter(fence, evaluator).start(ref)
+                attempts = list(
+                    await session.scalars(select(AdvisoryDecisionAttemptRecord.attempt_id))
+                )
+                return {
+                    "normal_binding_valid": normal.binding_valid,
+                    "normal_dispatch_legal": normal.dispatch_legal,
+                    "preserved_binding": preserved_binding,
+                    "post_corruption_binding": {
+                        field: getattr(snapshot, field) for field in preserved_binding
+                    },
+                    "binding_valid": facts.binding_valid,
+                    "opportunity_eligible": facts.opportunity_eligible,
+                    "dispatch_legal": facts.dispatch_legal,
+                    "started": started,
+                    "attempts": attempts,
+                    "btc_state": (btc_state.state, btc_state.state_version),
+                    "eth_state": (eth_state.state, eth_state.state_version),
+                    "snapshot_instrument_id": snapshot.instrument_id,
+                    "evidence_instrument_id": evidence.instrument_id,
+                }
+
+    with _capture_database("pre_rai_p1_03_cross_instrument") as url:
+        observed = asyncio.run(scenario(url))
+
+    assert observed["normal_binding_valid"] is True
+    assert observed["normal_dispatch_legal"] is True
+    assert observed["preserved_binding"] == observed["post_corruption_binding"]
+    assert observed["snapshot_instrument_id"] == "ETH-USDT"
+    assert observed["evidence_instrument_id"] == INSTRUMENT
+    assert observed["btc_state"][0] == "WATCHING"
+    assert observed["eth_state"] == ("SETUP", observed["btc_state"][1])
+    assert observed["binding_valid"] is False
+    assert observed["opportunity_eligible"] is False
+    assert observed["dispatch_legal"] is False
+    assert observed["started"] is None
+    assert observed["attempts"] == []
 
 
 def test_retry_reoffers_the_same_invocation_through_the_bounded_ingress():

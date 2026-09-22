@@ -60,7 +60,7 @@ class AdvisoryPredicateEvaluator:
         snapshot = await session.scalar(select(DecisionSnapshotRecord).where(
             DecisionSnapshotRecord.snapshot_id == invocation.snapshot_id))
         current_state = await session.scalar(select(SymbolStateStore).where(
-            SymbolStateStore.instrument_id == (snapshot.instrument_id if snapshot else "")))
+            SymbolStateStore.instrument_id == (evidence.instrument_id if evidence else "")))
         higher_revision = False
         if evidence is not None:
             higher_revision = bool(await session.scalar(select(EdgeOpportunityEvidenceRecord.evidence_id).where(
@@ -115,6 +115,7 @@ class AdvisoryPredicateEvaluator:
                 and snapshot.evidence_revision == invocation.evidence_revision
                 and snapshot.evidence_hash == invocation.evidence_hash
                 and snapshot.feature_snapshot_hash == invocation.feature_snapshot_hash
+                and snapshot.instrument_id == evidence.instrument_id
                 and snapshot.market_type == evidence.market_type
                 and snapshot.snapshot_version == invocation.schema_version
                 and snapshot.input_binding_digest == expected_binding

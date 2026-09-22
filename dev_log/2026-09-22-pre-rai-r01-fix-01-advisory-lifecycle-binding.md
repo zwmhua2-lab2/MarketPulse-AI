@@ -59,3 +59,33 @@
 - R1 Timing: Estimated `00:20:00-00:35:00`; Execution Started At `2026-09-22T05:29:22.8104221+08:00`;
   Completed At `NOT AVAILABLE` until post-cleanup/push revalidation; Run Duration / Estimate Delta
   `NOT VERIFIED`.
+
+## R2 Concurrent Proof and Instrument Binding Repair
+
+- Task ID: `PRE-RAI-R01-FIX-01-R2`; parent reviewed candidate:
+  `6ebf7a6ff0c4263f3b392f732637955262c184d4`; accepted `main` read at start:
+  `d5cffca491c1742e3e4ee945ca4ad82f35ea5e2b`.
+- P1-01 production code change: `ZERO`.  The existing stale-identity regression now preloads B's
+  `ACTIVE` / `STARTED` identity map, has real finalizer A hold the production
+  Evidence -> Invocation -> Attempt locks, and proves B's real PostgreSQL backend PID has
+  `pg_stat_activity.wait_event_type = Lock`.  It freezes A's committed Invocation and Attempt
+  field snapshot before B resumes, then proves B's distinct `{\"winner\": \"B\"}` submission cannot
+  replace A's `{\"winner\": \"A\"}` terminal snapshot.
+- P1-03 production change is limited to `AdvisoryPredicateEvaluator`: current `SymbolStateStore`
+  lookup is anchored to `evidence.instrument_id`, and `snapshot.instrument_id == evidence.instrument_id`
+  is required for binding validity.  The new cross-instrument regression preserves the snapshot payload,
+  hashes, snapshot id and input binding while corrupting only its instrument to `ETH-USDT`; a same-version
+  ETH `SETUP` state cannot be borrowed by BTC Evidence/Invocation, and no Attempt is authorized.
+- P1 evidence: P1-01 waiter + P1-02 three nodes + P1-03 cross-instrument = `5 passed in 9.57s`;
+  P1 aggregate including the five existing mismatch cases = `10 passed in 14.92s`; full SE-02B file =
+  `65 passed in 115.70s`.
+- Other verification: advisory identity plus Gate-A fail-closed node = `59 passed, 1 warning in 1.72s`;
+  `ruff check backend/src backend/tests scripts`, compileall, and `git diff --check` passed; schema verifier
+  = `60/60 PASS`; Alembic heads/current = `20260917_0010 (head)`; fresh full collection =
+  `857 tests collected in 1.97s`.
+- Full backend was run serially in the task-only PostgreSQL 16 tmpfs container at port `55434`, with pytest
+  parent `DATABASE_URL = None` and the gitignored worktree `.env` as the only Settings target.  Explicit
+  exit-code capture: `857 passed, 23 warnings in 841.36s (0:14:01)`, exit `0`, stderr empty.
+- Formal task_state remains `IMPLEMENTING`; R2 handoff state is
+  `IMPLEMENTED / READY FOR INDEPENDENT RE-REVIEW`.  This is implementation and evidence only: it does not
+  declare P1-01/P1-03 closed, overall PASS/ACCEPTED, or authorize any activation.

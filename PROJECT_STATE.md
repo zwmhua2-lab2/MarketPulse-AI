@@ -2474,13 +2474,17 @@ UI-RD01-I03-REQ-04 — Trading Audit Read Product Read Implementation Requiremen
 
 ## PRE-RAI-R01-FIX-01 Implementation Status
 
-- `PRE-RAI-R01-FIX-01` formal task_state = `IMPLEMENTING`；`PRE-RAI-R01-FIX-01-R1 =
-  IMPLEMENTED / READY FOR INDEPENDENT RE-REVIEW`。R1 保留原 P1-01 / P1-02 / P1-03 最小实现，
-  并在无共享 volume、独立端口的 PostgreSQL 16 primary `marketpulse` 上复验。
-- pytest parent `DATABASE_URL = None`，worktree-local gitignored `.env` 仅使
-  `Settings().database_url` 指向 task-only primary；故 fixture-created disposable DB 的 Alembic
-  config 不再被覆盖。fresh collection = `856`；full backend = `856 passed, 21 warnings in
-  954.07s`，exit `0`。
+- `PRE-RAI-R01-FIX-01` formal task_state = `IMPLEMENTING`；R1 保留为历史候选，当前
+  `PRE-RAI-R01-FIX-01-R2 = IMPLEMENTED / READY FOR INDEPENDENT RE-REVIEW`。R2 未改 P1-02，且未修改
+  P1-01 生产代码；其回归以 B 的实际 PostgreSQL backend PID 和
+  `pg_stat_activity.wait_event_type = Lock` 证明预加载 stale identity 真正等待 A 的
+  Evidence -> Invocation -> Attempt 锁，并逐字段比较 A 已提交与 B 完成后的终态快照。
+- P1-03 仅将 `SymbolStateStore` 读取锚定至 `evidence.instrument_id` 并要求
+  `snapshot.instrument_id == evidence.instrument_id`；同 state_version 的 ETH `SETUP` 不能为 BTC
+  Evidence/Invocation 借权或授权 Attempt。pytest parent `DATABASE_URL = None`，worktree-local
+  gitignored `.env` 仅使 `Settings().database_url` 指向无共享 volume 的 task-only PostgreSQL 16
+  primary `marketpulse`；fresh collection = `857`；full backend =
+  `857 passed, 23 warnings in 841.36s`，明确 exit `0`。
 - Schema / migration / `DECISIONS.md` / accepted design 均为 ZERO CHANGE；Real AI、Gate A/B/C、
   live 和经济语义均未激活或改变。Independent Re-Review pending。详情见
   `dev_log/2026-09-22-pre-rai-r01-fix-01-advisory-lifecycle-binding.md`。

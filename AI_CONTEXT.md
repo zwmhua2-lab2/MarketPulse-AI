@@ -1384,11 +1384,15 @@ disposable 库保持空表（症状 `relation "edge_opportunity_evidence" does n
 
 ## PRE-RAI-R01-FIX-01 Current Implementation Pointer
 
-- `PRE-RAI-R01-FIX-01` = `IMPLEMENTING`；`PRE-RAI-R01-FIX-01-R1 = IMPLEMENTED / READY FOR
-  INDEPENDENT RE-REVIEW`。候选 worktree 的 Advisory locked-row freshness、durable current-cycle
-  Attempt gate 与 canonical binding/current-authority integrity 已在 corrected task-only PostgreSQL
-  environment 验证：pytest parent 无 `DATABASE_URL`，gitignored `.env` 将 Settings primary 指向
-  独立 `marketpulse`，fixture-owned Alembic target 未被覆盖；full backend = `856 passed`, exit `0`。
+- `PRE-RAI-R01-FIX-01` formal task_state = `IMPLEMENTING`；R1 为历史候选，当前
+  `PRE-RAI-R01-FIX-01-R2 = IMPLEMENTED / READY FOR INDEPENDENT RE-REVIEW`。R2 以 PostgreSQL backend
+  PID 的 `pg_stat_activity.wait_event_type = Lock` 正向证明预加载 stale identity 的 B 真正等待 A 的
+  Evidence -> Invocation -> Attempt 锁；A 已提交 Invocation/Attempt 快照在 B 的不同 payload 返回后保持不变。
+  Predicate 的 current state lookup 以 `evidence.instrument_id` 为唯一品种 authority，且 binding 必须
+  `snapshot.instrument_id == evidence.instrument_id`；跨品种错绑不能借用同版本 ETH `SETUP`，也不能授权 Attempt。
+  修正隔离环境中 pytest parent 无 `DATABASE_URL`，gitignored `.env` 将 Settings primary 指向独立
+  `marketpulse`，fixture-owned Alembic target 未被覆盖；fresh collection = `857`，full backend =
+  `857 passed, 23 warnings in 841.36s`, exit `0`。
 - 不修改 Alembic/replay contract、schema/migration、accepted D2/I2 semantics、Real AI / Gate A/B/C /
   live activation；Independent Re-Review 是唯一下一步。详见
   `dev_log/2026-09-22-pre-rai-r01-fix-01-advisory-lifecycle-binding.md`。
