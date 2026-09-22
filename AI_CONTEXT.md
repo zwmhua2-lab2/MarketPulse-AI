@@ -1382,20 +1382,25 @@ disposable 库保持空表（症状 `relation "edge_opportunity_evidence" does n
   Authority Amendment Pointer」中 `PRE-01B-I2 = IMPLEMENTING` 的当前状态含义**
   （各段其余内容与历史记录保留，**不**改写）。
 
-## PRE-RAI-R01-FIX-01 Current Implementation Pointer
+## PRE-RAI-R01-FIX-01 Current Accepted Pointer
 
-- `PRE-RAI-R01-FIX-01` formal task_state = `IMPLEMENTING`；R1 为历史候选，当前
-  `PRE-RAI-R01-FIX-01-R2 = IMPLEMENTED / READY FOR INDEPENDENT RE-REVIEW`。R2 以 PostgreSQL backend
-  PID 的 `pg_stat_activity.wait_event_type = Lock` 正向证明预加载 stale identity 的 B 真正等待 A 的
-  Evidence -> Invocation -> Attempt 锁；A 已提交 Invocation/Attempt 快照在 B 的不同 payload 返回后保持不变。
-  Predicate 的 current state lookup 以 `evidence.instrument_id` 为唯一品种 authority，且 binding 必须
-  `snapshot.instrument_id == evidence.instrument_id`；跨品种错绑不能借用同版本 ETH `SETUP`，也不能授权 Attempt。
-  修正隔离环境中 pytest parent 无 `DATABASE_URL`，gitignored `.env` 将 Settings primary 指向独立
-  `marketpulse`，fixture-owned Alembic target 未被覆盖；fresh collection = `857`，full backend =
-  `857 passed, 23 warnings in 841.36s`, exit `0`。
-- 不修改 Alembic/replay contract、schema/migration、accepted D2/I2 semantics、Real AI / Gate A/B/C /
-  live activation；Independent Re-Review 是唯一下一步。详见
-  `dev_log/2026-09-22-pre-rai-r01-fix-01-advisory-lifecycle-binding.md`。
+- `PRE-RAI-R01-FIX-01 = ACCEPTED / COMPLETE`；`PRE-RAI-R01-FIX-01-R2 = ACCEPTED / CLOSED`。
+  Human-Accepted Reviewed Candidate = `f0e51d9ff0714d251256538e1a801a0066fc587f`，branch =
+  `pre-rai-r01-fix-01-advisory-lifecycle-binding`（未被移动或改写）；Independent Re-Review =
+  `PASS WITH NON-BLOCKING FINDINGS — READY FOR HUMAN ACCEPTANCE`；Human Acceptance =
+  `CONFIRMED — 2026-09-22`。Repository Integration = 已完成（方法 = `FAST-FORWARD ONLY`）。
+- Finding：`P1-01 / P1-02 / P1-03 / E01 = CLOSED / PASS`（P1-02 为 CLOSED / PASS — PRESERVED）；
+  `RR-BASELINE-01 = CLOSED / INVALIDATED — STALE REF`；`PRE-RAI-R01-FIX-01-R2-RR-P3-01 = REMAINS /
+  NON-BLOCKING`（仅为 R2 Execution Timing 未完整持久化，历史 timing 保持 `NOT AVAILABLE / NOT
+  VERIFIED`，未补造）。Accepted runtime evidence 绑定 exact Reviewed Candidate（targeted P1 =
+  `10 passed`；SE-02B = `65 passed`；Advisory identity + Gate-A = `59 passed, 1 warning`；schema
+  verifier = `60/60 PASS`；Alembic = `20260917_0010 (head)`；full backend = `857 passed, 23 warnings`，
+  exit `0`）；本 closeout 为 docs/state-only，未重跑上述测试。
+- **Overall `PRE-RAI-R01` 未标为 PASS / ACCEPTED / COMPLETE**：下一步为 `RESUME OVERARCHING
+  PRE-RAI-R01 SYSTEM REVIEW ON LATEST ACCEPTED MAIN`，**不**等于 `READY FOR REAL-AI ACTIVATION
+  DESIGN`、Gate A Activation、Real AI Activation、Gate C 或 Live。Real AI / Gate A/B/C / live `G2→G3` /
+  Live / Live Trading 均保持未激活。详见
+  `dev_log/2026-09-22-pre-rai-r01-fix-01-r2-final-acceptance-closeout.md`。
 
 ## UI-RD01-I03 Current Frozen Requirement Pointer
 

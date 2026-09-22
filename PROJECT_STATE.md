@@ -2472,22 +2472,42 @@ UI-RD01-I03-REQ-04 — Trading Audit Read Product Read Implementation Requiremen
 - **本条取代本文「PRE-01B-I2 FIX-03-R1 / R2 / R3 Current Result」三段的当前状态含义**
   （三段作为历史实现证据保留，**不**改写）。
 
-## PRE-RAI-R01-FIX-01 Implementation Status
+## PRE-RAI-R01-FIX-01 Final Acceptance Closeout Result
 
-- `PRE-RAI-R01-FIX-01` formal task_state = `IMPLEMENTING`；R1 保留为历史候选，当前
-  `PRE-RAI-R01-FIX-01-R2 = IMPLEMENTED / READY FOR INDEPENDENT RE-REVIEW`。R2 未改 P1-02，且未修改
-  P1-01 生产代码；其回归以 B 的实际 PostgreSQL backend PID 和
-  `pg_stat_activity.wait_event_type = Lock` 证明预加载 stale identity 真正等待 A 的
-  Evidence -> Invocation -> Attempt 锁，并逐字段比较 A 已提交与 B 完成后的终态快照。
-- P1-03 仅将 `SymbolStateStore` 读取锚定至 `evidence.instrument_id` 并要求
-  `snapshot.instrument_id == evidence.instrument_id`；同 state_version 的 ETH `SETUP` 不能为 BTC
-  Evidence/Invocation 借权或授权 Attempt。pytest parent `DATABASE_URL = None`，worktree-local
-  gitignored `.env` 仅使 `Settings().database_url` 指向无共享 volume 的 task-only PostgreSQL 16
-  primary `marketpulse`；fresh collection = `857`；full backend =
-  `857 passed, 23 warnings in 841.36s`，明确 exit `0`。
-- Schema / migration / `DECISIONS.md` / accepted design 均为 ZERO CHANGE；Real AI、Gate A/B/C、
-  live 和经济语义均未激活或改变。Independent Re-Review pending。详情见
-  `dev_log/2026-09-22-pre-rai-r01-fix-01-advisory-lifecycle-binding.md`。
+- 任务：`PRE-RAI-R01-FIX-01-R2-CLOSE-01`｜`PRE-RAI-R01-FIX-01-R2｜Final Acceptance Closeout` →
+  `DOCS / STATE FINAL CLOSEOUT + LATEST-MAIN RECONCILIATION + FAST-FORWARD INTEGRATION`（**非** product
+  fix、**非** P1 implementation change、**非** schema / migration / dependency change、**非** Gate
+  activation、**非** Real AI activation、**非** Live authorization）。
+- Human-Accepted Reviewed Candidate = `f0e51d9ff0714d251256538e1a801a0066fc587f`；branch =
+  `pre-rai-r01-fix-01-advisory-lifecycle-binding`（该 branch 仍精确指向该 SHA，未被移动或改写）。
+  Independent Re-Review `PRE-RAI-R01-FIX-01-R2-RR-01-RESUME-01` = `PASS WITH NON-BLOCKING FINDINGS —
+  READY FOR HUMAN ACCEPTANCE`；Human Acceptance = `CONFIRMED — 2026-09-22`。
+- 状态：`PRE-RAI-R01-FIX-01 = ACCEPTED / COMPLETE`；`PRE-RAI-R01-FIX-01-R2 = ACCEPTED / CLOSED`。
+  Finding：`P1-01 = CLOSED / PASS`、`P1-02 = CLOSED / PASS — PRESERVED`、`P1-03 = CLOSED / PASS`、
+  `E01 = CLOSED / PASS`、`RR-BASELINE-01 = CLOSED / INVALIDATED — STALE REF`；
+  `PRE-RAI-R01-FIX-01-R2-RR-P3-01 = REMAINS / NON-BLOCKING`（语义仅为 R2 task-level Execution Timing
+  未完整持久化；未用 pytest duration 或 commit timestamp 补造，历史 timing 保持
+  `NOT AVAILABLE / NOT VERIFIED`，**不**升级为 blocker）。
+- Existing Verification Basis（绑定 exact Reviewed Candidate 的已持久化证据，本 closeout **未** 重跑）：
+  targeted P1 aggregate = `10 passed`；SE-02B = `65 passed`；Advisory identity + Gate-A fail-closed =
+  `59 passed, 1 warning`；schema verifier = `60/60 PASS`；Alembic = `20260917_0010 (head)`；fresh
+  collection = `857`；full backend = `857 passed, 23 warnings`；exit code = `0`。
+- Lineage：`d5cffca… → 6ebf7a6… → f0e51d9… → <closeout commit>`，严格线性（`ahead = 2`、`behind = 0`、
+  merge-base = 集成前 main、`git rev-list --merges --count` = 0）；Repository Integration = 已完成，
+  方法 = `FAST-FORWARD ONLY`（**无** merge commit / squash / rebase / reset / force push）。
+- 本批为 docs/state-only：`backend/**`（含 `backend/src/**`、`backend/tests/**`、`backend/alembic/**`）/
+  `frontend/**` / `scripts/**` / `DECISIONS.md` / `PRODUCT_REQUIREMENTS.md` / `AGENTS.md` /
+  Accepted design artifact / Candidate branch = `ZERO CHANGE`；`Schema` / `Migration` / `Index` /
+  `Dependency` = `ZERO CHANGE`；无 tag 创建。
+- **Overall `PRE-RAI-R01` 未标为 PASS / ACCEPTED / COMPLETE**：Fix Candidate 已 Human-Accepted 并集成；
+  overarching `PRE-RAI-R01` System Review 下一步可基于 latest accepted main 恢复并完成最终系统级 Verdict。
+  本 closeout **不**表示 `READY FOR REAL-AI ACTIVATION DESIGN`（该结论仍需 resumed overarching
+  `PRE-RAI-R01` Independent System Review）。
+- 边界保持（未解锁）：Real AI = `NOT ACTIVATED`；Gate A = `NOT ACTIVATED`；Gate B = `NOT ACTIVATED`；
+  Gate C = `NOT PASSED`；live `G2→G3` = `NOT ACTIVE`；Live = `NOT AUTHORIZED`；Live Trading = `DISABLED`。
+- **本条取代本文「PRE-RAI-R01-FIX-01 Implementation Status」的当前状态含义**（该段已作为历史实现证据
+  被本条标题取代，**不**改写其记录含义）；详情见
+  `dev_log/2026-09-22-pre-rai-r01-fix-01-r2-final-acceptance-closeout.md`。
 
 ## UI-RD01-I03 Requirement Freeze Persistence Result
 
