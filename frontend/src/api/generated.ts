@@ -158,6 +158,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/product/trading-audit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Trading Audit Read */
+        get: operations["trading_audit_read_api_v1_product_trading_audit_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/protected/ping": {
         parameters: {
             query?: never;
@@ -1147,9 +1164,37 @@ export interface components {
             evidence_basis?: string | null;
             state: components["schemas"]["TraceNodeState"];
         };
+        /** TraceNodeDTO[TradingAccountDTO] */
+        TraceNodeDTO_TradingAccountDTO_: {
+            data?: components["schemas"]["TradingAccountDTO"] | null;
+            /** Evidence Basis */
+            evidence_basis?: string | null;
+            state: components["schemas"]["TraceNodeState"];
+        };
         /** TraceNodeDTO[TradingDecisionBranchDTO] */
         TraceNodeDTO_TradingDecisionBranchDTO_: {
             data?: components["schemas"]["TradingDecisionBranchDTO"] | null;
+            /** Evidence Basis */
+            evidence_basis?: string | null;
+            state: components["schemas"]["TraceNodeState"];
+        };
+        /** TraceNodeDTO[TradingDecisionDTO] */
+        TraceNodeDTO_TradingDecisionDTO_: {
+            data?: components["schemas"]["TradingDecisionDTO"] | null;
+            /** Evidence Basis */
+            evidence_basis?: string | null;
+            state: components["schemas"]["TraceNodeState"];
+        };
+        /** TraceNodeDTO[TradingIntentRejectionDTO] */
+        TraceNodeDTO_TradingIntentRejectionDTO_: {
+            data?: components["schemas"]["TradingIntentRejectionDTO"] | null;
+            /** Evidence Basis */
+            evidence_basis?: string | null;
+            state: components["schemas"]["TraceNodeState"];
+        };
+        /** TraceNodeDTO[TradingOpportunityBindingDTO] */
+        TraceNodeDTO_TradingOpportunityBindingDTO_: {
+            data?: components["schemas"]["TradingOpportunityBindingDTO"] | null;
             /** Evidence Basis */
             evidence_basis?: string | null;
             state: components["schemas"]["TraceNodeState"];
@@ -1159,10 +1204,705 @@ export interface components {
          * @enum {string}
          */
         TraceNodeState: "PRESENT" | "NOT_OCCURRED" | "NOT_REACHED" | "NOT_YET_DUE" | "NO_PROVABLE_RECORD" | "CAPABILITY_NOT_INTEGRATED";
+        /** TradingAccountDTO */
+        TradingAccountDTO: {
+            /** Account Id */
+            account_id: string;
+            /** Available Cash */
+            available_cash: number;
+            /** Cash Balance */
+            cash_balance: number;
+            /** Realized Pnl */
+            realized_pnl: number;
+            /** Reserved Cash */
+            reserved_cash: number;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** TradingAuditDataDTO */
+        TradingAuditDataDTO: {
+            account: components["schemas"]["TraceNodeDTO_TradingAccountDTO_"];
+            active_plans: components["schemas"]["TradingCollectionDTO_TradingPlanDTO_"];
+            open_orders: components["schemas"]["TradingCollectionDTO_TradingOpenOrderDTO_"];
+            pending_intents: components["schemas"]["TradingPendingIntentCapabilityDTO"];
+            positions: components["schemas"]["TradingCollectionDTO_TradingPositionDTO_"];
+            timeline: components["schemas"]["TradingTimelinePageDTO"];
+        };
+        /** TradingAuditReadResponse */
+        TradingAuditReadResponse: {
+            data: components["schemas"]["TradingAuditDataDTO"] | null;
+            meta: components["schemas"]["ProjectionMetaDTO"];
+            operational_context: components["schemas"]["OperationalContextDTO"];
+        };
+        /** TradingCollectionDTO[TradingOpenOrderDTO] */
+        TradingCollectionDTO_TradingOpenOrderDTO_: {
+            /** Items */
+            items: components["schemas"]["TradingOpenOrderDTO"][] | null;
+            state: components["schemas"]["ProjectionState"];
+        };
+        /** TradingCollectionDTO[TradingPlanDTO] */
+        TradingCollectionDTO_TradingPlanDTO_: {
+            /** Items */
+            items: components["schemas"]["TradingPlanDTO"][] | null;
+            state: components["schemas"]["ProjectionState"];
+        };
+        /** TradingCollectionDTO[TradingPositionDTO] */
+        TradingCollectionDTO_TradingPositionDTO_: {
+            /** Items */
+            items: components["schemas"]["TradingPositionDTO"][] | null;
+            state: components["schemas"]["ProjectionState"];
+        };
         /** TradingDecisionBranchDTO */
         TradingDecisionBranchDTO: {
             /** Decisions */
             decisions?: components["schemas"]["DecisionTraceDTO"][];
+        };
+        /** TradingDecisionDTO */
+        TradingDecisionDTO: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Decision Id */
+            decision_id: string;
+            /** Model */
+            model: string;
+            opportunity_binding: components["schemas"]["TraceNodeDTO_TradingOpportunityBindingDTO_"];
+            /** Snapshot Id */
+            snapshot_id: string;
+            /** Status */
+            status: string;
+        };
+        /** TradingExecutionTimelineItemDTO */
+        TradingExecutionTimelineItemDTO: {
+            /** Attribution Event Id */
+            attribution_event_id: string;
+            /** Entity Id */
+            entity_id: string;
+            /**
+             * Entity Kind
+             * @default EXECUTION
+             * @constant
+             */
+            entity_kind: "EXECUTION";
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            event_type: "EXECUTION_REJECTED";
+            /** Evidence Id */
+            evidence_id: string | null;
+            /** Intent Id */
+            intent_id: string;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** Opportunity Id */
+            opportunity_id: string | null;
+            /** Plan Id */
+            plan_id: string | null;
+            /** Reason */
+            reason: string;
+            /** Timeline Event Id */
+            timeline_event_id: string;
+            traceability: components["schemas"]["TradingTraceabilityDTO"];
+        };
+        /** TradingFillTimelineItemDTO */
+        TradingFillTimelineItemDTO: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Entity Id */
+            entity_id: string;
+            /**
+             * Entity Kind
+             * @default FILL
+             * @constant
+             */
+            entity_kind: "FILL";
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            event_type: "FILL_OCCURRED";
+            /** Fee */
+            fee: number;
+            /** Fill Id */
+            fill_id: string;
+            /** Instrument Id */
+            instrument_id: string;
+            /** Intent Id */
+            intent_id: string;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** Order Id */
+            order_id: string;
+            /** Price */
+            price: number;
+            /** Quantity */
+            quantity: number;
+            /** Side */
+            side: string;
+            /** Timeline Event Id */
+            timeline_event_id: string;
+            traceability: components["schemas"]["TradingTraceabilityDTO"];
+        };
+        /** TradingIntentRejectionDTO */
+        TradingIntentRejectionDTO: {
+            /** Attribution Event Id */
+            attribution_event_id: string;
+            /** Authority */
+            authority: string | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "RISK" | "EXECUTION";
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** Reason */
+            reason: string;
+        };
+        /** TradingIntentTimelineItemDTO */
+        TradingIntentTimelineItemDTO: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Entity Id */
+            entity_id: string;
+            /**
+             * Entity Kind
+             * @default INTENT
+             * @constant
+             */
+            entity_kind: "INTENT";
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            event_type: "INTENT_EXECUTED" | "INTENT_REJECTED";
+            initial_rejection: components["schemas"]["TraceNodeDTO_TradingIntentRejectionDTO_"];
+            /** Instrument Id */
+            instrument_id: string;
+            /** Intent Id */
+            intent_id: string;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** Plan Id */
+            plan_id: string | null;
+            /** Reason */
+            reason: string | null;
+            /** Status */
+            status: string;
+            /** Timeline Event Id */
+            timeline_event_id: string;
+            traceability: components["schemas"]["TradingTraceabilityDTO"];
+        };
+        /** TradingLedgerTimelineItemDTO */
+        TradingLedgerTimelineItemDTO: {
+            /** Cash Delta */
+            cash_delta: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Entity Id */
+            entity_id: string;
+            /**
+             * Entity Kind
+             * @default LEDGER
+             * @constant
+             */
+            entity_kind: "LEDGER";
+            /** Entry Id */
+            entry_id: string;
+            /** Entry Type */
+            entry_type: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            event_type: "SETTLEMENT_RECORDED";
+            /** Fee */
+            fee: number;
+            /** Fill Id */
+            fill_id: string;
+            /** Instrument Id */
+            instrument_id: string;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** Settlement Realized Pnl */
+            settlement_realized_pnl: number;
+            /** Timeline Event Id */
+            timeline_event_id: string;
+            traceability: components["schemas"]["TradingTraceabilityDTO"];
+        };
+        /** TradingOpenOrderDTO */
+        TradingOpenOrderDTO: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Instrument Id */
+            instrument_id: string;
+            /** Intent Id */
+            intent_id: string;
+            /** Limit Price */
+            limit_price: number | null;
+            /** Order Id */
+            order_id: string;
+            /** Order Type */
+            order_type: string;
+            /** Plan Id */
+            plan_id: string | null;
+            /** Quantity */
+            quantity: number;
+            /** Reserved Cash */
+            reserved_cash: number;
+            /** Reserved Quantity */
+            reserved_quantity: number;
+            /** Side */
+            side: string;
+        };
+        /** TradingOpportunityBindingDTO */
+        TradingOpportunityBindingDTO: {
+            /** Evidence Hash */
+            evidence_hash: string;
+            /** Evidence Id */
+            evidence_id: string;
+            /** Evidence Revision */
+            evidence_revision: number;
+            /** Feature Snapshot Hash */
+            feature_snapshot_hash: string;
+            /** Opportunity Id */
+            opportunity_id: string;
+        };
+        /** TradingOrderCancelledTimelineItemDTO */
+        TradingOrderCancelledTimelineItemDTO: {
+            /**
+             * Cancelled At
+             * Format: date-time
+             */
+            cancelled_at: string;
+            /** Entity Id */
+            entity_id: string;
+            /**
+             * Entity Kind
+             * @default ORDER
+             * @constant
+             */
+            entity_kind: "ORDER";
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            event_type: "ORDER_CANCELLED";
+            /** Instrument Id */
+            instrument_id: string;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** Order Id */
+            order_id: string;
+            /** Timeline Event Id */
+            timeline_event_id: string;
+            traceability: components["schemas"]["TradingTraceabilityDTO"];
+        };
+        /** TradingOrderCreatedTimelineItemDTO */
+        TradingOrderCreatedTimelineItemDTO: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Entity Id */
+            entity_id: string;
+            /**
+             * Entity Kind
+             * @default ORDER
+             * @constant
+             */
+            entity_kind: "ORDER";
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            event_type: "ORDER_CREATED";
+            /** Instrument Id */
+            instrument_id: string;
+            /** Intent Id */
+            intent_id: string;
+            /** Limit Price */
+            limit_price: number | null;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** Order Id */
+            order_id: string;
+            /** Order Type */
+            order_type: string;
+            /** Plan Id */
+            plan_id: string | null;
+            /** Quantity */
+            quantity: number;
+            /** Side */
+            side: string;
+            /** Timeline Event Id */
+            timeline_event_id: string;
+            traceability: components["schemas"]["TradingTraceabilityDTO"];
+        };
+        /** TradingPendingIntentCapabilityDTO */
+        TradingPendingIntentCapabilityDTO: {
+            /** Items */
+            items?: null;
+            state: components["schemas"]["ProjectionState"];
+        };
+        /** TradingPlanDTO */
+        TradingPlanDTO: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            decision: components["schemas"]["TraceNodeDTO_TradingDecisionDTO_"];
+            /** Decision Id */
+            decision_id: string;
+            /** Entry Zone */
+            entry_zone: {
+                [key: string]: number;
+            };
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Instrument Id */
+            instrument_id: string;
+            /** Intended Notional */
+            intended_notional: number;
+            /** Invalidation */
+            invalidation: string | null;
+            /** Order Type */
+            order_type: string;
+            /** Plan Id */
+            plan_id: string;
+            /** Plan Version */
+            plan_version: number;
+            /** Side */
+            side: string;
+            /** Snapshot Id */
+            snapshot_id: string;
+            /** Status */
+            status: string;
+            /** Stop Loss */
+            stop_loss: number;
+            /** Symbol */
+            symbol: string;
+            /** Take Profit */
+            take_profit: number;
+            /** Ttl Expired */
+            ttl_expired: boolean;
+        };
+        /** TradingPlanTimelineItemDTO */
+        TradingPlanTimelineItemDTO: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Decision Id */
+            decision_id: string;
+            /** Entity Id */
+            entity_id: string;
+            /**
+             * Entity Kind
+             * @default PLAN
+             * @constant
+             */
+            entity_kind: "PLAN";
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            event_type: "PLAN_CREATED";
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Instrument Id */
+            instrument_id: string;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** Plan Id */
+            plan_id: string;
+            /** Plan Version */
+            plan_version: number;
+            /** Snapshot Id */
+            snapshot_id: string;
+            /** Symbol */
+            symbol: string;
+            /** Timeline Event Id */
+            timeline_event_id: string;
+            traceability: components["schemas"]["TradingTraceabilityDTO"];
+        };
+        /** TradingPositionDTO */
+        TradingPositionDTO: {
+            /** Average Cost */
+            average_cost: number;
+            /** Instrument Id */
+            instrument_id: string;
+            /** Position Id */
+            position_id: string;
+            protection: components["schemas"]["TradingPositionProtectionDTO"];
+            /** Quantity */
+            quantity: number;
+            state: components["schemas"]["TradingPositionState"];
+            /** Trade Id */
+            trade_id: string | null;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** TradingPositionEventTimelineItemDTO */
+        TradingPositionEventTimelineItemDTO: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Entity Id */
+            entity_id: string;
+            /**
+             * Entity Kind
+             * @default POSITION_EVENT
+             * @constant
+             */
+            entity_kind: "POSITION_EVENT";
+            /** Event Id */
+            event_id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            event_type: "ADD" | "AI_REEVALUATION" | "CANCEL_ADD" | "CLOSE" | "MANUAL_CLOSE" | "PLAN_REPLACED" | "PLAN_UPDATED" | "REDUCE" | "RISK_BLOCKED" | "SL_TRIGGERED" | "TP_TRIGGERED";
+            /** Fill Id */
+            fill_id: string | null;
+            /** Instrument Id */
+            instrument_id: string;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** Order Id */
+            order_id: string | null;
+            /** Plan Id */
+            plan_id: string | null;
+            /** Position Id */
+            position_id: string | null;
+            /** Timeline Event Id */
+            timeline_event_id: string;
+            traceability: components["schemas"]["TradingTraceabilityDTO"];
+        };
+        /** TradingPositionProtectionDTO */
+        TradingPositionProtectionDTO: {
+            authority?: components["schemas"]["TradingProtectionAuthorityDTO"] | null;
+            state: components["schemas"]["TradingProtectionState"];
+        };
+        /**
+         * TradingPositionState
+         * @enum {string}
+         */
+        TradingPositionState: "OPEN" | "FLAT";
+        /** TradingProtectionAuthorityDTO */
+        TradingProtectionAuthorityDTO: {
+            /** Plan Id */
+            plan_id: string;
+            /** Plan Version */
+            plan_version: number;
+            /** Stop Loss */
+            stop_loss: number;
+            /** Take Profit */
+            take_profit: number;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
+         * TradingProtectionState
+         * @enum {string}
+         */
+        TradingProtectionState: "NOT_REQUIRED" | "PROTECTED" | "UNPROTECTED" | "UNKNOWN";
+        /** TradingRiskTimelineItemDTO */
+        TradingRiskTimelineItemDTO: {
+            /** Attribution Event Id */
+            attribution_event_id: string;
+            /** Authority */
+            authority: string | null;
+            /** Entity Id */
+            entity_id: string;
+            /**
+             * Entity Kind
+             * @default RISK
+             * @constant
+             */
+            entity_kind: "RISK";
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            event_type: "RISK_ACCEPTED" | "RISK_REJECTED";
+            /** Evidence Id */
+            evidence_id: string | null;
+            /** Intent Id */
+            intent_id: string;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** Opportunity Id */
+            opportunity_id: string | null;
+            /** Order Id */
+            order_id: string | null;
+            /** Plan Id */
+            plan_id: string | null;
+            /** Reason */
+            reason: string | null;
+            /** Timeline Event Id */
+            timeline_event_id: string;
+            traceability: components["schemas"]["TradingTraceabilityDTO"];
+        };
+        /** TradingTimelinePageDTO */
+        TradingTimelinePageDTO: {
+            /** Items */
+            items?: (components["schemas"]["TradingPlanTimelineItemDTO"] | components["schemas"]["TradingRiskTimelineItemDTO"] | components["schemas"]["TradingExecutionTimelineItemDTO"] | components["schemas"]["TradingIntentTimelineItemDTO"] | components["schemas"]["TradingOrderCreatedTimelineItemDTO"] | components["schemas"]["TradingOrderCancelledTimelineItemDTO"] | components["schemas"]["TradingFillTimelineItemDTO"] | components["schemas"]["TradingLedgerTimelineItemDTO"] | components["schemas"]["TradingTradeOpenTimelineItemDTO"] | components["schemas"]["TradingTradeCloseTimelineItemDTO"] | components["schemas"]["TradingPositionEventTimelineItemDTO"])[];
+            state: components["schemas"]["ProjectionState"];
+            /**
+             * Timeline Upper Bound
+             * Format: date-time
+             */
+            timeline_upper_bound: string;
+        };
+        /**
+         * TradingTraceMissingLink
+         * @enum {string}
+         */
+        TradingTraceMissingLink: "DECISION" | "OPPORTUNITY_BINDING" | "PLAN" | "INTENT" | "ORDER" | "FILL" | "LEDGER" | "RISK_ATTRIBUTION" | "REJECTION_CLASSIFICATION" | "ORDER_CANCELLATION_EVENT";
+        /** TradingTraceabilityDTO */
+        TradingTraceabilityDTO: {
+            /** Missing Links */
+            missing_links?: components["schemas"]["TradingTraceMissingLink"][];
+            status: components["schemas"]["TradingTraceabilityStatus"];
+        };
+        /**
+         * TradingTraceabilityStatus
+         * @enum {string}
+         */
+        TradingTraceabilityStatus: "COMPLETE" | "PARTIAL" | "NOT_PROVABLE";
+        /** TradingTradeCloseTimelineItemDTO */
+        TradingTradeCloseTimelineItemDTO: {
+            /**
+             * Closed At
+             * Format: date-time
+             */
+            closed_at: string;
+            /** Entity Id */
+            entity_id: string;
+            /**
+             * Entity Kind
+             * @default TRADE_CLOSE
+             * @constant
+             */
+            entity_kind: "TRADE_CLOSE";
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            event_type: "TRADE_CLOSE";
+            /** Exit Reason */
+            exit_reason: string | null;
+            /** Instrument Id */
+            instrument_id: string;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** Timeline Event Id */
+            timeline_event_id: string;
+            traceability: components["schemas"]["TradingTraceabilityDTO"];
+            /** Trade Id */
+            trade_id: string;
+        };
+        /** TradingTradeOpenTimelineItemDTO */
+        TradingTradeOpenTimelineItemDTO: {
+            /** Entity Id */
+            entity_id: string;
+            /**
+             * Entity Kind
+             * @default TRADE_OPEN
+             * @constant
+             */
+            entity_kind: "TRADE_OPEN";
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            event_type: "TRADE_OPEN";
+            /** Instrument Id */
+            instrument_id: string;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /**
+             * Opened At
+             * Format: date-time
+             */
+            opened_at: string;
+            /** Timeline Event Id */
+            timeline_event_id: string;
+            traceability: components["schemas"]["TradingTraceabilityDTO"];
+            /** Trade Id */
+            trade_id: string;
         };
         /** ValidationError */
         ValidationError: {
@@ -1501,6 +2241,62 @@ export interface operations {
                 };
             };
             /** @description Endpoint-wide Product read failure. `read_failure_reason` keeps the frozen distinction between SOURCE_UNAVAILABLE and SNAPSHOT_FAILED. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductUnavailableResponse"];
+                };
+            };
+        };
+    };
+    trading_audit_read_api_v1_product_trading_audit_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                cursor?: string | null;
+                instrument_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TradingAuditReadResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid query/cursor */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductInternalErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
             503: {
                 headers: {
                     [name: string]: unknown;

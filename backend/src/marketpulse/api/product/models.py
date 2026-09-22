@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import StrEnum
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field
 
@@ -425,3 +426,329 @@ class ProductInternalErrorResponse(BaseModel):
     """Frozen ``500`` body: no product or diagnostic detail leaves the process."""
 
     correlation_id: str
+
+
+# UI-RD01-I03 TradingAuditRead typed contract.  These DTOs deliberately expose
+# only the frozen allow-list, never durable JSON payloads or ORM objects.
+class TradingTraceabilityStatus(StrEnum):
+    COMPLETE = "COMPLETE"
+    PARTIAL = "PARTIAL"
+    NOT_PROVABLE = "NOT_PROVABLE"
+
+
+class TradingTraceMissingLink(StrEnum):
+    DECISION = "DECISION"
+    OPPORTUNITY_BINDING = "OPPORTUNITY_BINDING"
+    PLAN = "PLAN"
+    INTENT = "INTENT"
+    ORDER = "ORDER"
+    FILL = "FILL"
+    LEDGER = "LEDGER"
+    RISK_ATTRIBUTION = "RISK_ATTRIBUTION"
+    REJECTION_CLASSIFICATION = "REJECTION_CLASSIFICATION"
+    ORDER_CANCELLATION_EVENT = "ORDER_CANCELLATION_EVENT"
+
+
+class TradingTraceabilityDTO(BaseModel):
+    status: TradingTraceabilityStatus
+    missing_links: list[TradingTraceMissingLink] = Field(default_factory=list)
+
+
+class TradingProtectionState(StrEnum):
+    NOT_REQUIRED = "NOT_REQUIRED"
+    PROTECTED = "PROTECTED"
+    UNPROTECTED = "UNPROTECTED"
+    UNKNOWN = "UNKNOWN"
+
+
+class TradingPositionState(StrEnum):
+    OPEN = "OPEN"
+    FLAT = "FLAT"
+
+
+class TradingProtectionAuthorityDTO(BaseModel):
+    plan_id: str
+    plan_version: int
+    stop_loss: float
+    take_profit: float
+    updated_at: datetime
+
+
+class TradingPositionProtectionDTO(BaseModel):
+    state: TradingProtectionState
+    authority: TradingProtectionAuthorityDTO | None = None
+
+
+class TradingPositionDTO(BaseModel):
+    position_id: str
+    instrument_id: str
+    state: TradingPositionState
+    quantity: float
+    average_cost: float
+    trade_id: str | None
+    updated_at: datetime
+    protection: TradingPositionProtectionDTO
+
+
+class TradingAccountDTO(BaseModel):
+    account_id: str
+    cash_balance: float
+    reserved_cash: float
+    available_cash: float
+    realized_pnl: float
+    updated_at: datetime
+
+
+class TradingOpportunityBindingDTO(BaseModel):
+    opportunity_id: str
+    evidence_id: str
+    evidence_revision: int
+    evidence_hash: str
+    feature_snapshot_hash: str
+
+
+class TradingDecisionDTO(BaseModel):
+    decision_id: str
+    snapshot_id: str
+    status: str
+    model: str
+    created_at: datetime
+    opportunity_binding: TraceNodeDTO[TradingOpportunityBindingDTO]
+
+
+class TradingPlanDTO(BaseModel):
+    plan_id: str
+    snapshot_id: str
+    decision_id: str
+    instrument_id: str
+    symbol: str
+    plan_version: int
+    status: str
+    created_at: datetime
+    expires_at: datetime
+    ttl_expired: bool
+    order_type: str
+    side: str
+    entry_zone: dict[str, float]
+    stop_loss: float
+    take_profit: float
+    intended_notional: float
+    invalidation: str | None
+    decision: TraceNodeDTO[TradingDecisionDTO]
+
+
+class TradingCollectionDTO[T](BaseModel):
+    state: ProjectionState
+    items: list[T] | None
+
+
+class TradingOpenOrderDTO(BaseModel):
+    order_id: str
+    intent_id: str
+    plan_id: str | None
+    instrument_id: str
+    side: str
+    order_type: str
+    quantity: float
+    limit_price: float | None
+    reserved_cash: float
+    reserved_quantity: float
+    created_at: datetime
+
+
+class TradingPendingIntentCapabilityDTO(BaseModel):
+    state: ProjectionState
+    items: None = None
+
+
+class TradingIntentRejectionDTO(BaseModel):
+    kind: Literal["RISK", "EXECUTION"]
+    attribution_event_id: str
+    authority: str | None
+    reason: str
+    occurred_at: datetime
+
+
+class TradingTimelineItemBase(BaseModel):
+    timeline_event_id: str
+    entity_kind: str
+    entity_id: str
+    event_type: str
+    occurred_at: datetime
+    traceability: TradingTraceabilityDTO
+
+
+class TradingPlanTimelineItemDTO(TradingTimelineItemBase):
+    entity_kind: Literal["PLAN"] = "PLAN"
+    event_type: Literal["PLAN_CREATED"] = "PLAN_CREATED"
+    plan_id: str
+    snapshot_id: str
+    decision_id: str
+    instrument_id: str
+    symbol: str
+    plan_version: int
+    created_at: datetime
+    expires_at: datetime
+
+
+class TradingRiskTimelineItemDTO(TradingTimelineItemBase):
+    entity_kind: Literal["RISK"] = "RISK"
+    event_type: Literal["RISK_ACCEPTED", "RISK_REJECTED"]
+    attribution_event_id: str
+    intent_id: str
+    plan_id: str | None
+    order_id: str | None
+    authority: str | None
+    reason: str | None
+    opportunity_id: str | None
+    evidence_id: str | None
+
+
+class TradingExecutionTimelineItemDTO(TradingTimelineItemBase):
+    entity_kind: Literal["EXECUTION"] = "EXECUTION"
+    event_type: Literal["EXECUTION_REJECTED"] = "EXECUTION_REJECTED"
+    attribution_event_id: str
+    intent_id: str
+    plan_id: str | None
+    reason: str
+    opportunity_id: str | None
+    evidence_id: str | None
+
+
+class TradingIntentTimelineItemDTO(TradingTimelineItemBase):
+    entity_kind: Literal["INTENT"] = "INTENT"
+    event_type: Literal["INTENT_EXECUTED", "INTENT_REJECTED"]
+    intent_id: str
+    plan_id: str | None
+    instrument_id: str
+    status: str
+    reason: str | None
+    created_at: datetime
+    initial_rejection: TraceNodeDTO[TradingIntentRejectionDTO]
+
+
+class TradingOrderCreatedTimelineItemDTO(TradingTimelineItemBase):
+    entity_kind: Literal["ORDER"] = "ORDER"
+    event_type: Literal["ORDER_CREATED"] = "ORDER_CREATED"
+    order_id: str
+    intent_id: str
+    plan_id: str | None
+    instrument_id: str
+    side: str
+    order_type: str
+    quantity: float
+    limit_price: float | None
+    created_at: datetime
+
+
+class TradingOrderCancelledTimelineItemDTO(TradingTimelineItemBase):
+    entity_kind: Literal["ORDER"] = "ORDER"
+    event_type: Literal["ORDER_CANCELLED"] = "ORDER_CANCELLED"
+    order_id: str
+    instrument_id: str
+    cancelled_at: datetime
+
+
+class TradingFillTimelineItemDTO(TradingTimelineItemBase):
+    entity_kind: Literal["FILL"] = "FILL"
+    event_type: Literal["FILL_OCCURRED"] = "FILL_OCCURRED"
+    fill_id: str
+    order_id: str
+    intent_id: str
+    instrument_id: str
+    side: str
+    price: float
+    quantity: float
+    fee: float
+    created_at: datetime
+
+
+class TradingLedgerTimelineItemDTO(TradingTimelineItemBase):
+    entity_kind: Literal["LEDGER"] = "LEDGER"
+    event_type: Literal["SETTLEMENT_RECORDED"] = "SETTLEMENT_RECORDED"
+    entry_id: str
+    fill_id: str
+    instrument_id: str
+    entry_type: str
+    cash_delta: float
+    fee: float
+    settlement_realized_pnl: float
+    created_at: datetime
+
+
+class TradingTradeOpenTimelineItemDTO(TradingTimelineItemBase):
+    entity_kind: Literal["TRADE_OPEN"] = "TRADE_OPEN"
+    event_type: Literal["TRADE_OPEN"] = "TRADE_OPEN"
+    trade_id: str
+    instrument_id: str
+    opened_at: datetime
+
+
+class TradingTradeCloseTimelineItemDTO(TradingTimelineItemBase):
+    entity_kind: Literal["TRADE_CLOSE"] = "TRADE_CLOSE"
+    event_type: Literal["TRADE_CLOSE"] = "TRADE_CLOSE"
+    trade_id: str
+    instrument_id: str
+    closed_at: datetime
+    exit_reason: str | None
+
+
+class TradingPositionEventTimelineItemDTO(TradingTimelineItemBase):
+    entity_kind: Literal["POSITION_EVENT"] = "POSITION_EVENT"
+    event_type: Literal[
+        "SL_TRIGGERED",
+        "TP_TRIGGERED",
+        "AI_REEVALUATION",
+        "ADD",
+        "REDUCE",
+        "CLOSE",
+        "MANUAL_CLOSE",
+        "PLAN_UPDATED",
+        "PLAN_REPLACED",
+        "CANCEL_ADD",
+        "RISK_BLOCKED",
+    ]
+    event_id: str
+    instrument_id: str
+    position_id: str | None
+    plan_id: str | None
+    order_id: str | None
+    fill_id: str | None
+    created_at: datetime
+
+
+TradingTimelineItem = Annotated[
+    TradingPlanTimelineItemDTO
+    | TradingRiskTimelineItemDTO
+    | TradingExecutionTimelineItemDTO
+    | TradingIntentTimelineItemDTO
+    | TradingOrderCreatedTimelineItemDTO
+    | TradingOrderCancelledTimelineItemDTO
+    | TradingFillTimelineItemDTO
+    | TradingLedgerTimelineItemDTO
+    | TradingTradeOpenTimelineItemDTO
+    | TradingTradeCloseTimelineItemDTO
+    | TradingPositionEventTimelineItemDTO,
+    Field(discriminator="event_type"),
+]
+
+
+class TradingTimelinePageDTO(BaseModel):
+    state: ProjectionState
+    items: list[TradingTimelineItem] = Field(default_factory=list)
+    timeline_upper_bound: datetime
+
+
+class TradingAuditDataDTO(BaseModel):
+    account: TraceNodeDTO[TradingAccountDTO]
+    positions: TradingCollectionDTO[TradingPositionDTO]
+    active_plans: TradingCollectionDTO[TradingPlanDTO]
+    open_orders: TradingCollectionDTO[TradingOpenOrderDTO]
+    pending_intents: TradingPendingIntentCapabilityDTO
+    timeline: TradingTimelinePageDTO
+
+
+class TradingAuditReadResponse(BaseModel):
+    meta: ProjectionMetaDTO
+    operational_context: OperationalContextDTO
+    data: TradingAuditDataDTO | None

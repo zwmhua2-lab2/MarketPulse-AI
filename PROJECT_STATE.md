@@ -2538,3 +2538,15 @@ UI-RD01-I03-REQ-04 — Trading Audit Read Product Read Implementation Requiremen
 - 本批为 docs/state-only：`backend/**` / `backend/tests/**` / `backend/alembic/**` / `frontend/**` / `scripts/**` / `PRODUCT_REQUIREMENTS.md` / `AGENTS.md` / UI-RD01 Parent Design / UI-V1-D01 Amendment / `UI-RD01-I02` Requirement artifact = `ZERO CHANGE`；`Schema` / `Migration` / `Index` = `ZERO CHANGE`。
 - 边界保持（未解锁）：Real AI = `NOT ACTIVATED`；live `G2→G3` = `NOT ACTIVE`；Gate A/B/C = `NOT ACTIVATED` / `NOT PASSED`；Live = `NOT AUTHORIZED`；Live Trading = `DISABLED`；`I04` / `I05` = `NOT STARTED / NOT AUTHORIZED`。
 - 详见 `dev_log/2026-09-22-ui-rd01-i03-requirements-freeze-final-closeout.md`。
+
+## UI-RD01-I03 Implementation Result (Candidate)
+
+- 任务：`UI-RD01-I03-IMP-01`（Parent `UI-RD01-I03-IMP-01-BASE-RECONCILE-01`）｜`TradingAuditRead` Product Read implementation；本候选批 = Final Self Review / state sync / candidate commit / push（**非** Independent Review、**非** Human Acceptance、**非** `main` 整合）。
+- Task Base = `7a023f99ac44ac744e5a9885fd82f8a87ef51a94`；候选分支 = `ui-rd01-i03-trading-audit-read-clean-02`（单 commit，父 = Task Base；无 merge / rebase / reset / squash / force）；Latest-Main Reconciliation = `PASS`（`origin/main` = Task Base，未漂移）。
+- `TradingAuditRead = IMPLEMENTED ON CANDIDATE`；`Implementation = READY FOR INDEPENDENT REVIEW`；`Human Acceptance = PENDING`。**不**标记 `I03 ACCEPTED` / `I03 COMPLETE` / `REPOSITORY-INTEGRATED`。
+- 能力面 = `GET /api/v1/product/trading-audit`：Account / Current Positions / Protection / ACTIVE Plans / OPEN Orders / pending_intents capability / typed Trading Timeline（11 类）/ Traceability（A52/A53 + A54–A73 矩阵）/ Economic integrity（A74–A80）/ run_mode ownership（A77–A79）/ stable `REPEATABLE READ, READ ONLY` snapshot / Product HTTP failures / OpenAPI + `generated.ts`。
+- Request-Level PostgreSQL Evidence = `CAPTURED / PERSISTED`；History-Heavy Structural Performance Evidence = `CAPTURED`（Orders `5202` / Fills `5201` / Ledgers `5201` / PositionEvents `5200`，均 ≥ 5,000；SQL 语句数 16 恒定、无 N+1）；`Performance Human Disposition = PENDING`（**不**做延迟 PASS/FAIL 判定，**不**声明性能达标）。
+- 本批 Self Review 修复 A51 / A56 / A62 / A80 三处 fail-closed 判据（`api/product/trading_audit.py::_validate`，授权路径内、无新语义决策），并重跑受影响验证：focused TradingAudit `68 passed`、Product regression `144 passed`、Ruff check/format 全绿、API drift `PASS`、`git diff --check` rc `0`、隔离库 PostgreSQL 证据重捕获 exit `0`；修复后字节的全量 backend 回归**未**重跑（修复前字节的前序窗口记录 = `919 passed`，如实标注）。
+- `R04-P2-01 = REMAINS / NON-BLOCKING`；`Schema` / `Migration` / `Index = ZERO CHANGE`（仍 10 个迁移文件，head = `20260917_0010`）；Frozen Requirement / `RuntimeHost` / G2 / G3 / G4 / Advisory / Edge producers / DB models / Alembic / `DECISIONS.md` / `PRODUCT_REQUIREMENTS.md` / `AGENTS.md` / 包清单 / frontend Product UI = `ZERO CHANGE`。
+- `main integration = NOT PERFORMED`；`I04` / `I05` = `NOT STARTED`；Real AI = `NOT ACTIVATED`；live `G2→G3` = `NOT ACTIVE`；Gate A/B/C = `NOT ACTIVATED` / `NOT PASSED`；Live = `NOT AUTHORIZED`；Live Trading = `DISABLED`（授权边界均未改变）。
+- 详见 `dev_log/2026-09-22-ui-rd01-i03-trading-audit-read.md`。

@@ -40,6 +40,16 @@ class OpportunityCursor:
     opportunity_id: str
 
 
+@dataclass(frozen=True)
+class TradingAuditCursor:
+    run_mode: str
+    instrument_id: str | None
+    timeline_upper_bound: datetime
+    occurred_at: datetime
+    entity_kind: str
+    timeline_event_id: str
+
+
 def incident_filter_fingerprint(*, incident_status: str | None, incident_type: str | None) -> str:
     material = json.dumps(
         {"incident_status": incident_status, "incident_type": incident_type},
@@ -207,3 +217,74 @@ def decode_opportunity_cursor(value: str) -> OpportunityCursor:
         )
     except (KeyError, TypeError, ValueError, UnicodeError, json.JSONDecodeError) as exc:
         raise ProductCursorError("invalid opportunity cursor") from exc
+
+
+def encode_trading_audit_cursor(cursor: TradingAuditCursor) -> str:
+    payload = {
+        "v": CURSOR_VERSION,
+        "endpoint": "trading-audit",
+        "run_mode": cursor.run_mode,
+        "instrument_id": cursor.instrument_id,
+        "timeline_upper_bound": cursor.timeline_upper_bound.isoformat(),
+        "occurred_at": cursor.occurred_at.isoformat(),
+        "entity_kind": cursor.entity_kind,
+        "timeline_event_id": cursor.timeline_event_id,
+    }
+    return (
+        base64.urlsafe_b64encode(
+            json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+        )
+        .decode()
+        .rstrip("=")
+    )
+
+
+def decode_trading_audit_cursor(value: str) -> TradingAuditCursor:
+    try:
+        payload = json.loads(base64.urlsafe_b64decode((value + "=" * (-len(value) % 4)).encode()))
+        if (
+            not isinstance(payload, dict)
+            or payload.get("v") != CURSOR_VERSION
+            or payload.get("endpoint") != "trading-audit"
+        ):
+            raise ProductCursorError("trading cursor endpoint/version mismatch")
+        upper = datetime.fromisoformat(str(payload["timeline_upper_bound"]))
+        at = datetime.fromisoformat(str(payload["occurred_at"]))
+        run_mode, instrument_id, kind, event_id = (
+            payload["run_mode"],
+            payload["instrument_id"],
+            payload["entity_kind"],
+            payload["timeline_event_id"],
+        )
+        if (
+            not isinstance(run_mode, str)
+            or not run_mode
+            or not isinstance(kind, str)
+            or not kind
+            or not isinstance(event_id, str)
+            or not event_id
+            or upper.tzinfo is None
+            or at.tzinfo is None
+            or at > upper
+            or kind
+            not in {
+                "PLAN",
+                "RISK",
+                "EXECUTION",
+                "INTENT",
+                "ORDER",
+                "FILL",
+                "LEDGER",
+                "TRADE_OPEN",
+                "TRADE_CLOSE",
+                "POSITION_EVENT",
+            }
+            or (
+                instrument_id is not None
+                and (not isinstance(instrument_id, str) or not 1 <= len(instrument_id) <= 64)
+            )
+        ):
+            raise ProductCursorError("invalid trading cursor fields")
+        return TradingAuditCursor(run_mode, instrument_id, upper, at, kind, event_id)
+    except (KeyError, TypeError, ValueError, UnicodeError, json.JSONDecodeError) as exc:
+        raise ProductCursorError("invalid trading cursor") from exc

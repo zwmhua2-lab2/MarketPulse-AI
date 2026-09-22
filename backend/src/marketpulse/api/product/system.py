@@ -62,10 +62,12 @@ from .models import (
     SystemSectionDTO,
 )
 from .opportunities import router as opportunities_router
+from .trading_audit import router as trading_audit_router
 
 router = APIRouter(prefix="/api/v1/product", tags=["product-read"])
 router.include_router(market_scanner_router)
 router.include_router(opportunities_router)
+router.include_router(trading_audit_router)
 
 logger = logging.getLogger(__name__)
 
