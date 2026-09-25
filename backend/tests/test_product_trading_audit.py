@@ -489,9 +489,14 @@ def test_event_projection_strong_integrity_dominates_traceability_gaps() -> None
 
 
 def test_position_event_all_null_links_is_complete() -> None:
-    traceability = _event_traceability("POSITION_EVENT", explicit=set())
-    assert traceability.status is TradingTraceabilityStatus.COMPLETE
-    assert traceability.missing_links == []
+    now = datetime(2026, 9, 22, tzinfo=UTC)
+    item = next(
+        item
+        for item in _build_timeline(**_timeline_sources(now))
+        if item.timeline_event_id == "position-event:pe"
+    )
+    assert item.traceability.status is TradingTraceabilityStatus.COMPLETE
+    assert item.traceability.missing_links == []
 
 
 @pytest.mark.parametrize(
@@ -676,6 +681,109 @@ def _timeline_sources(now: datetime) -> dict[str, list[SimpleNamespace]]:
             execution_initial,
         ],
     }
+
+
+def _position_event_item(sources: dict[str, list[SimpleNamespace]]):
+    return next(
+        item for item in _build_timeline(**sources) if item.timeline_event_id == "position-event:pe"
+    )
+
+
+def test_position_event_explicit_plan_is_proven_from_exact_durable_lineage() -> None:
+    now = datetime(2026, 9, 22, tzinfo=UTC)
+    sources = _timeline_sources(now)
+    sources["position_events"][0].plan_id = "p"
+    item = _position_event_item(sources)
+    assert item.traceability.status is TradingTraceabilityStatus.COMPLETE
+    assert TradingTraceMissingLink.PLAN not in item.traceability.missing_links
+
+
+def test_position_event_cross_instrument_plan_is_snapshot_failure() -> None:
+    now = datetime(2026, 9, 22, tzinfo=UTC)
+    sources = _timeline_sources(now)
+    sources["position_events"][0].plan_id = "p"
+    sources["plans"][0].instrument_id = "ETH"
+    with pytest.raises(SnapshotError, match="plan lineage"):
+        _position_event_item(sources)
+
+
+def test_position_event_cross_instrument_order_is_snapshot_failure() -> None:
+    now = datetime(2026, 9, 22, tzinfo=UTC)
+    sources = _timeline_sources(now)
+    sources["position_events"][0].order_id = "o"
+    sources["orders"][0].instrument_id = "ETH"
+    with pytest.raises(SnapshotError, match="order lineage"):
+        _position_event_item(sources)
+
+
+def test_position_event_cross_instrument_fill_is_snapshot_failure() -> None:
+    now = datetime(2026, 9, 22, tzinfo=UTC)
+    sources = _timeline_sources(now)
+    sources["position_events"][0].fill_id = "f"
+    sources["orders"][0].instrument_id = "ETH"
+    with pytest.raises(SnapshotError, match="fill lineage"):
+        _position_event_item(sources)
+
+
+def test_position_event_order_fill_mismatch_is_snapshot_failure() -> None:
+    now = datetime(2026, 9, 22, tzinfo=UTC)
+    sources = _timeline_sources(now)
+    sources["orders"].append(
+        SimpleNamespace(**{**vars(sources["orders"][0]), "order_id": "other-order"})
+    )
+    sources["position_events"][0].order_id = "other-order"
+    sources["position_events"][0].fill_id = "f"
+    with pytest.raises(SnapshotError, match="order/fill"):
+        _position_event_item(sources)
+
+
+def test_position_event_plan_order_mismatch_is_snapshot_failure() -> None:
+    now = datetime(2026, 9, 22, tzinfo=UTC)
+    sources = _timeline_sources(now)
+    sources["plans"].append(
+        SimpleNamespace(**{**vars(sources["plans"][0]), "plan_id": "other-plan"})
+    )
+    sources["intents"][0].plan_id = "other-plan"
+    sources["orders"][0].plan_id = "other-plan"
+    sources["position_events"][0].plan_id = "p"
+    sources["position_events"][0].order_id = "o"
+    with pytest.raises(SnapshotError, match="plan/order"):
+        _position_event_item(sources)
+
+
+def test_position_event_plan_fill_mismatch_is_snapshot_failure() -> None:
+    now = datetime(2026, 9, 22, tzinfo=UTC)
+    sources = _timeline_sources(now)
+    sources["plans"].append(
+        SimpleNamespace(**{**vars(sources["plans"][0]), "plan_id": "other-plan"})
+    )
+    sources["intents"][0].plan_id = "other-plan"
+    sources["orders"][0].plan_id = "other-plan"
+    sources["position_events"][0].plan_id = "p"
+    sources["position_events"][0].fill_id = "f"
+    with pytest.raises(SnapshotError, match="plan/fill"):
+        _position_event_item(sources)
+
+
+def test_position_event_coherent_plan_order_fill_are_all_proven() -> None:
+    now = datetime(2026, 9, 22, tzinfo=UTC)
+    sources = _timeline_sources(now)
+    event = sources["position_events"][0]
+    event.plan_id = "p"
+    event.order_id = "o"
+    event.fill_id = "f"
+    item = _position_event_item(sources)
+    assert item.traceability.status is TradingTraceabilityStatus.COMPLETE
+    assert item.traceability.missing_links == []
+
+
+def test_position_event_missing_historical_reference_remains_not_provable() -> None:
+    now = datetime(2026, 9, 22, tzinfo=UTC)
+    sources = _timeline_sources(now)
+    sources["position_events"][0].plan_id = "historically-missing-plan"
+    item = _position_event_item(sources)
+    assert item.traceability.status is TradingTraceabilityStatus.NOT_PROVABLE
+    assert item.traceability.missing_links == [TradingTraceMissingLink.PLAN]
 
 
 def test_timeline_assembly_projects_typed_families_and_sanitizes_payloads() -> None:

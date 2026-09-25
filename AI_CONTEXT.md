@@ -1422,3 +1422,9 @@ disposable 库保持空表（症状 `relation "edge_opportunity_evidence" does n
 - `UI-RD01-I03-IMP-01-FIX-01 = IMPLEMENTED / READY FOR INDEPENDENT RE-REVIEW`；fix branch = `ui-rd01-i03-fix-01-review-blockers`，immutable parent = `7bbcde0417d9ae526ac41292d4860b80287db5d2`，authoritative remote `main` at resume = `7a023f99ac44ac744e5a9885fd82f8a87ef51a94`。
 - Scope closes only `FIX-BF-01`～`FIX-BF-06` with final full backend `931 passed, 20 warnings` and isolated PostgreSQL evidence `validation_problems=[]`；Performance Human Disposition / Human Acceptance = `PENDING`，Independent Re-Review = `REQUIRED`，`main` integration = `NOT PERFORMED`。
 - No activation boundary changes: `I04` / `I05` = `NOT STARTED`；Real AI / live `G2→G3` / Gate A/B/C / Live / Live Trading remain unchanged. Detail: `dev_log/2026-09-26-ui-rd01-i03-fix-01-review-blockers.md`.
+
+## UI-RD01-I03 FIX-02 Current Pointer
+
+- `UI-RD01-I03-IMP-01-FIX-02 = IMPLEMENTED / READY FOR INDEPENDENT RE-REVIEW`；exact parent = `5444e96d2d3e6f1c089f7dcfa4a8251a9c21472b`，fix branch = `ui-rd01-i03-fix-02-position-event-coherence`，Frozen Requirement blob = `658bd6588f7548379e86a05002cc0dd2c3a62a62`。
+- Scope only: PositionEvent explicit `plan_id` / `order_id` / `fill_id` durable identity, instrument, and cross-reference coherence. Existing contradictory durable lineage fails closed as `SNAPSHOT_FAILED`; genuinely unavailable historical references retain A52/A53/A73 trace behavior. `UI-RD01-I03-IR-02-BF-01 = REMEDIATED / AWAITING INDEPENDENT RE-REVIEW`.
+- `IR-01-NBF-02` and `R04-P2-01` remain non-blocking. Performance Human Disposition and Human Acceptance remain `PENDING`; `main` integration is `NOT PERFORMED`; `I04` / `I05` are `NOT STARTED`; no Real AI, Gate, or Live authorization changes. Detail: `dev_log/2026-09-26-ui-rd01-i03-fix-02-position-event-coherence.md`.

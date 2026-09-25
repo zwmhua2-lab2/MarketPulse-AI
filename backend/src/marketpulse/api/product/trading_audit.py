@@ -763,6 +763,54 @@ def _build_timeline(
             in risk_accepted_intents
         )
 
+    def explicit_position_event_lineage(
+        event: object,
+    ) -> tuple[object | None, object | None, object | None]:
+        """Resolve only coherent explicit PositionEvent links for A52/A53 proof."""
+        plan_id = getattr(event, "plan_id", None)
+        order_id = getattr(event, "order_id", None)
+        fill_id = getattr(event, "fill_id", None)
+        instrument_id = getattr(event, "instrument_id", None)
+
+        plan = plan_by_id.get(plan_id) if plan_id is not None else None
+        order = order_by_id.get(order_id) if order_id is not None else None
+        fill = fill_by_id.get(fill_id) if fill_id is not None else None
+
+        if plan is not None and (
+            getattr(plan, "plan_id", None) != plan_id
+            or getattr(plan, "instrument_id", None) != instrument_id
+        ):
+            raise SnapshotError("position event plan lineage mismatch")
+        if order is not None and (
+            getattr(order, "order_id", None) != order_id
+            or getattr(order, "instrument_id", None) != instrument_id
+        ):
+            raise SnapshotError("position event order lineage mismatch")
+        if fill is not None and getattr(fill, "fill_id", None) != fill_id:
+            raise SnapshotError("position event fill identity mismatch")
+
+        fill_order = order_by_id.get(getattr(fill, "order_id", None)) if fill is not None else None
+        if fill_order is not None and (
+            getattr(fill_order, "order_id", None) != getattr(fill, "order_id", None)
+            or getattr(fill_order, "instrument_id", None) != instrument_id
+        ):
+            raise SnapshotError("position event fill lineage mismatch")
+        if (
+            order_id is not None
+            and fill is not None
+            and getattr(fill, "order_id", None) != order_id
+        ):
+            raise SnapshotError("position event order/fill mismatch")
+        if plan_id is not None and order is not None and getattr(order, "plan_id", None) != plan_id:
+            raise SnapshotError("position event plan/order mismatch")
+        if (
+            plan_id is not None
+            and fill_order is not None
+            and getattr(fill_order, "plan_id", None) != plan_id
+        ):
+            raise SnapshotError("position event plan/fill mismatch")
+        return plan, order, fill if fill_order is not None else None
+
     def lineage_for_order(
         order: object, *, include_order: bool = False
     ) -> set[TradingTraceMissingLink]:
@@ -1113,6 +1161,7 @@ def _build_timeline(
     }
     for event in position_events:
         if event.event_type in allowed:
+            plan, order, fill = explicit_position_event_lineage(event)
             explicit = {
                 name
                 for name, value in {
@@ -1139,9 +1188,9 @@ def _build_timeline(
                         "POSITION_EVENT",
                         explicit=explicit,
                         proven=_proven_lineage(
-                            plan=plan_by_id.get(event.plan_id),
-                            order=order_by_id.get(event.order_id),
-                            fill=fill_by_id.get(event.fill_id),
+                            plan=plan,
+                            order=order,
+                            fill=fill,
                             decision_nodes=decision_nodes,
                         ),
                     ),

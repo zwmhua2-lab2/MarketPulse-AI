@@ -2557,4 +2557,11 @@ UI-RD01-I03-REQ-04 — Trading Audit Read Product Read Implementation Requiremen
 - 验证：focused `74 passed, 1 warning`；Product `150 passed, 20 warnings`；final full backend `931 passed, 20 warnings`；Ruff / format / compileall / OpenAPI drift / `git diff --check` 均通过；isolated PostgreSQL evidence = `validation_problems=[]`，5k history-heavy structural evidence 已重捕获。
 - `Performance Human Disposition = PENDING`；`Human Acceptance = PENDING`；`Independent Re-Review = REQUIRED`；`main integration = NOT PERFORMED`；`I04 / I05 = NOT STARTED`。不改变 `R04-P2-01 = REMAINS / NON-BLOCKING`。
 - 详见 `dev_log/2026-09-26-ui-rd01-i03-fix-01-review-blockers.md`。
+
+## UI-RD01-I03 FIX-02 PositionEvent Explicit Lineage Coherence Result
+
+- `UI-RD01-I03-IMP-01-FIX-02 = IMPLEMENTED / READY FOR INDEPENDENT RE-REVIEW`；parent candidate = `5444e96d2d3e6f1c089f7dcfa4a8251a9c21472b`，Frozen Requirement blob = `658bd6588f7548379e86a05002cc0dd2c3a62a62`。本批仅修复 PositionEvent 显式 `plan_id` / `order_id` / `fill_id` 的 durable identity、instrument 与 cross-reference coherence；existing but contradictory lineage 映射 `SNAPSHOT_FAILED`，genuinely unavailable historical reference 保持 frozen trace semantics。
+- `UI-RD01-I03-IR-02-BF-01 = REMEDIATED / AWAITING INDEPENDENT RE-REVIEW`；`IR-01-NBF-02 = REMAINS / NON-BLOCKING`，`R04-P2-01 = REMAINS / NON-BLOCKING`。本记录不构成 IR-03、Human Acceptance 或 `main` integration。
+- `Performance Human Disposition = PENDING`；`Human Acceptance = PENDING`；`main integration = NOT PERFORMED`；`I04` / `I05 = NOT STARTED`；Real AI / Gate A/B/C / Live authorization 边界不变。
+- 详见 `dev_log/2026-09-26-ui-rd01-i03-fix-02-position-event-coherence.md`。
 - 详见 `dev_log/2026-09-22-ui-rd01-i03-trading-audit-read.md`。
