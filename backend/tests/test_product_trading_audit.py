@@ -19,6 +19,7 @@ from marketpulse.api.product.cursor import (
 )
 from marketpulse.api.product.models import (
     ReadFailureReason,
+    TraceNodeState,
     TradingPositionProtectionDTO,
     TradingProtectionState,
     TradingTraceabilityStatus,
@@ -888,12 +889,34 @@ def _no_plan_workspace(
 ]:
     """One empty-plan order plus the closure the A74 validator already requires of it."""
     now = datetime(2026, 9, 22, tzinfo=UTC)
+    opening_intent = SimpleNamespace(
+        intent_id="i-buy",
+        plan_id="p",
+        instrument_id="BTC",
+        status="EXECUTED",
+        reason=None,
+        created_at=now,
+    )
     intent = SimpleNamespace(
         intent_id="i",
         plan_id="",
         instrument_id="BTC",
         status=intent_status,
         reason=None,
+        created_at=now,
+    )
+    opening_order = SimpleNamespace(
+        order_id="o-buy",
+        intent_id="i-buy",
+        plan_id="p",
+        instrument_id="BTC",
+        side="BUY",
+        order_type="MARKET",
+        status="FILLED",
+        quantity=1.0,
+        limit_price=None,
+        reserved_cash=0.0,
+        reserved_quantity=0.0,
         created_at=now,
     )
     order = SimpleNamespace(
@@ -911,8 +934,18 @@ def _no_plan_workspace(
         created_at=now,
     )
     settled = status == "FILLED"
+    opening_fill = SimpleNamespace(
+        fill_id="f-buy",
+        order_id="o-buy",
+        intent_id="i-buy",
+        price=1.0,
+        quantity=1.0,
+        fee=0.0,
+        created_at=now,
+    )
     fills = (
         [
+            opening_fill,
             SimpleNamespace(
                 fill_id="f",
                 order_id="o",
@@ -921,13 +954,24 @@ def _no_plan_workspace(
                 quantity=1.0,
                 fee=0.0,
                 created_at=now,
-            )
+            ),
         ]
         if settled
-        else []
+        else [opening_fill]
+    )
+    opening_ledger = SimpleNamespace(
+        entry_id="l-buy",
+        account_id="acc",
+        fill_id="f-buy",
+        entry_type="SETTLEMENT",
+        cash_delta=-1.0,
+        fee=0.0,
+        payload={},
+        created_at=now,
     )
     ledgers = (
         [
+            opening_ledger,
             SimpleNamespace(
                 entry_id="l",
                 account_id="acc",
@@ -937,12 +981,179 @@ def _no_plan_workspace(
                 fee=0.0,
                 payload={},
                 created_at=now,
-            )
+            ),
         ]
         if settled
-        else []
+        else [opening_ledger]
     )
-    return [intent], [order], fills, ledgers
+    return [opening_intent, intent], [opening_order, order], fills, ledgers
+
+
+def _positions_for_fills(
+    orders: list[SimpleNamespace], fills: list[SimpleNamespace]
+) -> list[SimpleNamespace]:
+    net: dict[str, float] = {}
+    by_order = {order.order_id: order for order in orders}
+    for fill in fills:
+        order = by_order[fill.order_id]
+        net[order.instrument_id] = net.get(order.instrument_id, 0.0) + (
+            fill.quantity if order.side == "BUY" else -fill.quantity
+        )
+    return [
+        SimpleNamespace(instrument_id=instrument_id, quantity=quantity)
+        for instrument_id, quantity in net.items()
+        if quantity != 0.0
+    ]
+
+
+def test_reconciliation_uses_accepted_g3_tolerance_boundaries() -> None:
+    account = _account_row()
+    account.reserved_cash = 1e-8
+    _validate(account, [], [], [], [], [], [])
+    account.reserved_cash = 1.0000001e-8
+    with pytest.raises(SnapshotError, match="account reservation"):
+        _validate(account, [], [], [], [], [], [])
+
+
+def test_reconciliation_is_bidirectional_for_positions_and_fill_instruments() -> None:
+    intents, orders, fills, ledgers = _no_plan_workspace()
+    with pytest.raises(SnapshotError, match="position/fill mismatch"):
+        _validate(
+            _account_row(),
+            [SimpleNamespace(instrument_id="BTC", quantity=1.0)],
+            intents,
+            orders,
+            fills,
+            ledgers,
+            [],
+        )
+
+    buy_intent = SimpleNamespace(
+        intent_id="i", plan_id="p", instrument_id="ETH", status="EXECUTED", reason=None
+    )
+    buy_order = SimpleNamespace(
+        order_id="o",
+        intent_id="i",
+        plan_id="p",
+        instrument_id="ETH",
+        side="BUY",
+        order_type="MARKET",
+        status="FILLED",
+        quantity=1.0,
+        reserved_cash=0.0,
+        reserved_quantity=0.0,
+    )
+    buy_fill = SimpleNamespace(fill_id="f", order_id="o", intent_id="i", quantity=1.0)
+    buy_ledger = SimpleNamespace(entry_id="l", fill_id="f")
+    with pytest.raises(SnapshotError, match="position/fill mismatch"):
+        _validate(_account_row(), [], [buy_intent], [buy_order], [buy_fill], [buy_ledger], [])
+
+    second_intent = SimpleNamespace(
+        intent_id="i-sol", plan_id="p-sol", instrument_id="SOL", status="EXECUTED", reason=None
+    )
+    second_order = SimpleNamespace(
+        order_id="o-sol",
+        intent_id="i-sol",
+        plan_id="p-sol",
+        instrument_id="SOL",
+        side="BUY",
+        order_type="MARKET",
+        status="FILLED",
+        quantity=2.0,
+        reserved_cash=0.0,
+        reserved_quantity=0.0,
+    )
+    second_fill = SimpleNamespace(
+        fill_id="f-sol", order_id="o-sol", intent_id="i-sol", quantity=2.0
+    )
+    second_ledger = SimpleNamespace(entry_id="l-sol", fill_id="f-sol")
+    with pytest.raises(SnapshotError, match="position/fill mismatch"):
+        _validate(
+            _account_row(),
+            [SimpleNamespace(instrument_id="SOL", quantity=1.0)],
+            [buy_intent, second_intent],
+            [buy_order, second_order],
+            [buy_fill, second_fill],
+            [buy_ledger, second_ledger],
+            [],
+        )
+
+    _validate(
+        _account_row(),
+        [
+            SimpleNamespace(instrument_id="ETH", quantity=1.0),
+            SimpleNamespace(instrument_id="SOL", quantity=2.0),
+        ],
+        [buy_intent, second_intent],
+        [buy_order, second_order],
+        [buy_fill, second_fill],
+        [buy_ledger, second_ledger],
+        [],
+    )
+    _validate(_account_row(), [], intents, orders, fills, ledgers, [])
+
+
+def test_missing_account_with_trade_is_snapshot_failure() -> None:
+    with pytest.raises(SnapshotError, match="economic facts without account"):
+        _validate(None, [], [], [], [], [], [SimpleNamespace(trade_id="t")])
+
+
+def test_no_plan_sell_requires_intent_order_instrument_coherence() -> None:
+    intents, orders, fills, ledgers = _no_plan_workspace()
+    intents[1].instrument_id = "ETH"
+    with pytest.raises(SnapshotError, match="empty-plan order"):
+        _validate(
+            _account_row(), _positions_for_fills(orders, fills), intents, orders, fills, ledgers, []
+        )
+
+
+def test_initial_risk_accepted_keeps_initial_semantics_after_intent_executes() -> None:
+    now = datetime(2026, 9, 22, tzinfo=UTC)
+    sources = _timeline_sources(now)
+    risk_accepted = next(row for row in sources["attribution"] if row.event_type == "RISK_ACCEPTED")
+    risk_accepted.occurred_at = now
+    items = _build_timeline(**sources, decision_nodes=_complete_decision_nodes())
+    initial = next(item for item in items if item.timeline_event_id == "attribution:a-accept")
+    deferred = next(
+        item for item in items if item.timeline_event_id == "attribution:a-risk-deferred"
+    )
+    assert TradingTraceMissingLink.ORDER not in initial.traceability.missing_links
+    assert TradingTraceMissingLink.ORDER not in deferred.traceability.missing_links
+
+
+def _complete_decision_nodes() -> dict[str, SimpleNamespace]:
+    return {
+        "d": SimpleNamespace(
+            state=TraceNodeState.PRESENT,
+            data=SimpleNamespace(opportunity_binding=SimpleNamespace(state=TraceNodeState.PRESENT)),
+        )
+    }
+
+
+def test_projection_derives_a53_complete_partial_not_provable_from_durable_facts() -> None:
+    now = datetime(2026, 9, 22, tzinfo=UTC)
+    complete = _build_timeline(**_timeline_sources(now), decision_nodes=_complete_decision_nodes())
+    complete_plan = next(item for item in complete if item.timeline_event_id == "plan:create:p")
+    assert complete_plan.traceability.status is TradingTraceabilityStatus.COMPLETE
+    assert complete_plan.traceability.missing_links == []
+
+    partial_sources = _timeline_sources(now)
+    partial_sources["attribution"] = [
+        row for row in partial_sources["attribution"] if row.event_type != "RISK_ACCEPTED"
+    ]
+    partial = _build_timeline(**partial_sources, decision_nodes=_complete_decision_nodes())
+    partial_fill = next(item for item in partial if item.timeline_event_id == "fill:f")
+    assert partial_fill.traceability.status is TradingTraceabilityStatus.PARTIAL
+    assert partial_fill.traceability.missing_links == [TradingTraceMissingLink.RISK_ATTRIBUTION]
+
+    not_provable_sources = _timeline_sources(now)
+    not_provable_sources["attribution"] = []
+    not_provable = _build_timeline(
+        **not_provable_sources, decision_nodes=_complete_decision_nodes()
+    )
+    trade_open = next(item for item in not_provable if item.timeline_event_id == "trade:open:t")
+    assert trade_open.traceability.status is TradingTraceabilityStatus.NOT_PROVABLE
+    assert trade_open.traceability.missing_links == [TradingTraceMissingLink.FILL]
 
 
 def test_executed_intent_without_order_is_a_snapshot_failure() -> None:
@@ -956,12 +1167,14 @@ def test_executed_intent_without_order_is_a_snapshot_failure() -> None:
         created_at=now,
     )
     with pytest.raises(SnapshotError, match="executed intent without order"):
-        _validate(_account_row(), [], [intent], [], [], [])
+        _validate(_account_row(), [], [intent], [], [], [], [])
 
 
 def test_accepted_no_plan_sell_bundle_is_the_only_legal_empty_plan_shape() -> None:
     intents, orders, fills, ledgers = _no_plan_workspace()
-    _validate(_account_row(), [], intents, orders, fills, ledgers)
+    _validate(
+        _account_row(), _positions_for_fills(orders, fills), intents, orders, fills, ledgers, []
+    )
 
 
 @pytest.mark.parametrize(
@@ -980,4 +1193,6 @@ def test_empty_plan_order_outside_the_accepted_bundle_is_a_snapshot_failure(
         side=side, order_type=order_type, status=status, intent_status=intent_status
     )
     with pytest.raises(SnapshotError, match="empty-plan order"):
-        _validate(_account_row(), [], intents, orders, fills, ledgers)
+        _validate(
+            _account_row(), _positions_for_fills(orders, fills), intents, orders, fills, ledgers, []
+        )

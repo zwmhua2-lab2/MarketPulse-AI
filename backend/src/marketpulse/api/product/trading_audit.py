@@ -89,7 +89,9 @@ from .models import (
 
 router = APIRouter(tags=["product-read"])
 PROJECTION = "TradingAuditRead"
-EPSILON = 1e-12
+# Keep the accepted G3 reconciliation tolerance; this Product read must not define a
+# second accounting policy.
+EPSILON = 1e-8
 SOURCE_ERRORS = (asyncio.TimeoutError, OSError, SQLAlchemyError, asyncpg.PostgresError)
 
 
@@ -371,6 +373,45 @@ def _event_traceability(
     return _trace_for(applicable=applicable, proven=proven or set())
 
 
+def _proven_lineage(
+    *,
+    plan: object | None = None,
+    intent: object | None = None,
+    order: object | None = None,
+    fill: object | None = None,
+    ledger: object | None = None,
+    decision_nodes: dict[str, TraceNodeDTO[TradingDecisionDTO]] | None = None,
+    risk_attribution: bool = False,
+    rejection_classification: bool = False,
+) -> set[TradingTraceMissingLink]:
+    """Derive A53 proof only from exact durable facts supplied by the projection."""
+    proven: set[TradingTraceMissingLink] = set()
+    for link, fact in (
+        (TradingTraceMissingLink.INTENT, intent),
+        (TradingTraceMissingLink.ORDER, order),
+        (TradingTraceMissingLink.FILL, fill),
+        (TradingTraceMissingLink.LEDGER, ledger),
+    ):
+        if fact is not None:
+            proven.add(link)
+    if plan is not None:
+        proven.add(TradingTraceMissingLink.PLAN)
+        decision = (decision_nodes or {}).get(getattr(plan, "decision_id", None))
+        if (
+            decision is not None
+            and decision.state is TraceNodeState.PRESENT
+            and decision.data is not None
+        ):
+            proven.add(TradingTraceMissingLink.DECISION)
+            if decision.data.opportunity_binding.state is TraceNodeState.PRESENT:
+                proven.add(TradingTraceMissingLink.OPPORTUNITY_BINDING)
+    if risk_attribution:
+        proven.add(TradingTraceMissingLink.RISK_ATTRIBUTION)
+    if rejection_classification:
+        proven.add(TradingTraceMissingLink.REJECTION_CLASSIFICATION)
+    return proven
+
+
 def _position(row: PositionRecord) -> TradingPositionDTO:
     if row.quantity < 0:
         raise SnapshotError("negative position")
@@ -604,6 +645,11 @@ def _trade_traceability(
     attribution: list[EdgeAttributionEventRecord],
     fill_by_id: dict[str, FillRecord],
     order_by_id: dict[str, PaperOrderRecord],
+    intent_by_id: dict[str, ExecutionIntentRecord],
+    ledger_by_fill: dict[str, LedgerEntryRecord],
+    plan_by_id: dict[str, TradePlanRecord],
+    decision_nodes: dict[str, TraceNodeDTO[TradingDecisionDTO]],
+    risk_accepted_intents: set[tuple[str, str]],
 ) -> TradingTraceabilityDTO:
     row_name = "TRADE_OPEN" if event_type == "TRADE_OPEN" else "TRADE_CLOSE"
     matches = [
@@ -624,8 +670,31 @@ def _trade_traceability(
     order = order_by_id.get(fill.order_id)
     if order is None or order.intent_id != fill.intent_id:
         raise SnapshotError("trade fill order mismatch")
+    intent = intent_by_id.get(order.intent_id)
+    if (
+        intent is None
+        or intent.plan_id != order.plan_id
+        or intent.instrument_id != order.instrument_id
+    ):
+        raise SnapshotError("trade order intent mismatch")
+    plan = plan_by_id.get(order.plan_id) if order.plan_id else None
+    if plan is not None and plan.instrument_id != order.instrument_id:
+        raise SnapshotError("trade plan instrument mismatch")
     return _event_traceability(
-        row_name, side=order.side, has_plan=bool(order.plan_id), fill_proven=True
+        row_name,
+        side=order.side,
+        has_plan=bool(order.plan_id),
+        fill_proven=True,
+        proven=_proven_lineage(
+            plan=plan,
+            intent=intent,
+            order=order,
+            fill=fill,
+            ledger=ledger_by_fill.get(fill.fill_id),
+            decision_nodes=decision_nodes,
+            risk_attribution=order.side == "BUY"
+            and (intent.intent_id, intent.plan_id) in risk_accepted_intents,
+        ),
     )
 
 
@@ -640,11 +709,72 @@ def _build_timeline(
     trades: list[TradeRecord],
     position_events: list[PositionEventRecord],
     attribution: list[EdgeAttributionEventRecord],
+    decision_nodes: dict[str, TraceNodeDTO[TradingDecisionDTO]] | None = None,
 ) -> list[TradingTimelineItem]:
     """Typed, all-source timeline assembly before one global keyset page is selected."""
     order_by_id = {row.order_id: row for row in orders}
     intent_by_id = {row.intent_id: row for row in intents}
     fill_by_id = {row.fill_id: row for row in fills}
+    plan_by_id = {row.plan_id: row for row in plans}
+    ledger_by_fill = {row.fill_id: row for row in ledgers}
+    orders_by_intent: dict[str, list[PaperOrderRecord]] = {}
+    for order in orders:
+        orders_by_intent.setdefault(order.intent_id, []).append(order)
+    risk_accepted_intents = {
+        (row.subject_id, row.payload.get("plan_id"))
+        for row in attribution
+        if row.event_type == "RISK_ACCEPTED"
+        and isinstance(row.payload, dict)
+        and row.payload.get("intent_id") == row.subject_id
+    }
+
+    def intent_for(order: object) -> object | None:
+        intent = intent_by_id.get(getattr(order, "intent_id", None))
+        if intent is None or any(
+            getattr(intent, field, None) != getattr(order, field, None)
+            for field in ("plan_id", "instrument_id")
+        ):
+            return None
+        return intent
+
+    def plan_for(intent: object | None, order: object | None = None) -> object | None:
+        if intent is None or not getattr(intent, "plan_id", None):
+            return None
+        plan = plan_by_id.get(getattr(intent, "plan_id", None))
+        if plan is None or plan.instrument_id != getattr(intent, "instrument_id", None):
+            return None
+        if order is not None and plan.instrument_id != getattr(order, "instrument_id", None):
+            return None
+        return plan
+
+    def exact_order_for(intent: object) -> object | None:
+        matches = [
+            order
+            for order in orders_by_intent.get(getattr(intent, "intent_id", None), [])
+            if order.plan_id == getattr(intent, "plan_id", None)
+            and order.instrument_id == getattr(intent, "instrument_id", None)
+        ]
+        return matches[0] if len(matches) == 1 else None
+
+    def risk_accepted_for(intent: object | None) -> bool:
+        return (
+            intent is not None
+            and (getattr(intent, "intent_id", None), getattr(intent, "plan_id", None))
+            in risk_accepted_intents
+        )
+
+    def lineage_for_order(
+        order: object, *, include_order: bool = False
+    ) -> set[TradingTraceMissingLink]:
+        intent = intent_for(order)
+        return _proven_lineage(
+            plan=plan_for(intent, order),
+            intent=intent,
+            order=order if include_order else None,
+            decision_nodes=decision_nodes,
+            risk_attribution=getattr(order, "side", None) == "BUY" and risk_accepted_for(intent),
+        )
+
     cancelled = {
         row.aggregate_id: row
         for row in outbox
@@ -665,11 +795,14 @@ def _build_timeline(
                 plan_version=plan.plan_version,
                 created_at=_utc(plan.created_at),
                 expires_at=_utc(plan.expires_at),
-                traceability=_event_traceability("PLAN_CREATED"),
+                traceability=_event_traceability(
+                    "PLAN_CREATED", proven=_proven_lineage(plan=plan, decision_nodes=decision_nodes)
+                ),
             )
         )
     for intent in intents:
         has_plan = bool(intent.plan_id)
+        initial_rejection = _initial_rejection(intent, attribution)
         items.append(
             TradingIntentTimelineItemDTO(
                 timeline_event_id=f"intent:{intent.intent_id}",
@@ -682,7 +815,7 @@ def _build_timeline(
                 status=intent.status,
                 reason=intent.reason,
                 created_at=_utc(intent.created_at),
-                initial_rejection=_initial_rejection(intent, attribution),
+                initial_rejection=initial_rejection,
                 traceability=_event_traceability(
                     "INTENT_EXECUTED" if intent.status == "EXECUTED" else "INTENT_REJECTED",
                     side=getattr(
@@ -701,6 +834,13 @@ def _build_timeline(
                     ),
                     has_plan=has_plan,
                     no_plan_bundle_valid=True,
+                    proven=_proven_lineage(
+                        plan=plan_for(intent),
+                        order=exact_order_for(intent),
+                        decision_nodes=decision_nodes,
+                        risk_attribution=risk_accepted_for(intent),
+                        rejection_classification=initial_rejection.state is TraceNodeState.PRESENT,
+                    ),
                 ),
             )
         )
@@ -709,7 +849,12 @@ def _build_timeline(
         if intent is None or intent.plan_id != order.plan_id:
             raise SnapshotError("order intent mismatch")
         has_plan = bool(order.plan_id)
-        order_trace = _event_traceability("ORDER_CREATED", side=order.side, has_plan=has_plan)
+        order_trace = _event_traceability(
+            "ORDER_CREATED",
+            side=order.side,
+            has_plan=has_plan,
+            proven=lineage_for_order(order),
+        )
         if order.status == "CANCELLED" and order.order_id not in cancelled:
             order_trace = _trace_for(
                 applicable={
@@ -746,7 +891,10 @@ def _build_timeline(
                     instrument_id=order.instrument_id,
                     cancelled_at=_utc(cancellation.created_at),
                     traceability=_event_traceability(
-                        "ORDER_CANCELLED", side=order.side, has_plan=has_plan
+                        "ORDER_CANCELLED",
+                        side=order.side,
+                        has_plan=has_plan,
+                        proven=lineage_for_order(order, include_order=True),
                     ),
                 )
             )
@@ -769,7 +917,18 @@ def _build_timeline(
                 fee=fill.fee,
                 created_at=_utc(fill.created_at),
                 traceability=_event_traceability(
-                    "FILL", side=order.side, has_plan=bool(order.plan_id)
+                    "FILL",
+                    side=order.side,
+                    has_plan=bool(order.plan_id),
+                    proven=_proven_lineage(
+                        plan=plan_for(intent_for(order), order),
+                        intent=intent_for(order),
+                        order=order,
+                        ledger=ledger_by_fill.get(fill.fill_id),
+                        decision_nodes=decision_nodes,
+                        risk_attribution=order.side == "BUY"
+                        and risk_accepted_for(intent_for(order)),
+                    ),
                 ),
             )
         )
@@ -801,7 +960,18 @@ def _build_timeline(
                 settlement_realized_pnl=settlement,
                 created_at=_utc(ledger.created_at),
                 traceability=_event_traceability(
-                    "LEDGER", side=order.side, has_plan=bool(order.plan_id)
+                    "LEDGER",
+                    side=order.side,
+                    has_plan=bool(order.plan_id),
+                    proven=_proven_lineage(
+                        plan=plan_for(intent_for(order), order),
+                        intent=intent_for(order),
+                        order=order,
+                        fill=fill_by_id.get(ledger.fill_id),
+                        decision_nodes=decision_nodes,
+                        risk_attribution=order.side == "BUY"
+                        and risk_accepted_for(intent_for(order)),
+                    ),
                 ),
             )
         )
@@ -814,10 +984,11 @@ def _build_timeline(
             continue
         if row.subject_id != intent.intent_id:
             raise SnapshotError("attribution intent mismatch")
-        initial = row.occurred_at == intent.created_at and intent.status != "EXECUTED"
+        initial = row.occurred_at == intent.created_at
         if row.event_type.startswith("RISK"):
             reason = payload.get("reason")
             authority = payload.get("authority")
+            deferred_order = exact_order_for(intent) if not initial else None
             if row.event_type == "RISK_REJECTED" and (
                 not isinstance(reason, str) or not isinstance(authority, str)
             ):
@@ -836,7 +1007,21 @@ def _build_timeline(
                     reason=reason,
                     opportunity_id=row.opportunity_id,
                     evidence_id=row.evidence_id,
-                    traceability=_event_traceability("RISK", initial=initial),
+                    traceability=_event_traceability(
+                        "RISK",
+                        initial=initial,
+                        proven=_proven_lineage(
+                            plan=plan_for(intent),
+                            intent=intent,
+                            order=(
+                                deferred_order
+                                if getattr(deferred_order, "order_id", None)
+                                == payload.get("order_id")
+                                else None
+                            ),
+                            decision_nodes=decision_nodes,
+                        ),
+                    ),
                 )
             )
         else:
@@ -854,7 +1039,16 @@ def _build_timeline(
                     reason=reason,
                     opportunity_id=row.opportunity_id,
                     evidence_id=row.evidence_id,
-                    traceability=_event_traceability("EXECUTION", initial=initial),
+                    traceability=_event_traceability(
+                        "EXECUTION",
+                        initial=initial,
+                        proven=_proven_lineage(
+                            plan=plan_for(intent),
+                            intent=intent,
+                            order=exact_order_for(intent) if not initial else None,
+                            decision_nodes=decision_nodes,
+                        ),
+                    ),
                 )
             )
     for trade in trades:
@@ -872,6 +1066,11 @@ def _build_timeline(
                     attribution=attribution,
                     fill_by_id=fill_by_id,
                     order_by_id=order_by_id,
+                    intent_by_id=intent_by_id,
+                    ledger_by_fill=ledger_by_fill,
+                    plan_by_id=plan_by_id,
+                    decision_nodes=decision_nodes or {},
+                    risk_accepted_intents=risk_accepted_intents,
                 ),
             )
         )
@@ -891,6 +1090,11 @@ def _build_timeline(
                         attribution=attribution,
                         fill_by_id=fill_by_id,
                         order_by_id=order_by_id,
+                        intent_by_id=intent_by_id,
+                        ledger_by_fill=ledger_by_fill,
+                        plan_by_id=plan_by_id,
+                        decision_nodes=decision_nodes or {},
+                        risk_accepted_intents=risk_accepted_intents,
                     ),
                 )
             )
@@ -931,7 +1135,16 @@ def _build_timeline(
                     order_id=event.order_id,
                     fill_id=event.fill_id,
                     created_at=_utc(event.created_at),
-                    traceability=_event_traceability("POSITION_EVENT", explicit=explicit),
+                    traceability=_event_traceability(
+                        "POSITION_EVENT",
+                        explicit=explicit,
+                        proven=_proven_lineage(
+                            plan=plan_by_id.get(event.plan_id),
+                            order=order_by_id.get(event.order_id),
+                            fill=fill_by_id.get(event.fill_id),
+                            decision_nodes=decision_nodes,
+                        ),
+                    ),
                 )
             )
     return items
@@ -944,9 +1157,10 @@ def _validate(
     orders: list[PaperOrderRecord],
     fills: list[FillRecord],
     ledgers: list[LedgerEntryRecord],
+    trades: list[TradeRecord],
 ) -> None:
     if account is None:
-        if positions or intents or orders or fills or ledgers:
+        if positions or intents or orders or fills or ledgers or trades:
             raise SnapshotError("economic facts without account")
         return
     by_order = {row.order_id: row for row in orders}
@@ -986,14 +1200,30 @@ def _validate(
         for order in orders
     ):
         raise SnapshotError("filled order without fill")
-    for position in positions:
-        net = sum(
-            fill.quantity if by_order[fill.order_id].side == "BUY" else -fill.quantity
-            for fill in fills
-            if by_order[fill.order_id].instrument_id == position.instrument_id
+    net_fill_quantity: dict[str, float] = {}
+    for fill in fills:
+        order = by_order[fill.order_id]
+        multiplier = 1.0 if order.side == "BUY" else -1.0
+        net_fill_quantity[order.instrument_id] = (
+            net_fill_quantity.get(order.instrument_id, 0.0) + multiplier * fill.quantity
         )
-        if abs(position.quantity - net) > EPSILON:
-            raise SnapshotError("position/fill mismatch")
+    positions_by_instrument = {position.instrument_id: position for position in positions}
+    if any(
+        abs(
+            (
+                positions_by_instrument[instrument].quantity
+                if instrument in positions_by_instrument
+                else 0.0
+            )
+            - quantity
+        )
+        > EPSILON
+        for instrument, quantity in net_fill_quantity.items()
+    ) or any(
+        abs(position.quantity - net_fill_quantity.get(position.instrument_id, 0.0)) > EPSILON
+        for position in positions
+    ):
+        raise SnapshotError("position/fill mismatch")
     for order in orders:
         if order.status == OrderStatus.OPEN and order.side == "SELL":
             position = next(
@@ -1019,6 +1249,8 @@ def _validate(
             or order.status != "FILLED"
             or intent is None
             or intent.status != "EXECUTED"
+            or intent.plan_id != ""
+            or intent.instrument_id != order.instrument_id
         ):
             raise SnapshotError("empty-plan order without accepted no-plan bundle")
 
@@ -1186,7 +1418,7 @@ async def _read(
                 raise SnapshotError("unscoped/conflicting ledger")
             if ownership == "PROVEN_CURRENT":
                 ledgers.append(ledger)
-        _validate(account, positions, intents, orders, fills, ledgers)
+        _validate(account, positions, intents, orders, fills, ledgers, trades)
         timeline_items, next_cursor = _timeline_page(
             _build_timeline(
                 plans=plans,
@@ -1198,6 +1430,7 @@ async def _read(
                 trades=trades,
                 position_events=position_events,
                 attribution=attribution,
+                decision_nodes=decision_nodes,
             ),
             upper=upper,
             limit=limit,

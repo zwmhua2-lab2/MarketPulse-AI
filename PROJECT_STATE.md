@@ -2549,4 +2549,12 @@ UI-RD01-I03-REQ-04 — Trading Audit Read Product Read Implementation Requiremen
 - 本批 Self Review 修复 A51 / A56 / A62 / A80 三处 fail-closed 判据（`api/product/trading_audit.py::_validate`，授权路径内、无新语义决策），并重跑受影响验证：focused TradingAudit `68 passed`、Product regression `144 passed`、Ruff check/format 全绿、API drift `PASS`、`git diff --check` rc `0`、隔离库 PostgreSQL 证据重捕获 exit `0`；修复后字节的全量 backend 回归**未**重跑（修复前字节的前序窗口记录 = `919 passed`，如实标注）。
 - `R04-P2-01 = REMAINS / NON-BLOCKING`；`Schema` / `Migration` / `Index = ZERO CHANGE`（仍 10 个迁移文件，head = `20260917_0010`）；Frozen Requirement / `RuntimeHost` / G2 / G3 / G4 / Advisory / Edge producers / DB models / Alembic / `DECISIONS.md` / `PRODUCT_REQUIREMENTS.md` / `AGENTS.md` / 包清单 / frontend Product UI = `ZERO CHANGE`。
 - `main integration = NOT PERFORMED`；`I04` / `I05` = `NOT STARTED`；Real AI = `NOT ACTIVATED`；live `G2→G3` = `NOT ACTIVE`；Gate A/B/C = `NOT ACTIVATED` / `NOT PASSED`；Live = `NOT AUTHORIZED`；Live Trading = `DISABLED`（授权边界均未改变）。
+
+## UI-RD01-I03 FIX-01 Blocking Findings Closure Result
+
+- `UI-RD01-I03-IMP-01-FIX-01 = IMPLEMENTED / READY FOR INDEPENDENT RE-REVIEW`；Fix branch = `ui-rd01-i03-fix-01-review-blockers`，immutable parent = `7bbcde0417d9ae526ac41292d4860b80287db5d2`，Frozen Requirement blob = `658bd6588f7548379e86a05002cc0dd2c3a62a62`。
+- 关闭范围仅 `FIX-BF-01`～`FIX-BF-06`：durable A52/A53 proof、Accepted G3 `1e-8` tolerance、Position↔Fill 双向 reconciliation、missing Account + Trade fail-closed、no-plan SELL instrument coherence、initial `RISK_ACCEPTED` timing classification。
+- 验证：focused `74 passed, 1 warning`；Product `150 passed, 20 warnings`；final full backend `931 passed, 20 warnings`；Ruff / format / compileall / OpenAPI drift / `git diff --check` 均通过；isolated PostgreSQL evidence = `validation_problems=[]`，5k history-heavy structural evidence 已重捕获。
+- `Performance Human Disposition = PENDING`；`Human Acceptance = PENDING`；`Independent Re-Review = REQUIRED`；`main integration = NOT PERFORMED`；`I04 / I05 = NOT STARTED`。不改变 `R04-P2-01 = REMAINS / NON-BLOCKING`。
+- 详见 `dev_log/2026-09-26-ui-rd01-i03-fix-01-review-blockers.md`。
 - 详见 `dev_log/2026-09-22-ui-rd01-i03-trading-audit-read.md`。

@@ -1416,3 +1416,9 @@ disposable 库保持空表（症状 `relation "edge_opportunity_evidence" does n
 - `Request-Level PostgreSQL Evidence = CAPTURED / PERSISTED`；`History-Heavy Structural Performance Evidence = CAPTURED`；`Schema` / `Migration` / `Index = ZERO CHANGE`（head `20260917_0010`）。
 - `R04-P2-01 = REMAINS / NON-BLOCKING`（本候选**未**修）。A52/A53 现行为：`proven` 集在投影中恒为空 ⇒ `PARTIAL` 不可达，非空 applicable 一律 `NOT_PROVABLE`（已按任务卡指示如实记录，**未**为可达性改动实现）。
 - 边界保持（未解锁）：`I04` / `I05` = `NOT STARTED`；Real AI = `NOT ACTIVATED`；live `G2→G3` = `NOT ACTIVE`；Gate A/B/C = `NOT ACTIVATED` / `NOT PASSED`；Live = `NOT AUTHORIZED`；Live Trading = `DISABLED`。完整语义见冻结 artifact；详见 `PROJECT_STATE.md`「UI-RD01-I03 Implementation Result (Candidate)」与 `dev_log/2026-09-22-ui-rd01-i03-trading-audit-read.md`。
+
+## UI-RD01-I03 FIX-01 Current Pointer
+
+- `UI-RD01-I03-IMP-01-FIX-01 = IMPLEMENTED / READY FOR INDEPENDENT RE-REVIEW`；fix branch = `ui-rd01-i03-fix-01-review-blockers`，immutable parent = `7bbcde0417d9ae526ac41292d4860b80287db5d2`，authoritative remote `main` at resume = `7a023f99ac44ac744e5a9885fd82f8a87ef51a94`。
+- Scope closes only `FIX-BF-01`～`FIX-BF-06` with final full backend `931 passed, 20 warnings` and isolated PostgreSQL evidence `validation_problems=[]`；Performance Human Disposition / Human Acceptance = `PENDING`，Independent Re-Review = `REQUIRED`，`main` integration = `NOT PERFORMED`。
+- No activation boundary changes: `I04` / `I05` = `NOT STARTED`；Real AI / live `G2→G3` / Gate A/B/C / Live / Live Trading remain unchanged. Detail: `dev_log/2026-09-26-ui-rd01-i03-fix-01-review-blockers.md`.
