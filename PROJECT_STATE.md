@@ -2565,3 +2565,15 @@ UI-RD01-I03-REQ-04 — Trading Audit Read Product Read Implementation Requiremen
 - `Performance Human Disposition = PENDING`；`Human Acceptance = PENDING`；`main integration = NOT PERFORMED`；`I04` / `I05 = NOT STARTED`；Real AI / Gate A/B/C / Live authorization 边界不变。
 - 详见 `dev_log/2026-09-26-ui-rd01-i03-fix-02-position-event-coherence.md`。
 - 详见 `dev_log/2026-09-22-ui-rd01-i03-trading-audit-read.md`。
+
+## UI-RD01-I03 Final Acceptance Closeout Result
+
+- 任务：`UI-RD01-I03-IMP-01-CLOSE-01`｜`TradingAuditRead Final Acceptance Closeout`（`DOCS / STATE FINAL CLOSEOUT + ACCEPTANCE PERSISTENCE + FAST-FORWARD INTEGRATION`）。本批不是新 implementation，Human-Accepted executable Candidate 不变。
+- `UI-RD01-I03 = ACCEPTED / COMPLETE`；`UI-RD01-I03-IMP-01 = ACCEPTED / CLOSED`。Human-Accepted Candidate = `dba2b539e071492877d66c38c0f2b24e90518332`，tree = `a4789df8e9b8cc715f2b85120a40ed668297e5de`，branch = `ui-rd01-i03-fix-02-position-event-coherence`；Human Acceptance = `CONFIRMED — 2026-09-26`。
+- Independent Re-Review = `UI-RD01-I03-IMP-01-IR-03`，verdict = `PASS WITH NON-BLOCKING FINDINGS`；Blocking Findings = `0`；Exact-candidate Evidence = `CURRENT`。`IR-01-BF-01 = CLOSED`；`IR-01-NBF-01 = CLOSED / SUPERSEDED BY CURRENT EXACT-CANDIDATE EVIDENCE`；`IR-01-NBF-02 = REMAINS / NON-BLOCKING`；`IR-02-BF-01 = CLOSED`；`R04-P2-01 = REMAINS / NON-BLOCKING`。
+- Performance Human Disposition = `ACCEPT / NON-BLOCKING PERFORMANCE OBSERVATION`。已接受的观察：Orders `5202`、Fills `5201`、Ledgers `5201`、PositionEvents `5200`、SQL statements `16`、Large request `18213.428 ms`、Transaction hold `18131.181 ms`、DB query-per-row = `NOT OBSERVED`。本记录不创建 SLA，亦不声明 `18s meets SLA`；`IR-01-NBF-02` 的 in-memory `O(n²)` intent-side lookup 仍为 non-blocking technical debt。
+- 已接受且绑定到精确 Candidate 的验证基线：Focused `83 passed, 1 warning`；Product `159 passed, 20 warnings`；Full backend `940 passed, 20 warnings, 1063.17s`；PostgreSQL Harness = `PASS`，`harness_errors=[]`，`validation_problems=[]`。Closeout 不重新生成、替换或扩大 exact-candidate runtime evidence。
+- 本 closeout 从 `dba2b539e071492877d66c38c0f2b24e90518332` 创建独立 branch `ui-rd01-i03-final-acceptance-closeout`。Integration Before FF = `PENDING`；在远端 `main` 保持 `7a023f99ac44ac744e5a9885fd82f8a87ef51a94`、Candidate 保持不动、且无 merge commit 的前提下，授权方法仅 `FAST-FORWARD ONLY`；成功 read-back 后 Repository Integration = `COMPLETE / FAST-FORWARD ONLY`。
+- Zero-change boundary：Production Code / Tests / Frontend / `generated.ts` / Schema / Migration / Index / dependency manifests / Frozen Requirement = `ZERO CHANGE`；`DECISIONS.md`、`PRODUCT_REQUIREMENTS.md`、`AGENTS.md` = `ZERO CHANGE`。Frozen Requirement `docs/design/UI-RD01/UI-RD01-I03-Implementation-Requirements.md` blob = `658bd6588f7548379e86a05002cc0dd2c3a62a62`。
+- Activation boundary remains unchanged: `I04 = NOT STARTED`；`I05 = NOT STARTED`；Real AI = `NOT ACTIVATED`；live `G2→G3 = NOT ACTIVE`；Gate A = `NOT ACTIVATED`；Gate B = `NOT ACTIVATED`；Gate C = `NOT PASSED`；Live = `NOT AUTHORIZED`；Live Trading = `DISABLED`。
+- 下一授权步骤：`RESUME OVERARCHING PRE-RAI-R01 SYSTEM REVIEW ON LATEST ACCEPTED MAIN`。本 closeout 不启动 I04、I05、Real AI activation、Gate activation、Live 或 Live Trading。
