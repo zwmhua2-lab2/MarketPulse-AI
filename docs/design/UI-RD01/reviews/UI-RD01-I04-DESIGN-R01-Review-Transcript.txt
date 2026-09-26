@@ -1,0 +1,136 @@
+I'll start by setting up a todo list for this strict read-only independent design review, then verify the Candidate binding and baselines before any substantive review.
+
+
+Candidate SHA-256, bytes, and LF count all match exactly. Now verifying the remaining byte-level facts (BOM, CR, final-LF, logical lines).
+
+
+Candidate Binding byte facts: ALL PASS (SHA-256 exact, 63403 bytes, 1347 logical lines, no BOM [AI header, CR=0, final byte  = no final LF). Now I need to locate the original Review Areas A–P definition and verify both repo baselines.
+
+
+Both repo baselines verified against freshly-fetched origin/main (exact matches). Candidate blob identity this round = 32f808e4. But the original Review Areas A–P dispatch document is not in Downloads. Let me search more broadly and check memory before concluding anything about input completeness.
+
+
+Memory has no record of a prior UI-RD01-I04 A–P dispatch spec. Let me check the background find results and search the repos/scratch for the Review Areas definition.
+
+
+The broad find timed out and returned nothing; grep found no "Review Area"/"UI-RD01-I04" in the repo working tree, and all scratch dirs are AWB-related. Let me check the full Downloads listing, the Candidate's own structure, and the repo's tracked tree for any UI-RD01 review specification.
+
+
+The Candidate has a ## 21. Recommended Independent Review Profile section — likely where Review Areas A–P are defined. The repo tracked tree has no UI-RD01-I04 dispatch doc. Let me read the Candidate's identity/governance/inputs sections and the review profile section, and run a bounded filesystem search for the original dispatch.
+
+
+No original UI-RD01-I04-DESIGN-R01 dispatch exists on disk — only unrelated AWB docs. The Candidate's governance header confirms Task ID UI-RD01-I04-DESIGN-01, Rules 0.1.0, and it names four authoritative inputs (A–D) with git blobs. Let me read the Candidate's review-profile and acceptance sections to resolve what "Review Areas A–P" refers to.
+
+
+The Candidate's §21 confirms this is review task UI-RD01-I04-DESIGN-R01 (INDEPENDENT DESIGN REVIEWER, STRICT READ_ONLY, L2) and recommends two complementary check faces — it does not enumerate "Review Areas A–P." That A–P enumeration lives in the prior dispatch card, which was not re-attached. Let me confirm the background search found nothing, then load the Rule Pack to check whether governance defines canonical review areas.
+
+
+The search surfaced a prior review result at E:/Documents/ui-rd01-i04-r01-review/UI-RD01-I04-DESIGN-R01-Review-Result.md — likely the earlier INPUT-LAYER BLOCKED attempt, which may preserve the original Review Areas A–P enumeration. Let me read it (as historical reference only, not as this round's basis).
+
+
+Input layer now resolvable. The prior BLOCKED result (a physically-present on-disk artifact, not memory) preserves the Review Areas A–P enumeration in its F-BLK-01 impact statement:
+
+> A Authority Preservation · B Population/Selection Contract · C HMAC Selector/Cursor · D Bounded Snapshot Reader · E Immutable Handoff · F partition_projection · G Full-query Admission · H CPU Admission/Cancellation · I Resource Budgets · J State/Error Semantics · K DTO Fidelity · L DB/CPU Separation · M Schema Boundary · N OpenAPI Boundary · O Verification Contract V01–V32 · P Risk Reclassification
+
+These 16 areas map cleanly onto the Candidate's §1–§22. Candidate Binding is PASS, both baselines verified. I can proceed to substantive review. Let me load the review skill for the canonical protocol and begin exporting the Rule Pack.
+
+
+Skill loaded — it's a Procedure playbook: Repository Truth First, no memory substitution (prior Review Result = navigation only), dynamic REQUIRED_ACTIVE discovery from the Manifest, fresh-context review, fail-closed. All 9 Rule Pack files exported with blob roundtrip OK. Now FULL READ the Rule Pack (discovering the REQUIRED_ACTIVE set from the Manifest at runtime).
+
+
+Manifest confirms REQUIRED_ACTIVE = 6 rule files (KERNEL-01-03, 05, 06, 07, 02, 08) + Bootstrap + Manifest + PROJECT_STATE — matching the Candidate's §2.2 load record. Now FULL READ all 6 governance rules + PROJECT_STATE.
+
+
+Now the remaining two governance rules + PROJECT_STATE.
+
+
+Rule Pack FULL READ complete: Bootstrap + Manifest + 6/6 REQUIRED_ACTIVE (KERNEL-01-03, 05, 06, 07, 02, 08) + PROJECT_STATE, all version-consistent (Governance 0.1.0 / Rule Pack 0.1.0 / Manifest fd00-rule-manifest/0.1.0 / SELF_HOSTED / CUTOVER-1 PASS). → Rule Load: PASS.
+
+Note: ai-dev-workflow's PROJECT_STATE registers FD-01 and AWB but not UI-RD01-I04 (a MarketPulse product work package — its registration would live in MarketPulse's own state). Now let me FULL READ the Candidate body and, in parallel, export + blob-verify the four authoritative inputs and MarketPulse state/source.
+
+
+All four authoritative inputs A–D: BLOB_MATCH_DISPATCH + ROUNDTRIP_OK (A=37158, B=35812, C=12309, D=55188 bytes). MarketPulse origin/main has frozen UI-RD01-I02/I03-Implementation-Requirements.md but no I04 — consistent with the Candidate's "Persistence: NOT PERFORMED". Continuing the Candidate FULL READ (§11–§18).
+
+
+Candidate FULL READ complete (§1–§22, all 1347 lines). It's a detailed design with 30 requirements (R-01..R-30), 16 ACs, and 32 verification cases (V01..V32). Now I must independently verify its source-code symbol claims against MarketPulse origin/main=8c94ea33 (existing symbols must exist; NEW symbols must NOT). Let me map the backend/frontend tree and grep the claimed symbols.
+
+
+Tree confirms all claimed EXISTING modules are present (edge/aggregation.py, hashing.py, api/product/{context,models,system}.py, db/session.py, frontend transport.ts/generated.ts, three test_se_02d_ files), and the claimed NEW files (edge_aggregates.py, edge_aggregate_models.py, edge_population_cursor.py) are correctly absent. Now symbol-level verification via git grep at origin/main.
+
+
+Now comprehensive symbol verification against origin/main — existing symbols must be present, NEW symbols must be absent.
+
+
+The g() helper mis-ordered args — origin/main landed after --, so git grep searched the dirty working tree (branch prb-01, which predates the edge code), not origin/main. That's exactly the CIP trap. Let me redo with the tree-ish correctly placed before --.
+
+
+All 15 must-exist symbol claims VERIFIED PRESENT at origin/main. Now verify the NEW symbols are absent, plus the enum/nuance claims (AggregateStatus values, Calculability, ReadFailureReason, frozen projection w/ dict manifest, async snapshot fn, package.json scripts, anyio dep).
+
+
+NEW symbols correctly absent (partition_projection, BoundedEdgeSnapshotReader, edge-aggregates). AggregateStatus = exactly the 5 claimed members (INSUFFICIENT_DATA correctly NOT a status); CurrentSnapshotProjection is @dataclass(frozen=True, slots=True) with manifest: tuple[dict[str, Any], ...] — confirming R-16's "shallow-frozen but inner dicts mutable" claim; ReadFailureReason has no CPU_BUSY. But anyio did NOT match in pyproject.toml — the candidate's R-20 claim "当前 production dependency 已包含 anyio>=4.4,<5" needs scrutiny. Let me investigate that plus remaining nuance claims.
+
+
+anyio>=4.4,<5 is confirmed at backend/requirements.txt:9 (deps live there, not pyproject) and anyio is already imported in app.py/runtime_host.py — so R-20's claim is accurate, not a finding. Now the remaining source nuance claims + package.json scripts.
+
+
+Source claims verify precisely: aggregate_projection is a pure sync function using exactly the _require_one_to_one_mapping / _ordered_population_groups / _manifest_subset primitives R-17 says partition_projection must delegate to; aggregate_current_snapshot is async and calls the pure aggregate inline (confirming R-02's "must split read from CPU offload"); PopulationKey has exactly the 7 structural fields, source_manifest_id excluded, structural __eq__ (not canonical_key) as identity authority (R-04 ✓); MeasurementSignature has exactly the 6 fields (§9.4 ✓). Now package.json scripts + error DTO fields + Calculability, then the four inputs.
+
+
+All error/enum/DTO claims verify exactly: package.json has all 5 claimed scripts; Calculability = 3 members; ProductUnavailableResponse (projection/contract_version/read_surface_class/read_failure_reason/correlation_id) and ProductInternalErrorResponse (correlation_id) match R-26; ProjectionState {FRESH/STALE/EMPTY/UNAVAILABLE/CAPABILITY_NOT_INTEGRATED}, OperationalAvailability {ACTIVE/ACCEPTED_NOT_INTEGRATED/NOT_ACTIVATED}, ReadFailureReason {SOURCE_UNAVAILABLE/SNAPSHOT_FAILED} all match R-23/R-24. The Candidate is highly faithful to the codebase. Now the Authority-Preservation checks against the four frozen inputs (targeted, then read key sections).
+
+
+Input C (Amendment) strongly corroborates the Candidate: line 107 "Future EdgeAggregateRead must acquire bounded full Edge query admission before expensive [DB ops]" (R-18 ✓); lines 176–198 the audit same-result binding ("forbidden to combine result-A metrics with a result-B fingerprint…must not recompute input_fingerprint, mint as_of, select another population") matching R-12 nearly verbatim; line 209 SE-02D formulas/PopulationKey/folding/fingerprint unchanged. Let me read the Amendment's binding section in full and locate the selection/pagination authority in inputs A and B.
+
+
+The Amendment (C) is the directly-binding authority and the Candidate tracks it almost verbatim (CR-04 admission-before-DB pipeline = R-18; CR-06 audit same-result binding = R-12/§9.2). Critically, CR-04 states the Amendment "freezes no numeric concurrency, queue, timeout, memory, or latency values" — so the Candidate's R-19 numbers are candidate-originated protective guards (correctly labeled as such, not authority-frozen). SE-02D (D) confirms the 4 horizons, INSUFFICIENT_DATA as an Outcome (not Aggregate) status, and identity=(population_key,horizon). Let me verify the remaining feasibility claims (reader internals, canonical_bytes handling, offline OpenAPI export, ForwardHorizon enum, primary-horizon + unique-auto-select authority).
+
+
+Every feasibility claim verifies against the code: ForwardHorizon={30s,5m,15m,1h}; Input D §11 confirms 5m = V1 primary horizon (R-05 ✓); CurrentSnapshotRevisionReader.read()/_read_in_session() uses SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY + SELECT statement_timestamp() + .scalars().all() (R-13/R-15 ✓ — the bounded-reader injection point is real); canonical_bytes uses canonicalize_value+json.dumps(sort_keys,allow_nan=False) and canonical_digest domain-separates (R-16/R-09 ✓); generate-api.mjs "exported from the FastAPI application object…needs no [running server]" (R-30 ✓); Input B line 575 "恰好一个 exact population 匹配时：允许自动选择" confirms R-08's frozen unique-auto-select authority. Let me confirm MarketPulse PROJECT_STATE registration/gate for I04 and the I02/I03 freeze-persist pattern to characterize the next legal gate correctly.
+
+
+Governance context clarified. Note the token collision my memory warned about: PROJECT_STATE's "I04 = NOT REQUIRED FOR SE-02D V1" refers to SE-02D-I04, not UI-RD01-I04 (different work packages). UI-RD01-I02/I03 followed a design→Human-confirm→persist(DOC PERSISTENCE+STATE SYNC ONLY)→review→freeze→implement pattern; UI-RD01-I04 is not yet registered (expected — candidate is NON-PERSISTED). All verification is complete. Let me execute Review Areas A–P, persist the Review Result out-of-repo, and record evidence.
+
+
+Now the reproducible evidence log, then I'll finalize.
+
+
+Let me confirm zero repository mutation (both repos' HEAD/refs unchanged, no new commits) and that the scratch deliverables exist.
+
+
+Zero repository mutation confirmed (both HEAD and origin/main unchanged). Let me finalize the todo list and record the outcome to memory.
+
+
+Memory store is at capacity — I'll record this durable outcome in the daily journal instead (no size pressure).
+
+
+[AI Development Workflow｜UI-RD01-I04-DESIGN-R01｜Rules 0.1.0｜Rule Load: PASS]
+
+VERDICT: PASS (design layer) — 0 BLOCKING / 4 NON-BLOCKING / 6 OBSERVATIONS
+
+The prior INPUT-LAYER BLOCKED reason (Candidate not supplied) is resolved. The Candidate was physically supplied and independently bound; a full substantive review of Areas A–P was performed. The prior verdict was not inherited.
+
+Binding — all independent, all EXACT
+Candidate: SHA-256 e1ece5cf…42ee4fd, 63,403 B, 1,347 logical lines (wc -l=1,346, no terminal LF), no BOM ([AI header), CR=0, no final LF (); blob 32f808e4. → Binding PASS
+Baselines (post-git fetch, origin/main): ai-dev-workflow 1e2732a9… ✅ · MarketPulse-AI 8c94ea33… ✅ (both dirty local worktrees ignored; all truth read from origin/main objects)
+Rule Load PASS: Bootstrap + Manifest (fd00-rule-manifest/0.1.0, REQUIRED_ACTIVE=6) + KERNEL-01-03/05/06/07/02/08 + PROJECT_STATE, all FULL READ + blob-roundtrip, version-consistent
+Inputs A–D: all four blobs == dispatch-attested == roundtrip (A f98dd6e9, B 62173554, C b3af9d9a, D f9b9ac90)
+
+Why PASS
+The Candidate is exceptionally faithful to Repository Truth. Every existing-symbol claim verified present at origin/main (aggregate_projection/aggregate_current_snapshot, CurrentSnapshotRevisionReader + _read_in_session/.all(), frozen CurrentSnapshotProjection.manifest: tuple[dict…], canonical_bytes, 7-field PopulationKey, the 5-value AggregateStatus, shared Product DTOs/enums, verify_session/session_secret, anyio>=4.4,<5, all 5 npm scripts, ForwardHorizon{30s,5m,15m,1h}), and every NEW symbol correctly absent (partition_projection, BoundedEdgeSnapshotReader, the three new files, the route). It tracks the frozen Amendment CR-04 (admission-before-DB pipeline; DB released before CPU; fail-closed on over-budget) and CR-06 (audit identity from one exact AggregationResult) nearly verbatim, preserves Input B's frozen unique-auto-select rule (line 575) and Input D's 5m-primary-horizon, adds no statistics/rankings/strategy semantics, and keeps Schema/Migration/Index at ZERO CHANGE. Risk L2 confirmed (no upward reclassification).
+
+NON-BLOCKING (address/disposition at next gate)
+NB-01 (C/P): session_secret reused as the HMAC key for selector/cursor. Grants no authority + domain-separated, but prefer an HKDF-derived subkey and add an explicit AUTH-tag/reclassification rationale (KERNEL-07 conservative). Candidate self-flags this.
+NB-02 (E): R-16's Mapping annotation change touches frozen SE-02D CurrentSnapshotProjection.manifest — must be proven behavior-neutral (no isinstance(dict)/mutation dependence; identical canonical_bytes; SE-02D goldens pass) beyond V21/V31.
+NB-03 (O): R-09's selector-collision fail-closed branch has no dedicated V-case.
+NB-04 (I): R-19 numeric budgets are candidate-originated (Amendment "freezes no numeric values") — require §18 performance evidence before Freeze; not an SLA/capacity.
+
+Key OBSERVATIONS: cancelled-but-running jobs hold the single CPU slot until natural completion (documented tradeoff, OBS-01); the 2/1/1 admission arithmetic is coherent with no deadlock (OBS-02); current-snapshot pagination substitutes catalog_digest for Input A's temporal "effective range" (OBS-03); UI-RD01-I04 is not yet in MarketPulse PROJECT_STATE — expected for a NON-PERSISTED candidate, and note SE-02D-I04 ≠ UI-RD01-I04 (OBS-04).
+
+Disposition & Next Legal Gate
+PASS — READY FOR NEXT LEGAL GATE. This is not acceptance, freeze, persistence, or implementation authorization (KERNEL-06: a Reviewer verdict is not a state transition). Next, per the I02/I03 precedent: disposition NB-01..04 → Human Content Confirmation → requirement PERSIST (DOCUMENT PERSISTENCE + STATE SYNC ONLY, register UI-RD01-I04, bind persisted hash) → Freeze → separate implementation authorization.
+
+Repository mutation: ZERO — both HEAD and origin/main re-verified unchanged after the review; all reads non-mutating; evidence persisted out-of-repo.
+
+Deliverables (out-of-repo scratch):
+Review Result
+Verification Evidence Log

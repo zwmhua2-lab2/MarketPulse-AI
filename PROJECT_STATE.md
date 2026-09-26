@@ -2586,3 +2586,12 @@ UI-RD01-I03-REQ-04 — Trading Audit Read Product Read Implementation Requiremen
 - Cutover is prospective only. Historical task contracts, review records, accepted candidates, frozen requirements, Human decisions, protocol references, and evidence retain their historical meaning and are not rewritten.
 - Activation boundary unchanged: Real AI = `NOT ACTIVATED`; Gate A = `NOT ACTIVATED`; Gate B = `NOT ACTIVATED`; Gate C = `NOT PASSED`; live `G2→G3` = `NOT ACTIVE`; Live = `NOT AUTHORIZED`; Live Trading = `DISABLED`。
 - `UI-RD01-I04 = NOT STARTED`；`UI-RD01-I05 = NOT STARTED`；Next Product Task = `NOT YET SELECTED`。This cutover does not select, design, or authorize a next product task.
+
+## UI-RD01-I04 Requirement Persistence State
+
+- `UI-RD01-I04 = DESIGN CANDIDATE HUMAN-CONFIRMED / PERSISTED / FREEZE PENDING`。Candidate：`UI-RD01-I04-Implementation-Requirements-v0.1`；SHA-256：`e1ece5cf5cb8ff203a4a7ae1e5c51e9cb0d2ec92675192814ccd8a35442ee4fd`；artifact：`docs/design/UI-RD01/UI-RD01-I04-Implementation-Requirements.md`。
+- Independent Design Review：`UI-RD01-I04-DESIGN-R01 = PASS`；Blocking Findings：`0`；review evidence：`docs/design/UI-RD01/reviews/UI-RD01-I04-DESIGN-R01-Review-Transcript.txt`，SHA-256：`69ffef442feef1d2f13ef53f42e23dadf7786f6416fce6d57bd7be4c17d2be15`。
+- Human Content Confirmation：`CONFIRMED — 2026-09-26`。Whitespace Amendment：`UI-RD01-I04-REQ-PERSIST-01-AMEND-01 / CONFIRMED — 2026-09-27`；Candidate 原始字节及其已授权的 11 处行尾空白均保持不变。
+- NB-01 / NB-02 / NB-03 / NB-04 = `OPEN / NON-BLOCKING / CARRIED FORWARD`：session_secret reuse / derived-subkey consideration；immutable Mapping compatibility verification obligation；explicit selector-collision adverse test required；numeric resource limits require performance evidence and are not SLA/capacity guarantee。
+- Current Gate：`UI-RD01-I04 REQUIREMENT FREEZE`；Freeze：`NOT YET`；Implementation Authorization：`NOT GRANTED`；Implementation：`NOT STARTED`。本持久化不构成 `ACCEPTED`、`FROZEN` 或 implementation authorization；不实现 `EdgeAggregateRead`。
+- Next Legal Gate：`UI-RD01-I04-REQ-PERSIST-R01` Independent Persistence Review。

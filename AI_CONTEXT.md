@@ -323,6 +323,12 @@ disposable 库保持空表（症状 `relation "edge_opportunity_evidence" does n
 
 ## 6. Next Step Entry（下一步工作入口）
 
+### UI-RD01-I04 Requirement Persistence
+
+- `UI-RD01-I04` current state = `DESIGN CANDIDATE HUMAN-CONFIRMED / PERSISTED / FREEZE PENDING`。Candidate = `UI-RD01-I04-Implementation-Requirements-v0.1`，SHA-256 = `e1ece5cf5cb8ff203a4a7ae1e5c51e9cb0d2ec92675192814ccd8a35442ee4fd`，authoritative persisted artifact = `docs/design/UI-RD01/UI-RD01-I04-Implementation-Requirements.md`。
+- Independent Design Review `UI-RD01-I04-DESIGN-R01 = PASS`，Blocking Findings = `0`，Non-Blocking `NB-01..NB-04 = CARRIED FORWARD`；Human Content Confirmation = `CONFIRMED — 2026-09-26`；Whitespace Amendment = `CONFIRMED — 2026-09-27`。Review evidence = `docs/design/UI-RD01/reviews/UI-RD01-I04-DESIGN-R01-Review-Transcript.txt`。
+- Current Gate = `UI-RD01-I04 REQUIREMENT FREEZE`；Freeze = `NOT YET`；Implementation Authorization = `NOT GRANTED`；Implementation = `NOT STARTED`。不得实现 `EdgeAggregateRead`、不得自行 Freeze；next legal gate only = `UI-RD01-I04-REQ-PERSIST-R01` Independent Persistence Review。
+
 ### UI-F01-I01 Frontend Foundation — ACCEPTED / COMPLETE
 
 - 任务：`UI-F01-I01`｜Frontend Foundation（IMPLEMENTATION + VERIFICATION；**非** New Design、

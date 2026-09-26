@@ -497,3 +497,9 @@
 ## MP-WF-CUTOVER-01
 
 - Human Cutover Confirmation = `CONFIRMED — 2026-09-26`. `PRE-RAI-R01-RESUME-01 = PASS WITH NON-BLOCKING FINDINGS` on exact reviewed baseline `5fa6b295b01d936c98d5d9b277f979e972cb8406` with blocking findings `0`. New MarketPulse tasks use `AI Development Workflow 0.1.0` (`Rule Pack 0.1.0`, `fd00-rule-manifest/0.1.0`, `SELF_HOSTED`); the cutover is prospective only and legacy `ai-dev-protocol` is `REFERENCE ONLY / NON-AUTHORITATIVE` with no implicit fallback. Real AI, Gates, live `G2→G3`, Live, and Live Trading activation boundaries are unchanged.
+
+## UI-RD01-I04 Confirmed Requirement Persistence
+
+- Human Content Confirmation：`UI-RD01-I04-Implementation-Requirements-v0.1 = CONFIRMED — 2026-09-26`。Independent Design Review `UI-RD01-I04-DESIGN-R01 = PASS`，Blocking Findings = `0`；`NB-01..NB-04` 明确保留为 non-blocking carry-forward，未关闭。
+- Whitespace Amendment：`UI-RD01-I04-REQ-PERSIST-01-AMEND-01 = CONFIRMED — 2026-09-27`；授权保留 Candidate 原始字节及精确 11 处既有行尾空白，且仅为物理 identity diff-check exception，不改变 Requirement 语义。
+- Persistence state only：`HUMAN-CONFIRMED / PERSISTED / FREEZE PENDING`；Freeze = `NOT YET`；Implementation Authorization = `NOT GRANTED`；Implementation = `NOT STARTED`。本决定不授权 `EdgeAggregateRead` implementation、任何 Freeze、Runtime/Gate/Real AI/Live activation。
