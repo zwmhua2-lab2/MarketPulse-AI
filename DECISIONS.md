@@ -494,3 +494,6 @@
 - I03 默认 `Schema / Migration / Index = ZERO CHANGE`；`backend/**` / `backend/tests/**` / `backend/alembic/**` / `frontend/**` / `scripts/**` / `PRODUCT_REQUIREMENTS.md` / `AGENTS.md` / 已冻结 UI-RD01 Parent Design / UI-V1-D01 Amendment / `UI-RD01-I02` Requirement artifact = `ZERO CHANGE`。
 - 边界：Real AI = `NOT ACTIVATED`；live `G2→G3` = `NOT ACTIVE`；Gate A/B/C = `NOT ACTIVATED` / `NOT PASSED`；Live = `NOT AUTHORIZED`；Live Trading = `DISABLED`。
 - 本批**未**修改 `PRE-01B-I2`（保持 `ACCEPTED / COMPLETE`）；**未** reopen `UI-RD01-I03-REQ-04`；**未**扩大 I03 scope；**未**激活 Real AI；**未**改变经济语义。
+## MP-WF-CUTOVER-01
+
+- Human Cutover Confirmation = `CONFIRMED — 2026-09-26`. `PRE-RAI-R01-RESUME-01 = PASS WITH NON-BLOCKING FINDINGS` on exact reviewed baseline `5fa6b295b01d936c98d5d9b277f979e972cb8406` with blocking findings `0`. New MarketPulse tasks use `AI Development Workflow 0.1.0` (`Rule Pack 0.1.0`, `fd00-rule-manifest/0.1.0`, `SELF_HOSTED`); the cutover is prospective only and legacy `ai-dev-protocol` is `REFERENCE ONLY / NON-AUTHORITATIVE` with no implicit fallback. Real AI, Gates, live `G2→G3`, Live, and Live Trading activation boundaries are unchanged.
