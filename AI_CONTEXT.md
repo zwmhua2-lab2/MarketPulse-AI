@@ -1443,3 +1443,10 @@ disposable 库保持空表（症状 `relation "edge_opportunity_evidence" does n
 - The cutover is prospective only. Historical task semantics, contracts, reviews, candidates, frozen truth, decisions, and evidence remain historical Repository Truth and are not retroactively reinterpreted.
 - `PRE-RAI-R01-RESUME-01 = PASS WITH NON-BLOCKING FINDINGS` on exact reviewed main `5fa6b295b01d936c98d5d9b277f979e972cb8406` with zero blocking findings. This is not Real AI, Gate, live G2→G3, Live, or Live Trading activation.
 - Activation remains closed: Real AI / Gate A / Gate B = `NOT ACTIVATED`; Gate C = `NOT PASSED`; live `G2→G3` = `NOT ACTIVE`; Live = `NOT AUTHORIZED`; Live Trading = `DISABLED`. `UI-RD01-I04` / `I05` remain `NOT STARTED`; next product task is not auto-selected.
+
+## UI-I01 Current Candidate Context
+
+- `UI-I01 Implementation Requirements Candidate v0.1.1`：已 Human-confirmed 并持久化，当前仅为 `PERSISTED CANDIDATE / PENDING INDEPENDENT PERSISTENCE REVIEW`；正文见 `docs/design/UI-V1/UI-I01-Implementation-Requirements.md`，最终 v0.2 review 见 `docs/design/UI-V1/reviews/UI-I01-DESIGN-R01-RERUN-02-Review-Result.md`。
+- Candidate SHA-256 = `f3b5ff12b99f82bc2a37ac488c70d7efea719582b454a0f0fde37e0c33f0c834`；Human Design Confirmation = `CONFIRMED`；NB-R2-01/02/03 = `ACCEPTED / NON-BLOCKING`。
+- Requirement Freeze = `NOT YET`；Implementation Authorization = `NOT GRANTED`；Implementation = `NOT STARTED`。下一 Gate 仅为 `UI-I01-REQ-PERSIST-R01`。
+- Lint Foundation 是独立任务；Implementation Authorization 前须 `ACCEPTED`。本 Candidate 不授权实现、Real AI、Gate 或 Live。

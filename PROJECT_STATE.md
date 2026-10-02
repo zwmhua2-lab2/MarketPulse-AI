@@ -2586,3 +2586,13 @@ UI-RD01-I03-REQ-04 — Trading Audit Read Product Read Implementation Requiremen
 - Cutover is prospective only. Historical task contracts, review records, accepted candidates, frozen requirements, Human decisions, protocol references, and evidence retain their historical meaning and are not rewritten.
 - Activation boundary unchanged: Real AI = `NOT ACTIVATED`; Gate A = `NOT ACTIVATED`; Gate B = `NOT ACTIVATED`; Gate C = `NOT PASSED`; live `G2→G3` = `NOT ACTIVE`; Live = `NOT AUTHORIZED`; Live Trading = `DISABLED`。
 - `UI-RD01-I04 = NOT STARTED`；`UI-RD01-I05 = NOT STARTED`；Next Product Task = `NOT YET SELECTED`。This cutover does not select, design, or authorize a next product task.
+
+## UI-I01-REQ-PERSIST-01 Requirement Candidate Persistence
+
+- Task: `UI-I01-REQ-PERSIST-01`｜`DOCUMENT / EVIDENCE / STATE PERSISTENCE ONLY`；基线为 live verified `origin/main=8c94ea338f500e2ea4dd2f8a5ccc81a65502468e`，分支 `ui-i01-requirements-persist-01`。
+- `UI-I01 Implementation Requirements Candidate v0.1.1` 已按原始附件字节持久化至 `docs/design/UI-V1/UI-I01-Implementation-Requirements.md`：41,170 bytes；692 logical lines；CRLF=691；无 final LF；SHA-256 `f3b5ff12b99f82bc2a37ac488c70d7efea719582b454a0f0fde37e0c33f0c834`。
+- `UI-I01-DESIGN-R01-RERUN-02` 最终 v0.2 review 原文持久化至 `docs/design/UI-V1/reviews/UI-I01-DESIGN-R01-RERUN-02-Review-Result.md`（48,780 bytes；SHA-256 `f3052a173c58331e099c12a7ba3cdbc74b73d2577c6ee2098b2ba2ccd4eec816`）；Verdict = `PASS WITH NON-BLOCKING FINDINGS`；Blocking Findings = `0`。v0.1 `BLOCKED / INPUT_IDENTITY_MISMATCH` 保留在仓库外历史证据目录，不作为本 Candidate 的 review verdict。
+- Design Content = `HUMAN-CONFIRMED`；`NB-R2-01` / `NB-R2-02` / `NB-R2-03` = `ACCEPTED / NON-BLOCKING`；Requirement = `PERSISTED CANDIDATE`。本记录不执行 Requirement Freeze。
+- `Requirement Freeze = NOT YET`；`Implementation Authorization = NOT GRANTED`；`Implementation = NOT STARTED`。下一 Gate = `UI-I01-REQ-PERSIST-R01 / Independent Persistence Review`。
+- Lint Foundation = `SEPARATE TASK`；不阻塞 Design Review、Requirement Persistence 或 Requirement Freeze；`Implementation Authorization` 在 Lint Foundation `ACCEPTED` 前仍受阻。
+- 本任务限定于文档、review evidence、state/decision 与 dev_log；Backend、Frontend production/tests、package/lockfile、lint tooling、OpenAPI/generated types、Schema/Migration/Index、Runtime、Real AI/Gate/Live 均 `ZERO CHANGE`。

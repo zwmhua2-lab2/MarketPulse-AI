@@ -497,3 +497,9 @@
 ## MP-WF-CUTOVER-01
 
 - Human Cutover Confirmation = `CONFIRMED — 2026-09-26`. `PRE-RAI-R01-RESUME-01 = PASS WITH NON-BLOCKING FINDINGS` on exact reviewed baseline `5fa6b295b01d936c98d5d9b277f979e972cb8406` with blocking findings `0`. New MarketPulse tasks use `AI Development Workflow 0.1.0` (`Rule Pack 0.1.0`, `fd00-rule-manifest/0.1.0`, `SELF_HOSTED`); the cutover is prospective only and legacy `ai-dev-protocol` is `REFERENCE ONLY / NON-AUTHORITATIVE` with no implicit fallback. Real AI, Gates, live `G2→G3`, Live, and Live Trading activation boundaries are unchanged.
+
+## UI-I01 Human-Confirmed Requirement Candidate (Not Frozen)
+
+- `UI-I01 Implementation Requirements Candidate v0.1.1` 内容已由 Human 确认；精确正文以 `docs/design/UI-V1/UI-I01-Implementation-Requirements.md` 为准，SHA-256 `f3b5ff12b99f82bc2a37ac488c70d7efea719582b454a0f0fde37e0c33f0c834`。独立复审 `UI-I01-DESIGN-R01-RERUN-02` v0.2 为 `PASS WITH NON-BLOCKING FINDINGS`、blocking `0`，证据见对应 `docs/design/UI-V1/reviews/` 文件。
+- Human 接受 `NB-R2-01`（未来 Implementation 前 latest-main rebind）、`NB-R2-02`（Implementation Verification Profile 可精化时区/DST 用例）、`NB-R2-03`（Shell 修改继续受 explicit Allowed/Forbidden Boundary 约束）为 non-blocking carry-forward。
+- 此记录仅记录内容确认与 Candidate 持久化：`Requirement Freeze = NOT YET`；`Implementation Authorization = NOT GRANTED`；`Implementation = NOT STARTED`。不修改 UI-V1/UI-RD01 已冻结语义，不构成新的产品规则或授权。
