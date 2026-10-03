@@ -2624,3 +2624,41 @@ RegistrationParent: `1dbdc3f318fa1e96396a8b6058796a5a6f1811f1`
 Registration dev_log: `dev_log/2026-10-03-ui-i01-persist-successor-v02-taskcontract-registration.md`
 
 The registered contract is copied byte-for-byte from the supplied attachment. Core semantics are unchanged from v0.1. This task does not execute Persistence Successor, modify Requirement or Design Review, perform Independent Review or Requirement Freeze, grant Implementation Authorization, implement, integrate to `main`, or perform `WRITE_MAIN`.
+
+## UI-I01 Persistence Successor Execution Amendment Registration
+
+Operation: `UI-I01-REQ-PERSIST-SUCCESSOR-01-EXEC-AMEND-01-REGISTER-01 v0.1`
+TaskContract: `UI-I01-REQ-PERSIST-SUCCESSOR-01 v0.2`
+TargetContractSemanticID: `UI-I01-REQ-PERSIST-SUCCESSOR-01@0.2`
+TargetContractBytes: 18131
+TargetContractSHA256: `d5c000c0cb5a40b4cc962156cf71b85d626ed14cf0f872bb1fab1899b125ac91`
+TargetContractGitBlob: `44cac7a5236fef3ef3a7db2cd3cdf9695d1045fa`
+Amendment: `UI-I01-REQ-PERSIST-SUCCESSOR-01-EXEC-AMEND-01 v0.1`
+AmendmentSemanticID: `UI-I01-REQ-PERSIST-SUCCESSOR-01-EXEC-AMEND-01@0.1`
+AmendmentBytes: 4151
+AmendmentSHA256: `a2bc8287a0df5af165f0dac77eb40aa5292d13a083cb93b4675b0975289595f4`
+AmendmentClassification: `EXECUTION_BUDGET_AND_PRE_MUTATION_COMMAND_RECOVERY_ONLY`
+AdditionalDispatchAuthorization: 1
+EffectiveDispatchLimitAfterAmendment: 2
+ConsumedDispatches: 1
+RemainingDispatchesAfterRegistration: 1
+Dispatch02: `BLOCKED / PRE_MUTATION_PARSE_FAILURE / NO_CANDIDATE`
+MutationRetryMax: 0
+PreMutationCommandConstructionRetryMax: 1
+FixRoundLimitWithinSameContract: 0
+VerificationContract: `UNCHANGED / CPV-01..CPV-12`
+AllowedSuccessorPathSet: `UNCHANGED / EXACT SEVEN PATHS`
+RequirementIdentity: `UNCHANGED / UI-I01-Implementation-Requirements.md @ 212b20659e00deb5b91d566bef74969bef1d1758 / SHA-256 f3b5ff12b99f82bc2a37ac488c70d7efea719582b454a0f0fde37e0c33f0c834`
+FinalDesignReviewIdentity: `UNCHANGED / UI-I01-DESIGN-R01-RERUN-02-Review-Result.md / SHA-256 f3052a173c58331e099c12a7ba3cdbc74b73d2577c6ee2098b2ba2ccd4eec816`
+WorkspacePreservationRequirements: `UNCHANGED`
+ExecutionParent: `1dbdc3f318fa1e96396a8b6058796a5a6f1811f1`
+Registration: `FORMALLY REGISTERED / BRANCH BOUND / NOT ON MAIN`
+RegistrationBranch: `ui-i01-persist-successor-exec-amend-01-register`
+RegistrationParent: `c4e7a84fccd21f583ab905668b7c27214c0f5a8b`
+RequirementFreeze: `NOT_PERFORMED`
+ImplementationAuthorization: `NOT_GRANTED`
+Implementation: `NOT_STARTED`
+WriteMain: `NOT_PERFORMED`
+Next: `RESOLVE_AMENDED_EXECUTION_PROFILE_AND_COMPILE_DISPATCH_03`
+
+This amendment registration does not resume Dispatch-02 or execute the Persistence Successor.

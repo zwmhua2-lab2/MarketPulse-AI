@@ -1,0 +1,93 @@
+{
+  "amendment_classification": "EXECUTION_BUDGET_AND_PRE_MUTATION_COMMAND_RECOVERY_ONLY",
+  "amendment_semantic_id": "UI-I01-REQ-PERSIST-SUCCESSOR-01-EXEC-AMEND-01@0.1",
+  "artifact_type": "AUTHORIZED_TASK_CONTRACT_AMENDMENT_CANDIDATE",
+  "authority_state": "CANDIDATE_NOT_YET_REGISTERED",
+  "changes": {
+    "effective_dispatch_budget": {
+      "additional_dispatch_authorization": 1,
+      "consumed_dispatches": 1,
+      "effective_total_dispatch_limit_after_amendment": 2,
+      "original_dispatch_limit": 1,
+      "remaining_dispatches_after_amendment_registration": 1
+    },
+    "pre_mutation_command_recovery": {
+      "eligibility": [
+        "Failure occurs before any task file write",
+        "Failure is command construction, shell parsing, quoting, argument binding, or equivalent pre-mutation invocation failure",
+        "Primary workspace stop snapshot remains exactly equal to BEFORE",
+        "Isolated successor worktree remains clean at exact execution parent",
+        "No candidate commit exists",
+        "No push occurred"
+      ],
+      "pre_mutation_command_construction_retry_max": 1,
+      "required_behavior": [
+        "Record the failed command attempt and parser/tool error",
+        "Correct only the command construction or invocation mechanism",
+        "Do not change task semantics, allowed paths, artifact content, or execution parent",
+        "Use at most one corrected pre-mutation command construction retry",
+        "If the corrected attempt also fails before mutation, STOP and return to Coordinator"
+      ]
+    }
+  },
+  "claim_boundary": {
+    "does_not_authorize_implementation": true,
+    "does_not_authorize_requirement_freeze": true,
+    "does_not_authorize_resume_inside_dispatch_02": true,
+    "does_not_reclassify_dispatch_02_as_success": true,
+    "expected_next_dispatch": "UI-I01-REQ-PERSIST-SUCCESSOR-01-DISPATCH-03",
+    "requires_new_dispatch_identity": true
+  },
+  "explicitly_unchanged": {
+    "allowed_changes": "UNCHANGED / EXACT_SEVEN_PATHS",
+    "design_review_identity": "UNCHANGED",
+    "execution_parent": "1dbdc3f318fa1e96396a8b6058796a5a6f1811f1",
+    "external_billed_budget": 0,
+    "fix_round_limit_within_same_contract": 0,
+    "forbidden_actions": "UNCHANGED",
+    "implementation": "NOT_STARTED",
+    "implementation_authorization": "NOT_GRANTED",
+    "mutation_retry_max": 0,
+    "out_of_scope": "UNCHANGED",
+    "requirement_freeze": "NOT_PERFORMED",
+    "requirement_identity": "UNCHANGED",
+    "risk_tier": "UNCHANGED / L2",
+    "role": "UNCHANGED",
+    "source_persistence_candidate": "212b20659e00deb5b91d566bef74969bef1d1758",
+    "stop_conditions": "UNCHANGED",
+    "success_predicate": "UNCHANGED",
+    "task_scope": "UNCHANGED",
+    "transient_read_retry_max": 1,
+    "verification_contract": "UNCHANGED / CPV-01..CPV-12",
+    "workspace_preservation_contract": "UNCHANGED",
+    "write_main": false
+  },
+  "project": "MarketPulse-AI",
+  "registration": {
+    "suggested_branch": "ui-i01-persist-successor-exec-amend-01-register",
+    "target_parent": "c4e7a84fccd21f583ab905668b7c27214c0f5a8b",
+    "target_path": "docs/design/UI-V1/UI-I01-REQ-PERSIST-SUCCESSOR-01-EXEC-AMEND-01-v0.1.json",
+    "target_repository": "zwmhua2-lab2/MarketPulse-AI",
+    "write_main": false
+  },
+  "repository": "zwmhua2-lab2/MarketPulse-AI",
+  "target_contract": {
+    "authority_carrier": "c4e7a84fccd21f583ab905668b7c27214c0f5a8b",
+    "bytes": 18131,
+    "git_blob": "44cac7a5236fef3ef3a7db2cd3cdf9695d1045fa",
+    "path": "docs/design/UI-V1/UI-I01-REQ-PERSIST-SUCCESSOR-01-TASK-CONTRACT-v0.2.json",
+    "semantic_id": "UI-I01-REQ-PERSIST-SUCCESSOR-01@0.2",
+    "sha256": "d5c000c0cb5a40b4cc962156cf71b85d626ed14cf0f872bb1fab1899b125ac91"
+  },
+  "trigger": {
+    "candidate_commit": null,
+    "dispatch": "UI-I01-REQ-PERSIST-SUCCESSOR-01-DISPATCH-02",
+    "finding": "INITIAL_POWERSHELL_WRITE_COMMAND_REJECTED_DURING_PARAMETER_PARSING",
+    "primary_workspace_stop_snapshot": "EXACTLY_EQUAL_TO_BEFORE",
+    "push": "NOT_PERFORMED",
+    "repository_candidate": "NONE",
+    "result": "BLOCKED",
+    "task_files_written": false
+  },
+  "workline": "UI-I01 | Global Shell + System"
+}
