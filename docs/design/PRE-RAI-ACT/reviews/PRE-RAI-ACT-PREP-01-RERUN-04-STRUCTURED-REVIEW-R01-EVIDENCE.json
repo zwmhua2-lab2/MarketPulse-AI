@@ -1,0 +1,197 @@
+{
+  "artifact_type": "STRUCTURED_DESIGN_REVIEW_EVIDENCE_MANIFEST",
+  "review_task_id": "PRE-RAI-ACT-PREP-01-RERUN-04-STRUCTURED-REVIEW-R01",
+  "review_task_version": "v0.1",
+  "work_name": "Fresh Independent Design Review of Structured RERUN-04 Candidate",
+  "task_type": "REVIEW",
+  "role_executed": "Independent Design Reviewer",
+  "task_mode": "STRICT_READ_ONLY_DESIGN_REVIEW_NO_IMPLEMENTATION_NO_FREEZE_NO_ACTIVATION",
+  "risk_tier": "L3",
+  "verification_profile_identity": "PRE-RAI-RERUN04-STRUCTURED-DESIGN-REVIEW-v0.1-CANDIDATE",
+  "review_timestamp_utc": "2026-10-03T04:29:09Z",
+  "return_window": "MarketPulse-AI｜Real AI Activation Planning",
+
+  "verdict": {
+    "value": "PASS",
+    "meaning": "STRUCTURED DESIGN REVIEW PASSED / ELIGIBLE FOR HUMAN FREEZE DECISION",
+    "blocking_findings": 0,
+    "non_blocking_findings": 3,
+    "observations": 4,
+    "acceptance_predicate_satisfied": true,
+    "acceptance_predicate": "DR-01..DR-15 PASS and Blocking Findings = 0",
+    "next_legal_gate": "HUMAN_FREEZE_DECISION"
+  },
+
+  "subject_binding": {
+    "id": "A1",
+    "role": "PRIMARY_REVIEW_SUBJECT",
+    "name": "PRE-RAI-ACT-PREP-01-RERUN-04.task-contract.candidate.json",
+    "bytes": 141253,
+    "sha256": "eb5156414bff97f201a0d835c4c052ea2cac51fedd73c4d4b37e590f6ac249f7",
+    "authority_state": "CANDIDATE_NOT_FORMALLY_REGISTERED",
+    "verified": true
+  },
+
+  "attachment_identity_verification": [
+    { "id": "A1", "name": "PRE-RAI-ACT-PREP-01-RERUN-04.task-contract.candidate.json", "role": "PRIMARY_REVIEW_SUBJECT", "bytes": 141253, "sha256": "eb5156414bff97f201a0d835c4c052ea2cac51fedd73c4d4b37e590f6ac249f7", "match": true },
+    { "id": "A2", "name": "PRE-RAI-ACT-PREP-01-RERUN-04-v0.1.md", "role": "SOURCE_PROJECTION_SUPPORTING_EVIDENCE", "bytes": 31169, "sha256": "e7ac15873c5d6403064b9e4fc2b9d14908d26ea7c654a13c17982315598f206a", "match": true },
+    { "id": "A3", "name": "source-to-field-map.json", "role": "FORMALIZATION_MAPPING_SUPPORTING_EVIDENCE", "bytes": 211494, "sha256": "060b3e3f42121469a26013307f48d9cd6bba6b6d3fa29cdde23292752ef30096", "match": true },
+    { "id": "A4", "name": "FORMALIZE-01-RESULT.md", "role": "FORMALIZE_RESULT_SUPPORTING_EVIDENCE", "bytes": 4809, "sha256": "33ea79b85c5b78caf0133a3097216881f9ba2616ccb9404c6c820e234ccae420", "match": true },
+    { "id": "A5", "name": "evidence-manifest.json", "role": "FORMALIZE_EVIDENCE_MANIFEST_SUPPORTING_EVIDENCE", "bytes": 2746, "sha256": "eb7450d645e41ce21f80f6cf9e5f76b0e005608c3d1b06326c76f5be464c047e", "match": true },
+    { "id": "A6", "name": "self-check-result.json", "role": "FORMALIZE_SELF_CHECK_SUPPORTING_EVIDENCE_ONLY", "bytes": 4429, "sha256": "1c9775bf721f4ede836209e524fd527bb01c0bdd947b543b0c1619985c85ea61", "match": true },
+    { "id": "CONTROL-TASK-CONTRACT", "name": "PRE-RAI-ACT-PREP-01-RERUN-04-STRUCTURED-REVIEW-R01.task-contract.candidate.json", "role": "REVIEW_TASK_SEMANTIC_SOURCE", "bytes": 14035, "sha256": "171d67fca78de7cf1edb2d89141d4b0e1810a184d6b75fb82bf0a8e034e7e02e", "match": true },
+    { "id": "DISPATCH", "name": "PRE-RAI-ACT-PREP-01-RERUN-04-STRUCTURED-REVIEW-R01.dispatch.txt", "role": "DISPATCH_PROJECTION", "bytes": 1980, "sha256": "dbe68f851f0e7faeeaff358f55e6e6d8ba7962726cb3256f6297c9d4f501d3e9", "match": true }
+  ],
+
+  "fresh_refs": {
+    "verified_via": "git ls-remote origin refs/heads/main",
+    "verified_at_start_and_end": true,
+    "drift_observed": false,
+    "marketpulse_ai": {
+      "bound_baseline": "8c94ea338f500e2ea4dd2f8a5ccc81a65502468e",
+      "live_origin_main": "8c94ea338f500e2ea4dd2f8a5ccc81a65502468e",
+      "match": true
+    },
+    "ai_dev_workflow": {
+      "bound_baseline": "cbc1a221646a9f4703a65e626e58cf192ed96426",
+      "live_origin_main": "cbc1a221646a9f4703a65e626e58cf192ed96426",
+      "match": true
+    }
+  },
+
+  "resolved_frozen_source_identities": [
+    { "frozen_truth": "PRE-01A-D1", "repository": "zwmhua2-lab2/MarketPulse-AI", "commit": "8c94ea338f500e2ea4dd2f8a5ccc81a65502468e", "path": "docs/design/PRE-01A/PRE-01A-D1-Real-AI-V1-Trade-Decision-Experiment-Contract.md", "git_blob": "e8ec84246d07d0c6a7de9def78cd40d5690e6d01", "present_in_baseline": true },
+    { "frozen_truth": "PRE-01B-D1", "repository": "zwmhua2-lab2/MarketPulse-AI", "commit": "8c94ea338f500e2ea4dd2f8a5ccc81a65502468e", "path": "docs/design/PRE-01B/PRE-01B-D1-Integrated-Runtime-Host-Contract.md", "git_blob": "6e11c088e41b0968a492742eb26fa6b2b94e5991", "present_in_baseline": true },
+    { "frozen_truth": "PRE-01B-D2", "repository": "zwmhua2-lab2/MarketPulse-AI", "commit": "8c94ea338f500e2ea4dd2f8a5ccc81a65502468e", "path": "docs/design/PRE-01B/PRE-01B-D2-AdvisoryIngress-G2-G3-Activation-Contract.md", "git_blob": "d08d7feebec4c0b8d74b550a75d161659709cd70", "present_in_baseline": true },
+    { "frozen_truth": "PRE-01B-I2-AUTH-D01", "repository": "zwmhua2-lab2/MarketPulse-AI", "commit": "8c94ea338f500e2ea4dd2f8a5ccc81a65502468e", "path": "docs/design/PRE-01B/PRE-01B-I2-AUTH-D01-Recovery-Authority-Amendment.md", "git_blob": "b91a6f7772e7894aeb9d801ea7dc62aa57a4ba40", "present_in_baseline": true }
+  ],
+
+  "reviewer_identity_evidence": {
+    "selected_model": "DeepSeek V4.1 Flash",
+    "provider_family": "DeepSeek V4",
+    "harness": "WorkBuddy",
+    "reasoning": "N/A_IF_NOT_EXPOSED",
+    "runtime_reported_model_identity": "NOT_EXPOSED",
+    "runtime_reported_model_identity_note": "Host did not surface a server-signed model identity; contractual requirement is MUST_RECORD_IF_EXPOSED (conditional), so recorded as NOT_EXPOSED.",
+    "non_secret_selector_and_run_metadata": {
+      "session_id": "f04e21d9-1458-4ae9-be89-54b6fdb465db",
+      "app_version": "5.6.2",
+      "startup_pid": "5604",
+      "locale": "zh-CN"
+    },
+    "independence": {
+      "heterogeneous_to_formalizer": true,
+      "formalizer_model": "GPT-6.1 Sol",
+      "prior_markdown_review_inherited": false,
+      "prior_equiv_verdict_inherited": false
+    },
+    "dr14_verdict": "SATISFIED",
+    "blocked_review_identity_path_triggered": false
+  },
+
+  "rule_load_ledger": {
+    "governance_mode": "SELF_HOSTED",
+    "governance_version": "0.1.0",
+    "rule_pack_version": "0.1.0",
+    "manifest_identity": "fd00-rule-manifest/0.1.0",
+    "required_active_rule_files": 6,
+    "full_loaded_active_rule_files": 6,
+    "rule_load": "PASS",
+    "files": [
+      { "id": "KERNEL-01-03", "path": "governance/AUTHORITY_RULES.md", "mode": "REQUIRED_ACTIVE/FULL", "read": "full", "version": "0.1.0", "status": "ACTIVE" },
+      { "id": "KERNEL-05", "path": "governance/TASK_CONTRACT_RULES.md", "mode": "REQUIRED_ACTIVE/FULL", "read": "full", "version": "0.1.0", "status": "ACTIVE" },
+      { "id": "KERNEL-06", "path": "governance/ROLE_AUTHORITY_RULES.md", "mode": "REQUIRED_ACTIVE/FULL", "read": "full", "version": "0.1.0", "status": "ACTIVE" },
+      { "id": "KERNEL-07", "path": "governance/RISK_AND_ACCEPTANCE_RULES.md", "mode": "REQUIRED_ACTIVE/FULL", "read": "full", "version": "0.1.0", "status": "ACTIVE" },
+      { "id": "KERNEL-02", "path": "governance/CONTEXT_AND_HARNESS_RULES.md", "mode": "REQUIRED_ACTIVE/FULL", "read": "full", "version": "0.1.0", "status": "ACTIVE" },
+      { "id": "KERNEL-08", "path": "governance/SELF_HOSTING_RULES.md", "mode": "REQUIRED_ACTIVE/FULL", "read": "full", "version": "0.1.0", "status": "ACTIVE" }
+    ],
+    "also_fully_read": [
+      "AI_WORKFLOW_BOOTSTRAP.md",
+      "governance/WORKFLOW_RULE_MANIFEST.md",
+      "ai-dev-workflow/PROJECT_STATE.md (complete, 1445 lines)",
+      "governance/profiles/EXECUTION_MODEL_ROUTING_PROFILE.md (EMRP-1.1 context)"
+    ]
+  },
+
+  "dr_matrix": [
+    { "id": "DR-01", "result": "PASS", "basis": "Both origin/main refs equal bound baselines; verified twice, no drift" },
+    { "id": "DR-02", "result": "PASS", "basis": "A1 = 141253 B / eb5156...49f7; A1-A6 match manifest" },
+    { "id": "DR-03", "result": "PASS", "basis": "6/6 REQUIRED_ACTIVE full-read + bootstrap + manifest + full PROJECT_STATE + EMRP" },
+    { "id": "DR-04", "result": "PASS", "basis": "Six semantic groups present and coherent" },
+    { "id": "DR-05", "result": "PASS", "basis": "Explicit scope/out_of_scope/allowed/forbidden/stop/completion_limit" },
+    { "id": "DR-06", "result": "PASS", "basis": "Permissions all false except read-only repo + non-Git doc output; unknowns fail-closed" },
+    { "id": "DR-07", "result": "PASS", "basis": "Pack B 11/11 dimensions; value_state_policy forbids fabricated Accepted" },
+    { "id": "DR-08", "result": "PASS", "basis": "Pack C 8/8 dimensions; Measurement Plan vs Accepted Threshold separated" },
+    { "id": "DR-09", "result": "PASS", "basis": "8 authority_invariants consistent; 4 frozen source identities verified present in baseline" },
+    { "id": "DR-10", "result": "PASS", "basis": "Gate A 8/8 checklist; unknown to GATE_A_ENTRY_NOT_READY; stop policy design-only" },
+    { "id": "DR-11", "result": "PASS", "basis": "AC01-AC14 present; self-check vs Official Verification vs Acceptance separated" },
+    { "id": "DR-12", "result": "PASS", "basis": "Four historical STOPs preserved / not overridden / not re-read-recovered" },
+    { "id": "DR-13", "result": "PASS", "basis": "All prohibited permissions explicit false; unresolved_field_policy grants nothing" },
+    { "id": "DR-14", "result": "PASS", "basis": "Reviewer identity + non-secret run metadata persisted; runtime identity conditionally NOT_EXPOSED" },
+    { "id": "DR-15", "result": "PASS", "basis": "Three outputs persisted in one unique non-Git directory with exact bytes/SHA256 + subject binding" }
+  ],
+
+  "completeness_metrics": {
+    "semantic_groups_present": 6,
+    "pack_b_dimensions": 11,
+    "pack_c_dimensions": 8,
+    "acceptance_criteria_count": 14,
+    "gate_a_entry_checklist_items": 8,
+    "coordination_summary_fields": 9,
+    "required_rules": 10,
+    "required_project_inputs": 7,
+    "resolved_frozen_source_identities": 4,
+    "authority_invariants": 8,
+    "source_records_total": 296,
+    "source_line_coverage": { "min": 1, "max": 341, "uncovered_lines": 0 },
+    "source_record_contexts": {
+      "SEMANTIC_SOURCE": 159,
+      "FORMAT_ONLY": 126,
+      "HISTORICAL_CLAIM_NOT_REATTESTED": 8,
+      "PRESERVED_SOURCE_PROJECTION_NOT_DISPATCH": 3
+    }
+  },
+
+  "findings": {
+    "blocking": [],
+    "non_blocking": [
+      { "id": "SDR-R01-NB-01", "summary": "identity.creation_registry_identity UNKNOWN/null - correct fail-closed behavior; a future formal registration needs a real registry identity", "severity": "NON_BLOCKING" },
+      { "id": "SDR-R01-NB-02", "summary": "representation.control_contract reference (FORMALIZE-01 task contract, 13156 B / 69fda6d3...b19b48) not delivered in bundle; not independently re-hashed in this run", "severity": "NON_BLOCKING" },
+      { "id": "SDR-R01-NB-03", "summary": "representation.original_source.path uses 'inputs/' prefix not present in bundle; bytes/SHA match A2; identity correct", "severity": "NON_BLOCKING" }
+    ],
+    "observations": [
+      { "id": "SDR-R01-OBS-01", "summary": "Full source coverage: lines 1-341, 0 uncovered, 296 source_records across 4 contexts" },
+      { "id": "SDR-R01-OBS-02", "summary": "original_dispatch_projection labelled PRESERVED_SOURCE_PROJECTION_NOT_DISPATCH; historical claims labelled HISTORICAL_CLAIM_NOT_REATTESTED" },
+      { "id": "SDR-R01-OBS-03", "summary": "project_template_adoption_claim=false and awb_pack_authority_claim=false - no AWB authority claim" },
+      { "id": "SDR-R01-OBS-04", "summary": "Lifecycle separation explicit: official_verification NOT_PERFORMED; acceptance_limit READY_FOR_PREPARATION_REVIEW; no auto Gate A card" }
+    ]
+  },
+
+  "boundary_compliance": {
+    "repository_mutation": "NONE",
+    "candidate_edit": "NONE",
+    "provider_product_io": "NONE",
+    "secret_access": "NONE",
+    "runtime_execution": "NONE",
+    "database_access": "NONE",
+    "economic_action": "NONE",
+    "freeze": "NOT_PERFORMED",
+    "acceptance": "NOT_PERFORMED",
+    "activation": "NOT_PERFORMED",
+    "outputs_directory": "C:\\Users\\hua\\Downloads\\prb-01-bundle-extract (one unique non-Git directory)"
+  },
+
+  "persisted_outputs": {
+    "directory": "ONE_UNIQUE_NON_GIT_DIRECTORY",
+    "encoding": "UTF-8",
+    "line_endings": "LF",
+    "files": [
+      "PRE-RAI-ACT-PREP-01-RERUN-04-STRUCTURED-REVIEW-R01-RESULT.md",
+      "PRE-RAI-ACT-PREP-01-RERUN-04-STRUCTURED-REVIEW-R01-EVIDENCE.json",
+      "SHA256SUMS.txt"
+    ],
+    "bytes_and_sha256_listed_in": "SHA256SUMS.txt"
+  },
+
+  "staleness": "Any subject/repository/governance/Frozen Truth drift invalidates dependent Human Freeze use of this result."
+}

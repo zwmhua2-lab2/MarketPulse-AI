@@ -2601,3 +2601,10 @@ UI-RD01-I03-REQ-04 — Trading Audit Read Product Read Implementation Requiremen
 - Human `WRITE_MAIN` authorization is limited to this exact task and reviewed candidate. Intended target is `FORMALLY_REGISTERED_ON_MAIN`, subject to successful non-force fast-forward and post-integration identity checks.
 - Canonical SUPP-02 v0.2 JSON and Markdown bytes remain unchanged. Dispatch remains `BLOCKED` pending `UI-RD01-I04-REQ-PERSIST-R01-SUPP-02-TC-FORMALIZE-INTEGRATION-V01` post-integration receipt PASS.
 - Requirement Freeze, R01 persistence closure, Implementation Authorization, and Implementation remain `NOT PERFORMED`.
+
+## PRE-RAI-ACT-PREP-01-RERUN-04 Freeze Persistence Candidate
+
+- `FREEZE_PERSISTENCE_CANDIDATE_READY_FOR_INDEPENDENT_REVIEW` on branch `pre-rai-act-prep-01-rerun-04-freeze-persist-01-rerun-02`, based on `origin/main` `1dbdc3f318fa1e96396a8b6058796a5a6f1811f1`; not effective on `main` pending independent persistence review, controlled integration, and postcheck.
+- Structured Review R01 = `PASS`, blocking findings = `0`; Human Freeze = `CONFIRM` bound to exact candidate SHA-256 `eb5156414bff97f201a0d835c4c052ea2cac51fedd73c4d4b37e590f6ac249f7`; currency revalidation = `PASS_CURRENT_REBIND_ALLOWED`.
+- Execution Authorization = `NOT_GRANTED`; RERUN-04 = `NOT_STARTED`. Real AI = `NOT ACTIVATED`; Gate A/B = `NOT ACTIVATED`; Gate C = `NOT PASSED`; live G2→G3 = `NOT ACTIVE`; Live = `NOT AUTHORIZED`; Live Trading = `DISABLED`.
+- No provider, secret, runtime, database, economic, or activation action occurred. Details: `docs/design/PRE-RAI-ACT/PRE-RAI-ACT-PREP-01-RERUN-04-FROZEN-TRUTH-MANIFEST-v0.1.md` and `dev_log/2026-10-03-pre-rai-act-prep-01-rerun-04-freeze-persist-01-rerun-02.md`.

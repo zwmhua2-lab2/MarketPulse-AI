@@ -1,0 +1,262 @@
+{
+  "artifact_type": "STRUCTURED_TASKCONTRACT_CANDIDATE",
+  "authority_state": "NON_AUTHORITATIVE_NOT_FORMALLY_REGISTERED",
+  "identity": {
+    "task_id": "PRE-RAI-ACT-PREP-01-RERUN-04-FREEZE-PERSIST-01-RERUN-02",
+    "task_version": "v0.1",
+    "work_name": "RERUN-04 Freeze Persistence / Materialization — Evidence-Recovered Rerun",
+    "task_type": "CONTROL_PLANE_PERSISTENCE",
+    "project": "MarketPulse-AI",
+    "repository": "zwmhua2-lab2/MarketPulse-AI",
+    "repository_baseline": "1dbdc3f318fa1e96396a8b6058796a5a6f1811f1",
+    "governance_repository": "zwmhua2-lab2/ai-dev-workflow",
+    "governance_baseline": "cbc1a221646a9f4703a65e626e58cf192ed96426",
+    "governance_version": "0.1.0",
+    "rule_pack_version": "0.1.0",
+    "manifest_identity": "fd00-rule-manifest/0.1.0",
+    "parent_work_package": "Real AI Activation Planning",
+    "subject_task": "PRE-RAI-ACT-PREP-01-RERUN-04 v0.1",
+    "subject_candidate": {
+      "name": "PRE-RAI-ACT-PREP-01-RERUN-04.task-contract.candidate.json",
+      "bytes": 141253,
+      "sha256": "eb5156414bff97f201a0d835c4c052ea2cac51fedd73c4d4b37e590f6ac249f7"
+    },
+    "historical_attempts": [
+      {
+        "task_id": "PRE-RAI-ACT-PREP-01-RERUN-04-FREEZE-PERSIST-01",
+        "result": "BLOCKED_FREEZE_PERSISTENCE",
+        "cause": "STALE_MARKETPULSE_BASELINE",
+        "mutation": "NONE"
+      },
+      {
+        "task_id": "PRE-RAI-ACT-PREP-01-RERUN-04-FREEZE-PERSIST-01-RERUN-01",
+        "result": "BLOCKED_FREEZE_PERSISTENCE",
+        "cause": "EXACT_STRUCTURED_REVIEW_R01_EVIDENCE_NOT_FOUND",
+        "mutation": "NONE"
+      }
+    ]
+  },
+  "governance": {
+    "role": "Control Plane Persistence Executor",
+    "task_mode": "BRANCH_ONLY_FREEZE_MATERIALIZATION_NO_MAIN_WRITE_NO_EXECUTION_NO_ACTIVATION",
+    "risk_tier": "L3",
+    "parent_tier_floor": "L3",
+    "risk_tags": [
+      "AUTHORIZATION",
+      "PERSISTENCE",
+      "PUBLIC_CONTRACT",
+      "ECONOMIC_INTEGRITY",
+      "STATE_MACHINE",
+      "RECOVERY",
+      "SECURITY"
+    ],
+    "protected_subsystems": [
+      "Workflow Control Plane",
+      "Real AI Activation Boundary",
+      "Advisory",
+      "RuntimeHost",
+      "Risk/Execution",
+      "Provenance",
+      "DB Resource Fence",
+      "Secret Handling"
+    ],
+    "authoritative_inputs": [
+      "Current Workflow governance at cbc1a221646a9f4703a65e626e58cf192ed96426",
+      "Current MarketPulse truth at 1dbdc3f318fa1e96396a8b6058796a5a6f1811f1",
+      "Exact Structured RERUN-04 candidate",
+      "Structured Review R01 PASS / 0 BF exact evidence",
+      "Human Freeze CONFIRM bound to exact candidate",
+      "Currency Revalidation R01 = PASS_CURRENT_REBIND_ALLOWED",
+      "Evidence Export 01 = REVIEW_EVIDENCE_EXPORT_READY with exact external ZIP identity",
+      "Accepted PRE-01A/PRE-01B authority referenced by subject candidate"
+    ],
+    "human_gate": "CONFIRM / SATISFIED / CURRENT",
+    "review_currency": "STRUCTURED-REVIEW-R01 / CURRENT",
+    "frozen_truth_identity_target": "PRE-RAI-ACT-PREP-01-RERUN-04-FT-v0.1"
+  },
+  "boundary": {
+    "scope": [
+      "Fresh-load governance and fresh-check exact repository baselines.",
+      "Verify exact subject candidate identity.",
+      "Verify exact external Evidence Export ZIP at the hard-bound absolute path before branch creation.",
+      "Open the external ZIP read-only; require exactly five members and validate ZIP integrity.",
+      "Independently verify the three original Structured Review R01 evidence members by bytes and SHA-256.",
+      "Independently validate EXPORT-MANIFEST.json and EXPORT-SHA256SUMS.txt against exported files.",
+      "Create a fresh task branch from exact current MarketPulse baseline only after all evidence checks PASS.",
+      "Persist exact Structured Candidate bytes, exact Review evidence bytes, Human Freeze Confirmation, Currency Revalidation record, Frozen Truth Manifest, Freeze Record, targeted PROJECT_STATE update, and one dev_log.",
+      "Commit and push branch candidate only."
+    ],
+    "out_of_scope": [
+      "Main write/merge/fast-forward.",
+      "Execution Authorization.",
+      "RERUN-04 execution.",
+      "New design review or Human Freeze.",
+      "Any TaskContract semantic modification.",
+      "Provider calls, secret access, runtime/DB operations, economic action, Gate/Live activation.",
+      "Product/source/tests/config/schema/migration/dependency changes."
+    ],
+    "allowed_changes": {
+      "branch": "pre-rai-act-prep-01-rerun-04-freeze-persist-01-rerun-02",
+      "paths": [
+        "docs/design/PRE-RAI-ACT/PRE-RAI-ACT-PREP-01-RERUN-04-STRUCTURED-TASKCONTRACT-v0.1.json",
+        "docs/design/PRE-RAI-ACT/PRE-RAI-ACT-PREP-01-RERUN-04-HUMAN-FREEZE-CONFIRMATION-v0.1.md",
+        "docs/design/PRE-RAI-ACT/PRE-RAI-ACT-PREP-01-RERUN-04-CURRENCY-REVALIDATION-RECORD-v0.1.md",
+        "docs/design/PRE-RAI-ACT/PRE-RAI-ACT-PREP-01-RERUN-04-FROZEN-TRUTH-MANIFEST-v0.1.md",
+        "docs/design/PRE-RAI-ACT/PRE-RAI-ACT-PREP-01-RERUN-04-FREEZE-RECORD-v0.1.md",
+        "docs/design/PRE-RAI-ACT/reviews/PRE-RAI-ACT-PREP-01-RERUN-04-STRUCTURED-REVIEW-R01-RESULT.md",
+        "docs/design/PRE-RAI-ACT/reviews/PRE-RAI-ACT-PREP-01-RERUN-04-STRUCTURED-REVIEW-R01-EVIDENCE.json",
+        "docs/design/PRE-RAI-ACT/reviews/PRE-RAI-ACT-PREP-01-RERUN-04-STRUCTURED-REVIEW-R01-SHA256SUMS.txt",
+        "PROJECT_STATE.md",
+        "dev_log/2026-10-03-pre-rai-act-prep-01-rerun-04-freeze-persist-01-rerun-02.md"
+      ]
+    },
+    "forbidden_changes": [
+      "Any path outside allowed list.",
+      "Any modification to subject candidate or Review R01 exact evidence bytes.",
+      "Any substitution/reconstruction of missing evidence.",
+      "Any main mutation or force operation.",
+      "Any accepted PRE authority change."
+    ],
+    "stop_conditions": [
+      "MarketPulse origin/main != 1dbdc3f318fa1e96396a8b6058796a5a6f1811f1.",
+      "Governance origin/main != cbc1a221646a9f4703a65e626e58cf192ed96426.",
+      "Subject candidate identity mismatch.",
+      "External evidence ZIP missing at exact path.",
+      "External evidence ZIP bytes != 12558 or SHA-256 != 589c28f3dcc51a5a7d5ff0929ca2234d94edfe3c83e02a058420a9f3d53527ff.",
+      "ZIP member count != 5 or any required member missing.",
+      "ZIP integrity test fails.",
+      "Any of three original Review evidence identities mismatch.",
+      "EXPORT-MANIFEST.json or EXPORT-SHA256SUMS.txt is inconsistent with actual export bytes.",
+      "Human Freeze / Review currency no longer matches current exact subject.",
+      "Task branch exists with divergent work.",
+      "A newer successor Freeze Persistence task exists.",
+      "Any required action would need main write or scope/authority expansion."
+    ]
+  },
+  "execution": {
+    "routing_profile": "EMRP-1.1",
+    "routing_tier": "ER-1H",
+    "recommendation": {
+      "model": "GPT-6 Luna",
+      "reasoning": "High",
+      "harness": "Codex Desktop",
+      "rationale": "All design/currentness questions are resolved. Remaining work is deterministic evidence verification plus bounded persistence."
+    },
+    "external_required_input": {
+      "absolute_path": "E:\\Temp\\PRE-RAI-ACT-PREP-01-RERUN-04-STRUCTURED-REVIEW-R01-EVIDENCE-EXPORT-01.zip",
+      "bytes": 12558,
+      "sha256": "589c28f3dcc51a5a7d5ff0929ca2234d94edfe3c83e02a058420a9f3d53527ff",
+      "required_member_count": 5,
+      "required_members": [
+        "PRE-RAI-ACT-PREP-01-RERUN-04-STRUCTURED-REVIEW-R01-RESULT.md",
+        "PRE-RAI-ACT-PREP-01-RERUN-04-STRUCTURED-REVIEW-R01-EVIDENCE.json",
+        "SHA256SUMS.txt",
+        "EXPORT-MANIFEST.json",
+        "EXPORT-SHA256SUMS.txt"
+      ]
+    },
+    "permissions": {
+      "read_repository": true,
+      "read_external_evidence_zip": true,
+      "create_task_branch": true,
+      "write_allowed_paths_on_task_branch": true,
+      "commit_task_branch": true,
+      "push_task_branch": true,
+      "write_main": false,
+      "merge_or_fast_forward_main": false,
+      "provider_io": false,
+      "secret_access": false,
+      "runtime_execution": false,
+      "database_access": false,
+      "economic_action": false,
+      "activation": false
+    },
+    "data_policy": "Do not read .env/credentials/secrets. External evidence ZIP is non-secret evidence transport only.",
+    "recovery_behavior": "Any stop condition => BLOCKED_FREEZE_PERSISTENCE; preserve evidence and do not self-rebind."
+  },
+  "verification_acceptance": {
+    "acceptance_criteria": [
+      [
+        "FP2-01",
+        "Start/end refs match exact MarketPulse/governance bindings."
+      ],
+      [
+        "FP2-02",
+        "Subject candidate exact identity matches 141253 B / eb5156414bff97f201a0d835c4c052ea2cac51fedd73c4d4b37e590f6ac249f7."
+      ],
+      [
+        "FP2-03",
+        "External evidence ZIP exact identity matches 12558 B / 589c28f3dcc51a5a7d5ff0929ca2234d94edfe3c83e02a058420a9f3d53527ff."
+      ],
+      [
+        "FP2-04",
+        "ZIP has exactly five required members and integrity test passes."
+      ],
+      [
+        "FP2-05",
+        "Original RESULT.md exact identity matches 14403 B / f18801a9b1dde81ce003bbc350a3830ef0d9ffca109d0cfb640e51f2aa94b3f7."
+      ],
+      [
+        "FP2-06",
+        "Original EVIDENCE.json exact identity matches 12548 B / 470346edc000867ab1c5524cb5cd006ac49f067a6beaad786f5856375a30fac6."
+      ],
+      [
+        "FP2-07",
+        "Original SHA256SUMS.txt exact identity matches 258 B / 179f2a35e5b748ff6ab2e79d94afbeff71ceebd37e70d85dad4fe13a70e98a52."
+      ],
+      [
+        "FP2-08",
+        "Export metadata files are internally consistent with the actual exact source evidence."
+      ],
+      [
+        "FP2-09",
+        "Human Freeze CONFIRM remains bound/current; no new Human Freeze is asserted."
+      ],
+      [
+        "FP2-10",
+        "Currency Revalidation is recorded as currentness evidence, not substituted for design review."
+      ],
+      [
+        "FP2-11",
+        "Frozen Truth Manifest binds exact current baseline, governance, subject, review evidence, human decision, and carried NB-01..03."
+      ],
+      [
+        "FP2-12",
+        "Freeze Record states branch materialization != repository-effective Freeze; effectiveness awaits independent persistence review + controlled integration + postcheck."
+      ],
+      [
+        "FP2-13",
+        "PROJECT_STATE preserves Real AI/Gate/Live safety boundaries and Execution Authorization NOT_GRANTED / RERUN-04 NOT_STARTED."
+      ],
+      [
+        "FP2-14",
+        "Only allowed paths changed; main unchanged; task branch commit/push exact identities reported."
+      ],
+      [
+        "FP2-15",
+        "No Provider/secret/runtime/DB/economic/activation action occurred."
+      ],
+      [
+        "FP2-16",
+        "Success status is FREEZE_PERSISTENCE_CANDIDATE_READY_FOR_INDEPENDENT_REVIEW only."
+      ]
+    ],
+    "verification_profile_identity": "PRE-RAI-RERUN04-FREEZE-PERSIST-RERUN02-v0.1-CANDIDATE",
+    "required_review": "PRE-RAI-ACT-PREP-01-RERUN-04-FREEZE-PERSIST-R01",
+    "required_human_gate": "ALREADY SATISFIED AND CURRENT; NO RECONFIRMATION REQUIRED.",
+    "official_verification": "NOT_PERFORMED_BY_THIS_TASK"
+  },
+  "result": {
+    "allowed_statuses": [
+      "FREEZE_PERSISTENCE_CANDIDATE_READY_FOR_INDEPENDENT_REVIEW",
+      "BLOCKED_FREEZE_PERSISTENCE",
+      "HELD_DUPLICATE_OR_SUCCESSOR"
+    ],
+    "repository_mutation": "TASK_BRANCH_ONLY",
+    "main_mutation": "NONE",
+    "freeze_effective_on_main": false,
+    "execution_authorization": "NOT_GRANTED",
+    "rerun04_execution": "NOT_STARTED",
+    "next_gate": "PRE-RAI-ACT-PREP-01-RERUN-04-FREEZE-PERSIST-R01"
+  }
+}
