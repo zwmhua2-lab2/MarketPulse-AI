@@ -1,0 +1,61 @@
+{
+  "profile_id": "MP-TECHDEBT-TRIAGE-01-INPUT-BASELINE-01-REP-v0.1",
+  "subject_task_id": "MP-TECHDEBT-TRIAGE-01-INPUT-BASELINE-01",
+  "subject_task_version": "v0.1",
+  "canonical_contract_identity": {
+    "path": "docs/tasks/technical-debt/MP-TECHDEBT-TRIAGE-01-INPUT-BASELINE-01/task-contract-v0.1.json",
+    "git_blob_sha1": "ed3f8814561972220df4080f7476efb2e887762c",
+    "bytes": 36397,
+    "sha256": "611e917cb23d8b3825a110ee8da826f1f15d2ae23678b7a0cdb0a1982b563175"
+  },
+  "profile_authority": {
+    "profile": "EMRP-1.1",
+    "repository": "zwmhua2-lab2/ai-dev-workflow",
+    "commit": "cbc1a221646a9f4703a65e626e58cf192ed96426",
+    "path": "governance/profiles/EXECUTION_MODEL_ROUTING_PROFILE.md",
+    "git_blob_sha1": "99f00b5809d0104e326282e12041e2a9ca2db467",
+    "bytes": 9412,
+    "sha256": "6eaeb5cc301b85f101d778e0a5785fa7d93b9dd86944fb4480911aaff8741d01"
+  },
+  "recommended": {
+    "routing_tier": "ER-3",
+    "provider": "OpenAI",
+    "model": "GPT-6.1 Sol",
+    "model_id": "gpt-6.1-sol",
+    "reasoning": "Medium",
+    "harness": "Codex Desktop"
+  },
+  "resolved": {
+    "routing_tier": "ER-3",
+    "provider": "OpenAI",
+    "model": "GPT-6.1 Sol",
+    "model_id": "gpt-6.1-sol",
+    "reasoning": "Medium",
+    "mapped_effort": "medium",
+    "harness": "Codex Desktop",
+    "context": "FRESH CONTEXT",
+    "permissions": "READ_ONLY"
+  },
+  "eligibility_evidence": {
+    "authorization": "Human-dispatched RERUN-01 explicitly authorizes resolving this exact Subject route; does not dispatch Subject execution.",
+    "binding": "Exact remote main + active governance/version/profile verified.",
+    "availability": "Current Codex Desktop tool metadata exposes gpt-6.1-sol with medium effort on local host.",
+    "harness_effort_support": "mcp__codex_app create_thread/send_message_to_thread model and effort metadata lists gpt-6.1-sol and medium; no task created or messaged.",
+    "minimum_capability": "Cross-document authority reasoning + Git/ref analysis + bounded cross-subsystem evidence navigation; matches exact A1 requirement.",
+    "sufficiency": "ER-3 Medium is explicitly bound by A1 and RERUN-01 for substantive bounded cross-document authority and Git/ref reasoning; EMRP ER-3 allows Medium.",
+    "hard_eligibility": "PASS; read-only Git/filesystem tools available, fresh context required, L2 retained, Product Provider prohibited.",
+    "selection_method": "Hard Eligibility -> Minimum Capability -> Static Preference -> First Sufficient",
+    "fallback": "NONE; no alias/substitution; no model exhaustion.",
+    "revalidation": "Before Subject dispatch, revalidate baseline/governance currency, model availability, harness/effort and exact contract/profile identities; stop on mismatch."
+  },
+  "actual_runtime": {
+    "model": "NOT_RUN",
+    "provider": "NOT_RUN",
+    "harness": "NOT_RUN",
+    "reasoning": "NOT_RUN",
+    "subject_state": "NOT_STARTED"
+  },
+  "product_provider_calls": "PROHIBITED",
+  "write_main": "PROHIBITED",
+  "scope_change": "NONE"
+}

@@ -1,0 +1,212 @@
+{
+  "registration_id": "MP-TECHDEBT-TRIAGE-01-INPUT-BASELINE-01-REG-v0.1",
+  "task_id": "MP-TECHDEBT-TRIAGE-01-INPUT-BASELINE-01",
+  "task_version": "v0.1",
+  "formalization_task_id": "MP-TECHDEBT-TRIAGE-01-INPUT-BASELINE-01-CONTRACT-FORMALIZE-01-RERUN-01",
+  "predecessor_formalization_task_id": "MP-TECHDEBT-TRIAGE-01-INPUT-BASELINE-01-CONTRACT-FORMALIZE-01",
+  "registration_state": "FORMAL_TASKCONTRACT_PERSISTED",
+  "dispatch_readiness": "READY_FOR_DISPATCH",
+  "registration_scope": "PROJECT-LOCAL / BRANCH_ONLY; no Workflow/AWB creation registry mutation or main integration",
+  "subject_execution": "NOT_STARTED",
+  "canonical_authority": {
+    "path": "docs/tasks/technical-debt/MP-TECHDEBT-TRIAGE-01-INPUT-BASELINE-01/task-contract-v0.1.json",
+    "git_blob_sha1": "ed3f8814561972220df4080f7476efb2e887762c",
+    "bytes": 36397,
+    "sha256": "611e917cb23d8b3825a110ee8da826f1f15d2ae23678b7a0cdb0a1982b563175"
+  },
+  "contract_binding": {
+    "task_id": "MP-TECHDEBT-TRIAGE-01-INPUT-BASELINE-01",
+    "task_version": "v0.1",
+    "governance": {
+      "repository": "zwmhua2-lab2/ai-dev-workflow",
+      "authority_ref": "origin/main",
+      "commit": "cbc1a221646a9f4703a65e626e58cf192ed96426",
+      "governance_version": "0.1.0",
+      "rule_pack_version": "0.1.0",
+      "manifest_identity": "fd00-rule-manifest/0.1.0",
+      "mode": "SELF_HOSTED",
+      "execution_profile": "EMRP-1.1"
+    },
+    "repository": {
+      "repository": "zwmhua2-lab2/MarketPulse-AI",
+      "authority_ref": "origin/main",
+      "commit": "8c94ea338f500e2ea4dd2f8a5ccc81a65502468e",
+      "binding_mode": "EXACT BASELINE / REBIND ON DRIFT"
+    }
+  },
+  "resolved_execution_profile": {
+    "path": "docs/tasks/technical-debt/MP-TECHDEBT-TRIAGE-01-INPUT-BASELINE-01/resolved-execution-profile-v0.1.json",
+    "git_blob_sha1": "1abdcd270ae1b94d89d27022d6c29ac844c9ef3f",
+    "bytes": 2997,
+    "sha256": "afb17b1563e64d55cfec877021950a4e27ccc81d8e5f50abe7a26a7f0feff018"
+  },
+  "readable_projection": {
+    "path": "docs/tasks/technical-debt/MP-TECHDEBT-TRIAGE-01-INPUT-BASELINE-01/task-contract-v0.1.md",
+    "git_blob_sha1": "624cd17925828de75ecdc06c48ae851552291b1a",
+    "bytes": 21102,
+    "sha256": "fa25fc82ac23a794dece72a1ed5848121f89350f6aa60dfc027da03e6b8d8ecc"
+  },
+  "dispatch_projection": {
+    "path": "docs/tasks/technical-debt/MP-TECHDEBT-TRIAGE-01-INPUT-BASELINE-01/dispatch-projection-v0.1.md",
+    "git_blob_sha1": "d702742b1afec15570a509144de92adf24d11af6",
+    "bytes": 24775,
+    "sha256": "8789f9c282ea09905196f2dcdef4a62244a01dafb0145562e23ff240e3698fc1"
+  },
+  "recovery_inputs": {
+    "A1-SUBJECT-CONTRACT-CANDIDATE.md": {
+      "bytes": 20311,
+      "sha256": "8a373313727db406095729bebacd00eb3ab2a07d9df8434cd56297199091af6e"
+    },
+    "A2-SUBJECT-PREFLIGHT-BLOCKED-RESULT.md": {
+      "bytes": 1014,
+      "sha256": "b4e79dfbaa575d0e8bbdf5cce9d9b713e6a2937f54cc376c24bdf1f446ee6047"
+    },
+    "A3-FORMALIZATION-BLOCKED-RESULT.md": {
+      "bytes": 2305,
+      "sha256": "bca4807f80f62e3ad3c6ca5b0ce601263b13a914a7e7ce092de79b3db88c0cec"
+    },
+    "MP-TECHDEBT-TRIAGE-01-INPUT-BASELINE-01-CONTRACT-FORMALIZE-01-RERUN-01-v0.1.md": {
+      "bytes": 9622,
+      "sha256": "7827a9b110757d390673d9c0e3bc0839a911abad6f14a927c14068b9ab1ed668"
+    }
+  },
+  "git_binding": {
+    "base_commit": "8c94ea338f500e2ea4dd2f8a5ccc81a65502468e",
+    "branch": "techdebt/mp-techdebt-triage-01-input-baseline-01-contract-formalize-01",
+    "candidate_locator": "Exact commit carrying these six authorized files, with sole parent = base_commit; full SHA supplied by completion evidence.",
+    "worktree": "E:\\Documents\\MarketPulse-AI-mp-techdebt-contract-formalize-rerun-01"
+  },
+  "rule_load": {
+    "state": "PASS",
+    "required_active": "6/6",
+    "commit": "cbc1a221646a9f4703a65e626e58cf192ed96426",
+    "inputs": [
+      {
+        "repository": "zwmhua2-lab2/ai-dev-workflow",
+        "ref": "origin/main",
+        "sha": "cbc1a221646a9f4703a65e626e58cf192ed96426",
+        "path": "AI_WORKFLOW_BOOTSTRAP.md",
+        "blob": "86917a02222ad1ea6ec75b0e176c97b11abdf7d2",
+        "bytes": 1524,
+        "sha256": "bebb46969dab1288790c7be82a0eabd1ad2cde3a1abf3729787d17313d477597",
+        "lines": 26,
+        "coverage": "1-FINAL",
+        "status": "FULLY_READ"
+      },
+      {
+        "repository": "zwmhua2-lab2/ai-dev-workflow",
+        "ref": "origin/main",
+        "sha": "cbc1a221646a9f4703a65e626e58cf192ed96426",
+        "path": "governance/WORKFLOW_RULE_MANIFEST.md",
+        "blob": "12dca11814ad4bda0627b64e1dd24976c363216d",
+        "bytes": 1196,
+        "sha256": "8719dd4b907d0c3ffcea5bcb0a0a9c668869fcbaf7c1027754940df10e53baf2",
+        "lines": 21,
+        "coverage": "1-FINAL",
+        "status": "FULLY_READ"
+      },
+      {
+        "repository": "zwmhua2-lab2/ai-dev-workflow",
+        "ref": "origin/main",
+        "sha": "cbc1a221646a9f4703a65e626e58cf192ed96426",
+        "path": "governance/AUTHORITY_RULES.md",
+        "blob": "fce0a48eb4b2bef7aeec75e91110fbf0052db47a",
+        "bytes": 2335,
+        "sha256": "2549590b5b8c4a917522d0db322380d1559b7c996e546c7f87c60cae423b5ffe",
+        "lines": 41,
+        "coverage": "1-FINAL",
+        "status": "FULLY_READ"
+      },
+      {
+        "repository": "zwmhua2-lab2/ai-dev-workflow",
+        "ref": "origin/main",
+        "sha": "cbc1a221646a9f4703a65e626e58cf192ed96426",
+        "path": "governance/TASK_CONTRACT_RULES.md",
+        "blob": "2859fae8a7198261210586628bc5d6e8dc5c347c",
+        "bytes": 2120,
+        "sha256": "4398167a74a083db850a1baa83a015bfb120932a6db8ce7073dff2ea2e86c82a",
+        "lines": 31,
+        "coverage": "1-FINAL",
+        "status": "FULLY_READ"
+      },
+      {
+        "repository": "zwmhua2-lab2/ai-dev-workflow",
+        "ref": "origin/main",
+        "sha": "cbc1a221646a9f4703a65e626e58cf192ed96426",
+        "path": "governance/ROLE_AUTHORITY_RULES.md",
+        "blob": "3f2c3fae86944ed537a9d4450f3a3357311a4e66",
+        "bytes": 2097,
+        "sha256": "94d4dc0b2912a31725b8987dec99fda4e8332bc359c707495b0ca02da076a3ae",
+        "lines": 25,
+        "coverage": "1-FINAL",
+        "status": "FULLY_READ"
+      },
+      {
+        "repository": "zwmhua2-lab2/ai-dev-workflow",
+        "ref": "origin/main",
+        "sha": "cbc1a221646a9f4703a65e626e58cf192ed96426",
+        "path": "governance/RISK_AND_ACCEPTANCE_RULES.md",
+        "blob": "1d62657124a2e8bd7bf6337f7f2fe8dd5fcedf60",
+        "bytes": 2164,
+        "sha256": "644475b4187c2d842708c6335be0dcbc348e32c6faa560b858260d751479128a",
+        "lines": 24,
+        "coverage": "1-FINAL",
+        "status": "FULLY_READ"
+      },
+      {
+        "repository": "zwmhua2-lab2/ai-dev-workflow",
+        "ref": "origin/main",
+        "sha": "cbc1a221646a9f4703a65e626e58cf192ed96426",
+        "path": "governance/CONTEXT_AND_HARNESS_RULES.md",
+        "blob": "3dbd06a5c57c6e974c68ac2e469b7d8c3f054ea6",
+        "bytes": 2012,
+        "sha256": "fcc83509f7ce4e4428ca018f4b9e4c6374a6c5944649cf60eb5b86462ed0671b",
+        "lines": 28,
+        "coverage": "1-FINAL",
+        "status": "FULLY_READ"
+      },
+      {
+        "repository": "zwmhua2-lab2/ai-dev-workflow",
+        "ref": "origin/main",
+        "sha": "cbc1a221646a9f4703a65e626e58cf192ed96426",
+        "path": "governance/SELF_HOSTING_RULES.md",
+        "blob": "6197b5c39bb1db2be113d5697b70e6fe4133eb1a",
+        "bytes": 2515,
+        "sha256": "d11b13662ac02b632fe9d1ce48ab35a4c7562f0b3addbcbd705048bb668db1ac",
+        "lines": 37,
+        "coverage": "1-FINAL",
+        "status": "FULLY_READ"
+      },
+      {
+        "repository": "zwmhua2-lab2/ai-dev-workflow",
+        "ref": "origin/main",
+        "sha": "cbc1a221646a9f4703a65e626e58cf192ed96426",
+        "path": "PROJECT_STATE.md",
+        "blob": "9da07820ec17ccc7c7ce05f9206acbd65b896300",
+        "bytes": 42323,
+        "sha256": "9e24af609caa17e43e19cce87c779a82f6a924430de22bc278c7cac22d0dd151",
+        "lines": 1445,
+        "coverage": "1-FINAL",
+        "status": "FULLY_READ"
+      },
+      {
+        "repository": "zwmhua2-lab2/ai-dev-workflow",
+        "ref": "origin/main",
+        "sha": "cbc1a221646a9f4703a65e626e58cf192ed96426",
+        "path": "governance/profiles/EXECUTION_MODEL_ROUTING_PROFILE.md",
+        "blob": "99f00b5809d0104e326282e12041e2a9ca2db467",
+        "bytes": 9412,
+        "sha256": "6eaeb5cc301b85f101d778e0a5785fa7d93b9dd86944fb4480911aaff8741d01",
+        "lines": 93,
+        "coverage": "1-FINAL",
+        "status": "FULLY_READ"
+      }
+    ]
+  },
+  "profile_resolution": "EMRP-1.1 / ER-3 / GPT-6.1 Sol / Medium / Codex Desktop / NO FALLBACK",
+  "review": "NOT_PERFORMED",
+  "official_verification": "NOT_PERFORMED / NOT_PRODUCT_VERIFICATION",
+  "acceptance": "NOT_PRODUCT_ACCEPTANCE",
+  "main_mutation": "NONE",
+  "consumption_staleness": "Baseline/governance/profile drift or changed exact contract/profile identities => STOP / REBIND REQUIRED before dispatch."
+}

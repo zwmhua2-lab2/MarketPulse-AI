@@ -1,0 +1,679 @@
+{
+  "serialization_version": "v0.1",
+  "canonical_authority": "task-contract-v0.1.json",
+  "task_id": "MP-TECHDEBT-TRIAGE-01-INPUT-BASELINE-01",
+  "task_version": "v0.1",
+  "governance_binding": {
+    "repository": "zwmhua2-lab2/ai-dev-workflow",
+    "authority_ref": "origin/main",
+    "commit": "cbc1a221646a9f4703a65e626e58cf192ed96426",
+    "governance_version": "0.1.0",
+    "rule_pack_version": "0.1.0",
+    "manifest_identity": "fd00-rule-manifest/0.1.0",
+    "mode": "SELF_HOSTED",
+    "execution_profile": "EMRP-1.1"
+  },
+  "repository_binding": {
+    "repository": "zwmhua2-lab2/MarketPulse-AI",
+    "authority_ref": "origin/main",
+    "commit": "8c94ea338f500e2ea4dd2f8a5ccc81a65502468e",
+    "binding_mode": "EXACT BASELINE / REBIND ON DRIFT"
+  },
+  "recovery_source": {
+    "file": "A1-SUBJECT-CONTRACT-CANDIDATE.md",
+    "bytes": 20311,
+    "sha256": "8a373313727db406095729bebacd00eb3ab2a07d9df8434cd56297199091af6e",
+    "preamble": "# MarketPulse-AI\n# MP-TECHDEBT-TRIAGE-01-INPUT-BASELINE-01 v0.1\n\nContract State:\n\n`STRUCTURED TASKCONTRACT CANDIDATE`\n\nFormal Registration:\n\n`NOT YET FORMALLY REGISTERED`\n\nDispatch State:\n\n`NOT YET DISPATCHABLE`\n\nTask Type:\n\n`READ_ONLY_INVESTIGATION`\n\nWorkline:\n\n`Technical Debt`\n\n---\n\n",
+    "preamble_authority": "IMMUTABLE RECOVERY CANDIDATE SNAPSHOT; current formalization lifecycle is recorded in registration-record-v0.1.json",
+    "serialization": "UTF-8; verbatim heading/body segments; source order = section number"
+  },
+  "semantic_groups": {
+    "identity": {
+      "sections": [
+        {
+          "number": 1,
+          "title": "IDENTITY",
+          "heading": "# 1. IDENTITY\n",
+          "preamble": "\n",
+          "fields": [
+            {
+              "heading": "## Task ID\n",
+              "body": "\n`MP-TECHDEBT-TRIAGE-01-INPUT-BASELINE-01`\n\n"
+            },
+            {
+              "heading": "## Task Version\n",
+              "body": "\n`v0.1`\n\n"
+            },
+            {
+              "heading": "## Work Name\n",
+              "body": "\n`Technical Debt Authoritative Input Baseline Completion`\n\n"
+            },
+            {
+              "heading": "## Project\n",
+              "body": "\n`MarketPulse-AI`\n\n"
+            },
+            {
+              "heading": "## Product Repository\n",
+              "body": "\n`zwmhua2-lab2/MarketPulse-AI`\n\n"
+            },
+            {
+              "heading": "## Repository Baseline\n",
+              "body": "\nAuthoritative ref:\n\n`origin/main`\n\nContract-creation SHA:\n\n`8c94ea338f500e2ea4dd2f8a5ccc81a65502468e`\n\nBinding Mode:\n\n`EXACT BASELINE / REBIND ON DRIFT`\n\nIf execution-time `origin/main` differs from the SHA above:\n\n`TASK = STALE / STOP / REBIND REQUIRED`\n\nDo not silently substitute the newer main.\n\n"
+            },
+            {
+              "heading": "## Governance Repository\n",
+              "body": "\n`zwmhua2-lab2/ai-dev-workflow`\n\n"
+            },
+            {
+              "heading": "## Governance Baseline\n",
+              "body": "\n`cbc1a221646a9f4703a65e626e58cf192ed96426`\n\n"
+            },
+            {
+              "heading": "## Parent Workline\n",
+              "body": "\n`MP-TECHDEBT-TRIAGE-01`\n\n"
+            },
+            {
+              "heading": "## Formal Parent Contract\n",
+              "body": "\n`NONE PROVEN`\n\nThe historical Triage tasks predate the current formalization of this successor and are retained as historical evidence.\n\n"
+            },
+            {
+              "heading": "## Lineage\n",
+              "body": "\n1. `MP-TECHDEBT-TRIAGE-01 v0.1`\n   - Result: `BLOCKED`\n   - Cause: mandatory MarketPulse inputs incomplete.\n\n2. `MP-TECHDEBT-TRIAGE-01-RERUN-01 v0.1`\n   - Result: `BLOCKED`\n   - Cause: mandatory inputs still incomplete; Parallel Guard / per-ref proof incomplete.\n\n3. Current:\n   - `MP-TECHDEBT-TRIAGE-01-INPUT-BASELINE-01 v0.1`\n   - Purpose: isolate and close the evidence-input problem before Technical Debt substantive analysis resumes.\n\n---\n\n"
+            }
+          ]
+        }
+      ]
+    },
+    "governance": {
+      "sections": [
+        {
+          "number": 2,
+          "title": "GOVERNANCE",
+          "heading": "# 2. GOVERNANCE\n",
+          "preamble": "\n",
+          "fields": [
+            {
+              "heading": "## Governance Version\n",
+              "body": "\n`0.1.0`\n\n"
+            },
+            {
+              "heading": "## Rule Pack Version\n",
+              "body": "\n`0.1.0`\n\n"
+            },
+            {
+              "heading": "## Manifest Identity\n",
+              "body": "\n`fd00-rule-manifest/0.1.0`\n\n"
+            },
+            {
+              "heading": "## Governance Mode\n",
+              "body": "\n`SELF_HOSTED`\n\n"
+            },
+            {
+              "heading": "## Active Execution Profile\n",
+              "body": "\n`EMRP-1.1`\n\n"
+            },
+            {
+              "heading": "## Role\n",
+              "body": "\n`Investigator / Evidence Collector`\n\n"
+            },
+            {
+              "heading": "## Task Mode\n",
+              "body": "\n`STRICT READ_ONLY`\n\n"
+            },
+            {
+              "heading": "## Risk Tier\n",
+              "body": "\n`L2`\n\nRationale:\n\n- cross-subsystem evidence;\n- authority/currentness analysis;\n- parallel-work interaction;\n- DB / migration / runtime / Product Read evidence navigation;\n- uncertainty remains.\n\nNo lower risk tier is assumed merely because repository mutation is prohibited.\n\n"
+            },
+            {
+              "heading": "## Risk Tags\n",
+              "body": "\n- `PERSISTENCE`\n- `MIGRATION`\n- `TRANSACTION`\n- `RECOVERY`\n\nThese tags describe evidence surfaces under inspection.\n\nThey do not authorize mutation of those subsystems.\n\n"
+            },
+            {
+              "heading": "## Parent Tier Floor\n",
+              "body": "\n`L2 CONSERVATIVE FLOOR FOR THIS TASK`\n\nNo lower formal parent tier has been proven.\n\n"
+            },
+            {
+              "heading": "## Protected Subsystem\n",
+              "body": "\n`NO DIRECT MUTATION`\n\nObserved protected/relevant surfaces may include:\n\n- database / migration infrastructure;\n- runtime;\n- Product Read;\n- TradingAuditRead;\n- test infrastructure;\n- persistence/recovery.\n\n"
+            },
+            {
+              "heading": "## Authoritative Inputs\n",
+              "body": "\n"
+            },
+            {
+              "heading": "### Governance\n",
+              "body": "\nMust freshly load from the exact/current authorized Workflow baseline:\n\n- `AI_WORKFLOW_BOOTSTRAP.md`\n- `governance/WORKFLOW_RULE_MANIFEST.md`\n- all six `REQUIRED_ACTIVE` rules\n- complete Workflow `PROJECT_STATE.md`\n- ACTIVE `EXECUTION_MODEL_ROUTING_PROFILE.md`\n\n"
+            },
+            {
+              "heading": "### MarketPulse\n",
+              "body": "\nMust use Repository Truth and locate/read, as applicable:\n\n- `PROJECT_STATE.md`\n- `AI_CONTEXT.md`\n- `PRODUCT_REQUIREMENTS.md`\n- `DECISIONS.md`\n- `AGENTS.md`\n- current accepted/frozen requirement artifacts relevant to A–H\n- accepted review / verification / closeout records relevant to A–H\n- relevant `dev_log` records\n- exact Git identities associated with those records.\n\n"
+            },
+            {
+              "heading": "### Supplemental Navigation Only\n",
+              "body": "\nHistorical external reports from:\n\n- `MP-TECHDEBT-TRIAGE-01 v0.1`\n- `MP-TECHDEBT-TRIAGE-01-RERUN-01 v0.1`\n\nmay be used only to locate evidence.\n\nThey do not override Repository Truth.\n\n"
+            },
+            {
+              "heading": "## Frozen Truth Identity\n",
+              "body": "\n`NO SINGLE NEW FROZEN TRUTH CREATED BY THIS TASK`\n\nExisting accepted/frozen artifacts retain their own identities.\n\n"
+            },
+            {
+              "heading": "## Amendments\n",
+              "body": "\n`NONE`\n\n"
+            },
+            {
+              "heading": "## Required Gates\n",
+              "body": "\n1. Rule Load\n2. Exact Repository Binding\n3. Duplication / Parallel Guard\n4. START Ref Snapshot\n5. Authoritative Input Completion\n6. A–H Navigation Map\n7. END Ref Snapshot\n8. Ref Diff\n9. Self-check\n10. Technical Debt Workline Completion Review\n\nNo Fix / Implementation / Acceptance Gate is authorized.\n\n"
+            },
+            {
+              "heading": "## Role Separation\n",
+              "body": "\nThis Investigator:\n\n- may collect evidence;\n- may classify evidence completeness;\n- may not implement fixes;\n- may not close debt;\n- may not grant implementation authorization;\n- may not accept product changes.\n\n---\n\n"
+            }
+          ]
+        }
+      ]
+    },
+    "boundary": {
+      "sections": [
+        {
+          "number": 3,
+          "title": "BOUNDARY",
+          "heading": "# 3. BOUNDARY\n",
+          "preamble": "\n",
+          "fields": [
+            {
+              "heading": "## Scope\n",
+              "body": "\nThis task exists solely to establish a reliable:\n\n`AUTHORITATIVE_INPUT_BASELINE`\n\nfor subsequent Technical Debt investigation.\n\nIt MUST:\n\n1. establish exact MarketPulse and Workflow repository bindings;\n2. establish complete start/end Git ref snapshots;\n3. establish a Parallel Occupancy Baseline;\n4. fully read the bounded authoritative document inputs;\n5. resolve A–H historical finding lineage/navigation;\n6. identify the exact source/test/config/migration areas that future technical evidence collection must inspect;\n7. produce an authoritative input manifest;\n8. produce a structured result envelope.\n\n"
+            },
+            {
+              "heading": "## A–H Navigation Targets\n",
+              "body": "\nThese are navigation targets only, not current Triage conclusions.\n\n"
+            },
+            {
+              "heading": "### A\n",
+              "body": "\n`N01-7-R01-RR-P2-01`\n\nMemory Operational Watch / Bounded Retention Growth.\n\n"
+            },
+            {
+              "heading": "### B\n",
+              "body": "\n`IR-01-NBF-02`\n\nTradingAuditRead in-memory `O(n²)` intent-side lookup.\n\nHistorical accepted performance observation includes approximately 18.2 s large-request evidence.\n\nThis task MUST NOT turn that historical observation into a current performance/SLA conclusion.\n\n"
+            },
+            {
+              "heading": "### C\n",
+              "body": "\nTest DB isolation / shared PostgreSQL test-environment constraint, including relevant:\n\n`TEST-ISO-01`\n\nand successor/current evidence.\n\n"
+            },
+            {
+              "heading": "### D\n",
+              "body": "\nAlembic URL precedence / `DATABASE_URL` interaction, including the historical PRE-01B-I1:\n\n`RR-P2-01`\n\nand related current evidence.\n\n"
+            },
+            {
+              "heading": "### E\n",
+              "body": "\nDevelopment dependency evidence concerning:\n\n`aiosqlite`\n\nincluding the current/historical `requirements-dev.txt` finding.\n\n"
+            },
+            {
+              "heading": "### F\n",
+              "body": "\n`R04-P2-01`\n\n"
+            },
+            {
+              "heading": "### G\n",
+              "body": "\n`SE02C-R7`\n\n"
+            },
+            {
+              "heading": "### H\n",
+              "body": "\nAll other current `OPEN / REMAINS / DEFERRED` items that fall within the Technical Debt inventory after deduplication.\n\nH does not authorize an unbounded repository-wide audit.\n\n"
+            },
+            {
+              "heading": "## Out of Scope\n",
+              "body": "\nThis task MUST NOT:\n\n- perform substantive A–H Technical Debt disposition;\n- assign fix priority;\n- assign final severity;\n- close findings;\n- repair findings;\n- optimize performance;\n- change source code;\n- change tests;\n- change dependency manifests;\n- change lock files;\n- change migrations;\n- change schema;\n- modify a database;\n- call Real AI/Product Provider APIs;\n- run paid provider workloads;\n- alter Runtime configuration;\n- create implementation branches;\n- create Fix candidates;\n- grant Fix authorization;\n- perform Official Product Verification;\n- perform Human Acceptance;\n- change Gate state.\n\n"
+            },
+            {
+              "heading": "## Allowed Actions\n",
+              "body": "\nREAD_ONLY only:\n\n- `git status`\n- `git rev-parse`\n- `git show`\n- `git log`\n- `git branch`\n- `git worktree list`\n- `git for-each-ref`\n- `git ls-remote`\n- `git diff` without mutation\n- filesystem read\n- source/config/test path discovery\n- bounded full-file reads\n- GitHub/remote read-only metadata\n- repository-external evidence generation.\n\n"
+            },
+            {
+              "heading": "## Forbidden Actions\n",
+              "body": "\nForbidden:\n\n- edit repository files;\n- create repository files;\n- stage;\n- commit;\n- push;\n- branch creation;\n- tag creation;\n- ref mutation;\n- reset;\n- rebase;\n- clean;\n- stash mutation;\n- merge;\n- cherry-pick;\n- package install;\n- package upgrade;\n- lockfile regeneration;\n- DB write;\n- migration execution that changes state;\n- provider invocation;\n- service/runtime mutation.\n\n"
+            },
+            {
+              "heading": "## Allowed Changes\n",
+              "body": "\nRepository:\n\n`NONE`\n\nDB:\n\n`NONE`\n\nRuntime:\n\n`NONE`\n\nDependencies:\n\n`NONE`\n\nGit refs:\n\n`NONE`\n\nRepository-external evidence package:\n\n`ALLOWED`\n\n"
+            },
+            {
+              "heading": "## Workspace Boundary\n",
+              "body": "\nBoth repositories are READ_ONLY:\n\n- `zwmhua2-lab2/MarketPulse-AI`\n- `zwmhua2-lab2/ai-dev-workflow`\n\nExisting dirty worktrees must be preserved exactly.\n\nDo not clean or normalize them.\n\n"
+            },
+            {
+              "heading": "## Stop Conditions\n",
+              "body": "\nSTOP and return structured `BLOCKED` if:\n\n1. Rule Load cannot be fully completed.\n2. Contract baseline differs from live authority without authorized Rebind.\n3. Required authority cannot be resolved.\n4. Required bounded document cannot be fully read.\n5. output truncation cannot be repaired by bounded range reading.\n6. required ref snapshot cannot be completed.\n7. parallel activity makes evidence identity unreliable.\n8. execution discovers that repository mutation is necessary.\n9. scope needs to expand into substantive Technical Triage.\n10. secrets or credentials would need to be read.\n11. Product Provider/API invocation would be required.\n12. current Task ID already exists as a newer Formal Task or completed successor.\n\n---\n\n"
+            }
+          ]
+        },
+        {
+          "number": 5,
+          "title": "REPOSITORY / REF BASELINE CONTRACT",
+          "heading": "# 5. REPOSITORY / REF BASELINE CONTRACT\n",
+          "preamble": "\n",
+          "fields": [
+            {
+              "heading": "## START_REF_SNAPSHOT\n",
+              "body": "\nBefore substantive input analysis, capture complete local ref state including:\n\n- `refs/heads/*`\n- `refs/remotes/origin/*`\n- `refs/tags/*`\n- `refs/codex/*`\n\nFor every ref capture:\n\n- full ref name;\n- object SHA.\n\nSpecial attention:\n\n`refs/codex/turn-diffs/*`\n\nDo not record only a count.\n\n"
+            },
+            {
+              "heading": "## END_REF_SNAPSHOT\n",
+              "body": "\nAt completion, capture the same namespace again.\n\nProduce exact classification:\n\n- `ADDED`\n- `REMOVED`\n- `MOVED`\n- `UNCHANGED`\n\nIf provenance/owner cannot be proven:\n\n`OWNER_UNVERIFIED`\n\nDo not infer ownership from naming.\n\n---\n\n"
+            }
+          ]
+        },
+        {
+          "number": 6,
+          "title": "PARALLEL OCCUPANCY CONTRACT",
+          "heading": "# 6. PARALLEL OCCUPANCY CONTRACT\n",
+          "preamble": "\nBuild:\n\n`PARALLEL_OCCUPANCY_MAP`\n\nInspect current evidence for potential overlap with at least:\n\n- UI-I01 / System\n- UI-RD01-I04 / EdgeAggregateRead\n- Frontend Lint Foundation\n- Real AI Activation preparation\n- Product Read\n- TradingAuditRead\n- Runtime / Test Harness\n- DB / Migration\n- dependency/tooling work.\n\nFor each observed workline use only:\n\n- `OBSERVED_ACTIVE`\n- `OBSERVED_INACTIVE`\n- `UNKNOWN`\n\nAn empty PR list is not proof that parallel work does not exist.\n\nNo chat-memory occupancy claim may substitute for repository/local evidence.\n\n---\n\n",
+          "fields": []
+        },
+        {
+          "number": 7,
+          "title": "AUTHORITATIVE INPUT MANIFEST",
+          "heading": "# 7. AUTHORITATIVE INPUT MANIFEST\n",
+          "preamble": "\nProduce:\n\n`AUTHORITATIVE_INPUT_MANIFEST`\n\nMinimum fields:\n\n| Field | Requirement |\n|---|---|\n| Input ID | stable local identifier |\n| Repository | exact repository |\n| Authority Ref | exact ref/SHA |\n| Path | exact path |\n| Blob SHA | required where applicable |\n| Bytes / Lines | record where available |\n| Read Coverage | exact bounded coverage |\n| Status | allowed enum below |\n| Relevance | A–H / governance / project context |\n| Lineage | predecessor/successor where applicable |\n\nAllowed Status:\n\n- `FULLY_READ`\n- `NOT_REQUIRED`\n- `NOT_FOUND`\n- `AUTHORITY_UNRESOLVED`\n- `BLOCKED`\n\nA successful task MUST contain:\n\n`PARTIAL = 0`\n\n---\n\n",
+          "fields": []
+        },
+        {
+          "number": 8,
+          "title": "REQUIRED DOCUMENT BASELINE",
+          "heading": "# 8. REQUIRED DOCUMENT BASELINE\n",
+          "preamble": "\nAt minimum resolve and fully read the current authoritative versions of:\n\n1. `PROJECT_STATE.md`\n2. `AI_CONTEXT.md`\n3. `PRODUCT_REQUIREMENTS.md`\n4. `DECISIONS.md`\n5. `AGENTS.md`\n\nThen locate and read only bounded, relevant accepted/frozen records for A–H.\n\nDo NOT read every historical file in the repository.\n\nDo NOT read the entire source tree.\n\nThis task is an input-baseline task, not the Technical Evidence task.\n\n---\n\n",
+          "fields": []
+        },
+        {
+          "number": 9,
+          "title": "A–H EVIDENCE NAVIGATION MAP",
+          "heading": "# 9. A–H EVIDENCE NAVIGATION MAP\n",
+          "preamble": "\nProduce:\n\n`AH_EVIDENCE_NAVIGATION_MAP`\n\nRequired columns:\n\n| Debt | Historical ID | Current Repository Record | Accepted/Frozen Authority Link | Review/Verification Link | Candidate Technical Area | Technical Evidence Still Required |\n|---|---|---|---|---|---|---|\n\nThis map MUST NOT assign:\n\n- current severity;\n- fix priority;\n- final currentness verdict;\n- final reproducibility verdict;\n- final fix scope.\n\nThose belong to later Technical Evidence / Triage tasks.\n\n---\n\n",
+          "fields": []
+        },
+        {
+          "number": 10,
+          "title": "HISTORICAL PERFORMANCE BOUNDARY",
+          "heading": "# 10. HISTORICAL PERFORMANCE BOUNDARY\n",
+          "preamble": "\nThe historical TradingAuditRead observation:\n\n- large request approximately `18.2 s`;\n- transaction hold approximately `18.1 s`;\n- 16 SQL statements;\n- DB query-per-row `NOT OBSERVED`;\n\nmust remain classified during this task as:\n\n`HISTORICAL OBSERVATION`\n\nunless current evidence from a separately authorized verification proves otherwise.\n\nThis task MUST NOT execute a new performance workload merely to reproduce it.\n\nDo not create a performance SLA.\n\n---\n\n",
+          "fields": []
+        }
+      ]
+    },
+    "execution": {
+      "sections": [
+        {
+          "number": 4,
+          "title": "EXECUTION",
+          "heading": "# 4. EXECUTION\n",
+          "preamble": "\n",
+          "fields": [
+            {
+              "heading": "## Profile Requirements\n",
+              "body": "\nMinimum Capability:\n\n`Cross-document authority reasoning + Git/ref analysis + bounded cross-subsystem evidence navigation`\n\n"
+            },
+            {
+              "heading": "## Routing Recommendation\n",
+              "body": "\nExecution Routing Tier:\n\n`ER-3`\n\nRecommended Model:\n\n`GPT-6.1 Sol`\n\nRecommended Reasoning:\n\n`Medium`\n\nRecommended Harness:\n\n`Codex Desktop`\n\n"
+            },
+            {
+              "heading": "## Resolved Execution Profile\n",
+              "body": "\n`PENDING FORMAL REGISTRATION / NOT YET RESOLVED`\n\n"
+            },
+            {
+              "heading": "## Actual Runtime Model\n",
+              "body": "\n`NOT_RUN`\n\nThe Executor must record the actual model/harness/effort separately.\n\n"
+            },
+            {
+              "heading": "## Provider Constraints\n",
+              "body": "\nExecution AI provider is determined by the resolved execution profile.\n\nProduct/MarketPulse external AI provider calls:\n\n`PROHIBITED`\n\n"
+            },
+            {
+              "heading": "## Tools\n",
+              "body": "\nAllowed:\n\n- local Git read-only tooling;\n- filesystem read-only tooling;\n- shell commands with no mutation;\n- GitHub read-only metadata where required.\n\n"
+            },
+            {
+              "heading": "## Permissions\n",
+              "body": "\n`READ_ONLY`\n\nNo `WRITE_MAIN`.\n\nNo repository write permission is conferred by this contract.\n\n"
+            },
+            {
+              "heading": "## Data Policy\n",
+              "body": "\n- do not open `.env` for secret values;\n- do not read API keys/tokens;\n- do not print credentials;\n- only inspect existence/configuration structure where necessary and non-secret;\n- do not transmit repository secrets to external services.\n\n"
+            },
+            {
+              "heading": "## Context Requirement\n",
+              "body": "\n`FRESH CONTEXT`\n\nAt execution start:\n\n1. load current Workflow Rules completely;\n2. resolve exact repository truth;\n3. load this exact TaskContract identity;\n4. ignore stale chat conclusions as authority;\n5. use historical reports only as navigation.\n\n"
+            },
+            {
+              "heading": "## Budget\n",
+              "body": "\nRepository write budget:\n\n`0`\n\nDatabase mutation budget:\n\n`0`\n\nExternal Product Provider calls:\n\n`0`\n\nPaid external workload:\n\n`0`\n\nFix rounds:\n\n`0`\n\nImplementation attempts:\n\n`0`\n\nTask dispatch attempts:\n\n`1`\n\nA `BLOCKED` result does not authorize automatic whole-task rerun.\n\nA new successor/rebind must be designed if the blocker is material.\n\n"
+            },
+            {
+              "heading": "## Full-Read Protocol\n",
+              "body": "\nFor every document required as `FULLY_READ`, first establish:\n\n- exact repository;\n- exact ref;\n- exact path;\n- blob SHA;\n- byte size when available;\n- line count when available.\n\nThen read bounded ranges until coverage is:\n\n`LINE 1 → FINAL LINE`\n\nSearch fragments, grep output, file headers, previews, or truncated shell output do not count as full reads.\n\n"
+            },
+            {
+              "heading": "## Recovery Behavior\n",
+              "body": "\nIf one read is truncated:\n\n- continue with bounded range reads;\n- do not restart the whole task.\n\nIf authority remains unresolved after bounded inspection:\n\n- record exact unresolved item;\n- STOP;\n- return `BLOCKED`.\n\n---\n\n"
+            }
+          ]
+        }
+      ]
+    },
+    "verification_acceptance": {
+      "sections": [
+        {
+          "number": 11,
+          "title": "VERIFICATION / ACCEPTANCE",
+          "heading": "# 11. VERIFICATION / ACCEPTANCE\n",
+          "preamble": "\n",
+          "fields": [
+            {
+              "heading": "## Verification Contract\n",
+              "body": "\nVerification Profile Identity:\n\n`MP-TECHDEBT-INPUT-BASELINE-VP-v0.1`\n\nState:\n\n`CONTRACT-LOCAL CANDIDATE / EFFECTIVE ONLY WITH THIS TASKCONTRACT`\n\nVerification is limited to deterministic evidence-completeness and no-mutation checks.\n\n"
+            },
+            {
+              "heading": "## Required Verification Assets\n",
+              "body": "\n1. `AUTHORITATIVE_INPUT_MANIFEST`\n2. `START_REF_SNAPSHOT`\n3. `END_REF_SNAPSHOT`\n4. `REF_DIFF`\n5. `PARALLEL_OCCUPANCY_MAP`\n6. `AH_EVIDENCE_NAVIGATION_MAP`\n7. `NO_MUTATION_EVIDENCE`\n8. structured completion report.\n\n"
+            },
+            {
+              "heading": "## Acceptance Criteria\n",
+              "body": "\n"
+            },
+            {
+              "heading": "### AC01\n",
+              "body": "Workflow Rule Load = PASS.\n\n"
+            },
+            {
+              "heading": "### AC02\n",
+              "body": "MarketPulse exact execution-time `origin/main` identified.\n\n"
+            },
+            {
+              "heading": "### AC03\n",
+              "body": "Workflow exact execution-time `origin/main` identified.\n\n"
+            },
+            {
+              "heading": "### AC04\n",
+              "body": "Contract baseline currentness established.\n\n"
+            },
+            {
+              "heading": "### AC05\n",
+              "body": "Local checkout state distinguished from remote authority.\n\n"
+            },
+            {
+              "heading": "### AC06\n",
+              "body": "Complete START ref snapshot captured.\n\n"
+            },
+            {
+              "heading": "### AC07\n",
+              "body": "Complete END ref snapshot captured.\n\n"
+            },
+            {
+              "heading": "### AC08\n",
+              "body": "Added / Removed / Moved / Unchanged ref diff computed.\n\n"
+            },
+            {
+              "heading": "### AC09\n",
+              "body": "Parallel Occupancy Map completed.\n\n"
+            },
+            {
+              "heading": "### AC10\n",
+              "body": "Current `PROJECT_STATE.md` fully read.\n\n"
+            },
+            {
+              "heading": "### AC11\n",
+              "body": "Current `AI_CONTEXT.md` fully read.\n\n"
+            },
+            {
+              "heading": "### AC12\n",
+              "body": "Current `PRODUCT_REQUIREMENTS.md` fully read.\n\n"
+            },
+            {
+              "heading": "### AC13\n",
+              "body": "Current `DECISIONS.md` fully read.\n\n"
+            },
+            {
+              "heading": "### AC14\n",
+              "body": "Current `AGENTS.md` fully read.\n\n"
+            },
+            {
+              "heading": "### AC15\n",
+              "body": "Relevant accepted/frozen A–H authority records located and bounded reading completed.\n\n"
+            },
+            {
+              "heading": "### AC16\n",
+              "body": "A–H Evidence Navigation Map completed.\n\n"
+            },
+            {
+              "heading": "### AC17\n",
+              "body": "Authoritative Input Manifest contains zero `PARTIAL`.\n\n"
+            },
+            {
+              "heading": "### AC18\n",
+              "body": "No substantive Technical Debt disposition performed.\n\n"
+            },
+            {
+              "heading": "### AC19\n",
+              "body": "Repository / DB / dependency / runtime / refs mutation = `NONE`.\n\n"
+            },
+            {
+              "heading": "### AC20\n",
+              "body": "No Product Provider / paid performance workload executed.\n\n"
+            },
+            {
+              "heading": "### AC21\n",
+              "body": "Historical 18.2 s evidence has not been upgraded into a current SLA/performance verdict.\n\n"
+            },
+            {
+              "heading": "### AC22\n",
+              "body": "Structured Result Envelope completed.\n\n"
+            },
+            {
+              "heading": "## Required Review\n",
+              "body": "\nAfter successful execution:\n\n`TECHNICAL DEBT WORKLINE COMPLETION REVIEW REQUIRED`\n\nThis review checks only whether the Evidence Baseline satisfies this contract.\n\nIt does not accept or reject any Technical Debt fix.\n\n"
+            },
+            {
+              "heading": "## Independent Reviewer\n",
+              "body": "\n`NOT REQUIRED BY THIS READ_ONLY CONTRACT BY DEFAULT`\n\nIf an authority conflict, contradictory accepted record, or material evidence-lineage dispute is discovered:\n\n`ESCALATE / INDEPENDENT REVIEW REQUIRED BEFORE CONSUMPTION`\n\n"
+            },
+            {
+              "heading": "## Human Gate\n",
+              "body": "\n`NONE FOR READ_ONLY EVIDENCE COLLECTION`\n\nHuman decision is required if:\n\n- scope expansion is needed;\n- authority conflict cannot be mechanically resolved;\n- a later Fix / Implementation Task is proposed.\n\n"
+            },
+            {
+              "heading": "## Acceptance Predicate\n",
+              "body": "\nTask completion may be declared only if:\n\n- AC01–AC22 all PASS;\n- all required evidence is current;\n- no required input remains partial;\n- exact baseline is valid;\n- repository mutation is NONE;\n- no unresolved stop condition exists.\n\n---\n\n"
+            }
+          ]
+        }
+      ]
+    },
+    "result": {
+      "sections": [
+        {
+          "number": 12,
+          "title": "RESULT CONTRACT",
+          "heading": "# 12. RESULT CONTRACT\n",
+          "preamble": "\n",
+          "fields": [
+            {
+              "heading": "## Allowed Result Status\n",
+              "body": "\nSuccess:\n\n`AUTHORITATIVE_INPUT_BASELINE_COMPLETE`\n\nwith:\n\n`READY_FOR_TECHNICAL_EVIDENCE_TASK_DESIGN`\n\nBlocked:\n\n`BLOCKED`\n\nStale:\n\n`STALE / REBIND_REQUIRED`\n\nNo other success wording is allowed.\n\n"
+            },
+            {
+              "heading": "## Subject Candidate\n",
+              "body": "\n`NONE`\n\nThis task investigates Repository Truth; it does not produce a product candidate.\n\n"
+            },
+            {
+              "heading": "## Produced Candidate\n",
+              "body": "\n`NONE`\n\n"
+            },
+            {
+              "heading": "## Changed Scope\n",
+              "body": "\nExpected:\n\n`NONE`\n\n"
+            },
+            {
+              "heading": "## Repository Mutation\n",
+              "body": "\nRequired:\n\n`NONE`\n\n"
+            },
+            {
+              "heading": "## Self-check\n",
+              "body": "\nRequired:\n\n`PASS / FAIL`\n\nwith evidence.\n\n"
+            },
+            {
+              "heading": "## Official Verification\n",
+              "body": "\n`NOT_APPLICABLE TO PRODUCT CANDIDATE`\n\nDo not write Official Verification PASS.\n\n"
+            },
+            {
+              "heading": "## Review\n",
+              "body": "\nAt Executor completion:\n\n`NOT_PERFORMED / PENDING WORKLINE COMPLETION REVIEW`\n\n"
+            },
+            {
+              "heading": "## Acceptance\n",
+              "body": "\nMust remain:\n\n`NOT PRODUCT ACCEPTANCE`\n\n"
+            },
+            {
+              "heading": "## Findings\n",
+              "body": "\nReport:\n\n- authority gaps;\n- stale/superseded records;\n- unresolved lineage;\n- ref movement;\n- parallel occupancy;\n- missing technical evidence.\n\nDo not repair findings.\n\n"
+            },
+            {
+              "heading": "## Remaining Work\n",
+              "body": "\nSuccess case:\n\n`TECHNICAL EVIDENCE COLLECTION TASK DESIGN`\n\nBlocked case:\n\nonly the minimum successor required to remove the blocker.\n\n"
+            },
+            {
+              "heading": "## Evidence References\n",
+              "body": "\nAll evidence must identify exact:\n\n- repository;\n- ref/SHA;\n- path;\n- blob/object identity where applicable;\n- external evidence artifact path.\n\n"
+            },
+            {
+              "heading": "## Staleness\n",
+              "body": "\nIf bound repository/governance truth changes before the result is consumed:\n\n`RESULT = STALE FOR DOWNSTREAM GATING`\n\nRevalidation or Rebind is required.\n\n---\n\n"
+            }
+          ]
+        },
+        {
+          "number": 13,
+          "title": "REQUIRED STRUCTURED RESULT ENVELOPE",
+          "heading": "# 13. REQUIRED STRUCTURED RESULT ENVELOPE\n",
+          "preamble": "\nThe Executor must return:\n\n",
+          "fields": [
+            {
+              "heading": "## Result Status\n",
+              "body": "\n"
+            },
+            {
+              "heading": "## Contract Identity\n",
+              "body": "\n"
+            },
+            {
+              "heading": "## Dispatch Identity\n",
+              "body": "\n"
+            },
+            {
+              "heading": "## Run Identity\n",
+              "body": "\n"
+            },
+            {
+              "heading": "## Repository Bindings\n",
+              "body": "\n"
+            },
+            {
+              "heading": "## Governance Binding\n",
+              "body": "\n"
+            },
+            {
+              "heading": "## Start Ref Snapshot Summary\n",
+              "body": "\n"
+            },
+            {
+              "heading": "## End Ref Snapshot Summary\n",
+              "body": "\n"
+            },
+            {
+              "heading": "## Ref Diff\n",
+              "body": "\n"
+            },
+            {
+              "heading": "## Parallel Occupancy\n",
+              "body": "\n"
+            },
+            {
+              "heading": "## Authoritative Input Manifest\n",
+              "body": "\n"
+            },
+            {
+              "heading": "## A–H Evidence Navigation Map\n",
+              "body": "\n"
+            },
+            {
+              "heading": "## Repository Mutation\n",
+              "body": "\n"
+            },
+            {
+              "heading": "## Self-check\n",
+              "body": "\n"
+            },
+            {
+              "heading": "## Official Verification\n",
+              "body": "\n"
+            },
+            {
+              "heading": "## Review\n",
+              "body": "\n"
+            },
+            {
+              "heading": "## Acceptance\n",
+              "body": "\n"
+            },
+            {
+              "heading": "## Findings\n",
+              "body": "\n"
+            },
+            {
+              "heading": "## Remaining Work\n",
+              "body": "\n"
+            },
+            {
+              "heading": "## Evidence References\n",
+              "body": "\n"
+            },
+            {
+              "heading": "## Staleness\n",
+              "body": "\n"
+            },
+            {
+              "heading": "## AC01–AC22 Matrix\n",
+              "body": "\n---\n\n"
+            }
+          ]
+        },
+        {
+          "number": 14,
+          "title": "EVIDENCE PACKAGE",
+          "heading": "# 14. EVIDENCE PACKAGE\n",
+          "preamble": "\nRepository-external evidence package may contain:\n\n- `INPUT_BASELINE_RESULT.md`\n- `AUTHORITATIVE_INPUT_MANIFEST.json`\n- `START_REF_SNAPSHOT.txt`\n- `END_REF_SNAPSHOT.txt`\n- `REF_DIFF.txt`\n- `PARALLEL_OCCUPANCY_MAP.md`\n- `AH_EVIDENCE_NAVIGATION_MAP.md`\n- `NO_MUTATION_EVIDENCE.txt`\n- `STRUCTURED_RESULT_ENVELOPE.json`\n\nThese artifacts are execution evidence.\n\nThey do not become Repository Truth merely because they exist outside Git.\n\n---\n\n",
+          "fields": []
+        },
+        {
+          "number": 15,
+          "title": "SUCCESS BOUNDARY",
+          "heading": "# 15. SUCCESS BOUNDARY\n",
+          "preamble": "\nSuccessful completion permits only:\n\n`READY_FOR_TECHNICAL_EVIDENCE_TASK_DESIGN`\n\nThe likely next Task ID is:\n\n`MP-TECHDEBT-TRIAGE-01-TECH-EVIDENCE-01`\n\nbut this contract DOES NOT:\n\n- create that task;\n- authorize that task;\n- dispatch that task;\n- perform its work.\n\n---\n\n",
+          "fields": []
+        },
+        {
+          "number": 16,
+          "title": "FINAL STOP",
+          "heading": "# 16. FINAL STOP\n",
+          "preamble": "\nAfter emitting the Structured Result Envelope:\n\n`STOP`\n\nDo NOT automatically continue into:\n\n- `TECH-EVIDENCE-01`\n- substantive A–H Triage\n- Disposition Review\n- Fix Design\n- Fix Implementation\n- Verification\n- Integration\n- Acceptance.\n",
+          "fields": []
+        }
+      ]
+    }
+  },
+  "lifecycle_binding": {
+    "registration_record": "registration-record-v0.1.json",
+    "resolved_execution_profile": "resolved-execution-profile-v0.1.json",
+    "subject_execution": "NOT_STARTED",
+    "formalization_task_id": "MP-TECHDEBT-TRIAGE-01-INPUT-BASELINE-01-CONTRACT-FORMALIZE-01-RERUN-01",
+    "identity_materialization": "Exact serialized JSON blob/bytes/SHA-256 are bound in registration record; no self-referential file hash."
+  }
+}
