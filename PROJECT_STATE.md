@@ -2607,3 +2607,12 @@ UI-RD01-I03-REQ-04 — Trading Audit Read Product Read Implementation Requiremen
 - UI-RD01-I04-REQ-PERSIST-R01-SUPP-02-V021-TC-MATERIALIZE-01: MATERIALIZED CANDIDATE / NOT ACTIVE / NOT DISPATCHABLE; branch-only, pending independent contract materialization review.
 - Candidate artifacts: docs/task-contracts/UI-RD01/UI-RD01-I04-REQ-PERSIST-R01-SUPP-02-v0.2.1.task-contract.json and docs/task-contracts/UI-RD01/UI-RD01-I04-REQ-PERSIST-R01-SUPP-02-v0.2.1.task-card.md. SUPP-02 v0.2 remains the historical registered predecessor; these candidate files do not supersede its repository status.
 - Next legal gate: UI-RD01-I04-REQ-PERSIST-R01-SUPP-02-V021-TC-MATERIALIZE-R01. SUPP-02 v0.2.1 review has not started.
+
+## UI-RD01-I04 SUPP-02 v0.2.1 TaskContract Controlled Registration Integration
+
+- V021-TC-MATERIALIZE-R01: `PASS / READY_FOR_CONTROLLED_REGISTRATION_INTEGRATION_DESIGN`; Blocking Findings `0`, Non-Blocking Findings `2`. Exact result is persisted at `docs/task-contracts/UI-RD01/reviews/UI-RD01-I04-REQ-PERSIST-R01-SUPP-02-V021-TC-MATERIALIZE-R01-RESULT-v0.1.md` (11451 bytes; SHA-256 `1899c00406144c39a066d2be69e62ea895e02eb07a70591b623e9dd6d0c198d6`).
+- Reviewed candidate: `0e05193585affbf043ab24a110d1234a6487d6a1` (tree `da45b10f1565b09bc738010b9319fcf04bb2d56b`; sole parent / bound main `1dbdc3f318fa1e96396a8b6058796a5a6f1811f1`). Registration carrier is branch `codex/ui-rd01-i04-supp02-v021-tc-register-integration-01`; exact tree, commit, and push/readback evidence are in its integration record and Structured Integration Result.
+- On successful authorized fast-forward, v0.2.1 is the registered successor on main; v0.2 remains the historical registered predecessor. The T/AC label-only defect is remediated on v0.2.1 / independently reviewed PASS.
+- SUPP-02 v0.2.1 persistence review: `NOT STARTED`; dispatch: `BLOCKED PENDING POST-INTEGRATION RECEIPT PASS`.
+- Persistence R01 closure, Requirement Freeze / Human Freeze disposition, Implementation Authorization, and Implementation: `NOT PERFORMED`.
+- Next legal gate: `UI-RD01-I04-REQ-PERSIST-R01-SUPP-02-V021-TC-REGISTER-INTEGRATION-V01` post-integration receipt.

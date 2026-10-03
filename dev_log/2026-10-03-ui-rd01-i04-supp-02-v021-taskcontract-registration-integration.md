@@ -1,0 +1,13 @@
+# SUPP-02 v0.2.1 TaskContract Registration Integration
+
+- Task: `UI-RD01-I04-REQ-PERSIST-R01-SUPP-02-V021-TC-REGISTER-INTEGRATE-01 v0.1`; contract SHA-256 `bc44b1d894b88d2bba63d4ce5e96e19c50a3a54c3de118fb7deb76655dc50299`.
+- Start bindings: Workflow `main` `cbc1a221646a9f4703a65e626e58cf192ed96426` / tree `48d5406d583f0b1594a864591cffbee4e34ebcdc`; MarketPulse remote `main` `1dbdc3f318fa1e96396a8b6058796a5a6f1811f1` / tree `566d5ba45631f44c8fb10538a7ac9a34d6b7e750`.
+- Reviewed candidate: `0e05193585affbf043ab24a110d1234a6487d6a1` / tree `da45b10f1565b09bc738010b9319fcf04bb2d56b` / sole parent `1dbdc3f318fa1e96396a8b6058796a5a6f1811f1`. Dedicated carrier branch: `codex/ui-rd01-i04-supp02-v021-tc-register-integration-01`; carrier tree, commit and parent are in the Structured Integration Result.
+- R01 input persisted byte-exact: 11451 bytes / SHA-256 `1899c00406144c39a066d2be69e62ea895e02eb07a70591b623e9dd6d0c198d6`; verdict `V021_TASKCONTRACT_MATERIALIZATION_REVIEW_PASS / READY_FOR_CONTROLLED_REGISTRATION_INTEGRATION_DESIGN`; Blocking `0`, Non-Blocking `2`.
+- Human authorization: `WRITE_MAIN GRANTED for UI-RD01-I04-REQ-PERSIST-R01-SUPP-02-V021-TC-REGISTER-INTEGRATE-01, exact reviewed candidate 0e05193585affbf043ab24a110d1234a6487d6a1`.
+- Exact carrier paths: `docs/task-contracts/UI-RD01/reviews/UI-RD01-I04-REQ-PERSIST-R01-SUPP-02-V021-TC-MATERIALIZE-R01-RESULT-v0.1.md`; `docs/task-contracts/UI-RD01/UI-RD01-I04-REQ-PERSIST-R01-SUPP-02-v0.2.1-REGISTRATION-RECORD.md`; `PROJECT_STATE.md`; `dev_log/2026-10-03-ui-rd01-i04-supp-02-v021-taskcontract-registration-integration.md`.
+- Parallel-main drift preflight at start: remote MarketPulse `main` matched `1dbdc3f318fa1e96396a8b6058796a5a6f1811f1`; exact final pre-WRITE_MAIN check and outcome are returned in the Structured Integration Result.
+- After carrier creation, branch push/readback and post-integration checks are reported in the Structured Integration Result. Main integration is permitted only as a normal non-force fast-forward to this exact carrier.
+- v0.2.1 JSON/card bytes preserved; v0.2 predecessor artifacts preserved; I04 persistence subject `ddfefedb14fa278657f5bfc3cb7e30a571398d65` unchanged. No code, schema, runtime, OpenAPI, generated.ts, AI_CONTEXT, DECISIONS, or Workflow repository changes.
+- State after successful integration: v0.2.1 registered successor on main; v0.2 historical registered predecessor; SUPP-02 v0.2.1 review `NOT STARTED`; dispatch `BLOCKED PENDING POST-INTEGRATION RECEIPT PASS`; R01 closure, Requirement Freeze, Human Freeze disposition, Implementation Authorization, and Implementation `NOT PERFORMED`.
+- Next legal gate: `UI-RD01-I04-REQ-PERSIST-R01-SUPP-02-V021-TC-REGISTER-INTEGRATION-V01` post-integration receipt.
