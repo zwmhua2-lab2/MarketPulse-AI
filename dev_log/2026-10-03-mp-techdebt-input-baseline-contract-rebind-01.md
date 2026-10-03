@@ -11,7 +11,7 @@
 - Resolved profile: blob `08c5fdbd1f4456a99cd134a0bc8451b13a5b1f1e`, 3316 bytes, SHA-256 `f31ae8c308ce3c70dfc4dc6b76ed6211907ccedfa137afdaeccf9e4a2946f511`.
 - Registration record: blob `2a3947519a5a2ceb20f9286fd61414a2b4385cb2`, 3795 bytes, SHA-256 `070ab08209c8d1324efbb26cf24c5c01c7c4933944ccce9b2301398666af4891`.
 - Dispatch projection: blob `6bd77966ba3e6abfae8be85fbc3478f3ebb61606`, 22226 bytes, SHA-256 `705c0c5a2e0f9db191eac26d2de69ea2b9751fb1bd55843a106651b12e9af078`.
-- Rebind record: blob `aee3de8de0a26f270154a8562c1d161d55589b9d`, 8692 bytes, SHA-256 `95bbf6ceb564ff00ba2bd568125e03c57356cc4c470337bc8309c1b527f3771f`.
+- Rebind record: blob `18083331bae9edfa672edfa65170488c00a5a4a0`, 9135 bytes, SHA-256 `fd3e8e6d75c472cbccfec496e5bbeeb3334285eb62212bf934863e4d9f09f833`.
 - Subject execution `NOT_STARTED`; product acceptance `NOT_APPLICABLE`; main integration `NOT_PERFORMED`; main unchanged. Existing dirty checkouts were preserved.
 - Verification: JSON parse, semantic group and AC01–AC22 preservation, Markdown projection fidelity, identities, authorized path scope, dispatch authority, and `git diff --check` PASS: JSON parse, semantic group and AC01–AC22 preservation, Markdown projection fidelity, exact identity bindings, authorized path scope, dispatch authority, unchanged main, preserved dirty checkouts, and `git diff --check`.
 

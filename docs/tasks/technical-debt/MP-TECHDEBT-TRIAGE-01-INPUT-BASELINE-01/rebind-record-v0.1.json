@@ -140,7 +140,7 @@
       }
     }
   },
-  "main_mutation": "NOT_PERFORMED; main ref remains at 1dbdc3f318fa1e96396a8b6058796a5a6f1811f1",
+  "main_mutation": "NOT_PERFORMED",
   "subject_execution": "NOT_STARTED",
   "technical_debt_findings": "NONE_CLOSED_REPRIORITIZED_OR_RECLASSIFIED",
   "verification": {
@@ -154,7 +154,15 @@
     "identity_bindings": "PASS; registration, resolved profile, dispatch and rebind record bind canonical SHA-256/blob identities.",
     "parallel_occupancy": "PASS; future fresh UI-RD01-I04 observation statuses explicit; no status pre-filled.",
     "scope": "PASS; intended changes are limited to six authorized contract files and one authorized dev_log.",
-    "main_and_dirty_worktrees": "PASS; main authority unchanged and pre-existing dirty status snapshots unchanged.",
+    "main_and_dirty_worktrees": "PASS; local main and origin/main refs are separately recorded and unchanged; remote main remains at the expected SHA; pre-existing dirty status snapshots unchanged.",
     "git_diff_check": "PASS; staged diff check required and recorded after staging."
+  },
+  "main_ref_evidence": {
+    "local_main_before": "d5cffca491c1742e3e4ee945ca4ad82f35ea5e2b",
+    "local_main_after": "d5cffca491c1742e3e4ee945ca4ad82f35ea5e2b",
+    "local_origin_main_before": "1dbdc3f318fa1e96396a8b6058796a5a6f1811f1",
+    "local_origin_main_after": "1dbdc3f318fa1e96396a8b6058796a5a6f1811f1",
+    "remote_main_after": "1dbdc3f318fa1e96396a8b6058796a5a6f1811f1",
+    "result": "ALL_REFS_UNCHANGED"
   }
 }
