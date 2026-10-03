@@ -2639,3 +2639,25 @@ TaskContract: UI-I01-REQ-PERSIST-R01-CC03-RESOLUTION-01 v0.1
 Trigger: CC03_MATERIAL_DEPENDENCY_FOUND
 Registration evidence: dev_log/2026-10-03-ui-i01-cc03-resolution-taskcontract-registration.md.
 This entry records exact-byte branch-bound registration only. Candidate-time authority strings inside the Contract remain unchanged. CC-03 Resolution is not executed; original R01, Requirement, Review artifacts and existing lifecycle records retain their contents and authority. No Requirement Freeze, Implementation Authorization, Implementation, main integration or WRITE_MAIN is performed.
+
+## UI-I01 Persistence Successor TaskContract Registration
+
+Operation: UI-I01-REQ-PERSIST-SUCCESSOR-TASKCONTRACT-REGISTER-01 v0.1
+OperationClass: MANUAL_CONTROL_PLANE_TASKCONTRACT_FORMALIZATION_AND_REGISTRATION
+RegistrationBranch: ui-i01-persist-successor-taskcontract-register-01
+RegistrationParent: 73ce8432c0a0551cb8d8da8b458936261fd10d67
+ContractGitBlob: e1fc0a3aacc9dbc4de99ae717513910428840945
+ContractBytes: 15459
+ContractPath: docs/design/UI-V1/UI-I01-REQ-PERSIST-SUCCESSOR-01-TASK-CONTRACT-v0.1.json
+ContractSHA256: 85a068044b0618e0a03d47f6c29711f357709f9ef8ef5accb1899e68de55afaf
+Dispatch: NOT_YET_ISSUED
+ExecutionBase: MarketPulse origin/main 8c94ea338f500e2ea4dd2f8a5ccc81a65502468e
+ImplementationAuthorization: NOT_GRANTED
+Next: RESOLVE_EXECUTION_PROFILE_AND_COMPILE_DISPATCH_PROJECTION
+Registration: FORMALLY_REGISTERED / BRANCH_BOUND / NOT_ON_MAIN
+RequirementFreeze: NOT_PERFORMED
+ResolvedExecutionProfile: NOT_YET_RESOLVED
+TaskContract: UI-I01-REQ-PERSIST-SUCCESSOR-01 v0.1
+Trigger: DISP-B / REQUIRED_PREDICATE_UNSATISFIED
+Registration evidence: dev_log/2026-10-03-ui-i01-persist-successor-taskcontract-registration.md.
+This entry records exact-byte branch-bound registration only. Immutable candidate-time Contract strings and all existing state records are preserved. No Successor execution, Independent Review, Requirement Freeze, Implementation Authorization, Implementation, main integration or WRITE_MAIN is performed.
