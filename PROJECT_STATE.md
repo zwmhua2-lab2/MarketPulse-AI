@@ -2604,10 +2604,23 @@ UI-RD01-I03-REQ-04 — Trading Audit Read Product Read Implementation Requiremen
 
 ## UI-I01 Persistence Successor v0.2 Current-Context Rebind Registration
 
-- TaskContract: `UI-I01-REQ-PERSIST-SUCCESSOR-01 v0.2` (`UI-I01-REQ-PERSIST-SUCCESSOR-01@0.2`); exact attachment bytes: 18,131; SHA-256 `d5c000c0cb5a40b4cc962156cf71b85d626ed14cf0f872bb1fab1899b125ac91`.
-- ContractPath: `docs/design/UI-V1/UI-I01-REQ-PERSIST-SUCCESSOR-01-TASK-CONTRACT-v0.2.json`; Contract Git blob and SHA-256 are recorded in the branch registration result / Git identity.
-- RebindClassification: `NON_MATERIAL_FOR_UI_I01_SUCCESSOR`; RebindFrom `8c94ea338f500e2ea4dd2f8a5ccc81a65502468e`; RebindTo `1dbdc3f318fa1e96396a8b6058796a5a6f1811f1`; core task semantics unchanged.
-- Registration: `FORMALLY_REGISTERED / BRANCH_BOUND / NOT_ON_MAIN`; branch `ui-i01-persist-successor-v02-taskcontract-register-01`, parent `1dbdc3f318fa1e96396a8b6058796a5a6f1811f1`.
-- Dispatch: `NOT_YET_ISSUED`; ResolvedExecutionProfile: `NOT_YET_RESOLVED`; ImplementationAuthorization: `NOT_GRANTED`; RequirementFreeze: `NOT_PERFORMED`.
-- Next: `RESOLVE_EXECUTION_PROFILE_AND_COMPILE_REBOUND_DISPATCH_PROJECTION`; return to `UI-I01 System Workline Coordinator` for rebound dispatch.
-- This registration does not execute Persistence Successor, modify Requirement or Design Review, perform Independent Review or Requirement Freeze, grant Implementation Authorization, implement, integrate to `main`, or perform `WRITE_MAIN`.
+Operation: `UI-I01-REQ-PERSIST-SUCCESSOR-V02-TASKCONTRACT-REGISTER-01 v0.1`
+TaskContract: `UI-I01-REQ-PERSIST-SUCCESSOR-01 v0.2`
+Semantic ID: `UI-I01-REQ-PERSIST-SUCCESSOR-01@0.2`
+ContractBytes: 18131
+ContractPath: `docs/design/UI-V1/UI-I01-REQ-PERSIST-SUCCESSOR-01-TASK-CONTRACT-v0.2.json`
+ContractSHA256: `d5c000c0cb5a40b4cc962156cf71b85d626ed14cf0f872bb1fab1899b125ac91`
+Dispatch: `NOT_YET_ISSUED`
+ImplementationAuthorization: `NOT_GRANTED`
+Next: `RESOLVE_EXECUTION_PROFILE_AND_COMPILE_REBOUND_DISPATCH_PROJECTION`
+RebindClassification: `NON_MATERIAL_FOR_UI_I01_SUCCESSOR`
+RebindFrom: `8c94ea338f500e2ea4dd2f8a5ccc81a65502468e`
+RebindTo: `1dbdc3f318fa1e96396a8b6058796a5a6f1811f1`
+Registration: `FORMALLY_REGISTERED / BRANCH_BOUND / NOT_ON_MAIN`
+RequirementFreeze: `NOT_PERFORMED`
+ResolvedExecutionProfile: `NOT_YET_RESOLVED`
+RegistrationBranch: `ui-i01-persist-successor-v02-taskcontract-register-01`
+RegistrationParent: `1dbdc3f318fa1e96396a8b6058796a5a6f1811f1`
+Registration dev_log: `dev_log/2026-10-03-ui-i01-persist-successor-v02-taskcontract-registration.md`
+
+The registered contract is copied byte-for-byte from the supplied attachment. Core semantics are unchanged from v0.1. This task does not execute Persistence Successor, modify Requirement or Design Review, perform Independent Review or Requirement Freeze, grant Implementation Authorization, implement, integrate to `main`, or perform `WRITE_MAIN`.

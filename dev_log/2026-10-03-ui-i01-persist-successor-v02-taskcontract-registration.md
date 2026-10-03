@@ -59,3 +59,7 @@
 - Exact source byte identity: verified before copy; destination byte identity, line count, and SHA-256 are verified after write.
 - Required MarketPulse and Workflow remote main bindings are rechecked at run end.
 - Registration candidate is branch-bound only; this record does not claim independent review or acceptance.
+## Post-commit state-field audit
+
+- The first branch commit (82a993d6cd0eeed3c9183764b507ceba46907158) bound the exact contract bytes and three authorized paths. Final state-field verification found that several required bindings were expressed narratively rather than as named PROJECT_STATE.md fields; this follow-up makes each required field explicit.
+- No contract bytes or semantic content changed. The follow-up remains limited to PROJECT_STATE.md and this authorized dev_log.
