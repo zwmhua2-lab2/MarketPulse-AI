@@ -1,0 +1,437 @@
+{
+  "authoritative_inputs": {
+    "final_design_review": {
+      "expected_blocking_findings": 0,
+      "expected_git_blob": "bc6875dd9bf4132e129c75a78f45ee5af2704701",
+      "expected_sha256": "f3052a173c58331e099c12a7ba3cdbc74b73d2577c6ee2098b2ba2ccd4eec816",
+      "expected_verdict": "PASS WITH NON-BLOCKING FINDINGS",
+      "path": "docs/design/UI-V1/reviews/UI-I01-DESIGN-R01-RERUN-02-Review-Result.md"
+    },
+    "original_r01_external_source": {
+      "authority": "EXTERNAL_EVIDENCE_MUST_VERIFY",
+      "path": "E:/Documents/AI-Developer/review-evidence/UI-I01-REQ-PERSIST-R01/UI-I01-REQ-PERSIST-R01-RESULT-v0.1.md"
+    },
+    "persistence_carrier_blobs": {
+      "AGENTS.md": "48a7d68d1c38563a9efb71f0e075ae812eedb75b",
+      "AI_CONTEXT.md": "535ac9334fc6e10a8f676abf0a943e48131da484",
+      "DECISIONS.md": "874ce97c44879ab49c618c236347722b156d6247",
+      "PROJECT_STATE.md": "24cfb304dc37871435c6d01cddc8c7afe7abd928",
+      "dev_log/2026-10-03-ui-i01-requirements-persist-01.md": "cfe0bae030463dbb40e7ec10ecf9c2d294a5c318"
+    },
+    "requirement_artifact": {
+      "expected_bytes": 41170,
+      "expected_crlf": 691,
+      "expected_final_lf": false,
+      "expected_git_blob": "22a4b75c5abc416ed9b4cfd888c70bfe31594849",
+      "expected_logical_lines": 692,
+      "expected_sha256": "f3b5ff12b99f82bc2a37ac488c70d7efea719582b454a0f0fde37e0c33f0c834",
+      "path": "docs/design/UI-V1/UI-I01-Implementation-Requirements.md"
+    },
+    "subject_candidate": {
+      "branch": "ui-i01-requirements-persist-01",
+      "commit": "212b20659e00deb5b91d566bef74969bef1d1758"
+    }
+  },
+  "authority_state": "STRUCTURED_TASKCONTRACT_CANDIDATE_NOT_YET_REGISTERED",
+  "boundary": {
+    "allowed_actions": [
+      "read",
+      "hash",
+      "diff",
+      "compare",
+      "bounded evidence search",
+      "create isolated worktree",
+      "create evidence branch",
+      "create evidence result",
+      "create evidence manifest",
+      "create dev_log",
+      "commit allowed evidence files",
+      "push evidence branch"
+    ],
+    "allowed_changes": [
+      "docs/design/UI-V1/reviews/UI-I01-REQ-PERSIST-R01-CLOSURE-RECOVERY-01-RESULT-v0.2.md",
+      "docs/design/UI-V1/reviews/UI-I01-REQ-PERSIST-R01-CLOSURE-RECOVERY-01-EVIDENCE-MANIFEST-v0.2.json",
+      "dev_log/2026-10-03-ui-i01-req-persist-r01-closure-recovery-01.md"
+    ],
+    "forbidden_actions": [
+      "reset",
+      "reset --hard",
+      "clean",
+      "force checkout over dirty work",
+      "force push",
+      "rebase unknown work",
+      "modify protected source artifacts",
+      "modify product code",
+      "modify tests",
+      "modify tooling",
+      "modify dependency manifests",
+      "modify schema/migration/index",
+      "modify runtime",
+      "merge main",
+      "WRITE_MAIN"
+    ],
+    "out_of_scope": [
+      "UI-I01 requirement redesign",
+      "Requirement mutation",
+      "Final Design Review mutation",
+      "Original R01 mutation",
+      "Full Design Review rerun",
+      "Full Persistence Review rerun",
+      "Requirement Freeze",
+      "Implementation Authorization",
+      "Implementation",
+      "Lint Foundation",
+      "UI-RD01-I04",
+      "main integration",
+      "WRITE_MAIN",
+      "Real AI activation",
+      "Gate activation",
+      "Live activation"
+    ],
+    "protected_read_only_files": [
+      "docs/design/UI-V1/UI-I01-Implementation-Requirements.md",
+      "docs/design/UI-V1/reviews/UI-I01-DESIGN-R01-RERUN-02-Review-Result.md",
+      "AGENTS.md",
+      "AI_CONTEXT.md",
+      "DECISIONS.md",
+      "PROJECT_STATE.md",
+      "dev_log/2026-10-03-ui-i01-requirements-persist-01.md"
+    ],
+    "scope": [
+      "Recover historical CC/Continuation/Recheck evidence when available",
+      "Perform fresh current-context closure revalidation when historical formal carrier is unavailable",
+      "Revalidate CC-03 historical checkout assertion dependency",
+      "Revalidate CC-04 full-file and diff coverage",
+      "Produce current-context closure evidence result",
+      "Produce evidence manifest",
+      "Produce task dev_log",
+      "Push isolated evidence candidate branch"
+    ],
+    "stop_conditions": [
+      "RULE_LOAD_FAIL",
+      "TASK_DUPLICATE_ACTIVE",
+      "SUBJECT_CANDIDATE_DRIFT",
+      "REQUIREMENT_IDENTITY_MISMATCH",
+      "DESIGN_REVIEW_IDENTITY_MISMATCH",
+      "ORIGINAL_R01_NOT_FOUND",
+      "ORIGINAL_R01_IDENTITY_MISMATCH",
+      "CC03_MATERIAL_DEPENDENCY_FOUND",
+      "FULL_READ_NOT_PROVEN",
+      "CHANGED_PATH_SET_MISMATCH",
+      "FORBIDDEN_SURFACE_CHANGED",
+      "PARALLEL_SCOPE_CONFLICT",
+      "AUTHORITY_CONFLICT",
+      "SCOPE_UNCERTAINTY",
+      "MATERIAL_BASELINE_DRIFT",
+      "GOVERNANCE_DRIFT",
+      "PROTECTED_ARTIFACT_MUTATION_REQUIRED"
+    ],
+    "workspace": {
+      "dirty_primary_checkout_write": "PROHIBITED",
+      "isolated_worktree": "ALLOWED",
+      "recommended_branch": "ui-i01-req-persist-r01-closure-recovery-01",
+      "required_parent": "212b20659e00deb5b91d566bef74969bef1d1758"
+    }
+  },
+  "contract_semantic_id": "UI-I01-REQ-PERSIST-R01-CLOSURE-RECOVERY-01@0.2",
+  "execution": {
+    "actual_runtime_model": {
+      "state": "MUST_BE_RECORDED_IN_RESULT"
+    },
+    "budget": {
+      "dispatch_limit": 1,
+      "external_billed_budget": 0,
+      "fix_round_limit_within_same_contract": 0,
+      "mutation_retry_max": 0,
+      "scope_expansion_allowed": false,
+      "transient_read_retry_max": 1
+    },
+    "context_requirement": {
+      "fresh_context": true,
+      "full_rule_load": true,
+      "inherited_private_reasoning": "PROHIBITED"
+    },
+    "data_policy": {
+      "external_paid_api": "PROHIBITED",
+      "provider_calls": "NONE_REQUIRED",
+      "secrets": "DO_NOT_READ"
+    },
+    "permissions": {
+      "evidence_only_write": true,
+      "isolated_branch_write": true,
+      "production_mutation": false,
+      "push_candidate_branch": true,
+      "repository_read": true,
+      "write_main": false
+    },
+    "profile_requirements": {
+      "eligible_routing_tier": "ER-3",
+      "minimum_capability_reason": "Historical evidence absence plus authority-safe reconstruction and dependency analysis"
+    },
+    "recovery_behavior": {
+      "on_fix_need": "STOP_NEW_FIX_CONTRACT_REQUIRED",
+      "on_model_stop_condition": "STOP_AND_ESCALATE_WITHOUT_CHANGING_AUTHORITY"
+    },
+    "resolved_execution_profile": {
+      "state": "PENDING_FORMAL_REGISTRATION_AND_DISPATCH_RESOLUTION"
+    },
+    "routing_recommendation": {
+      "harness": "Codex Desktop",
+      "model": "GPT-6.1 Sol",
+      "reasoning": "Medium"
+    },
+    "tools": [
+      "git",
+      "filesystem",
+      "hashing",
+      "repository read",
+      "bounded evidence search"
+    ]
+  },
+  "governance": {
+    "authority_order": [
+      "USER_CURRENT_EXPLICIT_DECISION",
+      "ACTIVE_AI_DEVELOPMENT_WORKFLOW_REPOSITORY_TRUTH",
+      "MARKETPULSE_REPOSITORY_TRUTH",
+      "CURRENT_REVIEWED_UI_I01_ARTIFACTS",
+      "THIS_CONTRACT_ONCE_FORMALLY_REGISTERED"
+    ],
+    "governance_mode": "SELF_HOSTED",
+    "governance_version": "0.1.0",
+    "manifest_identity": "fd00-rule-manifest/0.1.0",
+    "operational_profile": {
+      "id": "EMRP",
+      "state": "ACTIVE",
+      "version": "1.1"
+    },
+    "parent_tier_floor": "L2",
+    "protected_subsystem": [
+      "UI-I01 REQUIREMENT LIFECYCLE EVIDENCE"
+    ],
+    "required_active_rule_count": 6,
+    "risk_tags": [
+      "PERSISTENCE",
+      "EVIDENCE_INTEGRITY"
+    ],
+    "risk_tier": "L2",
+    "role": "Auditor / Evidence Revalidation Executor",
+    "role_separation": {
+      "may_not_act_as": [
+        "Requirement Designer",
+        "Freeze Control Plane",
+        "Implementation Executor",
+        "Acceptance Authority"
+      ]
+    },
+    "rule_pack_version": "0.1.0",
+    "task_mode": [
+      "FRESH_CONTEXT",
+      "TARGETED_REVALIDATION",
+      "CONTROLLED_EVIDENCE_WRITE",
+      "NO_PRODUCT_MUTATION",
+      "NO_LIFECYCLE_TRANSITION"
+    ]
+  },
+  "identity": {
+    "creation_binding": {
+      "marketpulse_authoritative_main": "8c94ea338f500e2ea4dd2f8a5ccc81a65502468e",
+      "subject_branch": "ui-i01-requirements-persist-01",
+      "subject_candidate": "212b20659e00deb5b91d566bef74969bef1d1758",
+      "subject_parent": "8c94ea338f500e2ea4dd2f8a5ccc81a65502468e",
+      "workflow_authoritative_main": "cbc1a221646a9f4703a65e626e58cf192ed96426"
+    },
+    "governance_repository": "zwmhua2-lab2/ai-dev-workflow",
+    "lineage": {
+      "historical_chat_candidate": {
+        "state": "NON_AUTHORITATIVE_NEVER_FORMALLY_DISPATCHED",
+        "task_id": "UI-I01-REQ-PERSIST-R01-CLOSURE-RECOVERY-01",
+        "version": "0.1"
+      },
+      "predecessor_freeze_attempt": {
+        "result": "BLOCKED_PERSISTENCE_REVIEW_EVIDENCE_MISSING",
+        "task_id": "UI-I01-REQ-FREEZE-PERSIST-01-RERUN-01"
+      }
+    },
+    "parent_gate": "UI-I01-REQ-PERSIST-R01",
+    "project": "MarketPulse-AI",
+    "repository": "zwmhua2-lab2/MarketPulse-AI",
+    "task_id": "UI-I01-REQ-PERSIST-R01-CLOSURE-RECOVERY-01",
+    "task_types": [
+      "AUDIT",
+      "EVIDENCE_RECOVERY",
+      "CURRENT_CONTEXT_REVALIDATION"
+    ],
+    "task_version": "0.2",
+    "work_name": "UI-I01 Persistence Review Closure Current-Context Recovery / Revalidation",
+    "workline": "UI-I01 | Global Shell + System"
+  },
+  "registration": {
+    "canonical_target_path": "docs/design/UI-V1/UI-I01-REQ-PERSIST-R01-CLOSURE-RECOVERY-01-TASK-CONTRACT-v0.2.json",
+    "registration_state_after_success": "FORMALLY_REGISTERED_PROJECT_LOCAL_STRUCTURED_TASKCONTRACT",
+    "suggested_branch": "ui-i01-taskcontract-formalize-01",
+    "target_parent": "212b20659e00deb5b91d566bef74969bef1d1758",
+    "target_repository": "zwmhua2-lab2/MarketPulse-AI",
+    "write_main": false
+  },
+  "result": {
+    "result_status_allowed": [
+      "COMPLETED",
+      "BLOCKED",
+      "STALE",
+      "DUPLICATE",
+      "ESCALATION_REQUIRED"
+    ],
+    "structured_result_envelope": {
+      "acceptance": "NOT_PERFORMED",
+      "changed_scope": "REQUIRED",
+      "contract_identity": "REQUIRED",
+      "dispatch_identity": "REQUIRED",
+      "evidence_references": "REQUIRED",
+      "findings": "REQUIRED",
+      "official_verification": "NOT_PERFORMED",
+      "produced_candidate": "OPTIONAL_ON_BLOCK",
+      "remaining_work": "REQUIRED",
+      "repository_mutation": "REQUIRED",
+      "review": "NOT_PERFORMED_BY_THIS_TASK",
+      "run_identity": "REQUIRED",
+      "self_check": "REQUIRED",
+      "staleness": "REQUIRED",
+      "subject_candidate": "REQUIRED"
+    },
+    "success_boundary": {
+      "closure_state": "CURRENT_CONTEXT_CLOSURE_REVALIDATED",
+      "historical_closure_carrier": [
+        "RECOVERED",
+        "NOT_RECOVERED"
+      ],
+      "implementation": "NOT_STARTED",
+      "implementation_authorization": "NOT_GRANTED",
+      "next": "COORDINATOR_COMPLETION_REVIEW",
+      "original_r01": "PRESERVED_UNCHANGED",
+      "requirement": "UNCHANGED",
+      "requirement_freeze": "NOT_PERFORMED",
+      "result_status": "COMPLETED",
+      "write_main": "NOT_PERFORMED"
+    }
+  },
+  "serialization": {
+    "awb_template_pack_authority": "NOT_APPLICABLE",
+    "format": "JSON",
+    "project_local": true,
+    "template_authority": "NONE"
+  },
+  "verification_acceptance": {
+    "acceptance_predicate": {
+      "required": [
+        "CRV-01 PASS",
+        "CRV-02 PASS",
+        "CRV-03 PASS",
+        "CRV-04 PASS",
+        "CRV-05 COMPLETED",
+        "CRV-06 PASS",
+        "CRV-07 PASS",
+        "CRV-08 PASS",
+        "CRV-09 PASS",
+        "CRV-10 PASS",
+        "CRV-11 PASS",
+        "CRV-12 PASS"
+      ],
+      "success_state": "CURRENT_CONTEXT_CLOSURE_REVALIDATED"
+    },
+    "historical_carrier_search": {
+      "bounded_locations": [
+        "E:/Documents/AI-Developer/review-evidence/**",
+        "E:/Documents/AI-Developer/**",
+        "C:/Users/hua/Downloads/**",
+        "current task attachments",
+        "MarketPulse repository"
+      ],
+      "keywords": [
+        "UI-I01-REQ-PERSIST-R01",
+        "CORR",
+        "CORRECTION",
+        "CONTINUATION",
+        "INDEPENDENT-RECHECK",
+        "CC-03",
+        "CC-04"
+      ],
+      "required_disposition": [
+        "RECOVERED",
+        "NOT_RECOVERED"
+      ]
+    },
+    "human_gate": {
+      "existing_human_freeze_decision": "PRESERVED_AS_HISTORICAL_INPUT_NOT_CONSUMED_BY_THIS_TASK",
+      "new_human_freeze_decision": "NOT_REQUIRED_FOR_THIS_EVIDENCE_RECOVERY_TASK"
+    },
+    "partial_unverifiable_obligations": "MUST_BE_MARKED NOT_VERIFIED; MAY_NOT_BE PRESUMED PASS",
+    "required_evidence": [
+      "Rule Load record",
+      "START binding",
+      "END binding",
+      "artifact identity matrix",
+      "original R01 identity",
+      "historical carrier search record",
+      "CC-03 dependency analysis",
+      "CC-04 full-read record",
+      "exact six-path diff record",
+      "forbidden-surface check",
+      "evidence manifest",
+      "git branch/commit/tree identity"
+    ],
+    "required_review": "UI-I01 System Workline Coordinator Completion Review",
+    "reviewer_independence": "Coordinator must not reinterpret executor self-check as independent acceptance",
+    "verification_assets": "REPOSITORY_AND_EXTERNAL_EVIDENCE_READS_ONLY",
+    "verification_contract": [
+      {
+        "id": "CRV-01",
+        "requirement": "Full governance load: Bootstrap, Manifest, 6/6 REQUIRED_ACTIVE rules, full Workflow PROJECT_STATE, current applicable profile"
+      },
+      {
+        "id": "CRV-02",
+        "requirement": "START binding records MarketPulse main, subject branch/commit/parent, Workflow main; subject remains exact 212b2065..."
+      },
+      {
+        "id": "CRV-03",
+        "requirement": "Requirement and final Design Review exact identities match expected path/blob/hash/byte/newline facts"
+      },
+      {
+        "id": "CRV-04",
+        "requirement": "Original R01 is found, verified, preserved; expected historical verdict PASS / READY FOR HUMAN REQUIREMENT FREEZE, blocking 0"
+      },
+      {
+        "id": "CRV-05",
+        "requirement": "Historical closure carrier recovery explicitly records RECOVERED or NOT_RECOVERED without fabrication"
+      },
+      {
+        "id": "CRV-06",
+        "requirement": "Historical checkout assertion remains NOT_VERIFIED / NOT_INDEPENDENTLY_REPRODUCIBLE unless direct evidence exists; dependency on R01 verdict is independently analyzed"
+      },
+      {
+        "id": "CRV-07",
+        "requirement": "AGENTS.md, AI_CONTEXT.md, DECISIONS.md, PROJECT_STATE.md and persistence dev_log are fully read to EOF and expected blobs match"
+      },
+      {
+        "id": "CRV-08",
+        "requirement": "Candidate diff from base 8c94ea33... to 212b2065... has exactly six expected changed paths"
+      },
+      {
+        "id": "CRV-09",
+        "requirement": "No frontend/backend/package/lock/lint/generated/schema/migration/index/runtime changes exist in subject candidate"
+      },
+      {
+        "id": "CRV-10",
+        "requirement": "New result and manifest bind subject, parent, requirement, design review, original R01, carrier blobs, recovered evidence if any, START and END refs; no manifest self-hash loop"
+      },
+      {
+        "id": "CRV-11",
+        "requirement": "Requirement Freeze NOT PERFORMED; Implementation Authorization NOT GRANTED; Implementation NOT STARTED; WRITE_MAIN NOT PERFORMED"
+      },
+      {
+        "id": "CRV-12",
+        "requirement": "END currentness rechecks MarketPulse main, subject branch and Workflow main; all drift classified and resolved"
+      }
+    ],
+    "verification_profile_identity": "INLINE_CRV_01_TO_CRV_12_V0.2"
+  }
+}

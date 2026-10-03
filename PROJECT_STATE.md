@@ -2596,3 +2596,25 @@ UI-RD01-I03-REQ-04 — Trading Audit Read Product Read Implementation Requiremen
 - `Requirement Freeze = NOT YET`；`Implementation Authorization = NOT GRANTED`；`Implementation = NOT STARTED`。下一 Gate = `UI-I01-REQ-PERSIST-R01 / Independent Persistence Review`。
 - Lint Foundation = `SEPARATE TASK`；不阻塞 Design Review、Requirement Persistence 或 Requirement Freeze；`Implementation Authorization` 在 Lint Foundation `ACCEPTED` 前仍受阻。
 - 本任务限定于文档、review evidence、state/decision 与 dev_log；Backend、Frontend production/tests、package/lockfile、lint tooling、OpenAPI/generated types、Schema/Migration/Index、Runtime、Real AI/Gate/Live 均 `ZERO CHANGE`。
+
+## UI-I01 Closure Recovery TaskContract Registration
+
+Operation: UI-I01-TASKCONTRACT-FORMALIZE-REGISTER-01 v0.1
+OperationClass: MANUAL_CONTROL_PLANE_TASKCONTRACT_FORMALIZATION_AND_REGISTRATION
+RegistrationBranch: ui-i01-taskcontract-formalize-01
+TaskContract: UI-I01-REQ-PERSIST-R01-CLOSURE-RECOVERY-01 v0.2
+ContractPath: docs/design/UI-V1/UI-I01-REQ-PERSIST-R01-CLOSURE-RECOVERY-01-TASK-CONTRACT-v0.2.json
+ContractSHA256: 6296d0ce87513f451c917e74f878a0a174e3f7da8b81c1b3fe4620317433933d
+ContractBytes: 15471
+ContractGitBlob: 4a28d2f50fcedfddd17b122318a85605c2256b92
+SubjectCandidate: 212b20659e00deb5b91d566bef74969bef1d1758
+Registration: FORMALLY_REGISTERED / BRANCH_BOUND / NOT_ON_MAIN
+ResolvedExecutionProfile: NOT_YET_RESOLVED
+Dispatch: NOT_YET_ISSUED
+RequirementFreeze: NOT_PERFORMED
+ImplementationAuthorization: NOT_GRANTED
+Implementation: NOT_STARTED
+Next: RESOLVE_EXECUTION_PROFILE_AND_COMPILE_DISPATCH_PROJECTION
+
+Registration evidence: dev_log/2026-10-03-ui-i01-closure-recovery-taskcontract-registration.md.
+The exact JSON retains its candidate-time authority/registration strings as immutable source content. This branch-bound registration record records the subsequent registration event; it does not reserialize the Contract or grant Dispatch. Earlier Requirement/Persistence state records remain historical evidence without reinterpretation. Closure Recovery Audit, Requirement Freeze, Implementation Authorization, Implementation, main integration, and WRITE_MAIN are not performed by this operation.
