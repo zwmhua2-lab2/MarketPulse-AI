@@ -2662,3 +2662,41 @@ WriteMain: `NOT_PERFORMED`
 Next: `RESOLVE_AMENDED_EXECUTION_PROFILE_AND_COMPILE_DISPATCH_03`
 
 This amendment registration does not resume Dispatch-02 or execute the Persistence Successor.
+
+## UI-I01 Snapshot Method Qualification TaskContract Registration
+
+Operation: `UI-I01-REQ-PERSIST-SUCCESSOR-01-SNAPSHOT-QUAL-01-TASKCONTRACT-REGISTER-01 v0.1`
+TaskContract: `UI-I01-REQ-PERSIST-SUCCESSOR-01-SNAPSHOT-QUAL-01 v0.1`
+Semantic ID: `UI-I01-REQ-PERSIST-SUCCESSOR-01-SNAPSHOT-QUAL-01@0.1`
+ContractPath: `docs/design/UI-V1/UI-I01-REQ-PERSIST-SUCCESSOR-01-SNAPSHOT-QUAL-01-TASK-CONTRACT-v0.1.json`
+ContractBytes: 14820
+ContractSHA256: `508283399d56af30ad6dfac2177f34e81c2bc90ecb2eece45785c0248a189340`
+ParentWork: `UI-I01-REQ-PERSIST-SUCCESSOR-01@0.2`
+ParentAmendment: `UI-I01-REQ-PERSIST-SUCCESSOR-01-EXEC-AMEND-01@0.1`
+ParentContractCarrier: `c4e7a84fccd21f583ab905668b7c27214c0f5a8b`
+ParentAmendmentCarrier: `946e08c6a77eb81d10647bf2b4af4420d357190e`
+RegistrationParent: `946e08c6a77eb81d10647bf2b4af4420d357190e`
+RegistrationBranch: `ui-i01-snapshot-qual-taskcontract-register-01`
+Registration: `FORMALLY_REGISTERED / BRANCH_BOUND / NOT_ON_MAIN`
+Result: `TASKCONTRACT_FORMALLY_REGISTERED_BRANCH_BOUND`
+Trigger: `DISPATCH-03 BLOCKED / PRE_MUTATION SNAPSHOT TOOLCHAIN FAILURE`
+RiskTier: `L2`
+TaskMode: `STRICT_READ_ONLY_REPOSITORIES / EXTERNAL_EVIDENCE_WRITES_ONLY`
+RecommendedRoute: `GPT-6.1 Sol / Medium / Codex Desktop / ER-3`
+Dispatch: `NOT_YET_ISSUED`
+ResolvedExecutionProfile: `NOT_YET_RESOLVED`
+SnapshotMethodQualification: `NOT_EXECUTED`
+PersistenceSuccessor: `NOT_EXECUTED`
+Dispatch03: `NOT_RESUMED`
+Dispatch04: `NOT_CREATED`
+RequirementFreeze: `NOT_PERFORMED`
+ImplementationAuthorization: `NOT_GRANTED`
+Implementation: `NOT_STARTED`
+Acceptance: `NOT_PERFORMED`
+MainIntegration: `NOT_PERFORMED`
+WriteMain: `NOT_PERFORMED`
+Next: `RESOLVE_EXECUTION_PROFILE_AND_COMPILE_DISPATCH_PROJECTION`
+ReturnTo: `UI-I01 System Workline Coordinator`
+Registration dev_log: `dev_log/2026-10-03-ui-i01-snapshot-qual-taskcontract-registration.md`
+
+The exact attachment bytes are registered without reserialization or semantic edits. The candidate-state strings inside the immutable JSON remain as supplied; this branch-bound registration record supplies registration authority. TaskMode and RecommendedRoute above describe the registered future qualification task, not execution of that task or a resolved profile. Parent Successor v0.2 and Amendment-01 records remain unchanged historical carriers. This registration does not execute qualification, resume Dispatch-03, create Dispatch-04, modify Requirement or Final Design Review, or authorize downstream lifecycle actions.

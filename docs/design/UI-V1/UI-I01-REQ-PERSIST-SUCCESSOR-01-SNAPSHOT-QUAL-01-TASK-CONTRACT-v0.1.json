@@ -1,0 +1,339 @@
+{
+  "authoritative_inputs": {
+    "dispatch_03_result": {
+      "key_finding": "PowerShell retry reached python launcher failure 9009 before CPV-05 snapshot completion.",
+      "qualification_use": "TRIGGER_AND_DIAGNOSTIC_INPUT_ONLY; independently revalidate local/repository facts.",
+      "repository_candidate": "NONE",
+      "result_status": "BLOCKED",
+      "run_identity": "UI-I01-REQ-PERSIST-SUCCESSOR-01-DISPATCH-03-RUN-01",
+      "source": "CURRENT_USER_SUPPLIED_STRUCTURED_RESULT",
+      "task_files_written": false
+    },
+    "execution_amendment": {
+      "bytes": 4151,
+      "carrier": "946e08c6a77eb81d10647bf2b4af4420d357190e",
+      "git_blob": "d23a7d0e37f788369f36f80962bf66777462e4f4",
+      "path": "docs/design/UI-V1/UI-I01-REQ-PERSIST-SUCCESSOR-01-EXEC-AMEND-01-v0.1.json",
+      "semantic_id": "UI-I01-REQ-PERSIST-SUCCESSOR-01-EXEC-AMEND-01@0.1",
+      "sha256": "a2bc8287a0df5af165f0dac77eb40aa5292d13a083cb93b4675b0975289595f4"
+    },
+    "successor_contract": {
+      "bytes": 18131,
+      "carrier": "c4e7a84fccd21f583ab905668b7c27214c0f5a8b",
+      "git_blob": "44cac7a5236fef3ef3a7db2cd3cdf9695d1045fa",
+      "path": "docs/design/UI-V1/UI-I01-REQ-PERSIST-SUCCESSOR-01-TASK-CONTRACT-v0.2.json",
+      "semantic_id": "UI-I01-REQ-PERSIST-SUCCESSOR-01@0.2",
+      "sha256": "d5c000c0cb5a40b4cc962156cf71b85d626ed14cf0f872bb1fab1899b125ac91"
+    }
+  },
+  "authority_state": "STRUCTURED_TASKCONTRACT_CANDIDATE_NOT_YET_REGISTERED",
+  "boundary": {
+    "external_write_scope": {
+      "allowed": true,
+      "must_be_outside_git_worktrees": true,
+      "purpose": "Qualification scripts, raw snapshot captures, logs, structured result, and evidence only.",
+      "root_pattern": "E:/Documents/AI-Developer/review-evidence/UI-I01-REQ-PERSIST-SUCCESSOR-01-SNAPSHOT-QUAL-01/<run-id>/",
+      "temporary_helper_rule": "Helpers must live under the qualification evidence root, never E:/Temp or either repository/worktree."
+    },
+    "forbidden_actions": [
+      "Modify any file inside the MarketPulse primary checkout",
+      "Modify any file inside any MarketPulse Git worktree",
+      "Modify any file inside the Workflow repository/worktrees",
+      "git add",
+      "git commit",
+      "git push",
+      "git reset",
+      "git clean",
+      "git stash",
+      "git checkout that changes worktree content",
+      "git switch that changes worktree state",
+      "git rebase",
+      "git merge",
+      "git config mutation",
+      "Create/delete/move repository branches or worktrees",
+      "Install software or packages",
+      "Invoke Python or depend on Python availability",
+      "Invoke Node.js or depend on Node.js availability",
+      "Use third-party snapshot utilities",
+      "Read secrets",
+      "WRITE_MAIN"
+    ],
+    "out_of_scope": [
+      "Persistence successor execution",
+      "Requirement or Final Design Review persistence",
+      "TaskContract or Amendment modification",
+      "Dispatch-04 creation",
+      "Execution Amendment-02 creation",
+      "Independent Persistence Successor Review",
+      "Requirement Freeze",
+      "Implementation Authorization",
+      "Implementation",
+      "Frontend/backend/runtime/tooling/package changes",
+      "main integration",
+      "WRITE_MAIN"
+    ],
+    "repository_allowed_changes": [],
+    "scope": [
+      "Identify the actual primary MarketPulse checkout used by the executor and prove its repository identity.",
+      "Inventory the locally available snapshot-relevant toolchain without installing anything.",
+      "Design a deterministic primary-workspace snapshot procedure using only Git plus Windows PowerShell/.NET primitives available in the resolved harness.",
+      "Explicitly avoid Python, Node.js, third-party packages, package installation, and network-fetched tooling.",
+      "Capture raw git status porcelain-v2 -z bytes in a binary-safe manner and compute its SHA-256.",
+      "Build a deterministic changed/untracked/deleted path census covering every current status path.",
+      "For every existing status path, record raw-file SHA-256 and byte count; record ABSENT for deleted paths.",
+      "Ensure untracked content is fully expanded to files, not directory placeholders.",
+      "Execute the selected snapshot procedure at least twice consecutively without intentional repository changes and prove canonical snapshot equality.",
+      "Produce an exact reusable qualification procedure/script plus structured evidence outside both repositories.",
+      "Determine QUALIFIED or BLOCKED; do not execute the persistence successor."
+    ],
+    "stop_conditions": [
+      "RULE_LOAD_FAIL",
+      "MARKETPULSE_MAIN_DRIFT",
+      "WORKFLOW_MAIN_DRIFT",
+      "SUCCESSOR_CONTRACT_IDENTITY_MISMATCH",
+      "EXECUTION_AMENDMENT_IDENTITY_MISMATCH",
+      "NEWER_UI_I01_SUCCESSOR_OR_AMENDMENT_DETECTED",
+      "DUPLICATE_QUALIFICATION_TASK_ACTIVE",
+      "PRIMARY_CHECKOUT_IDENTITY_UNPROVEN",
+      "PRIMARY_CHECKOUT_CONCURRENT_CHANGE_DURING_QUALIFICATION",
+      "ANY_REPOSITORY_OR_INDEX_MUTATION_DETECTED",
+      "REQUIRED_METHOD_DEPENDS_ON_PYTHON_NODE_OR_THIRD_PARTY_TOOL",
+      "BINARY_SAFE_RAW_STATUS_CAPTURE_NOT_PROVEN",
+      "STATUS_PATH_CENSUS_INCOMPLETE",
+      "SPECIAL_FILE_OR_REPARSE_POINT_WITHOUT_EXPLICIT_SAFE_HANDLING",
+      "CONSECUTIVE_CANONICAL_SNAPSHOTS_NOT_EQUAL",
+      "QUALIFICATION_EVIDENCE_ROOT_OVERLAPS_A_GIT_WORKTREE",
+      "SCOPE_EXPANSION_REQUIRED"
+    ]
+  },
+  "contract_semantic_id": "UI-I01-REQ-PERSIST-SUCCESSOR-01-SNAPSHOT-QUAL-01@0.1",
+  "execution": {
+    "budget": {
+      "dispatch_limit": 1,
+      "external_billed_budget": 0,
+      "method_candidate_trial_max": 3,
+      "repository_mutation_retry_max": 0,
+      "tool_probe_retry_max_per_tool": 1
+    },
+    "context_requirement": {
+      "fresh_context": true,
+      "full_rule_load": true,
+      "inherited_private_reasoning": "PROHIBITED"
+    },
+    "data_policy": {
+      "external_paid_api": "PROHIBITED",
+      "package_installation": "PROHIBITED",
+      "provider_calls": "NONE_REQUIRED",
+      "secrets": "DO_NOT_READ"
+    },
+    "permissions": {
+      "external_evidence_write": true,
+      "git_index_write": false,
+      "git_ref_write": false,
+      "network_tool_install": false,
+      "repository_read": true,
+      "repository_write": false,
+      "write_main": false
+    },
+    "routing_recommendation": {
+      "harness": "Codex Desktop",
+      "model": "GPT-6.1 Sol",
+      "provider": "OpenAI",
+      "rationale": "Repeated pre-mutation execution instability requires method/toolchain reasoning before another bounded Luna execution.",
+      "reasoning": "Medium",
+      "routing_tier": "ER-3"
+    },
+    "tools": [
+      "git (read-only commands only)",
+      "Windows PowerShell or pwsh",
+      "PowerShell/.NET standard library only",
+      "filesystem reads",
+      "hashing",
+      "external evidence-root writes"
+    ]
+  },
+  "governance": {
+    "governance_mode": "SELF_HOSTED",
+    "governance_version": "0.1.0",
+    "manifest_identity": "fd00-rule-manifest/0.1.0",
+    "operational_profile": {
+      "id": "EMRP",
+      "state": "ACTIVE",
+      "version": "1.1"
+    },
+    "parent_tier_floor": "L2",
+    "protected_subsystem": [
+      "UI-I01 REQUIREMENT LIFECYCLE EVIDENCE"
+    ],
+    "risk_tags": [
+      "PERSISTENCE",
+      "EVIDENCE_INTEGRITY",
+      "RECOVERY"
+    ],
+    "risk_tier": "L2",
+    "role": "Execution Recovery Method Qualifier",
+    "role_separation": {
+      "cannot": [
+        "Execute persistence successor",
+        "Modify TaskContract or Amendment",
+        "Review own qualification as an independent reviewer",
+        "Freeze Requirement",
+        "Grant Implementation Authorization",
+        "Accept UI-I01 work"
+      ]
+    },
+    "rule_pack_version": "0.1.0",
+    "task_mode": [
+      "STRICT_READ_ONLY_REPOSITORIES",
+      "NO_PRODUCT_MUTATION",
+      "NO_GIT_MUTATION",
+      "EXTERNAL_EVIDENCE_WRITES_ONLY",
+      "FRESH_CONTEXT",
+      "METHOD_QUALIFICATION"
+    ]
+  },
+  "identity": {
+    "creation_binding": {
+      "execution_amendment_carrier": "946e08c6a77eb81d10647bf2b4af4420d357190e",
+      "execution_amendment_semantic_id": "UI-I01-REQ-PERSIST-SUCCESSOR-01-EXEC-AMEND-01@0.1",
+      "marketpulse_authoritative_main": "1dbdc3f318fa1e96396a8b6058796a5a6f1811f1",
+      "successor_contract_carrier": "c4e7a84fccd21f583ab905668b7c27214c0f5a8b",
+      "successor_contract_semantic_id": "UI-I01-REQ-PERSIST-SUCCESSOR-01@0.2",
+      "workflow_authoritative_main": "cbc1a221646a9f4703a65e626e58cf192ed96426"
+    },
+    "governance_repository": "zwmhua2-lab2/ai-dev-workflow",
+    "parent_work": "UI-I01-REQ-PERSIST-SUCCESSOR-01@0.2",
+    "project": "MarketPulse-AI",
+    "repository": "zwmhua2-lab2/MarketPulse-AI",
+    "task_id": "UI-I01-REQ-PERSIST-SUCCESSOR-01-SNAPSHOT-QUAL-01",
+    "task_version": "0.1",
+    "trigger": {
+      "dispatch_02": "BLOCKED / PRE_MUTATION_PARSE_FAILURE / NO_CANDIDATE",
+      "dispatch_03": "BLOCKED / PRE_MUTATION_SNAPSHOT_TOOLCHAIN_FAILURE / NO_CANDIDATE",
+      "reason": "Repeated pre-mutation execution instability prevented CPV-05 primary workspace snapshot qualification."
+    },
+    "work_name": "UI-I01 Primary Workspace Snapshot Method Qualification",
+    "workline": "UI-I01 | Global Shell + System"
+  },
+  "registration": {
+    "canonical_target_path": "docs/design/UI-V1/UI-I01-REQ-PERSIST-SUCCESSOR-01-SNAPSHOT-QUAL-01-TASK-CONTRACT-v0.1.json",
+    "parent_branch": "ui-i01-persist-successor-exec-amend-01-register",
+    "registration_state_after_success": "FORMALLY_REGISTERED_PROJECT_LOCAL_STRUCTURED_TASKCONTRACT",
+    "suggested_branch": "ui-i01-snapshot-qual-taskcontract-register-01",
+    "target_parent": "946e08c6a77eb81d10647bf2b4af4420d357190e",
+    "target_repository": "zwmhua2-lab2/MarketPulse-AI",
+    "write_main": false
+  },
+  "result": {
+    "result_status_allowed": [
+      "COMPLETED",
+      "BLOCKED",
+      "STALE",
+      "DUPLICATE",
+      "ESCALATION_REQUIRED"
+    ],
+    "structured_result_envelope": {
+      "contract_identity": "REQUIRED",
+      "current_bindings": "REQUIRED",
+      "dispatch_identity": "REQUIRED",
+      "external_artifacts": "REQUIRED",
+      "findings": "REQUIRED",
+      "primary_checkout_identity": "REQUIRED",
+      "qualification_matrix": "REQUIRED",
+      "qualified_method": "REQUIRED_ON_COMPLETED",
+      "remaining_work": "REQUIRED",
+      "repository_mutation": "REQUIRED",
+      "result_status": "REQUIRED",
+      "run_identity": "REQUIRED",
+      "staleness": "REQUIRED",
+      "toolchain_inventory": "REQUIRED"
+    },
+    "success_boundary": {
+      "candidate": "NONE",
+      "implementation": "NOT_STARTED",
+      "implementation_authorization": "NOT_GRANTED",
+      "next": "RETURN_TO_UI_I01_SYSTEM_WORKLINE_COORDINATOR_FOR_EXECUTION_RECOVERY_AMENDMENT_DESIGN",
+      "persistence_successor": "NOT_EXECUTED",
+      "qualification_state": "SNAPSHOT_METHOD_QUALIFIED",
+      "requirement_freeze": "NOT_PERFORMED",
+      "result_status": "COMPLETED",
+      "write_main": "NOT_PERFORMED"
+    }
+  },
+  "serialization": {
+    "format": "JSON",
+    "project_local": true,
+    "template_authority": "NONE"
+  },
+  "verification_acceptance": {
+    "acceptance": "NOT_UI_I01_ACCEPTANCE",
+    "human_gate": "NONE IN THIS TASK",
+    "official_verification": "NOT_SEPARATE; deterministic qualification checks are task evidence, not UI-I01 Official Verification.",
+    "required_evidence": [
+      "toolchain inventory",
+      "primary checkout identity",
+      "raw status capture A and B",
+      "canonical snapshot A and B",
+      "path-census cross-check",
+      "qualified procedure/script",
+      "procedure/script SHA-256 and bytes",
+      "qualification command log",
+      "START/END refs",
+      "zero-repository-mutation proof",
+      "structured result"
+    ],
+    "required_review": "UI-I01 System Workline Coordinator Completion Result Review",
+    "success_predicate": "SQV-01..SQV-12 PASS",
+    "verification_contract": [
+      {
+        "id": "SQV-01",
+        "requirement": "Full current Workflow rule load and exact live MarketPulse/Workflow main bindings PASS."
+      },
+      {
+        "id": "SQV-02",
+        "requirement": "Exact successor TaskContract and Authorized Amendment identities match their carriers; no newer UI-I01 successor/amendment/duplicate qualification supersedes this task."
+      },
+      {
+        "id": "SQV-03",
+        "requirement": "Primary checkout path, remote repository identity, branch, HEAD, and git-dir/worktree relationship are explicitly proven without mutation."
+      },
+      {
+        "id": "SQV-04",
+        "requirement": "Toolchain probe proves an eligible Git + PowerShell/.NET method is locally available; the qualified method has no Python, Node.js, third-party, install, or network dependency."
+      },
+      {
+        "id": "SQV-05",
+        "requirement": "Selected method captures `git status --porcelain=v2 -z --untracked-files=all` through a binary-safe byte path and records exact raw bytes plus SHA-256."
+      },
+      {
+        "id": "SQV-06",
+        "requirement": "Selected method deterministically enumerates the complete status path set, including recursively expanded untracked files and tracked modified/deleted paths; an independent Git-command cross-check shows set equality."
+      },
+      {
+        "id": "SQV-07",
+        "requirement": "For every existing status path, snapshot records raw-file SHA-256 and bytes; every absent/deleted path is recorded as ABSENT; unsupported special-file handling fails closed."
+      },
+      {
+        "id": "SQV-08",
+        "requirement": "Canonical snapshot serialization excludes nondeterministic fields, uses an explicit encoding and ordinal path ordering, and has its own byte count and SHA-256."
+      },
+      {
+        "id": "SQV-09",
+        "requirement": "Two consecutive captures on the unchanged primary checkout produce exact equality of raw status bytes/hash, canonical snapshot bytes/hash, path set, states, per-file hashes, and byte counts."
+      },
+      {
+        "id": "SQV-10",
+        "requirement": "Qualification itself causes zero repository/index/ref/worktree mutation; START and END repository observations are consistent, or any external concurrent change blocks qualification."
+      },
+      {
+        "id": "SQV-11",
+        "requirement": "A reusable exact procedure/script is emitted under the external evidence root with byte count and SHA-256, and can be invoked from a path containing spaces without manual editing."
+      },
+      {
+        "id": "SQV-12",
+        "requirement": "Structured result clearly states QUALIFIED or BLOCKED and does not claim persistence success, PRIMARY_WORKSPACE_PRESERVED for a future dispatch, Freeze, Implementation Authorization, Acceptance, or WRITE_MAIN."
+      }
+    ],
+    "verification_profile_identity": "UI-I01-SNAPSHOT-METHOD-QUAL-VP-v0.1"
+  }
+}
