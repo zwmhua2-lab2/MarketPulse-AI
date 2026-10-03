@@ -2586,3 +2586,11 @@ UI-RD01-I03-REQ-04 — Trading Audit Read Product Read Implementation Requiremen
 - Cutover is prospective only. Historical task contracts, review records, accepted candidates, frozen requirements, Human decisions, protocol references, and evidence retain their historical meaning and are not rewritten.
 - Activation boundary unchanged: Real AI = `NOT ACTIVATED`; Gate A = `NOT ACTIVATED`; Gate B = `NOT ACTIVATED`; Gate C = `NOT PASSED`; live `G2→G3` = `NOT ACTIVE`; Live = `NOT AUTHORIZED`; Live Trading = `DISABLED`。
 - `UI-RD01-I04 = NOT STARTED`；`UI-RD01-I05 = NOT STARTED`；Next Product Task = `NOT YET SELECTED`。This cutover does not select, design, or authorize a next product task.
+
+
+## UI-F01-LINT R02 Formal Contract Registration (Branch Candidate)
+
+- Target: `UI-F01-LINT-DESIGN-R02-RERUN-02 v0.1` — `STRUCTURED TASKCONTRACT REGISTERED / NOT DISPATCHED / NOT EXECUTED` on `codex/ui-f01-lint-r02-contract-persist-01`; `NOT INTEGRATED INTO MAIN`.
+- Canonical JSON: `docs/tasks/UI-F01-LINT/UI-F01-LINT-DESIGN-R02-RERUN-02-TASK-CONTRACT-v0.1.json`; 66646 bytes; SHA-256 `3030fc6e79fce37930b5d08910d64bd8830f1b2a7807e0551ffd2a43c7f418c0`. Markdown: `docs/tasks/UI-F01-LINT/UI-F01-LINT-DESIGN-R02-RERUN-02-TASK-CONTRACT-v0.1.md` — `DERIVED READABLE PROJECTION`.
+- Authority: exact Human-adopted `UI-F01-LINT-DESIGN-R02-CONTRACT-PERSIST-01 v0.1`; persistence only. Historical RERUN-01 remains `NOT ADOPTED / REDISPATCH_REQUIRED`; no new technical Review or Human Gate verdict.
+- Next: `RESOLVE EXECUTION PROFILE → DERIVE DISPATCH PROJECTION → separately authorized UI-F01-LINT-DESIGN-R02-RERUN-02`; no dispatch, Freeze, implementation or Acceptance performed.
