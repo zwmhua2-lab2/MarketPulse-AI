@@ -2601,3 +2601,9 @@ UI-RD01-I03-REQ-04 — Trading Audit Read Product Read Implementation Requiremen
 - Human `WRITE_MAIN` authorization is limited to this exact task and reviewed candidate. Intended target is `FORMALLY_REGISTERED_ON_MAIN`, subject to successful non-force fast-forward and post-integration identity checks.
 - Canonical SUPP-02 v0.2 JSON and Markdown bytes remain unchanged. Dispatch remains `BLOCKED` pending `UI-RD01-I04-REQ-PERSIST-R01-SUPP-02-TC-FORMALIZE-INTEGRATION-V01` post-integration receipt PASS.
 - Requirement Freeze, R01 persistence closure, Implementation Authorization, and Implementation remain `NOT PERFORMED`.
+
+## UI-RD01-I04 SUPP-02 v0.2.1 TaskContract Materialization Candidate
+
+- UI-RD01-I04-REQ-PERSIST-R01-SUPP-02-V021-TC-MATERIALIZE-01: MATERIALIZED CANDIDATE / NOT ACTIVE / NOT DISPATCHABLE; branch-only, pending independent contract materialization review.
+- Candidate artifacts: docs/task-contracts/UI-RD01/UI-RD01-I04-REQ-PERSIST-R01-SUPP-02-v0.2.1.task-contract.json and docs/task-contracts/UI-RD01/UI-RD01-I04-REQ-PERSIST-R01-SUPP-02-v0.2.1.task-card.md. SUPP-02 v0.2 remains the historical registered predecessor; these candidate files do not supersede its repository status.
+- Next legal gate: UI-RD01-I04-REQ-PERSIST-R01-SUPP-02-V021-TC-MATERIALIZE-R01. SUPP-02 v0.2.1 review has not started.

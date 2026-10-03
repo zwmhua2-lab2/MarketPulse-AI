@@ -1,0 +1,614 @@
+{
+  "binding": {
+    "active_profile": "EMRP-1.1",
+    "active_profile_blob": "99f00b5809d0104e326282e12041e2a9ca2db467",
+    "current_marketpulse_authority_main": "1dbdc3f318fa1e96396a8b6058796a5a6f1811f1",
+    "current_marketpulse_authority_tree": "566d5ba45631f44c8fb10538a7ac9a34d6b7e750",
+    "current_registration_record": "docs/task-contracts/UI-RD01/UI-RD01-I04-REQ-PERSIST-R01-SUPP-02-v0.2-REGISTRATION-RECORD.md",
+    "governance_mode": "SELF_HOSTED",
+    "governance_version": "0.1.0",
+    "manifest": "fd00-rule-manifest/0.1.0",
+    "predecessor_registered_contract": "docs/task-contracts/UI-RD01/UI-RD01-I04-REQ-PERSIST-R01-SUPP-02-v0.2.task-contract.json",
+    "rule_pack": "0.1.0",
+    "subject_candidate_branch": "ui-rd01-i04-requirements-persist-02",
+    "subject_candidate_commit": "ddfefedb14fa278657f5bfc3cb7e30a571398d65",
+    "subject_candidate_expected_parent": "8c94ea338f500e2ea4dd2f8a5ccc81a65502468e",
+    "subject_candidate_tree": "98c6dbe3d67995631967909d5fa3ada65632c06d",
+    "subject_persistence_baseline": "8c94ea338f500e2ea4dd2f8a5ccc81a65502468e",
+    "subject_persistence_baseline_tree": "941a52985bc16fe054bbd9cb4e2f43739333817b",
+    "workflow_main": "cbc1a221646a9f4703a65e626e58cf192ed96426",
+    "workflow_tree": "48d5406d583f0b1594a864591cffbee4e34ebcdc"
+  },
+  "boundary": {
+    "allowed_external_outputs": [
+      "Structured Result",
+      "Evidence Manifest",
+      "Coverage JSON",
+      "segments",
+      "commands.jsonl",
+      "raw exact-object evidence",
+      "bundle manifest",
+      "bundle archive",
+      "detached hashes"
+    ],
+    "allowed_repository_changes": "NONE",
+    "forbidden_actions": [
+      "fetch",
+      "checkout",
+      "reset",
+      "rebase",
+      "merge",
+      "stash",
+      "clean",
+      "branch creation",
+      "worktree creation",
+      "repository file write",
+      "commit",
+      "push",
+      "PR creation",
+      "PROJECT_STATE modification",
+      "AI_CONTEXT modification",
+      "DECISIONS modification",
+      "dev_log modification",
+      "tests",
+      "build",
+      "PostgreSQL",
+      "benchmark",
+      "service startup",
+      "provider calls",
+      "Freeze",
+      "Implementation Authorization",
+      "Implementation",
+      "Acceptance",
+      "Main Integration"
+    ],
+    "out_of_scope": [
+      "requirement redesign or mutation",
+      "candidate mutation",
+      "R01 closure",
+      "Requirement Freeze",
+      "freeze persistence",
+      "Implementation Authorization",
+      "EdgeAggregateRead implementation",
+      "implementation verification",
+      "schema/migration/index/dependency changes",
+      "OpenAPI/generated.ts implementation",
+      "SE-02D mathematics changes",
+      "I05/UI Edge Lab",
+      "Real AI/Gate C/AI/Live activation",
+      "main integration"
+    ],
+    "scope": [
+      "fresh reviewer context and current authority binding",
+      "full reads required by this contract",
+      "exact subject candidate persistence fidelity",
+      "qualified reuse of historical mechanical evidence",
+      "original PR/AC mapping",
+      "F-SUPP-01 / NB-04 current assessment",
+      "Human authority/source limitations",
+      "current supplemental verdict and Human Freeze Readiness field"
+    ]
+  },
+  "completion_boundary": [
+    "all required reads/coverage completed or an explicit BLOCKED condition established",
+    "T-01..T-10 and AC-01..AC-10 assessed",
+    "current verdict produced",
+    "Structured Result and evidence outputs frozen",
+    "no repository mutation",
+    "no gate advancement",
+    "STOP"
+  ],
+  "contract_state": "CORRECTED_SUCCESSOR_CANDIDATE / NOT_YET_REGISTERED",
+  "coverage_protocol": {
+    "full_read_rule": "Actual model-visible segmented reading is required. Export/hash/script completion alone does not prove model full-read.",
+    "per_file_fields": [
+      "repo",
+      "commit",
+      "path",
+      "blob",
+      "raw_sha256",
+      "bytes",
+      "logical_lines",
+      "segment_start",
+      "segment_end",
+      "returned_range",
+      "truncated",
+      "EOF",
+      "evidence_ref"
+    ],
+    "required_outputs": [
+      "coverage/COVERAGE.json",
+      "segments/",
+      "commands.jsonl",
+      "raw/"
+    ],
+    "segment_guidance": "Prefer 80-120 logical lines per visible segment; reduce if the harness truncates.",
+    "truncation_rule": "Continue from first uncovered position until union coverage reaches EOF. Unrecoverable truncation => BLOCKED."
+  },
+  "duplicate_guard": {
+    "found_active": "STOP / do not create a second run",
+    "found_stopped": "preserve STOP and return to Designer",
+    "found_terminal": "return existing terminal result",
+    "prohibited_inference": "No same-named branch/ref does not prove global nonexistence.",
+    "scope": "this exact SUPP-02 v0.2.1 run only"
+  },
+  "evidence_reuse": {
+    "allowed_domains": [
+      "single parent/tree/topology",
+      "exact six paths/mode/outside-set",
+      "raw artifact bytes",
+      "11 trailing-space exceptions",
+      "state append deltas",
+      "Frozen blob identity",
+      "zero code delta"
+    ],
+    "claim_status_values": [
+      "VERIFIED_BY_REUSED_EVIDENCE",
+      "VERIFIED_THIS_RUN",
+      "NOT_RERUN",
+      "NOT_VERIFIED"
+    ],
+    "principle": "Reuse only sufficiently bound factual evidence; never inherit an aggregate PASS verdict.",
+    "required_failure_rule": "If a claim is necessary for the current verdict and cannot be sufficiently verified, mark NOT_VERIFIED and BLOCK.",
+    "required_provenance": [
+      "source file SHA-256",
+      "section/field/range",
+      "originating run",
+      "exact input binding",
+      "claim proved",
+      "claim not proved"
+    ]
+  },
+  "execution": {
+    "data_policy": "Only task-required repository docs/objects/diffs/evidence. Do not read production secrets or private account/trading data. Do not call paid external providers for proof.",
+    "permissions": [
+      "NO_REPOSITORY_WRITE",
+      "NO_FETCH",
+      "NO_COMMIT",
+      "NO_PUSH",
+      "NO_PR",
+      "NO_MAIN_INTEGRATION"
+    ],
+    "profile_rules": {
+      "hidden_runtime_metadata_absence_alone_blocks": false,
+      "resolved_execution_profile_must_be_recorded": true,
+      "routing_recommendation_is_runtime_attestation": false,
+      "runtime_attestation_only_records_harness_exposed_fields": true
+    },
+    "routing_recommendation": {
+      "harness": "Codex",
+      "model": "GPT-6.1 Sol",
+      "provider": "OpenAI",
+      "reasoning": "Medium"
+    },
+    "routing_tier": "ER-3",
+    "tools": [
+      "readonly Git/repository connector",
+      "exact Git object access",
+      "SHA-256 and byte counting",
+      "paged text reading",
+      "diff/tree/object inspection",
+      "out-of-repository artifact writing"
+    ]
+  },
+  "governance": {
+    "parent_tier_floor": "L2",
+    "protected_subsystem_direct_modification": "NONE",
+    "reviewer_authority": [
+      "assess exact authorized inputs",
+      "issue PASS / FIX_REQUIRED / BLOCKED",
+      "report findings and evidence sufficiency"
+    ],
+    "reviewer_forbidden_authority": [
+      "modify subject candidate or frozen truth",
+      "close R01",
+      "Freeze requirement",
+      "grant Implementation Authorization",
+      "accept work",
+      "advance main or any gate"
+    ],
+    "risk_tags": [
+      "PUBLIC_CONTRACT",
+      "PERSISTENCE",
+      "CONCURRENCY"
+    ],
+    "risk_tier": "L2",
+    "role": "INDEPENDENT_SUPPLEMENTAL_PERSISTENCE_REVIEWER",
+    "task_mode": [
+      "STRICT_READ_ONLY",
+      "NEW_RUN",
+      "EXACT_CANDIDATE_REVIEW",
+      "FRESH_CONTEXT",
+      "NO_REPOSITORY_MUTATION"
+    ]
+  },
+  "human_authority": {
+    "freeze_readiness_effect": "Missing original Human carrier prevents Human Freeze Readiness from becoming READY by this review alone, while independently provable byte/path facts may still pass.",
+    "missing_carrier": "If unavailable, report SOURCE_AUTHORITY_NOT_VERIFIED. Do not reconstruct it from dev_log, PROJECT_STATE, current continue instructions, or executor reports.",
+    "original_carrier": "If the original Human Content Confirmation / Whitespace Amendment carrier is directly accessible, read and bind it.",
+    "recorded_confirmation": "Repository records of CONFIRMED may be reported as repository-recorded facts."
+  },
+  "identity": {
+    "contract_id": "UI-RD01-I04-REQ-PERSIST-R01-SUPP-02-TC-v0.2.1-candidate.1",
+    "governance_repository": "zwmhua2-lab2/ai-dev-workflow",
+    "parent_work_package": "UI-RD01-I04|EdgeAggregateRead",
+    "predecessors": [
+      "SUPP-02 v0.1 / HISTORICAL",
+      "SUPP-02 v0.2 / REGISTERED ON MAIN / DISPATCH ATTEMPT HALTED BY MISSING T-01..T-10 AND AC-01..AC-10 AUTHORITATIVE DEFINITIONS"
+    ],
+    "project": "MarketPulse-AI",
+    "repository": "zwmhua2-lab2/MarketPulse-AI",
+    "successor_reason": [
+      "TASK_CONTRACT_VERIFICATION_DEFINITION_COMPLETION",
+      "PRESERVE_V0_2_RUNTIME_ATTESTATION_CORRECTION",
+      "PRESERVE_V0_1_FULL_READ_EVIDENCE_REUSE_NB04_HUMAN_AUTHORITY_REQUIREMENTS"
+    ],
+    "task_id": "UI-RD01-I04-REQ-PERSIST-R01-SUPP-02",
+    "task_type": "RE-REVIEW / SUPPLEMENTAL PERSISTENCE REVIEW / CONTRACT-DEFINITION-CORRECTED SUCCESSOR",
+    "task_version": "v0.2.1",
+    "work_name": "Focused Input Completion and Consolidated Persistence Review"
+  },
+  "nb04_assessment": {
+    "finding_id": "F-SUPP-01",
+    "nb_id": "NB-04",
+    "required_questions": [
+      "Did any summary weaken or omit the authoritative 'before Freeze' timing?",
+      "Does that discrepancy constitute a defect in the current persistence candidate?",
+      "Does it affect Human Requirement Freeze readiness?",
+      "Did the persisted Requirement bytes or semantics change?",
+      "Does exact applicable performance evidence currently exist in the checked authority/evidence set?",
+      "Is there an authority-permitted pre-Freeze evidence route while Implementation Authorization remains NOT GRANTED?",
+      "What exact Designer/Human disposition remains required?"
+    ],
+    "rules": [
+      "Do not infer no impact merely from FREEZE PENDING.",
+      "Do not run performance tests or authorize implementation to create evidence.",
+      "Keep NB-01..NB-04 OPEN.",
+      "Do not treat HKDF suggestion, future mapping proof, or selector-collision testing as already adopted/executed."
+    ]
+  },
+  "next_legal_gate_on_pass": "I04 Designer Persistence Review Closure Assessment. A separate Designer/Human disposition is required before any Requirement Freeze action.",
+  "non_stop_condition": "RUNTIME_MODEL_METADATA_NOT_EXPOSED",
+  "objective": {
+    "must_establish": [
+      "exact persistence candidate fidelity",
+      "required full-read authority coverage",
+      "qualified evidence reuse",
+      "F-SUPP-01/NB-04 disposition",
+      "Human authority limitations",
+      "historical/current evidence separation",
+      "current review readiness for Designer closure assessment"
+    ],
+    "primary": "Complete the missing authority/content reads and produce a current evidence-supported consolidated persistence review verdict without overwriting historical runs."
+  },
+  "output_contract": {
+    "files": [
+      "RESULT.md",
+      "EVIDENCE.json",
+      "coverage/COVERAGE.json",
+      "segments/",
+      "commands.jsonl",
+      "raw/",
+      "BUNDLE-MANIFEST.json",
+      "BUNDLE.zip"
+    ],
+    "hashing_order": [
+      "freeze Result/Coverage/logs/raw",
+      "generate Evidence referencing frozen hashes",
+      "generate bundle manifest with per-entry bytes/hash",
+      "create bundle",
+      "report final ZIP hash outside the ZIP"
+    ],
+    "run_directory": "UI-RD01-I04-REQ-PERSIST-R01-SUPP-02-v0.2.1-<RUN-ID>/",
+    "self_hash_rule": "Do not create impossible self-referential final-hash cycles."
+  },
+  "required_context": {
+    "governance_full_read": [
+      "AI_WORKFLOW_BOOTSTRAP.md",
+      "governance/WORKFLOW_RULE_MANIFEST.md",
+      "all dynamically enumerated REQUIRED_ACTIVE rules",
+      "complete Workflow PROJECT_STATE.md",
+      "current ACTIVE execution routing profile"
+    ],
+    "mandatory_full_read_fixed_authority": {
+      "A": {
+        "blob": "f98dd6e92695aa9e56237d1c7fa6000b7368aff5",
+        "path": "docs/design/UI-RD01/UI-RD01-Product-Read-API-Formal-Design.md"
+      },
+      "B": {
+        "blob": "62173554e3824418326a9f782e1f9c7e971ca25a",
+        "path": "docs/design/UI-V1/UI-V1-D01-MarketPulse-UI-V1-Formal-Design.md"
+      },
+      "C": {
+        "blob": "b3af9d9aa0ee4ac7152216761a57974217935a88",
+        "path": "docs/design/UI-V1/UI-V1-D01-AMEND-01-Post-Freeze-Amendment.md"
+      },
+      "D": {
+        "blob": "f9b9ac904bb31c61ed95ce6f3a268e7836dfbd70",
+        "path": "docs/design/SE-02D/SE-02D-D01-Family-Aggregation-Expectancy-Contract.md"
+      }
+    },
+    "marketpulse_current_authority": [
+      "AGENTS.md",
+      "PRODUCT_REQUIREMENTS.md",
+      "complete current PROJECT_STATE.md",
+      "relevant AI_CONTEXT.md / DECISIONS.md / dev_log context",
+      "current registration record for predecessor v0.2 and current main identity"
+    ],
+    "subject_candidate_full_read": [
+      "docs/design/UI-RD01/UI-RD01-I04-Implementation-Requirements.md",
+      "docs/design/UI-RD01/reviews/UI-RD01-I04-DESIGN-R01-Review-Transcript.txt",
+      "dev_log/2026-09-27-ui-rd01-i04-requirement-persistence.md",
+      "complete candidate PROJECT_STATE.md"
+    ]
+  },
+  "result_contract": {
+    "acceptance": "NOT_PERFORMED",
+    "official_implementation_verification": "NOT_APPLICABLE / NOT_PERFORMED",
+    "produced_candidate": "NONE",
+    "repository_mutation": "NONE",
+    "required_fields": [
+      "Result Status",
+      "Contract Identity",
+      "Dispatch Identity",
+      "Run Identity",
+      "Reviewer Role",
+      "Resolved Execution Profile",
+      "Runtime Attestation",
+      "Reviewer Independence Basis",
+      "Duplicate Guard",
+      "Rule Load",
+      "Current Workflow Binding",
+      "Current MarketPulse Authority Binding",
+      "Subject Persistence Baseline Binding",
+      "Subject Candidate Identity",
+      "Required Input Coverage",
+      "T-01..T-10 Matrix",
+      "AC-01..AC-10 Assessment",
+      "Original PR/AC Mapping",
+      "Evidence Reuse Ledger",
+      "F-SUPP-01 / NB-04 Assessment",
+      "Human Authority Assessment",
+      "Time/Hash/Source Separation",
+      "Repository Mutation",
+      "Review Result",
+      "Human Freeze Readiness",
+      "Blocking Findings",
+      "Non-Blocking Findings",
+      "Observations",
+      "Remaining Work",
+      "Evidence References",
+      "Output File Identities",
+      "Staleness",
+      "Next Legal Gate"
+    ]
+  },
+  "reviewer_independence": {
+    "basis": [
+      "ROLE_SEPARATION",
+      "FRESH_CONTEXT",
+      "PROCESS_SEPARATION",
+      "NO_SELF_ACCEPTANCE"
+    ],
+    "hard_blockers": [
+      "positive evidence reviewer authored Requirement under review",
+      "positive evidence reviewer executed persistence candidate",
+      "reviewer attempts self-acceptance",
+      "Fresh Context cannot be established"
+    ],
+    "hidden_platform_identity_required": false,
+    "must_not_be": [
+      "this task's Designer",
+      "original Requirement Designer",
+      "persistence Executor"
+    ],
+    "required_conditions": [
+      "no subject candidate mutation",
+      "no executor private reasoning as authority",
+      "fresh governance load",
+      "fresh repository truth resolution",
+      "independent review of exact subject",
+      "historical PASS not inherited",
+      "no acceptance/freeze"
+    ]
+  },
+  "schema": "marketpulse.project-local.structured-task-contract/0.1-candidate",
+  "source_lineage": {
+    "historical_v0_1_preserved": {
+      "acceptance_definitions": "AC-T01..AC-T06",
+      "note": "Preserved in substance.",
+      "verification_definitions": "T-01..T-08"
+    },
+    "v0_2_1_new_prospective_completion": {
+      "new_acceptance_definitions": [
+        "AC-07",
+        "AC-08",
+        "AC-09",
+        "AC-10"
+      ],
+      "new_verification_definitions": [
+        "T-09",
+        "T-10"
+      ],
+      "normalization": "Historical T/AC naming is normalized to complete T-01..T-10 and AC-01..AC-10. This is prospective successor semantics, not a claim that v0.1 already contained 10/10 definitions."
+    },
+    "v0_2_preserved": {
+      "hidden_runtime_metadata": "NOT_EXPOSED alone is not a blocker",
+      "reviewer_independence": "ROLE_SEPARATION + FRESH_CONTEXT + PROCESS_SEPARATION + NO_SELF_ACCEPTANCE",
+      "runtime_semantics": "Routing Recommendation != Resolved Execution Profile != Runtime Attestation"
+    }
+  },
+  "stop_conditions": [
+    "RULE_LOAD_FAIL",
+    "STALE_BINDING",
+    "DUPLICATE_ACTIVE_V021_RUN",
+    "REQUIRED_INPUT_MISSING",
+    "UNRECOVERABLE_READ_TRUNCATION",
+    "REAL_ROLE_SEPARATION_CONFLICT",
+    "FRESH_CONTEXT_FAILURE",
+    "EXACT_CANDIDATE_MISMATCH",
+    "AUTHORITY_CONFLICT",
+    "SCOPE_EXPANSION_REQUIRED",
+    "CODE_RUNTIME_SCHEMA_DELTA_DISCOVERED",
+    "REPOSITORY_MUTATION_REQUIRED",
+    "REQUIRED_CURRENT_CLAIM_NOT_VERIFIABLE"
+  ],
+  "subject_persistence_contract": {
+    "allowed_trailing_space_lines": [
+      33,
+      103,
+      128,
+      228,
+      358,
+      650,
+      736,
+      931,
+      1005,
+      1034,
+      1154
+    ],
+    "design_review_identity": {
+      "blob": "57a6c93968856ee08129862d6483c68b9b0a17e4",
+      "bom": "NONE",
+      "bytes": 16097,
+      "cr": 0,
+      "final_lf": "NO",
+      "lf": 135,
+      "logical_lines": 136,
+      "sha256": "69ffef442feef1d2f13ef53f42e23dadf7786f6416fce6d57bd7be4c17d2be15"
+    },
+    "exact_changed_paths": [
+      "AI_CONTEXT.md",
+      "DECISIONS.md",
+      "PROJECT_STATE.md",
+      "dev_log/2026-09-27-ui-rd01-i04-requirement-persistence.md",
+      "docs/design/UI-RD01/UI-RD01-I04-Implementation-Requirements.md",
+      "docs/design/UI-RD01/reviews/UI-RD01-I04-DESIGN-R01-Review-Transcript.txt"
+    ],
+    "expected_topology": {
+      "ahead_from_subject_baseline": 1,
+      "behind_from_subject_baseline": 0,
+      "candidate_commit": "ddfefedb14fa278657f5bfc3cb7e30a571398d65",
+      "candidate_tree": "98c6dbe3d67995631967909d5fa3ada65632c06d",
+      "merge_commit": false,
+      "sole_parent": "8c94ea338f500e2ea4dd2f8a5ccc81a65502468e"
+    },
+    "implementation_runtime_schema_delta": "PROHIBITED",
+    "outside_six_delta": "PROHIBITED",
+    "persistence_dev_log_blob": "946f5e0401df2173fb3b6650ffc4c6a4061c7d39",
+    "project_state_blobs": {
+      "candidate": "5d596a4e47fa8e8dde0992a6f1c22d1f341a0435",
+      "subject_baseline": "8a2fb1dd8698b2657a037c7f917503320b8f9326"
+    },
+    "requirement_identity": {
+      "blob": "32f808e4a1b554f03bd119c013a790baa255ad54",
+      "bom": "NONE",
+      "bytes": 63403,
+      "cr": 0,
+      "final_lf": "NO",
+      "lf": 1346,
+      "logical_lines": 1347,
+      "sha256": "e1ece5cf5cb8ff203a4a7ae1e5c51e9cb0d2ec92675192814ccd8a35442ee4fd"
+    }
+  },
+  "time_hash_source_rules": {
+    "current_run_time": "Record actual UTC start/end and derived local time with full date/offset from the same instant.",
+    "hash_layers": "Separate historical embedded hashes, exact source-object hashes, and newly recomputed final output hashes. Do not claim a stale internal hash was correct for a prior version unless those prior bytes exist.",
+    "historical_time": "Separate source-declared time, mathematical conversion, and proof of actual event time. Unknown historical actual time remains NOT_VERIFIED."
+  },
+  "verification_acceptance": {
+    "acceptance_criteria": {
+      "AC-01": "A unique v0.2.1 run is established; reviewer role/process independence and Fresh Context are established; resolved model/harness/effort/tools/permissions are recorded truthfully; harness-hidden runtime metadata is labeled NOT_EXPOSED rather than invented.",
+      "AC-02": "Current Workflow main and current MarketPulse authority main are live-verified at start/end; the exact persistence subject commit/tree/sole parent are independently verified; registration/currentness and subject-baseline identities are explicitly separated with no stale substitution.",
+      "AC-03": "All mandatory full-read inputs are actually read to EOF with recoverable, machine-checkable coverage: current MarketPulse PROJECT_STATE, required historical subject-state context, Frozen A-D, complete Requirement, Design Review transcript, persistence dev_log, and complete candidate PROJECT_STATE; no unrecovered truncation remains.",
+      "AC-04": "Exact persistence fidelity is established: six-path set equality, modes/types, Requirement/transcript byte identities, 11 allowed trailing-space lines only, append-only state carriers, Frozen A-D identity, and zero outside-scope product/code/schema/runtime delta.",
+      "AC-05": "Every reused evidence claim has checkable identity/provenance/sufficiency; original PR/AC mapping is complete; required current claims do not rely on inherited aggregate PASS; any non-rerun item is labeled NOT_RERUN rather than silently PASS.",
+      "AC-06": "F-SUPP-01 / NB-04 is assessed from authoritative text and full context; all seven NB-04 questions are answered; NB-01..NB-04 remain OPEN; no 'before Freeze' timing requirement is weakened, deferred, or replaced by FREEZE PENDING.",
+      "AC-07": "Historical time/source/hash facts and current-run facts are strictly separated; original Human authority limitations remain explicit; SOURCE_AUTHORITY_NOT_VERIFIED is preserved where applicable and no Human authorization is inferred from dev_log, PROJECT_STATE, or a continue instruction.",
+      "AC-08": "Execution-evidence semantics are correct: Routing Recommendation != Resolved Execution Profile != Runtime Attestation; hidden runtime model/effort metadata absence alone does not block, while real reviewer-role conflict, Fresh Context failure, required-input absence, or insufficient evidence does block.",
+      "AC-09": "Repository mutation is zero; complete external deliverables exist with real coverage, command logs, raw exact-object evidence, detached hashes and a bundle manifest; outputs do not fabricate self-hashes or retroactive historical logs; no Gate is advanced.",
+      "AC-10": "T-01..T-10 all satisfy their definitions, current persistence Blocking Findings = 0, and no required current claim is NOT_VERIFIED. PASS result is exactly FOCUSED_SUPPLEMENT_PASS / READY_FOR_DESIGNER_CLOSURE_ASSESSMENT. Human Freeze Readiness remains a separate determination and PASS does not close R01, Freeze the Requirement, or authorize implementation."
+    },
+    "historical_mapping_required": {
+      "columns": [
+        "ORIGINAL_REPORTED",
+        "SUPP-01_REPORTED",
+        "SUPP-02_CURRENT_ASSESSMENT",
+        "EVIDENCE",
+        "LIMIT"
+      ],
+      "historical_ac": [
+        "AC-P01..P05",
+        "AC-S01..S06"
+      ],
+      "original_pr": "PR-01..PR-18"
+    },
+    "human_freeze_readiness_is_separate": true,
+    "human_freeze_readiness_values": [
+      "READY_FOR_HUMAN_DECISION",
+      "NOT_ESTABLISHED",
+      "BLOCKED"
+    ],
+    "matrix": {
+      "T-01": {
+        "definition": "Establish exactly one v0.2.1 run; check ACTIVE/TERMINAL/STOPPED duplicates; establish reviewer role/process independence; record ResolvedExecutionProfile and only harness-exposed runtime attestation; verify workspace/permission preflight. Hidden runtime model/reasoning metadata being unavailable alone is NOT a blocker.",
+        "name": "Run Identity / Duplicate Guard / Reviewer Independence / Execution Profile"
+      },
+      "T-02": {
+        "definition": "At start and end, resolve live Workflow main and current MarketPulse authority main; separately verify the exact persistence subject branch/commit/tree/sole parent. Full-load Bootstrap, Manifest, all dynamically REQUIRED_ACTIVE rules, complete Workflow PROJECT_STATE and active routing profile. Build a Fresh Context Pack from authorized inputs only.",
+        "name": "Current Authority Binding / Governance Load / Fresh Context"
+      },
+      "T-03": {
+        "definition": "Read the complete current MarketPulse PROJECT_STATE.md to EOF from current authority main, while separately reading the historical subject-baseline PROJECT_STATE object required to assess the persistence candidate. Record actual coverage, object identity, bytes/lines/hash and EOF. Current authority main and subject baseline MUST NOT be conflated.",
+        "name": "Current MarketPulse State Full Read"
+      },
+      "T-04": {
+        "definition": "Read Frozen Authority A-D in full to EOF from exact fixed objects; record actual coverage and independently verify the same paths/blobs/modes in the persistence subject context. Separate BODY_FULL_READ from BLOB_IDENTITY_EQUALITY; one does not imply the other.",
+        "name": "Frozen Authority A-D Full Read and Identity"
+      },
+      "T-05": {
+        "definition": "For each reused claim, bind source identity, provenance, exact input, section/field/range, what it proves and what it does not prove. Map original PR-01..PR-18 and historical AC-P01..P05 / AC-S01..S06 into ORIGINAL_REPORTED / SUPP-01_REPORTED / SUPP-02_CURRENT_ASSESSMENT / EVIDENCE / LIMIT. Historical aggregate PASS text is never inherited as a current verdict.",
+        "name": "Evidence Reuse Qualification / Historical PR-AC Mapping"
+      },
+      "T-06": {
+        "definition": "Using full context, evaluate current Gate/state and NB-01..NB-04. Reassess F-SUPP-01 and NB-04 against the full transcript, Requirement timing language, Frozen authority and candidate state. Explicitly answer all required NB-04 questions. Preserve NB-01..NB-04 OPEN unless another authorized task later closes them.",
+        "name": "Gate / State / NB / F-SUPP-01 / NB-04 Assessment"
+      },
+      "T-07": {
+        "definition": "Separate source-declared time, mathematically converted time, and independently proven actual run time; keep unproven historical run times NOT_VERIFIED. Separate historical embedded hashes from recomputed final hashes. Separate repository-recorded Human confirmations from independently available original Human carriers; missing original carriers remain SOURCE_AUTHORITY_NOT_VERIFIED and cannot be reconstructed from dev_log/PROJECT_STATE.",
+        "name": "Time / Source / Hash / Human Authority Separation"
+      },
+      "T-08": {
+        "definition": "Verify STRICT READ_ONLY throughout: zero repository writes, no fetch/checkout/reset/rebase/merge/stash/clean/branch/worktree creation, no Freeze/Authorization/Implementation/Acceptance/Main Integration. Produce complete out-of-repository Result/Evidence/Coverage/segments/commands/raw/bundle outputs and STOP after verdict.",
+        "name": "Review Boundary / Mutation / Delivery / STOP"
+      },
+      "T-09": {
+        "definition": "Independently verify the persistence candidate topology and exact six-path delta; path type/mode/rename/delete/symlink/submodule constraints; Requirement and Design Review transcript byte identities; allowed 11-line trailing-space exception set; append-only state carrier behavior; Frozen A-D unchanged identity; zero product/code/schema/runtime delta outside the authorized persistence set.",
+        "name": "Exact Persistence Fidelity"
+      },
+      "T-10": {
+        "definition": "Re-read end bindings; ensure every required current claim is VERIFIED_THIS_RUN or VERIFIED_BY_REUSED_EVIDENCE with sufficient provenance; no required current claim remains NOT_VERIFIED; current persistence Blocking Findings = 0 for PASS. Produce the Structured Result Envelope, Human Freeze Readiness as a separate field, Next Legal Gate, and STOP without closing R01 or advancing Freeze.",
+        "name": "Consolidated Current Verdict / End Binding / Closure Boundary"
+      }
+    },
+    "pass_does_not_mean": [
+      "R01_CLOSED",
+      "REQUIREMENT_FROZEN",
+      "HUMAN_FREEZE_READY",
+      "IMPLEMENTATION_AUTHORIZED",
+      "IMPLEMENTATION_STARTED"
+    ],
+    "pass_predicate": [
+      "T-01..T-10 all satisfied",
+      "AC-01..AC-10 all satisfied",
+      "current persistence Blocking Findings = 0",
+      "no required current claim is NOT_VERIFIED"
+    ],
+    "verdicts": {
+      "BLOCKED": "CURRENT_REVIEW_NOT_READY_FOR_CLOSURE / TASK_INPUT_OR_EVIDENCE_BLOCKED",
+      "FIX_REQUIRED": "CURRENT_PERSISTENCE_FIX_REQUIRED",
+      "PASS": "FOCUSED_SUPPLEMENT_PASS / READY_FOR_DESIGNER_CLOSURE_ASSESSMENT"
+    },
+    "verification_profile": "I04-PERSISTENCE-FOCUSED-SUPP-02-v0.2.1"
+  }
+}
