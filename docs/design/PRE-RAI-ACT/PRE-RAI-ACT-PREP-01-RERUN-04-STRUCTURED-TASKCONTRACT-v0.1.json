@@ -1,262 +1,3381 @@
 {
-  "artifact_type": "STRUCTURED_TASKCONTRACT_CANDIDATE",
-  "authority_state": "NON_AUTHORITATIVE_NOT_FORMALLY_REGISTERED",
   "identity": {
-    "task_id": "PRE-RAI-ACT-PREP-01-RERUN-04-FREEZE-PERSIST-01-RERUN-02",
+    "task_id": "PRE-RAI-ACT-PREP-01-RERUN-04",
     "task_version": "v0.1",
-    "work_name": "RERUN-04 Freeze Persistence / Materialization — Evidence-Recovered Rerun",
-    "task_type": "CONTROL_PLANE_PERSISTENCE",
+    "work_name": "Activation Preparation",
     "project": "MarketPulse-AI",
     "repository": "zwmhua2-lab2/MarketPulse-AI",
-    "repository_baseline": "1dbdc3f318fa1e96396a8b6058796a5a6f1811f1",
     "governance_repository": "zwmhua2-lab2/ai-dev-workflow",
+    "repository_baseline": "8c94ea338f500e2ea4dd2f8a5ccc81a65502468e",
     "governance_baseline": "cbc1a221646a9f4703a65e626e58cf192ed96426",
-    "governance_version": "0.1.0",
-    "rule_pack_version": "0.1.0",
-    "manifest_identity": "fd00-rule-manifest/0.1.0",
-    "parent_work_package": "Real AI Activation Planning",
-    "subject_task": "PRE-RAI-ACT-PREP-01-RERUN-04 v0.1",
-    "subject_candidate": {
-      "name": "PRE-RAI-ACT-PREP-01-RERUN-04.task-contract.candidate.json",
-      "bytes": 141253,
-      "sha256": "eb5156414bff97f201a0d835c4c052ea2cac51fedd73c4d4b37e590f6ac249f7"
+    "parent_work_package": "Real AI / Gate A-B-C Preparation；PRE-01A-D1 + PRE-01B-D1/D2 AS AMENDED",
+    "creation_registry_identity": {
+      "value": null,
+      "state": "UNKNOWN",
+      "reason": "No project creation identity is supplied by the reviewed source; no registry is created by formalization."
     },
-    "historical_attempts": [
+    "task_type": {
+      "value": "DESIGN_PREPARATION",
+      "state": "NORMALIZED_ROLE_LABEL",
+      "registry_enum_claim": false
+    },
+    "source_records": [
       {
-        "task_id": "PRE-RAI-ACT-PREP-01-RERUN-04-FREEZE-PERSIST-01",
-        "result": "BLOCKED_FREEZE_PERSISTENCE",
-        "cause": "STALE_MARKETPULSE_BASELINE",
-        "mutation": "NONE"
+        "record_id": "SRC-076-076",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 76,
+        "end_line": 76,
+        "text": "| Task / Version | PRE-RAI-ACT-PREP-01-RERUN-04 / v0.1 |\n",
+        "content_type": "TABLE_ROW",
+        "cells": [
+          "Task / Version",
+          "PRE-RAI-ACT-PREP-01-RERUN-04 / v0.1"
+        ]
       },
       {
-        "task_id": "PRE-RAI-ACT-PREP-01-RERUN-04-FREEZE-PERSIST-01-RERUN-01",
-        "result": "BLOCKED_FREEZE_PERSISTENCE",
-        "cause": "EXACT_STRUCTURED_REVIEW_R01_EVIDENCE_NOT_FOUND",
-        "mutation": "NONE"
+        "record_id": "SRC-077-077",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 77,
+        "end_line": 77,
+        "text": "| Project / Governance | zwmhua2-lab2/MarketPulse-AI / zwmhua2-lab2/ai-dev-workflow |\n",
+        "content_type": "TABLE_ROW",
+        "cells": [
+          "Project / Governance",
+          "zwmhua2-lab2/MarketPulse-AI / zwmhua2-lab2/ai-dev-workflow"
+        ]
+      },
+      {
+        "record_id": "SRC-078-078",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 78,
+        "end_line": 78,
+        "text": "| Parent | Real AI / Gate A-B-C Preparation；PRE-01A-D1 + PRE-01B-D1/D2 AS AMENDED |\n",
+        "content_type": "TABLE_ROW",
+        "cells": [
+          "Parent",
+          "Real AI / Gate A-B-C Preparation；PRE-01A-D1 + PRE-01B-D1/D2 AS AMENDED"
+        ]
+      },
+      {
+        "record_id": "SRC-087-087",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 87,
+        "end_line": 87,
+        "text": "| Project Task Base | 8c94ea338f500e2ea4dd2f8a5ccc81a65502468e |\n",
+        "content_type": "TABLE_ROW",
+        "cells": [
+          "Project Task Base",
+          "8c94ea338f500e2ea4dd2f8a5ccc81a65502468e"
+        ]
+      },
+      {
+        "record_id": "SRC-088-088",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 88,
+        "end_line": 88,
+        "text": "| Governance Base | cbc1a221646a9f4703a65e626e58cf192ed96426 |\n",
+        "content_type": "TABLE_ROW",
+        "cells": [
+          "Governance Base",
+          "cbc1a221646a9f4703a65e626e58cf192ed96426"
+        ]
+      },
+      {
+        "record_id": "SRC-092-092",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 92,
+        "end_line": 92,
+        "text": "| Return | MarketPulse-AI｜Real AI Activation｜Task Design & Review |\n",
+        "content_type": "TABLE_ROW",
+        "cells": [
+          "Return",
+          "MarketPulse-AI｜Real AI Activation｜Task Design & Review"
+        ]
       }
     ]
   },
   "governance": {
-    "role": "Control Plane Persistence Executor",
-    "task_mode": "BRANCH_ONLY_FREEZE_MATERIALIZATION_NO_MAIN_WRITE_NO_EXECUTION_NO_ACTIVATION",
+    "version": "0.1.0",
+    "rule_pack_version": "0.1.0",
+    "manifest_identity": "fd00-rule-manifest/0.1.0",
+    "mode": "SELF_HOSTED",
+    "role": "Designer / Preparation Investigator",
+    "task_mode": "STRICT READ_ONLY REPOSITORY / NO IMPLEMENTATION",
     "risk_tier": "L3",
     "parent_tier_floor": "L3",
     "risk_tags": [
       "AUTHORIZATION",
-      "PERSISTENCE",
-      "PUBLIC_CONTRACT",
       "ECONOMIC_INTEGRITY",
       "STATE_MACHINE",
+      "CONCURRENCY",
+      "PERSISTENCE",
       "RECOVERY",
       "SECURITY"
     ],
     "protected_subsystems": [
-      "Workflow Control Plane",
-      "Real AI Activation Boundary",
       "Advisory",
       "RuntimeHost",
       "Risk/Execution",
-      "Provenance",
-      "DB Resource Fence",
-      "Secret Handling"
+      "provenance",
+      "DB resource fence",
+      "secret handling"
     ],
-    "authoritative_inputs": [
-      "Current Workflow governance at cbc1a221646a9f4703a65e626e58cf192ed96426",
-      "Current MarketPulse truth at 1dbdc3f318fa1e96396a8b6058796a5a6f1811f1",
-      "Exact Structured RERUN-04 candidate",
-      "Structured Review R01 PASS / 0 BF exact evidence",
-      "Human Freeze CONFIRM bound to exact candidate",
-      "Currency Revalidation R01 = PASS_CURRENT_REBIND_ALLOWED",
-      "Evidence Export 01 = REVIEW_EVIDENCE_EXPORT_READY with exact external ZIP identity",
-      "Accepted PRE-01A/PRE-01B authority referenced by subject candidate"
+    "frozen_truth_description": "下述 accepted PRE contracts AS AMENDED；本卡/未来 Candidate 均未 Frozen",
+    "required_rules": [
+      "AI_WORKFLOW_BOOTSTRAP.md",
+      "governance/WORKFLOW_RULE_MANIFEST.md",
+      "governance/AUTHORITY_RULES.md",
+      "governance/TASK_CONTRACT_RULES.md",
+      "governance/ROLE_AUTHORITY_RULES.md",
+      "governance/RISK_AND_ACCEPTANCE_RULES.md",
+      "governance/CONTEXT_AND_HARNESS_RULES.md",
+      "governance/SELF_HOSTING_RULES.md",
+      "完整治理 PROJECT_STATE.md",
+      "governance/profiles/EXECUTION_MODEL_ROUTING_PROFILE.md"
     ],
-    "human_gate": "CONFIRM / SATISFIED / CURRENT",
-    "review_currency": "STRUCTURED-REVIEW-R01 / CURRENT",
-    "frozen_truth_identity_target": "PRE-RAI-ACT-PREP-01-RERUN-04-FT-v0.1"
+    "required_project_inputs": [
+      {
+        "source": "docs/design/PRE-01A/PRE-01A-D1-Real-AI-V1-Trade-Decision-Experiment-Contract.md",
+        "coverage_obligation": "authority/acceptance binding；§§7–12、13–19、22 及全部影响本任务的 schema、retry/deadline、provenance、experiment/arm、Gate 引用"
+      },
+      {
+        "source": "docs/design/PRE-01B/PRE-01B-D1-Integrated-Runtime-Host-Contract.md",
+        "coverage_obligation": "authority/acceptance；唯一 Host、provider-free core、Protection isolation、composition、lifecycle/shutdown 的完整相关条款与引用"
+      },
+      {
+        "source": "docs/design/PRE-01B/PRE-01B-D2-AdvisoryIngress-G2-G3-Activation-Contract.md",
+        "coverage_obligation": "current amendment/Acceptance Record；§25、§35、Pack B/C、DB ownership/capacity/timeout、caller-owned G2、recovery 与引用闭合"
+      },
+      {
+        "source": "docs/design/PRE-01B/PRE-01B-I2-AUTH-D01-Recovery-Authority-Amendment.md",
+        "coverage_obligation": "FULL FILE，使用 current R3；FINAL OWNER-SESSION PROOF / PID + backend_start / capability boundary"
+      },
+      {
+        "source": "dev_log/2026-09-26-pre-rai-r01-resume-01-overarching-system-review.md",
+        "coverage_obligation": "FULL FILE；历史 review 只属于原 reviewed candidate"
+      },
+      {
+        "source": "backend/src/marketpulse/config.py；runtime_host.py；g3/provider.py；advisory/contracts.py；advisory/worker.py",
+        "coverage_obligation": "本任务有关 config/default、provider seam/schema/provenance、guard、worker lifecycle；调用/依赖相关段继续追溯"
+      },
+      {
+        "source": "dependency manifests / migrations / secret handling surface",
+        "coverage_obligation": "只核对本任务相关 tracked source/metadata；不执行安装、迁移，不读取 secret-bearing files"
+      }
+    ],
+    "authority_invariants": [
+      "AI = Advisory；Deterministic System / Risk Engine = Final Programmatic Authority。",
+      "Gate A consumer 没有 risk/execution/accounting/protection handles，仅 accepted provenance 写面；G3Workflow 不进入 Gate A。",
+      "timeout/unavailable/refusal/invalid/stale/late/duplicate 不增风险、不创建第二 final、不换 Provider/model。",
+      "deterministic fallback 仅 accepted safety/protection/recovery 与合法 risk-reducing；不授权 baseline 下单。ALL_ELIGIBLE_LONG_SHADOW_V1 只是 Shadow benchmark。",
+      "input binding、immutable deadline、winner fence、final owner-session proof、PROCESS_LOST/ABANDONED 语义保持；DB ownership/capacity/cleanup 无正面证明 fail closed。",
+      "unknown usage/cost 不绕预算；restart/cancel/late callback 不构成新授权。",
+      "无 automatic fallback、model voting、AI 直接下单、Live 自动升级。",
+      "Preparation ≠ Activation；Gate A Shadow ≠ Gate B Paper；Paper ≠ Gate C Edge Proof；Gate C PASS ≠ Live Authorization。"
+    ],
+    "source_records": [
+      {
+        "record_id": "SRC-003-003",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 3,
+        "end_line": 3,
+        "text": "[MarketPulse-AI｜PRE-RAI-ACT-PREP-01-RERUN-04 v0.1｜Rules 0.1.0｜Rule Load: PASS]\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-005-005",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 5,
+        "end_line": 5,
+        "text": "**TASK DESIGN CANDIDATE / NOT REVIEWED / NOT FROZEN。仅 Activation Preparation。**\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-007-007",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 7,
+        "end_line": 7,
+        "text": "页头 PASS 仅属于本窗口当前设计加载，不转移给执行者。本卡独立成文，不加载旧卡或嵌套历史证据；accepted source 仍按下文要求读取。独立新运行先验证工具文字传输，再开始治理加载，完整前置核验通过后完成 Pack B/C。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-011-011",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 11,
+        "end_line": 11,
+        "text": "RERUN-03 用户回贴：分页工具未固定 UTF-8，GBK stdout 导致部分必需治理字符损坏，已 BLOCKED_PREPARATION / Rule Load FAIL / STOP。Candidate = NONE；Official Verification、Independent Review、Human Gate NOT_PERFORMED。原任务及 RERUN-01/02/03 共四次 STOP 保留，不覆盖、不撤销，不在任何旧运行补读恢复。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-079-079",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 79,
+        "end_line": 79,
+        "text": "| Role / Mode | Designer / Preparation Investigator；STRICT READ_ONLY REPOSITORY / NO IMPLEMENTATION |\n",
+        "content_type": "TABLE_ROW",
+        "cells": [
+          "Role / Mode",
+          "Designer / Preparation Investigator；STRICT READ_ONLY REPOSITORY / NO IMPLEMENTATION"
+        ]
+      },
+      {
+        "record_id": "SRC-080-080",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 80,
+        "end_line": 80,
+        "text": "| Risk / floor | L3 / L3 |\n",
+        "content_type": "TABLE_ROW",
+        "cells": [
+          "Risk / floor",
+          "L3 / L3"
+        ]
+      },
+      {
+        "record_id": "SRC-081-081",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 81,
+        "end_line": 81,
+        "text": "| Risk Tags | AUTHORIZATION、ECONOMIC_INTEGRITY、STATE_MACHINE、CONCURRENCY、PERSISTENCE、RECOVERY、SECURITY |\n",
+        "content_type": "TABLE_ROW",
+        "cells": [
+          "Risk Tags",
+          "AUTHORIZATION、ECONOMIC_INTEGRITY、STATE_MACHINE、CONCURRENCY、PERSISTENCE、RECOVERY、SECURITY"
+        ]
+      },
+      {
+        "record_id": "SRC-082-082",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 82,
+        "end_line": 82,
+        "text": "| Protected Subsystems | Advisory、RuntimeHost、Risk/Execution、provenance、DB resource fence、secret handling |\n",
+        "content_type": "TABLE_ROW",
+        "cells": [
+          "Protected Subsystems",
+          "Advisory、RuntimeHost、Risk/Execution、provenance、DB resource fence、secret handling"
+        ]
+      },
+      {
+        "record_id": "SRC-083-083",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 83,
+        "end_line": 83,
+        "text": "| Governance | 0.1.0 / Rule Pack 0.1.0 / fd00-rule-manifest/0.1.0 / SELF_HOSTED |\n",
+        "content_type": "TABLE_ROW",
+        "cells": [
+          "Governance",
+          "0.1.0 / Rule Pack 0.1.0 / fd00-rule-manifest/0.1.0 / SELF_HOSTED"
+        ]
+      },
+      {
+        "record_id": "SRC-089-089",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 89,
+        "end_line": 89,
+        "text": "| Frozen Truth | 下述 accepted PRE contracts AS AMENDED；本卡/未来 Candidate 均未 Frozen |\n",
+        "content_type": "TABLE_ROW",
+        "cells": [
+          "Frozen Truth",
+          "下述 accepted PRE contracts AS AMENDED；本卡/未来 Candidate 均未 Frozen"
+        ]
+      },
+      {
+        "record_id": "SRC-110-110",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 110,
+        "end_line": 110,
+        "text": "- AI_WORKFLOW_BOOTSTRAP.md\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-111-111",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 111,
+        "end_line": 111,
+        "text": "- governance/WORKFLOW_RULE_MANIFEST.md\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-112-112",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 112,
+        "end_line": 112,
+        "text": "- governance/AUTHORITY_RULES.md\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-113-113",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 113,
+        "end_line": 113,
+        "text": "- governance/TASK_CONTRACT_RULES.md\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-114-114",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 114,
+        "end_line": 114,
+        "text": "- governance/ROLE_AUTHORITY_RULES.md\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-115-115",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 115,
+        "end_line": 115,
+        "text": "- governance/RISK_AND_ACCEPTANCE_RULES.md\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-116-116",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 116,
+        "end_line": 116,
+        "text": "- governance/CONTEXT_AND_HARNESS_RULES.md\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-117-117",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 117,
+        "end_line": 117,
+        "text": "- governance/SELF_HOSTING_RULES.md\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-118-118",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 118,
+        "end_line": 118,
+        "text": "- 完整治理 PROJECT_STATE.md\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-119-119",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 119,
+        "end_line": 119,
+        "text": "- governance/profiles/EXECUTION_MODEL_ROUTING_PROFILE.md\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-121-121",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 121,
+        "end_line": 121,
+        "text": "Bootstrap、Manifest、6/6 REQUIRED_ACTIVE 和完整 current治理 state 不接受摘要、头尾、搜索结果、缓存 PASS 或有遗漏的页面。逐个文件连续分页至 EOF；FULL READ 覆盖、版本与状态一致后才 Rule Load PASS。任何角色规则新增 FULL 要求也必须满足，不得用本卡规避。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-123-123",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 123,
+        "end_line": 123,
+        "text": "正常分页未完成是 LOAD_IN_PROGRESS / NOT_ESTABLISHED；实际截断/缺页/冲突即 Rule Load FAIL / STOP，不在同一运行补读后撤销。后续角色输入失败时，如治理已经完整加载，应保留治理实际 PASS，另记 Role Context FAIL，不混淆失败层级。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-127-127",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 127,
+        "end_line": 127,
+        "text": "所有项目 source 从 exact Task Base Git object 读取；不使用并行窗口 dirty working copy 替代 authoritative source。完整读取 AGENTS.md 和本卡。恢复 PROJECT_STATE、AI_CONTEXT、DECISIONS、PRODUCT_REQUIREMENTS 中 Real AI、PRE、Advisory/Runtime、Gate、AI advisory authority、并行工作相关完整章节，记录范围与遗漏边界，不声称全项目审计。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-131-131",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 131,
+        "end_line": 131,
+        "text": "| docs/design/PRE-01A/PRE-01A-D1-Real-AI-V1-Trade-Decision-Experiment-Contract.md | authority/acceptance binding；§§7–12、13–19、22 及全部影响本任务的 schema、retry/deadline、provenance、experiment/arm、Gate 引用 |\n",
+        "content_type": "TABLE_ROW",
+        "cells": [
+          "docs/design/PRE-01A/PRE-01A-D1-Real-AI-V1-Trade-Decision-Experiment-Contract.md",
+          "authority/acceptance binding；§§7–12、13–19、22 及全部影响本任务的 schema、retry/deadline、provenance、experiment/arm、Gate 引用"
+        ]
+      },
+      {
+        "record_id": "SRC-132-132",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 132,
+        "end_line": 132,
+        "text": "| docs/design/PRE-01B/PRE-01B-D1-Integrated-Runtime-Host-Contract.md | authority/acceptance；唯一 Host、provider-free core、Protection isolation、composition、lifecycle/shutdown 的完整相关条款与引用 |\n",
+        "content_type": "TABLE_ROW",
+        "cells": [
+          "docs/design/PRE-01B/PRE-01B-D1-Integrated-Runtime-Host-Contract.md",
+          "authority/acceptance；唯一 Host、provider-free core、Protection isolation、composition、lifecycle/shutdown 的完整相关条款与引用"
+        ]
+      },
+      {
+        "record_id": "SRC-133-133",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 133,
+        "end_line": 133,
+        "text": "| docs/design/PRE-01B/PRE-01B-D2-AdvisoryIngress-G2-G3-Activation-Contract.md | current amendment/Acceptance Record；§25、§35、Pack B/C、DB ownership/capacity/timeout、caller-owned G2、recovery 与引用闭合 |\n",
+        "content_type": "TABLE_ROW",
+        "cells": [
+          "docs/design/PRE-01B/PRE-01B-D2-AdvisoryIngress-G2-G3-Activation-Contract.md",
+          "current amendment/Acceptance Record；§25、§35、Pack B/C、DB ownership/capacity/timeout、caller-owned G2、recovery 与引用闭合"
+        ]
+      },
+      {
+        "record_id": "SRC-134-134",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 134,
+        "end_line": 134,
+        "text": "| docs/design/PRE-01B/PRE-01B-I2-AUTH-D01-Recovery-Authority-Amendment.md | FULL FILE，使用 current R3；FINAL OWNER-SESSION PROOF / PID + backend_start / capability boundary |\n",
+        "content_type": "TABLE_ROW",
+        "cells": [
+          "docs/design/PRE-01B/PRE-01B-I2-AUTH-D01-Recovery-Authority-Amendment.md",
+          "FULL FILE，使用 current R3；FINAL OWNER-SESSION PROOF / PID + backend_start / capability boundary"
+        ]
+      },
+      {
+        "record_id": "SRC-135-135",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 135,
+        "end_line": 135,
+        "text": "| dev_log/2026-09-26-pre-rai-r01-resume-01-overarching-system-review.md | FULL FILE；历史 review 只属于原 reviewed candidate |\n",
+        "content_type": "TABLE_ROW",
+        "cells": [
+          "dev_log/2026-09-26-pre-rai-r01-resume-01-overarching-system-review.md",
+          "FULL FILE；历史 review 只属于原 reviewed candidate"
+        ]
+      },
+      {
+        "record_id": "SRC-136-136",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 136,
+        "end_line": 136,
+        "text": "| backend/src/marketpulse/config.py；runtime_host.py；g3/provider.py；advisory/contracts.py；advisory/worker.py | 本任务有关 config/default、provider seam/schema/provenance、guard、worker lifecycle；调用/依赖相关段继续追溯 |\n",
+        "content_type": "TABLE_ROW",
+        "cells": [
+          "backend/src/marketpulse/config.py；runtime_host.py；g3/provider.py；advisory/contracts.py；advisory/worker.py",
+          "本任务有关 config/default、provider seam/schema/provenance、guard、worker lifecycle；调用/依赖相关段继续追溯"
+        ]
+      },
+      {
+        "record_id": "SRC-137-137",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 137,
+        "end_line": 137,
+        "text": "| dependency manifests / migrations / secret handling surface | 只核对本任务相关 tracked source/metadata；不执行安装、迁移，不读取 secret-bearing files |\n",
+        "content_type": "TABLE_ROW",
+        "cells": [
+          "dependency manifests / migrations / secret handling surface",
+          "只核对本任务相关 tracked source/metadata；不执行安装、迁移，不读取 secret-bearing files"
+        ]
+      },
+      {
+        "record_id": "SRC-139-139",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 139,
+        "end_line": 139,
+        "text": "建立 Coverage Map：每个 Pack B/C 字段、authority invariant、AC 对应 exact path/blob/完整条款范围。引用到其他适用条款则完整加载被引用内容，直到全部本角色义务闭合；不能因“相关段”标签漏掉关键 amendment、否定条款或约束。明确 FULL_FILE、FULL_SCOPED_SECTION、SOURCE_RANGE；不得冒充整文件 FULL。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-141-141",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 141,
+        "end_line": 141,
+        "text": "如治理、项目规则或 accepted contract 明确要求某输入 FULL FILE，以该要求为准。章节边界/适用条款/引用闭合无法判定，则停止受影响准备，不猜语义。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-181-181",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 181,
+        "end_line": 181,
+        "text": "fresh main 必须匹配 §2；漂移即 STOP，回贴 delta/rebind 请求。恢复 PRE-01A accepted design、PRE-01B-I1/I2 accepted foundation、PRE-RAI reviewed 和 exact review binding；历史 PASS 不自动签给本次 candidate。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-228-228",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 228,
+        "end_line": 228,
+        "text": "- AI = Advisory；Deterministic System / Risk Engine = Final Programmatic Authority。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-229-229",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 229,
+        "end_line": 229,
+        "text": "- Gate A consumer 没有 risk/execution/accounting/protection handles，仅 accepted provenance 写面；G3Workflow 不进入 Gate A。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-230-230",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 230,
+        "end_line": 230,
+        "text": "- timeout/unavailable/refusal/invalid/stale/late/duplicate 不增风险、不创建第二 final、不换 Provider/model。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-231-231",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 231,
+        "end_line": 231,
+        "text": "- deterministic fallback 仅 accepted safety/protection/recovery 与合法 risk-reducing；不授权 baseline 下单。ALL_ELIGIBLE_LONG_SHADOW_V1 只是 Shadow benchmark。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-232-232",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 232,
+        "end_line": 232,
+        "text": "- input binding、immutable deadline、winner fence、final owner-session proof、PROCESS_LOST/ABANDONED 语义保持；DB ownership/capacity/cleanup 无正面证明 fail closed。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-233-233",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 233,
+        "end_line": 233,
+        "text": "- unknown usage/cost 不绕预算；restart/cancel/late callback 不构成新授权。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-234-234",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 234,
+        "end_line": 234,
+        "text": "- 无 automatic fallback、model voting、AI 直接下单、Live 自动升级。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-235-235",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 235,
+        "end_line": 235,
+        "text": "- Preparation ≠ Activation；Gate A Shadow ≠ Gate B Paper；Paper ≠ Gate C Edge Proof；Gate C PASS ≠ Live Authorization。\n",
+        "content_type": "TEXT"
+      }
+    ],
+    "resolved_frozen_source_identities": [
+      {
+        "repository": "zwmhua2-lab2/MarketPulse-AI",
+        "commit": "8c94ea338f500e2ea4dd2f8a5ccc81a65502468e",
+        "path": "docs/design/PRE-01A/PRE-01A-D1-Real-AI-V1-Trade-Decision-Experiment-Contract.md",
+        "git_blob": "e8ec84246d07d0c6a7de9def78cd40d5690e6d01"
+      },
+      {
+        "repository": "zwmhua2-lab2/MarketPulse-AI",
+        "commit": "8c94ea338f500e2ea4dd2f8a5ccc81a65502468e",
+        "path": "docs/design/PRE-01B/PRE-01B-D1-Integrated-Runtime-Host-Contract.md",
+        "git_blob": "6e11c088e41b0968a492742eb26fa6b2b94e5991"
+      },
+      {
+        "repository": "zwmhua2-lab2/MarketPulse-AI",
+        "commit": "8c94ea338f500e2ea4dd2f8a5ccc81a65502468e",
+        "path": "docs/design/PRE-01B/PRE-01B-D2-AdvisoryIngress-G2-G3-Activation-Contract.md",
+        "git_blob": "d08d7feebec4c0b8d74b550a75d161659709cd70"
+      },
+      {
+        "repository": "zwmhua2-lab2/MarketPulse-AI",
+        "commit": "8c94ea338f500e2ea4dd2f8a5ccc81a65502468e",
+        "path": "docs/design/PRE-01B/PRE-01B-I2-AUTH-D01-Recovery-Authority-Amendment.md",
+        "git_blob": "b91a6f7772e7894aeb9d801ea7dc62aa57a4ba40"
+      }
+    ]
   },
   "boundary": {
-    "scope": [
-      "Fresh-load governance and fresh-check exact repository baselines.",
-      "Verify exact subject candidate identity.",
-      "Verify exact external Evidence Export ZIP at the hard-bound absolute path before branch creation.",
-      "Open the external ZIP read-only; require exactly five members and validate ZIP integrity.",
-      "Independently verify the three original Structured Review R01 evidence members by bytes and SHA-256.",
-      "Independently validate EXPORT-MANIFEST.json and EXPORT-SHA256SUMS.txt against exported files.",
-      "Create a fresh task branch from exact current MarketPulse baseline only after all evidence checks PASS.",
-      "Persist exact Structured Candidate bytes, exact Review evidence bytes, Human Freeze Confirmation, Currency Revalidation record, Frozen Truth Manifest, Freeze Record, targeted PROJECT_STATE update, and one dev_log.",
-      "Commit and push branch candidate only."
-    ],
-    "out_of_scope": [
-      "Main write/merge/fast-forward.",
-      "Execution Authorization.",
-      "RERUN-04 execution.",
-      "New design review or Human Freeze.",
-      "Any TaskContract semantic modification.",
-      "Provider calls, secret access, runtime/DB operations, economic action, Gate/Live activation.",
-      "Product/source/tests/config/schema/migration/dependency changes."
-    ],
-    "allowed_changes": {
-      "branch": "pre-rai-act-prep-01-rerun-04-freeze-persist-01-rerun-02",
-      "paths": [
-        "docs/design/PRE-RAI-ACT/PRE-RAI-ACT-PREP-01-RERUN-04-STRUCTURED-TASKCONTRACT-v0.1.json",
-        "docs/design/PRE-RAI-ACT/PRE-RAI-ACT-PREP-01-RERUN-04-HUMAN-FREEZE-CONFIRMATION-v0.1.md",
-        "docs/design/PRE-RAI-ACT/PRE-RAI-ACT-PREP-01-RERUN-04-CURRENCY-REVALIDATION-RECORD-v0.1.md",
-        "docs/design/PRE-RAI-ACT/PRE-RAI-ACT-PREP-01-RERUN-04-FROZEN-TRUTH-MANIFEST-v0.1.md",
-        "docs/design/PRE-RAI-ACT/PRE-RAI-ACT-PREP-01-RERUN-04-FREEZE-RECORD-v0.1.md",
-        "docs/design/PRE-RAI-ACT/reviews/PRE-RAI-ACT-PREP-01-RERUN-04-STRUCTURED-REVIEW-R01-RESULT.md",
-        "docs/design/PRE-RAI-ACT/reviews/PRE-RAI-ACT-PREP-01-RERUN-04-STRUCTURED-REVIEW-R01-EVIDENCE.json",
-        "docs/design/PRE-RAI-ACT/reviews/PRE-RAI-ACT-PREP-01-RERUN-04-STRUCTURED-REVIEW-R01-SHA256SUMS.txt",
-        "PROJECT_STATE.md",
-        "dev_log/2026-10-03-pre-rai-act-prep-01-rerun-04-freeze-persist-01-rerun-02.md"
-      ]
-    },
-    "forbidden_changes": [
-      "Any path outside allowed list.",
-      "Any modification to subject candidate or Review R01 exact evidence bytes.",
-      "Any substitution/reconstruction of missing evidence.",
-      "Any main mutation or force operation.",
-      "Any accepted PRE authority change."
-    ],
-    "stop_conditions": [
-      "MarketPulse origin/main != 1dbdc3f318fa1e96396a8b6058796a5a6f1811f1.",
-      "Governance origin/main != cbc1a221646a9f4703a65e626e58cf192ed96426.",
-      "Subject candidate identity mismatch.",
-      "External evidence ZIP missing at exact path.",
-      "External evidence ZIP bytes != 12558 or SHA-256 != 589c28f3dcc51a5a7d5ff0929ca2234d94edfe3c83e02a058420a9f3d53527ff.",
-      "ZIP member count != 5 or any required member missing.",
-      "ZIP integrity test fails.",
-      "Any of three original Review evidence identities mismatch.",
-      "EXPORT-MANIFEST.json or EXPORT-SHA256SUMS.txt is inconsistent with actual export bytes.",
-      "Human Freeze / Review currency no longer matches current exact subject.",
-      "Task branch exists with divergent work.",
-      "A newer successor Freeze Persistence task exists.",
-      "Any required action would need main write or scope/authority expansion."
+    "objective": "形成完整、可审的 Activation Preparation Candidate。",
+    "scope": "状态恢复、Pack B/C、provider/model eligibility、failure policy、verification contract、Gate A entry/stop、并行检查。",
+    "allowed_changes": "仓库外新目录中的只读捕获、scope/coverage ledger、Candidate、证据与 dev_log。",
+    "forbidden_changes": "仓库文件/ref/index/branch/worktree 写；实现、SDK/依赖/config/schema/migration；secret；真实 Provider；Host/worker/DB；经济动作、Gate/Live。",
+    "out_of_scope": "UI/I04/Lint/Tech Debt 修复；PRE 重构/第二套 Host/authority；SDK/adapter/测试实现；online probe/Shadow 运行；Gate B/C/Live；模型消耗产品功能。",
+    "stop_conditions": "required input 缺失/实际截断/身份不明；真实 input capacity 不足；refs/binding drift；等价重复、无法处理的相关输入/authority 冲突；需要改变 accepted semantics、secret、Provider、runtime/DB、仓库写或任何未授权动作。不因无关 dirty paths 自动升级为全项目阻断；影响当前必要义务无法消解则停。",
+    "completion_limit": "仅 READY_FOR_PREPARATION_REVIEW；不自验收，不证明阈值达标、Gate Ready 或 Activation。",
+    "source_records": [
+      {
+        "record_id": "SRC-070-070",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 70,
+        "end_line": 70,
+        "text": "工具修复限当前运行的仓库外临时分页/传输工具，不构成产品代码实现或新治理平台开发。沿用 RERUN-03 的 scoped preflight、角色条款引用闭合、AC01–AC14 和零 Provider/零 Activation 权限，完整内容如下。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-096-096",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 96,
+        "end_line": 96,
+        "text": "1. **任务：**形成完整、可审的 Activation Preparation Candidate。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-097-097",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 97,
+        "end_line": 97,
+        "text": "2. **范围：**状态恢复、Pack B/C、provider/model eligibility、failure policy、verification contract、Gate A entry/stop、并行检查。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-098-098",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 98,
+        "end_line": 98,
+        "text": "3. **允许：**仓库外新目录中的只读捕获、scope/coverage ledger、Candidate、证据与 dev_log。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-099-099",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 99,
+        "end_line": 99,
+        "text": "4. **禁止：**仓库文件/ref/index/branch/worktree 写；实现、SDK/依赖/config/schema/migration；secret；真实 Provider；Host/worker/DB；经济动作、Gate/Live。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-155-155",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 155,
+        "end_line": 155,
+        "text": "只读核对已有 checkout root、HEAD/branch、Task Base、相关 refs/worktree/task registry；main 从 fresh remote truth 获取。HEAD 与 Task Base 不同须检查身份和 delta，禁止静默 rebind/reset/rebase；后续 source 始终 pin exact Task Base。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-157-157",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 157,
+        "end_line": 157,
+        "text": "检查与本任务有关的 dirty paths、未推送/未提交任务和 source 变动；不改动别人的工作。无本地访问则 LOCAL_PENDING / NOT_VERIFIED，沿用只读 GitHub facts，不宣称完整 local parallel clearance。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-161-161",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 161,
+        "end_line": 161,
+        "text": "本任务相关面至少包括：\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-163-163",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 163,
+        "end_line": 163,
+        "text": "- 项目 shared carriers：AGENTS、PROJECT_STATE、AI_CONTEXT、DECISIONS、PRODUCT_REQUIREMENTS。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-164-164",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 164,
+        "end_line": 164,
+        "text": "- PRE-01A / PRE-01B 的设计、amendments、实施/Review records；PRE-RAI / ACT-PREP / Gate 相关 task 和 dev_log。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-165-165",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 165,
+        "end_line": 165,
+        "text": "- backend/src/marketpulse/**、相关 backend tests；tracked config、dependency manifests/locks、migrations、secret handling 的路径 metadata。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-166-166",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 166,
+        "end_line": 166,
+        "text": "- governance Bootstrap、Manifest、active rules、PROJECT_STATE、EMRP 及本任务引用的 governance inputs。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-167-167",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 167,
+        "end_line": 167,
+        "text": "- UI-I01 / I04 / Lint / Tech Debt 的任务登记与 shared carrier 更新/合并计划；其他工作实际改动上述相关面的，也必须纳入。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-169-169",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 169,
+        "end_line": 169,
+        "text": "可直接按相关 pathspec/ref predicate 查询；或者完整捕获现有 status/refs 后，在仓库外确定性解析。后者要求记录 predicate 版本、raw digest、total/related/excluded counts、排除分类、parse errors，满足 total = related + excluded；rename/copy 的双方路径都参与匹配。解析歧义或错误 STOP，不把解析失败当 excluded。只读取路径 metadata，不打开其中 .env/凭据/secret 内容。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-171-171",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 171,
+        "end_line": 171,
+        "text": "模型读取完整相关记录和查询/分类规则；无关 records 可以只保留机器证据与计数，不强制模型逐条阅读全文。不得靠关键词少量命中宣称全任务冲突已排除；必须覆盖上述全部面。**这个 scoped check 不宣称全仓库 Git census、所有 refs 未变化或全局工作区 clean。**\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-173-173",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 173,
+        "end_line": 173,
+        "text": "Git 使用只读操作和禁用 optional locks；不输出 Git config、remote credentials 或环境变量。不得 fetch 到他人 checkout，不创建 worktree/branch。不恢复原 63 页为本轮强制输入；旧 status 不充当新运行 fresh evidence。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-175-175",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 175,
+        "end_line": 175,
+        "text": "当前任务只读 pinned source 和仓库外新文档，与 UI/I04 的 dirty 工作共存本身不等于写冲突。若存在同范围活跃/完成 preparation、bound source 正在变化、authority 冲突或必须使用未接受 working input，则 HELD / BLOCKED。对于无法观察的其他窗口，保留 LOCAL_PENDING；不能把未知标成 CLEAR。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-177-177",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 177,
+        "end_line": 177,
+        "text": "仓库写任务尚无本卡授权。未来写入前仍须检查 shared carriers、config/dependencies、secret handling、adapter、Host/Ingress、migrations、同 PostgreSQL DB，并由总控协调 UI/I04/AI 的 main 写入次序。本任务不连接或操作 DB。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-277-277",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 277,
+        "end_line": 277,
+        "text": "Out of Scope：UI/I04/Lint/Tech Debt 修复；PRE 重构/第二套 Host/authority；SDK/adapter/测试实现；online probe/Shadow 运行；Gate B/C/Live；模型消耗产品功能。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-279-279",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 279,
+        "end_line": 279,
+        "text": "Stop：required input 缺失/实际截断/身份不明；真实 input capacity 不足；refs/binding drift；等价重复、无法处理的相关输入/authority 冲突；需要改变 accepted semantics、secret、Provider、runtime/DB、仓库写或任何未授权动作。不因无关 dirty paths 自动升级为全项目阻断；影响当前必要义务无法消解则停。\n",
+        "content_type": "TEXT"
+      }
     ]
   },
   "execution": {
-    "routing_profile": "EMRP-1.1",
-    "routing_tier": "ER-1H",
-    "recommendation": {
-      "model": "GPT-6 Luna",
-      "reasoning": "High",
+    "routing_recommendation": {
+      "profile": "EMRP-1.1",
+      "tier": "ER-3",
+      "model": "GPT-6.1 Sol",
       "harness": "Codex Desktop",
-      "rationale": "All design/currentness questions are resolved. Remaining work is deterministic evidence verification plus bounded persistence."
+      "reasoning": "High",
+      "reasoning_zh": "高"
     },
-    "external_required_input": {
-      "absolute_path": "E:\\Temp\\PRE-RAI-ACT-PREP-01-RERUN-04-STRUCTURED-REVIEW-R01-EVIDENCE-EXPORT-01.zip",
-      "bytes": 12558,
-      "sha256": "589c28f3dcc51a5a7d5ff0929ca2234d94edfe3c83e02a058420a9f3d53527ff",
-      "required_member_count": 5,
-      "required_members": [
-        "PRE-RAI-ACT-PREP-01-RERUN-04-STRUCTURED-REVIEW-R01-RESULT.md",
-        "PRE-RAI-ACT-PREP-01-RERUN-04-STRUCTURED-REVIEW-R01-EVIDENCE.json",
-        "SHA256SUMS.txt",
-        "EXPORT-MANIFEST.json",
-        "EXPORT-SHA256SUMS.txt"
-      ]
+    "effort_labels": {
+      "Low": "低",
+      "Medium": "中",
+      "High": "高",
+      "XHigh": "极高",
+      "Max": "最高"
     },
+    "actual_identity_obligation": "分别报告所选 model/effort 的可核实配置证据、实际 Harness、runtime 暴露 identity；未暴露字段 NOT_VERIFIED",
+    "resolved_execution_profile": {
+      "value": null,
+      "state": "NOT_RESOLVED",
+      "reason": "A recommendation is not a resolved profile; this formalization does not dispatch the preparation task."
+    },
+    "provider": {
+      "value": null,
+      "state": "NOT_SPECIFIED_AS_EXACT_EXECUTION_PROVIDER",
+      "reason": "The source names an execution model; it does not supply a separately resolved provider identity."
+    },
+    "tools_and_data_policy": "只读 Git/GitHub、受控源码/条款读取、官方公开资料、非 Git 文档；不读 .env/secret/凭据，不上传项目数据至 Provider",
+    "permissions_description": "只读调查与非 Git 文档；无实现、WRITE_MAIN、Provider I/O、Economic Action、Activation 权限",
     "permissions": {
-      "read_repository": true,
-      "read_external_evidence_zip": true,
-      "create_task_branch": true,
-      "write_allowed_paths_on_task_branch": true,
-      "commit_task_branch": true,
-      "push_task_branch": true,
+      "repository_write": false,
       "write_main": false,
-      "merge_or_fast_forward_main": false,
+      "implementation": false,
       "provider_io": false,
       "secret_access": false,
-      "runtime_execution": false,
+      "runtime_host": false,
+      "worker": false,
       "database_access": false,
       "economic_action": false,
-      "activation": false
+      "activation": false,
+      "read_only_repository": true,
+      "non_git_document_output": true
     },
-    "data_policy": "Do not read .env/credentials/secrets. External evidence ZIP is non-secret evidence transport only.",
-    "recovery_behavior": "Any stop condition => BLOCKED_FREEZE_PERSISTENCE; preserve evidence and do not self-rebind."
+    "workspace_boundary": "非 Git 新目录；仓库只读。",
+    "task_budget": {
+      "provider_calls": 0,
+      "repository_mutations": 0,
+      "economic_actions": 0,
+      "token_limit": null,
+      "wall_time_limit": null,
+      "billed_cost_limit": null,
+      "unknown_reason": "No numeric task token/time/billing budget is specified. Zero forbidden actions is not measured cost evidence."
+    },
+    "task_retry_fix_dispatch_limits": {
+      "retry_limit": null,
+      "fix_limit": null,
+      "dispatch_limit": null,
+      "state": "NOT_SPECIFIED",
+      "reason": "Do not copy FORMALIZE-01 limits or product provider retry proposals into this preparation task."
+    },
+    "product_provider_model": {
+      "provider": null,
+      "model": null,
+      "state": "NOT_SELECTED_BY_FORMALIZATION"
+    },
+    "pack_b": {
+      "item_fields": "每项：field/单位、current source/default、候选/依据、联合约束、enforcement/rejection point、缺失行为、验证方式、evidence identity、Human Decision slot、accepted value/授权引用。",
+      "requirements": [
+        {
+          "dimension": "Provider / model",
+          "requirement": "单一 identity、endpoint/部署/region、configured 与 provider-reported model、alias drift、账户 eligibility；官方文档与实际能力分开"
+        },
+        {
+          "dimension": "Schema",
+          "requirement": "approved schema/subset、provider-native strict、refusal/incomplete、tools disabled/non-streaming、deterministic validator；JSON mode 不作能力 PASS"
+        },
+        {
+          "dimension": "Retry",
+          "requirement": "joint total attempts、transport/validation retries、reason/retryability；同 Provider/model/input/pair/arm；共同 deadline/token/cost；不重置 deadline"
+        },
+        {
+          "dimension": "Time",
+          "requirement": "per-attempt timeout、admission-time immutable absolute deadline；queue/dispatch/provider/finalization、late/cancel fencing"
+        },
+        {
+          "dimension": "Tokens / cost",
+          "requirement": "per attempt/invocation/run hard bounds、币种/精度、保守预留、usage unavailable stop cost-controlled retry；estimated/reported/billed 分开"
+        },
+        {
+          "dimension": "Queue / concurrency",
+          "requirement": "bounded queue、finite workers/provider concurrency、REJECT NEWEST、拒绝/高水位/deadline evidence"
+        },
+        {
+          "dimension": "DB capacity",
+          "requirement": "primary pool、finite overflow、pool timeout、effective C / Protection reserve R / Advisory A，A+R≤C；provider I/O 持有零 DB resource"
+        },
+        {
+          "dimension": "DB timeouts",
+          "requirement": "acquire/transaction/statement/lock/idle、cleanup budget、accepted 顺序方程；caller-owned G2 capture/restore、禁止 client cancel/idle 的适用例外"
+        },
+        {
+          "dimension": "Shutdown",
+          "requirement": "total grace/disposal、Protection reserve、Advisory cleanup subdeadline；ownership 与两因素 return completion"
+        },
+        {
+          "dimension": "Retention",
+          "requirement": "normalized provenance/redacted envelope size/duration/access/delete；raw OFF 只能候选；无 secret/credential headers/hidden reasoning"
+        },
+        {
+          "dimension": "Failure mapping",
+          "requirement": "accepted terminal enum/category、retryability、late/duplicate/stale precedence、usage 与 DB/ownership failure；不自造枚举"
+        }
+      ],
+      "value_state_policy": "状态必须区分 CODE_DEFAULT_ONLY、PROPOSED / NEEDS_HUMAN_DECISION、MEASURED、ACCEPTED_CONFIG、ACCEPTED_THRESHOLD、UNKNOWN / NOT_VERIFIED。没有 exact Human/冻结引用的值不能 Accepted；unknown usage/cost 用 NULL + reason，不填零。不把本任务执行模型填作产品 Provider/model。",
+      "public_document_research_boundary": "Provider capability/价格查当时官方公开文档，记录 URL、访问日期、适用 model/endpoint；不进行 authenticated Provider I/O 或真实 probe。可以设计有界 calibration proposal 解决测量/配置循环，但不得派发直接调用卡，更不得执行。"
+    },
+    "pack_c": {
+      "threshold_policy": "独立列出 Measurement Plan 和 Accepted Threshold；window/sample/pass 数值仅候选，缺授权为 UNRESOLVED。",
+      "requirements": [
+        {
+          "dimension": "Window / sample",
+          "requirement": "observation 起止、config/epoch 分段、最小时间/invocation/attempt、样本不足/停止处理"
+        },
+        {
+          "dimension": "Denominator",
+          "requirement": "全部 eligible/admitted/rejected/attempted/completed/refused/timeout/malformed/stale/late/duplicate/missing；logical invocation 与 attempt 分开"
+        },
+        {
+          "dimension": "Latency",
+          "requirement": "monotonic queue/provider/end-to-end/finalization、p50/95/99、deadline miss、样本数及小样本限制；不拿历史 runtime 当 Provider SLA"
+        },
+        {
+          "dimension": "Failure",
+          "requirement": "transport/provider/auth/quota、timeout、refusal/incomplete、schema/business invalid、unsupported evidence、late/stale/duplicate；停止线待决"
+        },
+        {
+          "dimension": "Provenance / durability",
+          "requirement": "provider/model/request IDs、input digest、prompt/schema/config/experiment/pair/arm、attempt chain、一次 durable final、restart/recovery/retention"
+        },
+        {
+          "dimension": "Isolation",
+          "requirement": "queue/DB C/A/R、retired/uncertain lease、provider await 无 DB资源、Protection/cancel/risk-reducing 不等 AI"
+        },
+        {
+          "dimension": "Cost",
+          "requirement": "usage 缺失、估算/账单、attempt/invocation/run totals、price version、budget/unknown-cost stop"
+        },
+        {
+          "dimension": "Accept / reject",
+          "requirement": "exact config/epoch、完整样本 manifest、计算查询口径、失败/缺失 evidence、Review/Human verdict binding"
+        }
+      ],
+      "sample_and_claim_boundary": "不能静默剔除失败/缺失样本。Pack C 此处仅 operational Shadow 观察，不判 Paper 效果或 Gate C edge。"
+    },
+    "source_records": [
+      {
+        "record_id": "SRC-017-017",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 17,
+        "end_line": 17,
+        "text": "只在非 Git 新目录创建小型工具样本，不读真实规则作为编码试验。每次工具进程都明确配置编码，不假定前一次 PowerShell/tool session 的设置会自动继承。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-019-019",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 19,
+        "end_line": 19,
+        "text": "PowerShell 当前进程可采用以下设置；须保留版本与实际设置证据，不修改系统全局设置、用户 profile 或仓库配置：\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-021-029",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 21,
+        "end_line": 29,
+        "text": "```powershell\n$taskUtf8Strict = [System.Text.UTF8Encoding]::new($false, $true)\n[Console]::InputEncoding = $taskUtf8Strict\n[Console]::OutputEncoding = $taskUtf8Strict\n$OutputEncoding = $taskUtf8Strict\n$env:PYTHONUTF8 = '1'\n$env:PYTHONIOENCODING = 'utf-8:strict'\n# Subsequent Python tools: python -X utf8 <private-tool-script> ...\n```\n",
+        "content_type": "POWERSHELL_EXAMPLE"
+      },
+      {
+        "record_id": "SRC-031-031",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 31,
+        "end_line": 31,
+        "text": "Python 分页器在任何 print/读取原文之前显式配置 stdout/stderr；不要仅设置文件读取 encoding，遗漏输出流：\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-033-037",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 33,
+        "end_line": 37,
+        "text": "```python\nimport sys\nsys.stdout.reconfigure(encoding=\"utf-8\", errors=\"strict\", newline=\"\\n\")\nsys.stderr.reconfigure(encoding=\"utf-8\", errors=\"strict\", newline=\"\\n\")\n```\n",
+        "content_type": "PYTHON_EXAMPLE"
+      },
+      {
+        "record_id": "SRC-039-039",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 39,
+        "end_line": 39,
+        "text": "执行者须确认实际工具宿主接收 native stdout/stderr 的解码方式。Shell 设置不能单独证明宿主 decoder 已一致；若宿主不支持 UTF-8，使用已获授权、可验证完整 Unicode 的既有工具通路，或 STOP。不得安装新工具、改宿主全局配置、登录新服务或换模型来绕过。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-043-043",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 43,
+        "end_line": 43,
+        "text": "样本通过 ASCII-only Python source 的 code points 构造，避免样本代码本身先被 GBK 损坏：\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-045-049",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 45,
+        "end_line": 49,
+        "text": "```python\nprobe = \"ENCODING-PROBE|\" + \"\".join(chr(n) for n in\n    [0x4E2D, 0x6587, 0xFF5C, 0xA7, 0x2192, 0x2264, 0x1F9EA]) + \"|END\\n\"\nexpected = probe.encode(\"utf-8\", errors=\"strict\")\n```\n",
+        "content_type": "PYTHON_EXAMPLE"
+      },
+      {
+        "record_id": "SRC-051-051",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 51,
+        "end_line": 51,
+        "text": "期望可见内容：`ENCODING-PROBE|中文｜§→≤🧪|END`，随后恰好一个 LF。UTF-8 bytes = **41**；SHA-256 = **ba760090c87956f98cd39eb7ad0f9103cf5338339120c4896a471e6367c66229**。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-053-053",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 53,
+        "end_line": 53,
+        "text": "在后续实际分页所用的同一 Python→PowerShell→tool-host 通路输出探针，验证：源 bytes、native stdout capture、宿主 decode/re-encode 的 Unicode/code points 与 expected 一致；实际模型可见文本无乱码或遗漏。stderr 也用相同样本的受控测试路径核验，明确它是合成样本，不冒充执行错误。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-055-055",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 55,
+        "end_line": 55,
+        "text": "负例只使用合成样本：确认 GBK/替换后的样本无法冒充 expected；strict UTF-8 decode 或 byte/hash equality 必须拒绝坏样本。不要把故意破坏的治理原文用作测试。样本失败只说明 ENCODING_PREFLIGHT_FAIL；治理尚未开始则 Rule Load NOT_ESTABLISHED。Result = BLOCKED_PREPARATION / STOP，不在该失败运行修补后继续。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-057-057",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 57,
+        "end_line": 57,
+        "text": "只有实际通路样本核验通过，才读取 required rules。样本通过 = TOOL_ENCODING_SELF_CHECK_PASS，不等于 Rule Load PASS / Official Verification / Preparation Complete。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-061-061",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 61,
+        "end_line": 61,
+        "text": "- source 先取得 exact raw bytes 与 digest；使用 `raw.decode(\"utf-8\", errors=\"strict\")`。解码失败 STOP，不猜 GBK/ANSI、不改原文件。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-062-062",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 62,
+        "end_line": 62,
+        "text": "- BOM、CRLF/LF 保留为源身份信息；不通过自动 newline translation 或剥离字符来伪造 raw digest。分页切分只发生在完整 Unicode code point 边界。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-063-063",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 63,
+        "end_line": 63,
+        "text": "- 每页记录 exact source、范围、page text 的 UTF-8 digest；decode→encode 应与对应原始 byte range 一致。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-064-064",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 64,
+        "end_line": 64,
+        "text": "- Python stdout/stderr 和接收端 decoder 都必须明确 UTF-8/strict。文本文件显式 UTF-8；需要源 byte identity 时用 binary capture，避免 PowerShell 默认重定向编码改变 bytes。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-065-065",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 65,
+        "end_line": 65,
+        "text": "- 禁止 errors=replace/ignore、手工删坏字、默认 locale 解码、不明 ANSI/GBK 转码。仅源文件 hash 一致不能证明实际工具输出完整无损。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-066-066",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 66,
+        "end_line": 66,
+        "text": "- ASCII-escaped JSON 只能用于具备已验证客户端反序列化/Unicode显示的通路；不能把转义或 base64 文件当作已完成模型全文阅读。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-067-067",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 67,
+        "end_line": 67,
+        "text": "- 发现 required 原文字符损坏、实际截断、缺页或无法证明保真，立即 Rule/Input Load FAIL / STOP，不同运行内补读撤销。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-068-068",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 68,
+        "end_line": 68,
+        "text": "- Ledger 分开记录 raw identity、transport integrity、model-visible coverage。原始证据完整落盘和样本 PASS 都不替代 required 全文读取。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-084-084",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 84,
+        "end_line": 84,
+        "text": "| Routing / Recommendation | EMRP-1.1 / ER-3；GPT-6.1 Sol / Codex Desktop / High（高） |\n",
+        "content_type": "TABLE_ROW",
+        "cells": [
+          "Routing / Recommendation",
+          "EMRP-1.1 / ER-3；GPT-6.1 Sol / Codex Desktop / High（高）"
+        ]
+      },
+      {
+        "record_id": "SRC-085-085",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 85,
+        "end_line": 85,
+        "text": "| Effort mapping | Low=低；Medium=中；High=高；XHigh=极高；Max=最高，实际平台支持为准 |\n",
+        "content_type": "TABLE_ROW",
+        "cells": [
+          "Effort mapping",
+          "Low=低；Medium=中；High=高；XHigh=极高；Max=最高，实际平台支持为准"
+        ]
+      },
+      {
+        "record_id": "SRC-086-086",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 86,
+        "end_line": 86,
+        "text": "| Actual execution identity | 分别报告所选 model/effort 的可核实配置证据、实际 Harness、runtime 暴露 identity；未暴露字段 NOT_VERIFIED |\n",
+        "content_type": "TABLE_ROW",
+        "cells": [
+          "Actual execution identity",
+          "分别报告所选 model/effort 的可核实配置证据、实际 Harness、runtime 暴露 identity；未暴露字段 NOT_VERIFIED"
+        ]
+      },
+      {
+        "record_id": "SRC-090-090",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 90,
+        "end_line": 90,
+        "text": "| Tools / Data policy | 只读 Git/GitHub、受控源码/条款读取、官方公开资料、非 Git 文档；不读 .env/secret/凭据，不上传项目数据至 Provider |\n",
+        "content_type": "TABLE_ROW",
+        "cells": [
+          "Tools / Data policy",
+          "只读 Git/GitHub、受控源码/条款读取、官方公开资料、非 Git 文档；不读 .env/secret/凭据，不上传项目数据至 Provider"
+        ]
+      },
+      {
+        "record_id": "SRC-091-091",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 91,
+        "end_line": 91,
+        "text": "| Permissions | 只读调查与非 Git 文档；无实现、WRITE_MAIN、Provider I/O、Economic Action、Activation 权限 |\n",
+        "content_type": "TABLE_ROW",
+        "cells": [
+          "Permissions",
+          "只读调查与非 Git 文档；无实现、WRITE_MAIN、Provider I/O、Economic Action、Activation 权限"
+        ]
+      },
+      {
+        "record_id": "SRC-094-094",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 94,
+        "end_line": 94,
+        "text": "五清：\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-102-102",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 102,
+        "end_line": 102,
+        "text": "RERUN-03 回贴报告 safe launch metadata 为 gpt-6.1-sol / high / Codex Desktop；本窗口未读取该 metadata。新运行应核验自己的非 secret 选择配置与 launch metadata，分别记录 selected configuration 与 runtime-reported identity；内部 ID 未暴露仍 NOT_VERIFIED。不得因已经报告一致就自动继承实际使用证明；不得自动换模型。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-108-108",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 108,
+        "end_line": 108,
+        "text": "先通过 §1 编码样本并核对 fresh main identity，再读取绑定治理来源的：\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-145-145",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 145,
+        "end_line": 145,
+        "text": "所有未知大小输出先完整捕获到非 Git 临时文件；工具只返回退出码、bytes、digest 与文件名，再按受控小页阅读必需内容。可从每页 40 行且最多约 4,096 UTF-8 bytes 开始，长行连续拆分，留包装余量；这些是工具设置，不是产品 Accepted Threshold。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-147-147",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 147,
+        "end_line": 147,
+        "text": "不预先生成每条无关清单的几十份 page 文件，不复制全部历史证据。仅记录必要原始证据和实际阅读覆盖。优先完成必需治理和角色输入，不让无关全仓库 census 占据模型上下文。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-149-149",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 149,
+        "end_line": 149,
+        "text": "INPUT_CAPACITY_BLOCKED 需指出具体 required input、覆盖缺口和实际容量/输出限制或可复核估算。平台不公开总剩余窗口时记 UNKNOWN，不伪造 token 总额；不能仅因无关清单很大就断言必需角色输入无法加载。若真实必需输入仍无法完整读取，STOP；不摘要替代、不隐瞒缺失、不继续作依赖它的判断。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-183-183",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 183,
+        "end_line": 183,
+        "text": "仓库导航预期：Real AI / Gate A / Gate B NOT_ACTIVATED；Gate C NOT_PASSED；Live NOT_AUTHORIZED；Live Trading DISABLED；Pack B/C UNRESOLVED、Accepted Activation Config 未建立。逐项查 current evidence，冲突如实记录。实际部署进程/config/DB、调用历史、账户 eligibility、成本/延迟均不从代码默认值推断。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-185-185",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 185,
+        "end_line": 185,
+        "text": "需回答的已见缺口：现有 g3 adapter 的 JSON mode 不能证明 provider-native strict schema；Advisory fake decide seam 与 G3 analyze seam 需最小衔接设计；RuntimeHost 的 separate Gate A authorization guard 不能靠 flip config 绕过。本任务仅设计后续受限实现需求，不修改任何 guard/adapter/worker。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-189-189",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 189,
+        "end_line": 189,
+        "text": "每项：field/单位、current source/default、候选/依据、联合约束、enforcement/rejection point、缺失行为、验证方式、evidence identity、Human Decision slot、accepted value/授权引用。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-193-193",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 193,
+        "end_line": 193,
+        "text": "| Provider / model | 单一 identity、endpoint/部署/region、configured 与 provider-reported model、alias drift、账户 eligibility；官方文档与实际能力分开 |\n",
+        "content_type": "TABLE_ROW",
+        "cells": [
+          "Provider / model",
+          "单一 identity、endpoint/部署/region、configured 与 provider-reported model、alias drift、账户 eligibility；官方文档与实际能力分开"
+        ]
+      },
+      {
+        "record_id": "SRC-194-194",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 194,
+        "end_line": 194,
+        "text": "| Schema | approved schema/subset、provider-native strict、refusal/incomplete、tools disabled/non-streaming、deterministic validator；JSON mode 不作能力 PASS |\n",
+        "content_type": "TABLE_ROW",
+        "cells": [
+          "Schema",
+          "approved schema/subset、provider-native strict、refusal/incomplete、tools disabled/non-streaming、deterministic validator；JSON mode 不作能力 PASS"
+        ]
+      },
+      {
+        "record_id": "SRC-195-195",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 195,
+        "end_line": 195,
+        "text": "| Retry | joint total attempts、transport/validation retries、reason/retryability；同 Provider/model/input/pair/arm；共同 deadline/token/cost；不重置 deadline |\n",
+        "content_type": "TABLE_ROW",
+        "cells": [
+          "Retry",
+          "joint total attempts、transport/validation retries、reason/retryability；同 Provider/model/input/pair/arm；共同 deadline/token/cost；不重置 deadline"
+        ]
+      },
+      {
+        "record_id": "SRC-196-196",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 196,
+        "end_line": 196,
+        "text": "| Time | per-attempt timeout、admission-time immutable absolute deadline；queue/dispatch/provider/finalization、late/cancel fencing |\n",
+        "content_type": "TABLE_ROW",
+        "cells": [
+          "Time",
+          "per-attempt timeout、admission-time immutable absolute deadline；queue/dispatch/provider/finalization、late/cancel fencing"
+        ]
+      },
+      {
+        "record_id": "SRC-197-197",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 197,
+        "end_line": 197,
+        "text": "| Tokens / cost | per attempt/invocation/run hard bounds、币种/精度、保守预留、usage unavailable stop cost-controlled retry；estimated/reported/billed 分开 |\n",
+        "content_type": "TABLE_ROW",
+        "cells": [
+          "Tokens / cost",
+          "per attempt/invocation/run hard bounds、币种/精度、保守预留、usage unavailable stop cost-controlled retry；estimated/reported/billed 分开"
+        ]
+      },
+      {
+        "record_id": "SRC-198-198",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 198,
+        "end_line": 198,
+        "text": "| Queue / concurrency | bounded queue、finite workers/provider concurrency、REJECT NEWEST、拒绝/高水位/deadline evidence |\n",
+        "content_type": "TABLE_ROW",
+        "cells": [
+          "Queue / concurrency",
+          "bounded queue、finite workers/provider concurrency、REJECT NEWEST、拒绝/高水位/deadline evidence"
+        ]
+      },
+      {
+        "record_id": "SRC-199-199",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 199,
+        "end_line": 199,
+        "text": "| DB capacity | primary pool、finite overflow、pool timeout、effective C / Protection reserve R / Advisory A，A+R≤C；provider I/O 持有零 DB resource |\n",
+        "content_type": "TABLE_ROW",
+        "cells": [
+          "DB capacity",
+          "primary pool、finite overflow、pool timeout、effective C / Protection reserve R / Advisory A，A+R≤C；provider I/O 持有零 DB resource"
+        ]
+      },
+      {
+        "record_id": "SRC-200-200",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 200,
+        "end_line": 200,
+        "text": "| DB timeouts | acquire/transaction/statement/lock/idle、cleanup budget、accepted 顺序方程；caller-owned G2 capture/restore、禁止 client cancel/idle 的适用例外 |\n",
+        "content_type": "TABLE_ROW",
+        "cells": [
+          "DB timeouts",
+          "acquire/transaction/statement/lock/idle、cleanup budget、accepted 顺序方程；caller-owned G2 capture/restore、禁止 client cancel/idle 的适用例外"
+        ]
+      },
+      {
+        "record_id": "SRC-201-201",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 201,
+        "end_line": 201,
+        "text": "| Shutdown | total grace/disposal、Protection reserve、Advisory cleanup subdeadline；ownership 与两因素 return completion |\n",
+        "content_type": "TABLE_ROW",
+        "cells": [
+          "Shutdown",
+          "total grace/disposal、Protection reserve、Advisory cleanup subdeadline；ownership 与两因素 return completion"
+        ]
+      },
+      {
+        "record_id": "SRC-202-202",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 202,
+        "end_line": 202,
+        "text": "| Retention | normalized provenance/redacted envelope size/duration/access/delete；raw OFF 只能候选；无 secret/credential headers/hidden reasoning |\n",
+        "content_type": "TABLE_ROW",
+        "cells": [
+          "Retention",
+          "normalized provenance/redacted envelope size/duration/access/delete；raw OFF 只能候选；无 secret/credential headers/hidden reasoning"
+        ]
+      },
+      {
+        "record_id": "SRC-203-203",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 203,
+        "end_line": 203,
+        "text": "| Failure mapping | accepted terminal enum/category、retryability、late/duplicate/stale precedence、usage 与 DB/ownership failure；不自造枚举 |\n",
+        "content_type": "TABLE_ROW",
+        "cells": [
+          "Failure mapping",
+          "accepted terminal enum/category、retryability、late/duplicate/stale precedence、usage 与 DB/ownership failure；不自造枚举"
+        ]
+      },
+      {
+        "record_id": "SRC-205-205",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 205,
+        "end_line": 205,
+        "text": "状态必须区分 CODE_DEFAULT_ONLY、PROPOSED / NEEDS_HUMAN_DECISION、MEASURED、ACCEPTED_CONFIG、ACCEPTED_THRESHOLD、UNKNOWN / NOT_VERIFIED。没有 exact Human/冻结引用的值不能 Accepted；unknown usage/cost 用 NULL + reason，不填零。不把本任务执行模型填作产品 Provider/model。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-207-207",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 207,
+        "end_line": 207,
+        "text": "Provider capability/价格查当时官方公开文档，记录 URL、访问日期、适用 model/endpoint；不进行 authenticated Provider I/O 或真实 probe。可以设计有界 calibration proposal 解决测量/配置循环，但不得派发直接调用卡，更不得执行。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-211-211",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 211,
+        "end_line": 211,
+        "text": "独立列出 Measurement Plan 和 Accepted Threshold；window/sample/pass 数值仅候选，缺授权为 UNRESOLVED。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-215-215",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 215,
+        "end_line": 215,
+        "text": "| Window / sample | observation 起止、config/epoch 分段、最小时间/invocation/attempt、样本不足/停止处理 |\n",
+        "content_type": "TABLE_ROW",
+        "cells": [
+          "Window / sample",
+          "observation 起止、config/epoch 分段、最小时间/invocation/attempt、样本不足/停止处理"
+        ]
+      },
+      {
+        "record_id": "SRC-216-216",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 216,
+        "end_line": 216,
+        "text": "| Denominator | 全部 eligible/admitted/rejected/attempted/completed/refused/timeout/malformed/stale/late/duplicate/missing；logical invocation 与 attempt 分开 |\n",
+        "content_type": "TABLE_ROW",
+        "cells": [
+          "Denominator",
+          "全部 eligible/admitted/rejected/attempted/completed/refused/timeout/malformed/stale/late/duplicate/missing；logical invocation 与 attempt 分开"
+        ]
+      },
+      {
+        "record_id": "SRC-217-217",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 217,
+        "end_line": 217,
+        "text": "| Latency | monotonic queue/provider/end-to-end/finalization、p50/95/99、deadline miss、样本数及小样本限制；不拿历史 runtime 当 Provider SLA |\n",
+        "content_type": "TABLE_ROW",
+        "cells": [
+          "Latency",
+          "monotonic queue/provider/end-to-end/finalization、p50/95/99、deadline miss、样本数及小样本限制；不拿历史 runtime 当 Provider SLA"
+        ]
+      },
+      {
+        "record_id": "SRC-218-218",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 218,
+        "end_line": 218,
+        "text": "| Failure | transport/provider/auth/quota、timeout、refusal/incomplete、schema/business invalid、unsupported evidence、late/stale/duplicate；停止线待决 |\n",
+        "content_type": "TABLE_ROW",
+        "cells": [
+          "Failure",
+          "transport/provider/auth/quota、timeout、refusal/incomplete、schema/business invalid、unsupported evidence、late/stale/duplicate；停止线待决"
+        ]
+      },
+      {
+        "record_id": "SRC-219-219",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 219,
+        "end_line": 219,
+        "text": "| Provenance / durability | provider/model/request IDs、input digest、prompt/schema/config/experiment/pair/arm、attempt chain、一次 durable final、restart/recovery/retention |\n",
+        "content_type": "TABLE_ROW",
+        "cells": [
+          "Provenance / durability",
+          "provider/model/request IDs、input digest、prompt/schema/config/experiment/pair/arm、attempt chain、一次 durable final、restart/recovery/retention"
+        ]
+      },
+      {
+        "record_id": "SRC-220-220",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 220,
+        "end_line": 220,
+        "text": "| Isolation | queue/DB C/A/R、retired/uncertain lease、provider await 无 DB资源、Protection/cancel/risk-reducing 不等 AI |\n",
+        "content_type": "TABLE_ROW",
+        "cells": [
+          "Isolation",
+          "queue/DB C/A/R、retired/uncertain lease、provider await 无 DB资源、Protection/cancel/risk-reducing 不等 AI"
+        ]
+      },
+      {
+        "record_id": "SRC-221-221",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 221,
+        "end_line": 221,
+        "text": "| Cost | usage 缺失、估算/账单、attempt/invocation/run totals、price version、budget/unknown-cost stop |\n",
+        "content_type": "TABLE_ROW",
+        "cells": [
+          "Cost",
+          "usage 缺失、估算/账单、attempt/invocation/run totals、price version、budget/unknown-cost stop"
+        ]
+      },
+      {
+        "record_id": "SRC-222-222",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 222,
+        "end_line": 222,
+        "text": "| Accept / reject | exact config/epoch、完整样本 manifest、计算查询口径、失败/缺失 evidence、Review/Human verdict binding |\n",
+        "content_type": "TABLE_ROW",
+        "cells": [
+          "Accept / reject",
+          "exact config/epoch、完整样本 manifest、计算查询口径、失败/缺失 evidence、Review/Human verdict binding"
+        ]
+      },
+      {
+        "record_id": "SRC-224-224",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 224,
+        "end_line": 224,
+        "text": "不能静默剔除失败/缺失样本。Pack C 此处仅 operational Shadow 观察，不判 Paper 效果或 Gate C edge。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-308-308",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 308,
+        "end_line": 308,
+        "text": "原文输入、标准流和工具宿主是不同编码环节。PYTHONUTF8 或环境变量不单独证明整个通路保真；stderr 的严格行为由显式 reconfigure 和实际探针确认。PowerShell 各版本默认编码不同，默认重定向不能当原始 bytes 保留证明。\n",
+        "content_type": "TEXT"
+      }
+    ]
   },
   "verification_acceptance": {
     "acceptance_criteria": [
-      [
-        "FP2-01",
-        "Start/end refs match exact MarketPulse/governance bindings."
-      ],
-      [
-        "FP2-02",
-        "Subject candidate exact identity matches 141253 B / eb5156414bff97f201a0d835c4c052ea2cac51fedd73c4d4b37e590f6ac249f7."
-      ],
-      [
-        "FP2-03",
-        "External evidence ZIP exact identity matches 12558 B / 589c28f3dcc51a5a7d5ff0929ca2234d94edfe3c83e02a058420a9f3d53527ff."
-      ],
-      [
-        "FP2-04",
-        "ZIP has exactly five required members and integrity test passes."
-      ],
-      [
-        "FP2-05",
-        "Original RESULT.md exact identity matches 14403 B / f18801a9b1dde81ce003bbc350a3830ef0d9ffca109d0cfb640e51f2aa94b3f7."
-      ],
-      [
-        "FP2-06",
-        "Original EVIDENCE.json exact identity matches 12548 B / 470346edc000867ab1c5524cb5cd006ac49f067a6beaad786f5856375a30fac6."
-      ],
-      [
-        "FP2-07",
-        "Original SHA256SUMS.txt exact identity matches 258 B / 179f2a35e5b748ff6ab2e79d94afbeff71ceebd37e70d85dad4fe13a70e98a52."
-      ],
-      [
-        "FP2-08",
-        "Export metadata files are internally consistent with the actual exact source evidence."
-      ],
-      [
-        "FP2-09",
-        "Human Freeze CONFIRM remains bound/current; no new Human Freeze is asserted."
-      ],
-      [
-        "FP2-10",
-        "Currency Revalidation is recorded as currentness evidence, not substituted for design review."
-      ],
-      [
-        "FP2-11",
-        "Frozen Truth Manifest binds exact current baseline, governance, subject, review evidence, human decision, and carried NB-01..03."
-      ],
-      [
-        "FP2-12",
-        "Freeze Record states branch materialization != repository-effective Freeze; effectiveness awaits independent persistence review + controlled integration + postcheck."
-      ],
-      [
-        "FP2-13",
-        "PROJECT_STATE preserves Real AI/Gate/Live safety boundaries and Execution Authorization NOT_GRANTED / RERUN-04 NOT_STARTED."
-      ],
-      [
-        "FP2-14",
-        "Only allowed paths changed; main unchanged; task branch commit/push exact identities reported."
-      ],
-      [
-        "FP2-15",
-        "No Provider/secret/runtime/DB/economic/activation action occurred."
-      ],
-      [
-        "FP2-16",
-        "Success status is FREEZE_PERSISTENCE_CANDIDATE_READY_FOR_INDEPENDENT_REVIEW only."
-      ]
+      {
+        "id": "AC01",
+        "obligation": "fresh 起止 refs、编码通路自检、完整 required Rule Load、合法 scoped preflight、source/coverage/transport identity"
+      },
+      {
+        "id": "AC02",
+        "obligation": "PRE/Advisory/Runtime/Gate exact evidence；actual environment 未核验明确标注"
+      },
+      {
+        "id": "AC03",
+        "obligation": "Pack B 全覆盖含 DB/timeouts/shutdown"
+      },
+      {
+        "id": "AC04",
+        "obligation": "provider/model 文档/实际 eligibility 分开；default/JSON mode 不冒充能力"
+      },
+      {
+        "id": "AC05",
+        "obligation": "单位/value states/价格版本/Human slots；无虚假 Accepted 值"
+      },
+      {
+        "id": "AC06",
+        "obligation": "Measurement Plan 与 threshold 分开；denominator/失败/缺失/小样本明确"
+      },
+      {
+        "id": "AC07",
+        "obligation": "failure/retry/deadline/cost 与 current PRE 一致，无隐含经济 fallback"
+      },
+      {
+        "id": "AC08",
+        "obligation": "provenance/durability/ownership/isolation/retention/secret 可独立验证"
+      },
+      {
+        "id": "AC09",
+        "obligation": "Verification Contract 的 identity/environment/matrix/evidence；planned≠performed"
+      },
+      {
+        "id": "AC10",
+        "obligation": "Gate entry/stop 可判断；unknown=NOT_READY，不升级状态"
+      },
+      {
+        "id": "AC11",
+        "obligation": "gaps/Open Decisions 指明阻塞哪步、证据/决定人；不改签历史 review"
+      },
+      {
+        "id": "AC12",
+        "obligation": "duplication/parallel 相关面完整；本地不可见 NOT_VERIFIED；不宣称全仓库 clearance"
+      },
+      {
+        "id": "AC13",
+        "obligation": "Result/Changes/Verification/Remaining/Evidence、Load Ledger、actual identity、dev_log、九字段总控摘要"
+      },
+      {
+        "id": "AC14",
+        "obligation": "零仓库写、零 Provider、零 secret、零 Host/worker/DB、零 Gate/经济 Activation"
+      }
     ],
-    "verification_profile_identity": "PRE-RAI-RERUN04-FREEZE-PERSIST-RERUN02-v0.1-CANDIDATE",
-    "required_review": "PRE-RAI-ACT-PREP-01-RERUN-04-FREEZE-PERSIST-R01",
-    "required_human_gate": "ALREADY SATISFIED AND CURRENT; NO RECONFIRMATION REQUIRED.",
-    "official_verification": "NOT_PERFORMED_BY_THIS_TASK"
+    "verification_contract": {
+      "binding_obligation": "准备产物设计 exact Candidate digest、Task Base、governance/PRE identity、config/environment、evidence manifest、Verification Profile 的绑定。",
+      "evidence_layers_and_matrix": "分开：文档自检；未来 provider-free fake/injected implementation verification；未来 selected-provider capability/Shadow evidence。这里只设计矩阵，不写测试、不运行 Host/DB。矩阵覆盖 missing/invalid config、deadline/retry/token/cost/queue/DB/fence/recovery/Protection isolation、secret 和 zero economics。"
+    },
+    "verification_profile_identity": {
+      "value": null,
+      "state": "NOT_SPECIFIED_IN_SOURCE",
+      "reason": "The source requires future profile binding, but supplies no exact profile ID/version/hash. It is not invented here."
+    },
+    "gate_a_entry_checklist": [
+      {
+        "item": 1,
+        "requirement": "current accepted foundation/amendments，required implementation exact candidate 已独立验证与验收。"
+      },
+      {
+        "item": 2,
+        "requirement": "Pack B exact accepted configuration，required values/enforcement 已验证。"
+      },
+      {
+        "item": 3,
+        "requirement": "selected Provider/model strict/refusal/incomplete/request/model/usage 实际适用 evidence；公开文档与实测分开。"
+      },
+      {
+        "item": 4,
+        "requirement": "bounded lifecycle/input/experiment/pair/arm、durable provenance、retention、zero economics/Protection isolation 验证。"
+      },
+      {
+        "item": 5,
+        "requirement": "continuous live Shadow 的 Opportunity→Advisory active wiring 单独 accepted。"
+      },
+      {
+        "item": 6,
+        "requirement": "Pack C window/sample/acceptance/stop policy 完成 required Review/Human approval。"
+      },
+      {
+        "item": 7,
+        "requirement": "deployment/process/DB/config identity 与停止机制可核实；secret 由用户在独立授权环境管理，不交本窗口。"
+      },
+      {
+        "item": 8,
+        "requirement": "exact activation package/provider/model/environment/budget/范围的**独立明确 Human Authorization**。"
+      }
+    ],
+    "gate_a_unknown_behavior": "未知、stale、未验证或冲突项 → GATE_A_ENTRY_NOT_READY。不得自动生成 Activate Gate A 卡。",
+    "gate_a_runtime_stop_policy_design_only": "运行 stop policy 仅设计：budget/deadline、identity/config drift、secret leak、authority escalation、provenance loss、resource/ownership fence 不可证明、Protection 受阻、approved failure line、人类停止。未批准数值不能运行。",
+    "required_review_and_evidence_separation": "Official Verification、Independent Review、Human Gate 未执行分别 NOT_PERFORMED；文档自检只属 development evidence。Required 异模型 Preparation Review 优先 DeepSeek V4.1 Flash / WorkBuddy，档位无原生选项时 N/A，actual identity 必须核实；未实际审核不写 PASS。",
+    "required_human_authority": "真实 Provider、配置采用、Gate/Live 仍需独立授权。当前只读准备无需重复请求启动确认。本卡不持久化进 Git、不登记 AWB formal task、不更新仓库 shared carriers。",
+    "acceptance_limit": "仅 READY_FOR_PREPARATION_REVIEW；NOT_ACCEPTED / NOT_ACTIVATED。",
+    "source_records": [
+      {
+        "record_id": "SRC-100-100",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 100,
+        "end_line": 100,
+        "text": "5. **验收：**仅 READY_FOR_PREPARATION_REVIEW；不自验收，不证明阈值达标、Gate Ready 或 Activation。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-239-239",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 239,
+        "end_line": 239,
+        "text": "准备产物设计 exact Candidate digest、Task Base、governance/PRE identity、config/environment、evidence manifest、Verification Profile 的绑定。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-241-241",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 241,
+        "end_line": 241,
+        "text": "分开：文档自检；未来 provider-free fake/injected implementation verification；未来 selected-provider capability/Shadow evidence。这里只设计矩阵，不写测试、不运行 Host/DB。矩阵覆盖 missing/invalid config、deadline/retry/token/cost/queue/DB/fence/recovery/Protection isolation、secret 和 zero economics。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-243-243",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 243,
+        "end_line": 243,
+        "text": "Gate A entry：\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-245-245",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 245,
+        "end_line": 245,
+        "text": "1. current accepted foundation/amendments，required implementation exact candidate 已独立验证与验收。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-246-246",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 246,
+        "end_line": 246,
+        "text": "2. Pack B exact accepted configuration，required values/enforcement 已验证。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-247-247",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 247,
+        "end_line": 247,
+        "text": "3. selected Provider/model strict/refusal/incomplete/request/model/usage 实际适用 evidence；公开文档与实测分开。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-248-248",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 248,
+        "end_line": 248,
+        "text": "4. bounded lifecycle/input/experiment/pair/arm、durable provenance、retention、zero economics/Protection isolation 验证。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-249-249",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 249,
+        "end_line": 249,
+        "text": "5. continuous live Shadow 的 Opportunity→Advisory active wiring 单独 accepted。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-250-250",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 250,
+        "end_line": 250,
+        "text": "6. Pack C window/sample/acceptance/stop policy 完成 required Review/Human approval。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-251-251",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 251,
+        "end_line": 251,
+        "text": "7. deployment/process/DB/config identity 与停止机制可核实；secret 由用户在独立授权环境管理，不交本窗口。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-252-252",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 252,
+        "end_line": 252,
+        "text": "8. exact activation package/provider/model/environment/budget/范围的**独立明确 Human Authorization**。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-254-254",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 254,
+        "end_line": 254,
+        "text": "未知、stale、未验证或冲突项 → GATE_A_ENTRY_NOT_READY。不得自动生成 Activate Gate A 卡。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-256-256",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 256,
+        "end_line": 256,
+        "text": "运行 stop policy 仅设计：budget/deadline、identity/config drift、secret leak、authority escalation、provenance loss、resource/ownership fence 不可证明、Protection 受阻、approved failure line、人类停止。未批准数值不能运行。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-262-262",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 262,
+        "end_line": 262,
+        "text": "| AC01 | fresh 起止 refs、编码通路自检、完整 required Rule Load、合法 scoped preflight、source/coverage/transport identity |\n",
+        "content_type": "TABLE_ROW",
+        "cells": [
+          "AC01",
+          "fresh 起止 refs、编码通路自检、完整 required Rule Load、合法 scoped preflight、source/coverage/transport identity"
+        ]
+      },
+      {
+        "record_id": "SRC-263-263",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 263,
+        "end_line": 263,
+        "text": "| AC02 | PRE/Advisory/Runtime/Gate exact evidence；actual environment 未核验明确标注 |\n",
+        "content_type": "TABLE_ROW",
+        "cells": [
+          "AC02",
+          "PRE/Advisory/Runtime/Gate exact evidence；actual environment 未核验明确标注"
+        ]
+      },
+      {
+        "record_id": "SRC-264-264",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 264,
+        "end_line": 264,
+        "text": "| AC03 | Pack B 全覆盖含 DB/timeouts/shutdown |\n",
+        "content_type": "TABLE_ROW",
+        "cells": [
+          "AC03",
+          "Pack B 全覆盖含 DB/timeouts/shutdown"
+        ]
+      },
+      {
+        "record_id": "SRC-265-265",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 265,
+        "end_line": 265,
+        "text": "| AC04 | provider/model 文档/实际 eligibility 分开；default/JSON mode 不冒充能力 |\n",
+        "content_type": "TABLE_ROW",
+        "cells": [
+          "AC04",
+          "provider/model 文档/实际 eligibility 分开；default/JSON mode 不冒充能力"
+        ]
+      },
+      {
+        "record_id": "SRC-266-266",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 266,
+        "end_line": 266,
+        "text": "| AC05 | 单位/value states/价格版本/Human slots；无虚假 Accepted 值 |\n",
+        "content_type": "TABLE_ROW",
+        "cells": [
+          "AC05",
+          "单位/value states/价格版本/Human slots；无虚假 Accepted 值"
+        ]
+      },
+      {
+        "record_id": "SRC-267-267",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 267,
+        "end_line": 267,
+        "text": "| AC06 | Measurement Plan 与 threshold 分开；denominator/失败/缺失/小样本明确 |\n",
+        "content_type": "TABLE_ROW",
+        "cells": [
+          "AC06",
+          "Measurement Plan 与 threshold 分开；denominator/失败/缺失/小样本明确"
+        ]
+      },
+      {
+        "record_id": "SRC-268-268",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 268,
+        "end_line": 268,
+        "text": "| AC07 | failure/retry/deadline/cost 与 current PRE 一致，无隐含经济 fallback |\n",
+        "content_type": "TABLE_ROW",
+        "cells": [
+          "AC07",
+          "failure/retry/deadline/cost 与 current PRE 一致，无隐含经济 fallback"
+        ]
+      },
+      {
+        "record_id": "SRC-269-269",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 269,
+        "end_line": 269,
+        "text": "| AC08 | provenance/durability/ownership/isolation/retention/secret 可独立验证 |\n",
+        "content_type": "TABLE_ROW",
+        "cells": [
+          "AC08",
+          "provenance/durability/ownership/isolation/retention/secret 可独立验证"
+        ]
+      },
+      {
+        "record_id": "SRC-270-270",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 270,
+        "end_line": 270,
+        "text": "| AC09 | Verification Contract 的 identity/environment/matrix/evidence；planned≠performed |\n",
+        "content_type": "TABLE_ROW",
+        "cells": [
+          "AC09",
+          "Verification Contract 的 identity/environment/matrix/evidence；planned≠performed"
+        ]
+      },
+      {
+        "record_id": "SRC-271-271",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 271,
+        "end_line": 271,
+        "text": "| AC10 | Gate entry/stop 可判断；unknown=NOT_READY，不升级状态 |\n",
+        "content_type": "TABLE_ROW",
+        "cells": [
+          "AC10",
+          "Gate entry/stop 可判断；unknown=NOT_READY，不升级状态"
+        ]
+      },
+      {
+        "record_id": "SRC-272-272",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 272,
+        "end_line": 272,
+        "text": "| AC11 | gaps/Open Decisions 指明阻塞哪步、证据/决定人；不改签历史 review |\n",
+        "content_type": "TABLE_ROW",
+        "cells": [
+          "AC11",
+          "gaps/Open Decisions 指明阻塞哪步、证据/决定人；不改签历史 review"
+        ]
+      },
+      {
+        "record_id": "SRC-273-273",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 273,
+        "end_line": 273,
+        "text": "| AC12 | duplication/parallel 相关面完整；本地不可见 NOT_VERIFIED；不宣称全仓库 clearance |\n",
+        "content_type": "TABLE_ROW",
+        "cells": [
+          "AC12",
+          "duplication/parallel 相关面完整；本地不可见 NOT_VERIFIED；不宣称全仓库 clearance"
+        ]
+      },
+      {
+        "record_id": "SRC-274-274",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 274,
+        "end_line": 274,
+        "text": "| AC13 | Result/Changes/Verification/Remaining/Evidence、Load Ledger、actual identity、dev_log、九字段总控摘要 |\n",
+        "content_type": "TABLE_ROW",
+        "cells": [
+          "AC13",
+          "Result/Changes/Verification/Remaining/Evidence、Load Ledger、actual identity、dev_log、九字段总控摘要"
+        ]
+      },
+      {
+        "record_id": "SRC-275-275",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 275,
+        "end_line": 275,
+        "text": "| AC14 | 零仓库写、零 Provider、零 secret、零 Host/worker/DB、零 Gate/经济 Activation |\n",
+        "content_type": "TABLE_ROW",
+        "cells": [
+          "AC14",
+          "零仓库写、零 Provider、零 secret、零 Host/worker/DB、零 Gate/经济 Activation"
+        ]
+      },
+      {
+        "record_id": "SRC-289-289",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 289,
+        "end_line": 289,
+        "text": "Official Verification、Independent Review、Human Gate 未执行分别 NOT_PERFORMED；文档自检只属 development evidence。Required 异模型 Preparation Review 优先 DeepSeek V4.1 Flash / WorkBuddy，档位无原生选项时 N/A，actual identity 必须核实；未实际审核不写 PASS。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-291-291",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 291,
+        "end_line": 291,
+        "text": "真实 Provider、配置采用、Gate/Live 仍需独立授权。当前只读准备无需重复请求启动确认。本卡不持久化进 Git、不登记 AWB formal task、不更新仓库 shared carriers。\n",
+        "content_type": "TEXT"
+      }
+    ]
   },
   "result": {
-    "allowed_statuses": [
-      "FREEZE_PERSISTENCE_CANDIDATE_READY_FOR_INDEPENDENT_REVIEW",
-      "BLOCKED_FREEZE_PERSISTENCE",
-      "HELD_DUPLICATE_OR_SUCCESSOR"
+    "output_contract": "只创建一个唯一非 Git 新目录。建议 1 份 Preparation Candidate（含 Pack B/C、failure、Verification Contract、Gate checklist、Open Decisions、AC、dev_log），外加 Coverage/Preflight Ledger、evidence manifest、SHA256SUMS。原始大清单可作为证据，不强制预生成几十页附件；不自引用 hash。无凭据文件纳入哈希。",
+    "candidate_identity_requirement": "结束复核双方 main；提交 Candidate path/digest，Git Candidate = NONE；完整说明实际 Changes、source scope 与缺口。允许未决 Human 数字 slot，但不宣称 READY_FOR_GATE_A。",
+    "status_contract": "成功：READY_FOR_PREPARATION_REVIEW / NOT_ACCEPTED / NOT_ACTIVATED。依赖阻断：BLOCKED_PREPARATION / STOP。重复：HELD / BLOCKED_DUPLICATE_SCOPE。",
+    "return_window": "MarketPulse-AI｜Real AI Activation｜Task Design & Review",
+    "repository_mutation_allowed": false,
+    "self_check_classification": "development evidence",
+    "official_verification_when_not_performed": "NOT_PERFORMED",
+    "independent_review_when_not_performed": "NOT_PERFORMED",
+    "human_gate_when_not_performed": "NOT_PERFORMED",
+    "coordination_summary_fields": [
+      "Current AI State",
+      "Current Gate",
+      "Accepted Config",
+      "Unresolved Pack B/C",
+      "Evidence",
+      "Blocking Findings",
+      "Next Legal Gate",
+      "Human Authorization Needed",
+      "Parallel Conflict"
     ],
-    "repository_mutation": "TASK_BRANCH_ONLY",
-    "main_mutation": "NONE",
-    "freeze_effective_on_main": false,
-    "execution_authorization": "NOT_GRANTED",
-    "rerun04_execution": "NOT_STARTED",
-    "next_gate": "PRE-RAI-ACT-PREP-01-RERUN-04-FREEZE-PERSIST-R01"
+    "subject_candidate": {
+      "value": null,
+      "state": "SOURCE_DESCRIBES_FUTURE_PREPARATION",
+      "reason": "No preparation candidate has been produced by this formalization."
+    },
+    "produced_candidate": {
+      "value": null,
+      "state": "TO_BE_REPORTED_BY_FUTURE_PREPARATION_RUN"
+    },
+    "findings_and_remaining_contract": "AC11 / AC13 + Open Decisions / Remaining / Evidence；不得改签历史 review。",
+    "source_records": [
+      {
+        "record_id": "SRC-283-283",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 283,
+        "end_line": 283,
+        "text": "只创建一个唯一非 Git 新目录。建议 1 份 Preparation Candidate（含 Pack B/C、failure、Verification Contract、Gate checklist、Open Decisions、AC、dev_log），外加 Coverage/Preflight Ledger、evidence manifest、SHA256SUMS。原始大清单可作为证据，不强制预生成几十页附件；不自引用 hash。无凭据文件纳入哈希。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-285-285",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 285,
+        "end_line": 285,
+        "text": "结束复核双方 main；提交 Candidate path/digest，Git Candidate = NONE；完整说明实际 Changes、source scope 与缺口。允许未决 Human 数字 slot，但不宣称 READY_FOR_GATE_A。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-287-287",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 287,
+        "end_line": 287,
+        "text": "成功：READY_FOR_PREPARATION_REVIEW / NOT_ACCEPTED / NOT_ACTIVATED。依赖阻断：BLOCKED_PREPARATION / STOP。重复：HELD / BLOCKED_DUPLICATE_SCOPE。\n",
+        "content_type": "TEXT"
+      },
+      {
+        "record_id": "SRC-293-293",
+        "context": "SEMANTIC_SOURCE",
+        "start_line": 293,
+        "end_line": 293,
+        "text": "生成可人工转贴给 MarketPulse-AI｜AWB 项目总控的九字段：Current AI State、Current Gate、Accepted Config、Unresolved Pack B/C、Evidence、Blocking Findings、Next Legal Gate、Human Authorization Needed、Parallel Conflict。不自动发送。四次 STOP 保留；完整准备尚未完成；本卡设计不改签 PRE-RAI historical review。\n",
+        "content_type": "TEXT"
+      }
+    ]
+  },
+  "representation": {
+    "artifact_kind": "STRUCTURED_TASKCONTRACT_CANDIDATE",
+    "representation_id": "PRE-RAI-ACT-PREP-01-RERUN-04-v0.1-structured-candidate.1",
+    "authority_state": "NON_AUTHORITATIVE_NOT_FORMALLY_REGISTERED_NOT_FROZEN",
+    "serialization": "PROJECT_LOCAL_JSON",
+    "project_template_adoption_claim": false,
+    "awb_pack_authority_claim": false,
+    "original_source": {
+      "path": "inputs/PRE-RAI-ACT-PREP-01-RERUN-04-v0.1.md",
+      "bytes": 31169,
+      "sha256": "e7ac15873c5d6403064b9e4fc2b9d14908d26ea7c654a13c17982315598f206a",
+      "encoding": "UTF-8",
+      "lf": 341,
+      "crlf": 0,
+      "bom": "NONE"
+    },
+    "control_contract": {
+      "path": "inputs/PRE-RAI-ACT-PREP-01-RERUN-04-FORMALIZE-01.task-contract.candidate.json",
+      "bytes": 13156,
+      "sha256": "69fda6d3133fa21f4f06455951975673d87c04fc9513877b4be0e3be50b19b48"
+    },
+    "interpretation": [
+      "The six semantic groups are the mapped candidate; status and provenance metadata do not grant execution authority.",
+      "Original clauses are retained in source_records at their semantic locations. Extracted scalar fields are normalized views of those clauses, not additional instructions.",
+      "If a normalized field and its original clause conflict, do not select one silently: identity/semantic resolution is required.",
+      "Historical claims and original dispatch wording are preserved as source evidence, not this run's verification or a new dispatch.",
+      "All unknowns remain unresolved. A byte-perfect reconstruction does not itself prove independent semantic equivalence."
+    ],
+    "source_formatting": {
+      "source_records": [
+        {
+          "record_id": "SRC-001-001",
+          "context": "FORMAT_ONLY",
+          "start_line": 1,
+          "end_line": 1,
+          "text": "# MarketPulse-AI｜PRE-RAI-ACT-PREP-01-RERUN-04｜v0.1\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-002-002",
+          "context": "FORMAT_ONLY",
+          "start_line": 2,
+          "end_line": 2,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-004-004",
+          "context": "FORMAT_ONLY",
+          "start_line": 4,
+          "end_line": 4,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-006-006",
+          "context": "FORMAT_ONLY",
+          "start_line": 6,
+          "end_line": 6,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-008-008",
+          "context": "FORMAT_ONLY",
+          "start_line": 8,
+          "end_line": 8,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-009-009",
+          "context": "FORMAT_ONLY",
+          "start_line": 9,
+          "end_line": 9,
+          "text": "## 1. 当前回贴与 UTF-8 工具合同\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-010-010",
+          "context": "FORMAT_ONLY",
+          "start_line": 10,
+          "end_line": 10,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-012-012",
+          "context": "FORMAT_ONLY",
+          "start_line": 12,
+          "end_line": 12,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-014-014",
+          "context": "FORMAT_ONLY",
+          "start_line": 14,
+          "end_line": 14,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-015-015",
+          "context": "FORMAT_ONLY",
+          "start_line": 15,
+          "end_line": 15,
+          "text": "### 1.1 在读取任何治理/PRE 原文前验证文字通路\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-016-016",
+          "context": "FORMAT_ONLY",
+          "start_line": 16,
+          "end_line": 16,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-018-018",
+          "context": "FORMAT_ONLY",
+          "start_line": 18,
+          "end_line": 18,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-020-020",
+          "context": "FORMAT_ONLY",
+          "start_line": 20,
+          "end_line": 20,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-030-030",
+          "context": "FORMAT_ONLY",
+          "start_line": 30,
+          "end_line": 30,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-032-032",
+          "context": "FORMAT_ONLY",
+          "start_line": 32,
+          "end_line": 32,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-038-038",
+          "context": "FORMAT_ONLY",
+          "start_line": 38,
+          "end_line": 38,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-040-040",
+          "context": "FORMAT_ONLY",
+          "start_line": 40,
+          "end_line": 40,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-041-041",
+          "context": "FORMAT_ONLY",
+          "start_line": 41,
+          "end_line": 41,
+          "text": "### 1.2 小型端到端探针\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-042-042",
+          "context": "FORMAT_ONLY",
+          "start_line": 42,
+          "end_line": 42,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-044-044",
+          "context": "FORMAT_ONLY",
+          "start_line": 44,
+          "end_line": 44,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-050-050",
+          "context": "FORMAT_ONLY",
+          "start_line": 50,
+          "end_line": 50,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-052-052",
+          "context": "FORMAT_ONLY",
+          "start_line": 52,
+          "end_line": 52,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-054-054",
+          "context": "FORMAT_ONLY",
+          "start_line": 54,
+          "end_line": 54,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-056-056",
+          "context": "FORMAT_ONLY",
+          "start_line": 56,
+          "end_line": 56,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-058-058",
+          "context": "FORMAT_ONLY",
+          "start_line": 58,
+          "end_line": 58,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-059-059",
+          "context": "FORMAT_ONLY",
+          "start_line": 59,
+          "end_line": 59,
+          "text": "### 1.3 每一页原文的保真要求\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-060-060",
+          "context": "FORMAT_ONLY",
+          "start_line": 60,
+          "end_line": 60,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-069-069",
+          "context": "FORMAT_ONLY",
+          "start_line": 69,
+          "end_line": 69,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-071-071",
+          "context": "FORMAT_ONLY",
+          "start_line": 71,
+          "end_line": 71,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-072-072",
+          "context": "FORMAT_ONLY",
+          "start_line": 72,
+          "end_line": 72,
+          "text": "## 2. 任务身份与启动前五清\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-073-073",
+          "context": "FORMAT_ONLY",
+          "start_line": 73,
+          "end_line": 73,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-074-074",
+          "context": "FORMAT_ONLY",
+          "start_line": 74,
+          "end_line": 74,
+          "text": "| 字段 | 绑定 |\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-075-075",
+          "context": "FORMAT_ONLY",
+          "start_line": 75,
+          "end_line": 75,
+          "text": "|---|---|\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-093-093",
+          "context": "FORMAT_ONLY",
+          "start_line": 93,
+          "end_line": 93,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-095-095",
+          "context": "FORMAT_ONLY",
+          "start_line": 95,
+          "end_line": 95,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-101-101",
+          "context": "FORMAT_ONLY",
+          "start_line": 101,
+          "end_line": 101,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-103-103",
+          "context": "FORMAT_ONLY",
+          "start_line": 103,
+          "end_line": 103,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-104-104",
+          "context": "FORMAT_ONLY",
+          "start_line": 104,
+          "end_line": 104,
+          "text": "## 3. 先加载治理，再恢复最小角色输入\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-105-105",
+          "context": "FORMAT_ONLY",
+          "start_line": 105,
+          "end_line": 105,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-106-106",
+          "context": "FORMAT_ONLY",
+          "start_line": 106,
+          "end_line": 106,
+          "text": "### 3.1 固定必须 FULL FILE 的治理输入\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-107-107",
+          "context": "FORMAT_ONLY",
+          "start_line": 107,
+          "end_line": 107,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-109-109",
+          "context": "FORMAT_ONLY",
+          "start_line": 109,
+          "end_line": 109,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-120-120",
+          "context": "FORMAT_ONLY",
+          "start_line": 120,
+          "end_line": 120,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-122-122",
+          "context": "FORMAT_ONLY",
+          "start_line": 122,
+          "end_line": 122,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-124-124",
+          "context": "FORMAT_ONLY",
+          "start_line": 124,
+          "end_line": 124,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-125-125",
+          "context": "FORMAT_ONLY",
+          "start_line": 125,
+          "end_line": 125,
+          "text": "### 3.2 项目角色输入\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-126-126",
+          "context": "FORMAT_ONLY",
+          "start_line": 126,
+          "end_line": 126,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-128-128",
+          "context": "FORMAT_ONLY",
+          "start_line": 128,
+          "end_line": 128,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-129-129",
+          "context": "FORMAT_ONLY",
+          "start_line": 129,
+          "end_line": 129,
+          "text": "| 权威输入路径 | 角色覆盖要求 |\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-130-130",
+          "context": "FORMAT_ONLY",
+          "start_line": 130,
+          "end_line": 130,
+          "text": "|---|---|\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-138-138",
+          "context": "FORMAT_ONLY",
+          "start_line": 138,
+          "end_line": 138,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-140-140",
+          "context": "FORMAT_ONLY",
+          "start_line": 140,
+          "end_line": 140,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-142-142",
+          "context": "FORMAT_ONLY",
+          "start_line": 142,
+          "end_line": 142,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-143-143",
+          "context": "FORMAT_ONLY",
+          "start_line": 143,
+          "end_line": 143,
+          "text": "### 3.3 输出与容量\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-144-144",
+          "context": "FORMAT_ONLY",
+          "start_line": 144,
+          "end_line": 144,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-146-146",
+          "context": "FORMAT_ONLY",
+          "start_line": 146,
+          "end_line": 146,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-148-148",
+          "context": "FORMAT_ONLY",
+          "start_line": 148,
+          "end_line": 148,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-150-150",
+          "context": "FORMAT_ONLY",
+          "start_line": 150,
+          "end_line": 150,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-151-151",
+          "context": "FORMAT_ONLY",
+          "start_line": 151,
+          "end_line": 151,
+          "text": "## 4. 任务范围内的本地与并行检查\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-152-152",
+          "context": "FORMAT_ONLY",
+          "start_line": 152,
+          "end_line": 152,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-153-153",
+          "context": "FORMAT_ONLY",
+          "start_line": 153,
+          "end_line": 153,
+          "text": "### 4.1 需要的事实\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-154-154",
+          "context": "FORMAT_ONLY",
+          "start_line": 154,
+          "end_line": 154,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-156-156",
+          "context": "FORMAT_ONLY",
+          "start_line": 156,
+          "end_line": 156,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-158-158",
+          "context": "FORMAT_ONLY",
+          "start_line": 158,
+          "end_line": 158,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-159-159",
+          "context": "FORMAT_ONLY",
+          "start_line": 159,
+          "end_line": 159,
+          "text": "### 4.2 relevance predicate 与证据\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-160-160",
+          "context": "FORMAT_ONLY",
+          "start_line": 160,
+          "end_line": 160,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-162-162",
+          "context": "FORMAT_ONLY",
+          "start_line": 162,
+          "end_line": 162,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-168-168",
+          "context": "FORMAT_ONLY",
+          "start_line": 168,
+          "end_line": 168,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-170-170",
+          "context": "FORMAT_ONLY",
+          "start_line": 170,
+          "end_line": 170,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-172-172",
+          "context": "FORMAT_ONLY",
+          "start_line": 172,
+          "end_line": 172,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-174-174",
+          "context": "FORMAT_ONLY",
+          "start_line": 174,
+          "end_line": 174,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-176-176",
+          "context": "FORMAT_ONLY",
+          "start_line": 176,
+          "end_line": 176,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-178-178",
+          "context": "FORMAT_ONLY",
+          "start_line": 178,
+          "end_line": 178,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-179-179",
+          "context": "FORMAT_ONLY",
+          "start_line": 179,
+          "end_line": 179,
+          "text": "## 5. 状态恢复与缺口\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-180-180",
+          "context": "FORMAT_ONLY",
+          "start_line": 180,
+          "end_line": 180,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-182-182",
+          "context": "FORMAT_ONLY",
+          "start_line": 182,
+          "end_line": 182,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-184-184",
+          "context": "FORMAT_ONLY",
+          "start_line": 184,
+          "end_line": 184,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-186-186",
+          "context": "FORMAT_ONLY",
+          "start_line": 186,
+          "end_line": 186,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-187-187",
+          "context": "FORMAT_ONLY",
+          "start_line": 187,
+          "end_line": 187,
+          "text": "## 6. Pack B 准备合同\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-188-188",
+          "context": "FORMAT_ONLY",
+          "start_line": 188,
+          "end_line": 188,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-190-190",
+          "context": "FORMAT_ONLY",
+          "start_line": 190,
+          "end_line": 190,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-191-191",
+          "context": "FORMAT_ONLY",
+          "start_line": 191,
+          "end_line": 191,
+          "text": "| 项 | 必须覆盖 |\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-192-192",
+          "context": "FORMAT_ONLY",
+          "start_line": 192,
+          "end_line": 192,
+          "text": "|---|---|\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-204-204",
+          "context": "FORMAT_ONLY",
+          "start_line": 204,
+          "end_line": 204,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-206-206",
+          "context": "FORMAT_ONLY",
+          "start_line": 206,
+          "end_line": 206,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-208-208",
+          "context": "FORMAT_ONLY",
+          "start_line": 208,
+          "end_line": 208,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-209-209",
+          "context": "FORMAT_ONLY",
+          "start_line": 209,
+          "end_line": 209,
+          "text": "## 7. Pack C Measurement Plan\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-210-210",
+          "context": "FORMAT_ONLY",
+          "start_line": 210,
+          "end_line": 210,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-212-212",
+          "context": "FORMAT_ONLY",
+          "start_line": 212,
+          "end_line": 212,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-213-213",
+          "context": "FORMAT_ONLY",
+          "start_line": 213,
+          "end_line": 213,
+          "text": "| 维度 | 必填 |\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-214-214",
+          "context": "FORMAT_ONLY",
+          "start_line": 214,
+          "end_line": 214,
+          "text": "|---|---|\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-223-223",
+          "context": "FORMAT_ONLY",
+          "start_line": 223,
+          "end_line": 223,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-225-225",
+          "context": "FORMAT_ONLY",
+          "start_line": 225,
+          "end_line": 225,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-226-226",
+          "context": "FORMAT_ONLY",
+          "start_line": 226,
+          "end_line": 226,
+          "text": "## 8. Failure / authority invariants\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-227-227",
+          "context": "FORMAT_ONLY",
+          "start_line": 227,
+          "end_line": 227,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-236-236",
+          "context": "FORMAT_ONLY",
+          "start_line": 236,
+          "end_line": 236,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-237-237",
+          "context": "FORMAT_ONLY",
+          "start_line": 237,
+          "end_line": 237,
+          "text": "## 9. Verification Contract 与 Gate A checklist\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-238-238",
+          "context": "FORMAT_ONLY",
+          "start_line": 238,
+          "end_line": 238,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-240-240",
+          "context": "FORMAT_ONLY",
+          "start_line": 240,
+          "end_line": 240,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-242-242",
+          "context": "FORMAT_ONLY",
+          "start_line": 242,
+          "end_line": 242,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-244-244",
+          "context": "FORMAT_ONLY",
+          "start_line": 244,
+          "end_line": 244,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-253-253",
+          "context": "FORMAT_ONLY",
+          "start_line": 253,
+          "end_line": 253,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-255-255",
+          "context": "FORMAT_ONLY",
+          "start_line": 255,
+          "end_line": 255,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-257-257",
+          "context": "FORMAT_ONLY",
+          "start_line": 257,
+          "end_line": 257,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-258-258",
+          "context": "FORMAT_ONLY",
+          "start_line": 258,
+          "end_line": 258,
+          "text": "## 10. AC01–AC14 与完成边界\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-259-259",
+          "context": "FORMAT_ONLY",
+          "start_line": 259,
+          "end_line": 259,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-260-260",
+          "context": "FORMAT_ONLY",
+          "start_line": 260,
+          "end_line": 260,
+          "text": "| AC | 准备自检义务 |\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-261-261",
+          "context": "FORMAT_ONLY",
+          "start_line": 261,
+          "end_line": 261,
+          "text": "|---|---|\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-276-276",
+          "context": "FORMAT_ONLY",
+          "start_line": 276,
+          "end_line": 276,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-278-278",
+          "context": "FORMAT_ONLY",
+          "start_line": 278,
+          "end_line": 278,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-280-280",
+          "context": "FORMAT_ONLY",
+          "start_line": 280,
+          "end_line": 280,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-281-281",
+          "context": "FORMAT_ONLY",
+          "start_line": 281,
+          "end_line": 281,
+          "text": "## 11. 产物、Review 与总控同步\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-282-282",
+          "context": "FORMAT_ONLY",
+          "start_line": 282,
+          "end_line": 282,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-284-284",
+          "context": "FORMAT_ONLY",
+          "start_line": 284,
+          "end_line": 284,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-286-286",
+          "context": "FORMAT_ONLY",
+          "start_line": 286,
+          "end_line": 286,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-288-288",
+          "context": "FORMAT_ONLY",
+          "start_line": 288,
+          "end_line": 288,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-290-290",
+          "context": "FORMAT_ONLY",
+          "start_line": 290,
+          "end_line": 290,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-292-292",
+          "context": "FORMAT_ONLY",
+          "start_line": 292,
+          "end_line": 292,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-294-294",
+          "context": "FORMAT_ONLY",
+          "start_line": 294,
+          "end_line": 294,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-295-295",
+          "context": "FORMAT_ONLY",
+          "start_line": 295,
+          "end_line": 295,
+          "text": "## 12. 本窗口设计记录与技术依据\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-296-296",
+          "context": "FORMAT_ONLY",
+          "start_line": 296,
+          "end_line": 296,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-298-298",
+          "context": "FORMAT_ONLY",
+          "start_line": 298,
+          "end_line": 298,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-300-300",
+          "context": "FORMAT_ONLY",
+          "start_line": 300,
+          "end_line": 300,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-302-302",
+          "context": "FORMAT_ONLY",
+          "start_line": 302,
+          "end_line": 302,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-307-307",
+          "context": "FORMAT_ONLY",
+          "start_line": 307,
+          "end_line": 307,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-309-309",
+          "context": "FORMAT_ONLY",
+          "start_line": 309,
+          "end_line": 309,
+          "text": "\n",
+          "content_type": "TEXT"
+        }
+      ]
+    },
+    "historical_source_claims": {
+      "source_records": [
+        {
+          "record_id": "SRC-013-013",
+          "context": "HISTORICAL_CLAIM_NOT_REATTESTED",
+          "start_line": 13,
+          "end_line": 13,
+          "text": "用户报告 safe launch metadata = gpt-6.1-sol / high / Codex Desktop，服务端内部身份 NOT_VERIFIED；两仓库 main 起止一致。STOP 报告 SHA-256：`dd235c73711938df7537c147f2b204a62cad49cddd5ac64ae137abcb30dd9c12`。本窗口无法读取 E:/Temp/PRE-RAI-ACT-PREP-01-RERUN-03-20261002T202150Z-4920aeba 的文件；上述属回贴证据，不是本窗口独立文件审核 PASS。\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-297-297",
+          "context": "HISTORICAL_CLAIM_NOT_REATTESTED",
+          "start_line": 297,
+          "end_line": 297,
+          "text": "本窗口重新核验两仓库 main，仍匹配 §2；完整重新阅读 Bootstrap/Manifest、6/6 rules、完整治理 PROJECT_STATE、EMRP 及 RERUN-03 当前全部 283 行。绑定 commit 未变，对先前取得的 exact governance 内容重新完整阅读，不继承旧 PASS 标签。只新建本卡，不改旧卡、任何仓库或 Windows STOP 证据。\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-299-299",
+          "context": "HISTORICAL_CLAIM_NOT_REATTESTED",
+          "start_line": 299,
+          "end_line": 299,
+          "text": "本窗口验证了探针的 Unicode/code points、41-byte UTF-8 digest、严格 roundtrip、合成 GBK 坏样本拒绝。此验证在本窗口执行环境完成，**不是 Windows/Codex Desktop 的实际链路验证**；后者须由新运行在读取治理之前完成并留下证据。没有官方验证、独立 Review、Human Gate 或 Preparation Candidate。\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-301-301",
+          "context": "HISTORICAL_CLAIM_NOT_REATTESTED",
+          "start_line": 301,
+          "end_line": 301,
+          "text": "技术依据（官方资料，2026-10-03 北京时间访问）：\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-303-303",
+          "context": "HISTORICAL_CLAIM_NOT_REATTESTED",
+          "start_line": 303,
+          "end_line": 303,
+          "text": "- Python standard streams / UTF-8 mode：https://docs.python.org/3/library/sys.html\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-304-304",
+          "context": "HISTORICAL_CLAIM_NOT_REATTESTED",
+          "start_line": 304,
+          "end_line": 304,
+          "text": "- Python TextIOWrapper.reconfigure / binary 与 text I/O：https://docs.python.org/3/library/io.html\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-305-305",
+          "context": "HISTORICAL_CLAIM_NOT_REATTESTED",
+          "start_line": 305,
+          "end_line": 305,
+          "text": "- Python PYTHONIOENCODING：https://docs.python.org/3/using/cmdline.html\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-306-306",
+          "context": "HISTORICAL_CLAIM_NOT_REATTESTED",
+          "start_line": 306,
+          "end_line": 306,
+          "text": "- PowerShell character encoding / version 与 native-program encoding：https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_character_encoding\n",
+          "content_type": "TEXT"
+        }
+      ]
+    },
+    "original_dispatch_projection": {
+      "source_records": [
+        {
+          "record_id": "SRC-310-310",
+          "context": "PRESERVED_SOURCE_PROJECTION_NOT_DISPATCH",
+          "start_line": 310,
+          "end_line": 310,
+          "text": "## 13. 配套启动提示词\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-311-311",
+          "context": "PRESERVED_SOURCE_PROJECTION_NOT_DISPATCH",
+          "start_line": 311,
+          "end_line": 311,
+          "text": "\n",
+          "content_type": "TEXT"
+        },
+        {
+          "record_id": "SRC-312-341",
+          "context": "PRESERVED_SOURCE_PROJECTION_NOT_DISPATCH",
+          "start_line": 312,
+          "end_line": 341,
+          "text": "```text\n执行附件 PRE-RAI-ACT-PREP-01-RERUN-04 v0.1。\n独立新运行，只做 Activation Preparation，四次历史 STOP 全保留。\n推荐 GPT-6.1 Sol / Codex Desktop / High；fresh safe launch metadata 如实记录，\n未暴露的服务端内部 identity 仍 NOT_VERIFIED。\n\n不要直接使用旧分页工具读取治理/PRE。\n先按本卡 §1 在当前工具进程固定 PowerShell/Python/stdout/stderr/接收端编码。\n只使用仓库外非治理合成样本，完成同一实际工具通路的 Unicode端到端探针、\nUTF-8 41-byte/hash核对和坏编码拒绝测试。不得把真实治理文件作试验样本。\n样本失败即 STOP；样本通过只等于工具编码自检通过。\n\n再核对双方 fresh main、完整加载 required governance，恢复角色 source 和引用闭合。\n每页 strict UTF-8 decode/encode、范围与digest；禁止 replace/ignore/猜GBK。\nrequired 原文乱码、实际截断、缺页、容量不足或漂移即 STOP；不得同运行撤销。\n\n本卡独立成文，不加载旧卡/全仓库清单。模型完整读取任务相关 preflight 记录，\n保留 predicate、raw hash、counts与解析证据，不宣称全局 clearance。\n按 AC01–AC14 完成 Pack B/C、eligibility、failure、Verification Contract、Gate A checklist。\nMeasurement Plan 与 Accepted Threshold 分开，未批准数值不写 Accepted。\n\n零仓库写、零 Provider、零 secret、零 Runtime/DB、零 Gate/经济动作。\n成功只停在 READY_FOR_PREPARATION_REVIEW / NOT_ACCEPTED / NOT_ACTIVATED。\n未执行的 Official Verification / Independent Review / Human Gate 均 NOT_PERFORMED。\n不得生成 Activate Gate A 卡，不自动发送消息。\n\n完整 Candidate及digest、Encoding Probe evidence、Coverage/Preflight Ledger、\nResult/Changes/Verification/Remaining/Evidence和总控九字段摘要回贴：\nMarketPulse-AI｜Real AI Activation｜Task Design & Review。\n```\n",
+          "content_type": "ORIGINAL_DISPATCH_TEXT"
+        }
+      ]
+    },
+    "source_order": [
+      "/representation/source_formatting/source_records/0",
+      "/representation/source_formatting/source_records/1",
+      "/governance/source_records/0",
+      "/representation/source_formatting/source_records/2",
+      "/governance/source_records/1",
+      "/representation/source_formatting/source_records/3",
+      "/governance/source_records/2",
+      "/representation/source_formatting/source_records/4",
+      "/representation/source_formatting/source_records/5",
+      "/representation/source_formatting/source_records/6",
+      "/governance/source_records/3",
+      "/representation/source_formatting/source_records/7",
+      "/representation/historical_source_claims/source_records/0",
+      "/representation/source_formatting/source_records/8",
+      "/representation/source_formatting/source_records/9",
+      "/representation/source_formatting/source_records/10",
+      "/execution/source_records/0",
+      "/representation/source_formatting/source_records/11",
+      "/execution/source_records/1",
+      "/representation/source_formatting/source_records/12",
+      "/execution/source_records/2",
+      "/representation/source_formatting/source_records/13",
+      "/execution/source_records/3",
+      "/representation/source_formatting/source_records/14",
+      "/execution/source_records/4",
+      "/representation/source_formatting/source_records/15",
+      "/execution/source_records/5",
+      "/representation/source_formatting/source_records/16",
+      "/representation/source_formatting/source_records/17",
+      "/representation/source_formatting/source_records/18",
+      "/execution/source_records/6",
+      "/representation/source_formatting/source_records/19",
+      "/execution/source_records/7",
+      "/representation/source_formatting/source_records/20",
+      "/execution/source_records/8",
+      "/representation/source_formatting/source_records/21",
+      "/execution/source_records/9",
+      "/representation/source_formatting/source_records/22",
+      "/execution/source_records/10",
+      "/representation/source_formatting/source_records/23",
+      "/execution/source_records/11",
+      "/representation/source_formatting/source_records/24",
+      "/representation/source_formatting/source_records/25",
+      "/representation/source_formatting/source_records/26",
+      "/execution/source_records/12",
+      "/execution/source_records/13",
+      "/execution/source_records/14",
+      "/execution/source_records/15",
+      "/execution/source_records/16",
+      "/execution/source_records/17",
+      "/execution/source_records/18",
+      "/execution/source_records/19",
+      "/representation/source_formatting/source_records/27",
+      "/boundary/source_records/0",
+      "/representation/source_formatting/source_records/28",
+      "/representation/source_formatting/source_records/29",
+      "/representation/source_formatting/source_records/30",
+      "/representation/source_formatting/source_records/31",
+      "/representation/source_formatting/source_records/32",
+      "/identity/source_records/0",
+      "/identity/source_records/1",
+      "/identity/source_records/2",
+      "/governance/source_records/4",
+      "/governance/source_records/5",
+      "/governance/source_records/6",
+      "/governance/source_records/7",
+      "/governance/source_records/8",
+      "/execution/source_records/20",
+      "/execution/source_records/21",
+      "/execution/source_records/22",
+      "/identity/source_records/3",
+      "/identity/source_records/4",
+      "/governance/source_records/9",
+      "/execution/source_records/23",
+      "/execution/source_records/24",
+      "/identity/source_records/5",
+      "/representation/source_formatting/source_records/33",
+      "/execution/source_records/25",
+      "/representation/source_formatting/source_records/34",
+      "/boundary/source_records/1",
+      "/boundary/source_records/2",
+      "/boundary/source_records/3",
+      "/boundary/source_records/4",
+      "/verification_acceptance/source_records/0",
+      "/representation/source_formatting/source_records/35",
+      "/execution/source_records/26",
+      "/representation/source_formatting/source_records/36",
+      "/representation/source_formatting/source_records/37",
+      "/representation/source_formatting/source_records/38",
+      "/representation/source_formatting/source_records/39",
+      "/representation/source_formatting/source_records/40",
+      "/execution/source_records/27",
+      "/representation/source_formatting/source_records/41",
+      "/governance/source_records/10",
+      "/governance/source_records/11",
+      "/governance/source_records/12",
+      "/governance/source_records/13",
+      "/governance/source_records/14",
+      "/governance/source_records/15",
+      "/governance/source_records/16",
+      "/governance/source_records/17",
+      "/governance/source_records/18",
+      "/governance/source_records/19",
+      "/representation/source_formatting/source_records/42",
+      "/governance/source_records/20",
+      "/representation/source_formatting/source_records/43",
+      "/governance/source_records/21",
+      "/representation/source_formatting/source_records/44",
+      "/representation/source_formatting/source_records/45",
+      "/representation/source_formatting/source_records/46",
+      "/governance/source_records/22",
+      "/representation/source_formatting/source_records/47",
+      "/representation/source_formatting/source_records/48",
+      "/representation/source_formatting/source_records/49",
+      "/governance/source_records/23",
+      "/governance/source_records/24",
+      "/governance/source_records/25",
+      "/governance/source_records/26",
+      "/governance/source_records/27",
+      "/governance/source_records/28",
+      "/governance/source_records/29",
+      "/representation/source_formatting/source_records/50",
+      "/governance/source_records/30",
+      "/representation/source_formatting/source_records/51",
+      "/governance/source_records/31",
+      "/representation/source_formatting/source_records/52",
+      "/representation/source_formatting/source_records/53",
+      "/representation/source_formatting/source_records/54",
+      "/execution/source_records/28",
+      "/representation/source_formatting/source_records/55",
+      "/execution/source_records/29",
+      "/representation/source_formatting/source_records/56",
+      "/execution/source_records/30",
+      "/representation/source_formatting/source_records/57",
+      "/representation/source_formatting/source_records/58",
+      "/representation/source_formatting/source_records/59",
+      "/representation/source_formatting/source_records/60",
+      "/representation/source_formatting/source_records/61",
+      "/boundary/source_records/5",
+      "/representation/source_formatting/source_records/62",
+      "/boundary/source_records/6",
+      "/representation/source_formatting/source_records/63",
+      "/representation/source_formatting/source_records/64",
+      "/representation/source_formatting/source_records/65",
+      "/boundary/source_records/7",
+      "/representation/source_formatting/source_records/66",
+      "/boundary/source_records/8",
+      "/boundary/source_records/9",
+      "/boundary/source_records/10",
+      "/boundary/source_records/11",
+      "/boundary/source_records/12",
+      "/representation/source_formatting/source_records/67",
+      "/boundary/source_records/13",
+      "/representation/source_formatting/source_records/68",
+      "/boundary/source_records/14",
+      "/representation/source_formatting/source_records/69",
+      "/boundary/source_records/15",
+      "/representation/source_formatting/source_records/70",
+      "/boundary/source_records/16",
+      "/representation/source_formatting/source_records/71",
+      "/boundary/source_records/17",
+      "/representation/source_formatting/source_records/72",
+      "/representation/source_formatting/source_records/73",
+      "/representation/source_formatting/source_records/74",
+      "/governance/source_records/32",
+      "/representation/source_formatting/source_records/75",
+      "/execution/source_records/31",
+      "/representation/source_formatting/source_records/76",
+      "/execution/source_records/32",
+      "/representation/source_formatting/source_records/77",
+      "/representation/source_formatting/source_records/78",
+      "/representation/source_formatting/source_records/79",
+      "/execution/source_records/33",
+      "/representation/source_formatting/source_records/80",
+      "/representation/source_formatting/source_records/81",
+      "/representation/source_formatting/source_records/82",
+      "/execution/source_records/34",
+      "/execution/source_records/35",
+      "/execution/source_records/36",
+      "/execution/source_records/37",
+      "/execution/source_records/38",
+      "/execution/source_records/39",
+      "/execution/source_records/40",
+      "/execution/source_records/41",
+      "/execution/source_records/42",
+      "/execution/source_records/43",
+      "/execution/source_records/44",
+      "/representation/source_formatting/source_records/83",
+      "/execution/source_records/45",
+      "/representation/source_formatting/source_records/84",
+      "/execution/source_records/46",
+      "/representation/source_formatting/source_records/85",
+      "/representation/source_formatting/source_records/86",
+      "/representation/source_formatting/source_records/87",
+      "/execution/source_records/47",
+      "/representation/source_formatting/source_records/88",
+      "/representation/source_formatting/source_records/89",
+      "/representation/source_formatting/source_records/90",
+      "/execution/source_records/48",
+      "/execution/source_records/49",
+      "/execution/source_records/50",
+      "/execution/source_records/51",
+      "/execution/source_records/52",
+      "/execution/source_records/53",
+      "/execution/source_records/54",
+      "/execution/source_records/55",
+      "/representation/source_formatting/source_records/91",
+      "/execution/source_records/56",
+      "/representation/source_formatting/source_records/92",
+      "/representation/source_formatting/source_records/93",
+      "/representation/source_formatting/source_records/94",
+      "/governance/source_records/33",
+      "/governance/source_records/34",
+      "/governance/source_records/35",
+      "/governance/source_records/36",
+      "/governance/source_records/37",
+      "/governance/source_records/38",
+      "/governance/source_records/39",
+      "/governance/source_records/40",
+      "/representation/source_formatting/source_records/95",
+      "/representation/source_formatting/source_records/96",
+      "/representation/source_formatting/source_records/97",
+      "/verification_acceptance/source_records/1",
+      "/representation/source_formatting/source_records/98",
+      "/verification_acceptance/source_records/2",
+      "/representation/source_formatting/source_records/99",
+      "/verification_acceptance/source_records/3",
+      "/representation/source_formatting/source_records/100",
+      "/verification_acceptance/source_records/4",
+      "/verification_acceptance/source_records/5",
+      "/verification_acceptance/source_records/6",
+      "/verification_acceptance/source_records/7",
+      "/verification_acceptance/source_records/8",
+      "/verification_acceptance/source_records/9",
+      "/verification_acceptance/source_records/10",
+      "/verification_acceptance/source_records/11",
+      "/representation/source_formatting/source_records/101",
+      "/verification_acceptance/source_records/12",
+      "/representation/source_formatting/source_records/102",
+      "/verification_acceptance/source_records/13",
+      "/representation/source_formatting/source_records/103",
+      "/representation/source_formatting/source_records/104",
+      "/representation/source_formatting/source_records/105",
+      "/representation/source_formatting/source_records/106",
+      "/representation/source_formatting/source_records/107",
+      "/verification_acceptance/source_records/14",
+      "/verification_acceptance/source_records/15",
+      "/verification_acceptance/source_records/16",
+      "/verification_acceptance/source_records/17",
+      "/verification_acceptance/source_records/18",
+      "/verification_acceptance/source_records/19",
+      "/verification_acceptance/source_records/20",
+      "/verification_acceptance/source_records/21",
+      "/verification_acceptance/source_records/22",
+      "/verification_acceptance/source_records/23",
+      "/verification_acceptance/source_records/24",
+      "/verification_acceptance/source_records/25",
+      "/verification_acceptance/source_records/26",
+      "/verification_acceptance/source_records/27",
+      "/representation/source_formatting/source_records/108",
+      "/boundary/source_records/18",
+      "/representation/source_formatting/source_records/109",
+      "/boundary/source_records/19",
+      "/representation/source_formatting/source_records/110",
+      "/representation/source_formatting/source_records/111",
+      "/representation/source_formatting/source_records/112",
+      "/result/source_records/0",
+      "/representation/source_formatting/source_records/113",
+      "/result/source_records/1",
+      "/representation/source_formatting/source_records/114",
+      "/result/source_records/2",
+      "/representation/source_formatting/source_records/115",
+      "/verification_acceptance/source_records/28",
+      "/representation/source_formatting/source_records/116",
+      "/verification_acceptance/source_records/29",
+      "/representation/source_formatting/source_records/117",
+      "/result/source_records/3",
+      "/representation/source_formatting/source_records/118",
+      "/representation/source_formatting/source_records/119",
+      "/representation/source_formatting/source_records/120",
+      "/representation/historical_source_claims/source_records/1",
+      "/representation/source_formatting/source_records/121",
+      "/representation/historical_source_claims/source_records/2",
+      "/representation/source_formatting/source_records/122",
+      "/representation/historical_source_claims/source_records/3",
+      "/representation/source_formatting/source_records/123",
+      "/representation/historical_source_claims/source_records/4",
+      "/representation/historical_source_claims/source_records/5",
+      "/representation/historical_source_claims/source_records/6",
+      "/representation/historical_source_claims/source_records/7",
+      "/representation/source_formatting/source_records/124",
+      "/execution/source_records/57",
+      "/representation/source_formatting/source_records/125",
+      "/representation/original_dispatch_projection/source_records/0",
+      "/representation/original_dispatch_projection/source_records/1",
+      "/representation/original_dispatch_projection/source_records/2"
+    ],
+    "unresolved_field_policy": "UNKNOWN values record absent source information; they are not fabricated accepted values or permissions."
   }
 }

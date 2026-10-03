@@ -2608,3 +2608,12 @@ UI-RD01-I03-REQ-04 — Trading Audit Read Product Read Implementation Requiremen
 - Structured Review R01 = `PASS`, blocking findings = `0`; Human Freeze = `CONFIRM` bound to exact candidate SHA-256 `eb5156414bff97f201a0d835c4c052ea2cac51fedd73c4d4b37e590f6ac249f7`; currency revalidation = `PASS_CURRENT_REBIND_ALLOWED`.
 - Execution Authorization = `NOT_GRANTED`; RERUN-04 = `NOT_STARTED`. Real AI = `NOT ACTIVATED`; Gate A/B = `NOT ACTIVATED`; Gate C = `NOT PASSED`; live G2→G3 = `NOT ACTIVE`; Live = `NOT AUTHORIZED`; Live Trading = `DISABLED`.
 - No provider, secret, runtime, database, economic, or activation action occurred. Details: `docs/design/PRE-RAI-ACT/PRE-RAI-ACT-PREP-01-RERUN-04-FROZEN-TRUTH-MANIFEST-v0.1.md` and `dev_log/2026-10-03-pre-rai-act-prep-01-rerun-04-freeze-persist-01-rerun-02.md`.
+
+## PRE-RAI-ACT-PREP-01-RERUN-04 Freeze Persistence Targeted Binding Fix — Candidate
+
+- Task: `PRE-RAI-ACT-PREP-01-RERUN-04-FREEZE-PERSIST-01-RERUN-02-FIX-01-RERUN-01`; status: `FREEZE_PERSISTENCE_FIX_CANDIDATE_READY_FOR_INDEPENDENT_REVIEW`; branch: `pre-rai-act-prep-01-rerun-04-freeze-persist-01-rerun-02-fix-01-rerun-01`, parent: `05d93ae20c147871c1259189a5cdceb74efe7cfc`.
+- BF-01 candidate correction: persisted Structured TaskContract is byte-identical to the attached RERUN-04 subject candidate (141253 bytes; SHA-256 `eb5156414bff97f201a0d835c4c052ea2cac51fedd73c4d4b37e590f6ac249f7`; parsed `task_id = PRE-RAI-ACT-PREP-01-RERUN-04`).
+- BF-02 candidate correction: Frozen Truth Manifest PRE-01B-D2 blob is `d08d7feebec4c0b8d74b550a75d161659709cd70`; no other binding was changed.
+- This branch-local persistence fix carries forward the parent evidence: Structured Review R01 = `PASS / 0 blocking findings`; Human Freeze = `CONFIRM`; currency revalidation = `PASS_CURRENT_REBIND_ALLOWED`. No review, freeze confirmation, or currency review was performed by this task.
+- Freeze effective on `main` = `FALSE`; Execution Authorization = `NOT_GRANTED`; RERUN-04 = `NOT_STARTED`. Real AI = `NOT ACTIVATED`; Gate A/B = `NOT ACTIVATED`; Gate C = `NOT PASSED`; live `G2→G3` = `NOT ACTIVE`; Live = `NOT AUTHORIZED`; Live Trading = `DISABLED`.
+- Provider I/O, secret access, runtime execution, database access, economic action, and activation = `NONE`. Next gate: `PRE-RAI-ACT-PREP-01-RERUN-04-FREEZE-PERSIST-R01` independent persistence review.

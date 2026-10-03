@@ -12,6 +12,6 @@
   - `SDR-R01-NB-01`: `creation_registry_identity` is `UNKNOWN` / null because no source registry identity was supplied.
   - `SDR-R01-NB-02`: the referenced FORMALIZE-01 `control_contract` (13156 bytes / declared SHA-256 prefix `69fda6d3…b19b48`) was absent from the review bundle and was not independently re-hashed by that review.
   - `SDR-R01-NB-03`: `original_source.path` has an `inputs/` prefix absent from the bundle; the delivered source bytes matched the declared identity.
-- Frozen authority blobs remain exact: PRE-01A-D1 `e8ec84246d07d0c6a7de9def78cd40d5690e6d01`; PRE-01B-D1 `6e11c088e41b0968a492742eb26fa6b2b94e5991`; PRE-01B-D2 `d08d7feebec4c0b8d74b550a75a161659709cd70`; PRE-01B-I2-AUTH-D01 `b91a6f7772e7894aeb9d801ea7dc62aa57a4ba40`; PRE-RAI-R01-RESUME-01 `997aa1dd3cbec6b9661e98e0354691a657d07511`.
+- Frozen authority blobs remain exact: PRE-01A-D1 `e8ec84246d07d0c6a7de9def78cd40d5690e6d01`; PRE-01B-D1 `6e11c088e41b0968a492742eb26fa6b2b94e5991`; PRE-01B-D2 `d08d7feebec4c0b8d74b550a75d161659709cd70`; PRE-01B-I2-AUTH-D01 `b91a6f7772e7894aeb9d801ea7dc62aa57a4ba40`; PRE-RAI-R01-RESUME-01 `997aa1dd3cbec6b9661e98e0354691a657d07511`.
 - Safety state: Real AI `NOT ACTIVATED`; Gate A/B `NOT ACTIVATED`; Gate C `NOT PASSED`; live G2→G3 `NOT ACTIVE`; Live `NOT AUTHORIZED`; Live Trading `DISABLED`; Execution Authorization `NOT_GRANTED`; RERUN-04 `NOT_STARTED`.
 - Provider I/O, secret access, runtime execution, database access, economic action, and activation: none.
