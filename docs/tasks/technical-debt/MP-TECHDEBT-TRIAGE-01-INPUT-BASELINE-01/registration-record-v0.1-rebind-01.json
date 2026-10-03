@@ -1,0 +1,79 @@
+{
+  "registration_id": "MP-TECHDEBT-TRIAGE-01-INPUT-BASELINE-01-REG-v0.1-rebind-01",
+  "control_task_id": "MP-TECHDEBT-TRIAGE-01-INPUT-BASELINE-01-CONTRACT-REBIND-01",
+  "task_id": "MP-TECHDEBT-TRIAGE-01-INPUT-BASELINE-01",
+  "task_version": "v0.1",
+  "formalization_task_id": "MP-TECHDEBT-TRIAGE-01-INPUT-BASELINE-01-CONTRACT-FORMALIZE-01-RERUN-01",
+  "prior_formalization_candidate": "9556e0c21100c04a4a36c875f0fa139fdddc0d83",
+  "registration_state": "FORMAL_TASKCONTRACT_REBOUND",
+  "dispatch_state": "READY_FOR_REDISPATCH",
+  "registration_scope": "PROJECT-LOCAL / BRANCH_ONLY; no Workflow/AWB registry mutation or main integration",
+  "subject_execution": "NOT_STARTED",
+  "product_acceptance": "NOT_APPLICABLE",
+  "main_integration": "NOT_PERFORMED / NOT_REQUIRED_FOR_BRANCH_BOUND_DISPATCH",
+  "canonical_authority": {
+    "path": "docs/tasks/technical-debt/MP-TECHDEBT-TRIAGE-01-INPUT-BASELINE-01/task-contract-v0.1-rebind-01.json",
+    "git_blob_sha1": "5e4a8a0792a31eb5e62d29f05ffb9ce95c69a009",
+    "bytes": 37757,
+    "sha256": "68e78126634d8a0abbb95dcefcc961622bd13a11f48ebb740b5cc4e32819d9c5"
+  },
+  "readable_projection": {
+    "path": "docs/tasks/technical-debt/MP-TECHDEBT-TRIAGE-01-INPUT-BASELINE-01/task-contract-v0.1-rebind-01.md",
+    "git_blob_sha1": "2fac1b9288031468d3402b37547ced783e43e38f",
+    "bytes": 21330,
+    "sha256": "cbafe51321c5d28c6dba975e09ba96cd62687199442df1bf2d53149c657f8749"
+  },
+  "resolved_execution_profile": {
+    "path": "docs/tasks/technical-debt/MP-TECHDEBT-TRIAGE-01-INPUT-BASELINE-01/resolved-execution-profile-v0.1-rebind-01.json",
+    "git_blob_sha1": "08c5fdbd1f4456a99cd134a0bc8451b13a5b1f1e",
+    "bytes": 3316,
+    "sha256": "f31ae8c308ce3c70dfc4dc6b76ed6211907ccedfa137afdaeccf9e4a2946f511"
+  },
+  "dispatch_projection": {
+    "path": "docs/tasks/technical-debt/MP-TECHDEBT-TRIAGE-01-INPUT-BASELINE-01/dispatch-projection-v0.1-rebind-01.md",
+    "git_blob_sha1": "6bd77966ba3e6abfae8be85fbc3478f3ebb61606",
+    "bytes": 22226,
+    "sha256": "705c0c5a2e0f9db191eac26d2de69ea2b9751fb1bd55843a106651b12e9af078"
+  },
+  "rebind_record_path": "docs/tasks/technical-debt/MP-TECHDEBT-TRIAGE-01-INPUT-BASELINE-01/rebind-record-v0.1.json",
+  "original_canonical_identity": {
+    "path": "docs/tasks/technical-debt/MP-TECHDEBT-TRIAGE-01-INPUT-BASELINE-01/task-contract-v0.1.json",
+    "git_blob_sha1": "ed3f8814561972220df4080f7476efb2e887762c",
+    "bytes": 36397,
+    "sha256": "611e917cb23d8b3825a110ee8da826f1f15d2ae23678b7a0cdb0a1982b563175"
+  },
+  "contract_binding": {
+    "task_id": "MP-TECHDEBT-TRIAGE-01-INPUT-BASELINE-01",
+    "task_version": "v0.1",
+    "governance": {
+      "repository": "zwmhua2-lab2/ai-dev-workflow",
+      "authority_ref": "origin/main",
+      "commit": "cbc1a221646a9f4703a65e626e58cf192ed96426",
+      "governance_version": "0.1.0",
+      "rule_pack_version": "0.1.0",
+      "manifest_identity": "fd00-rule-manifest/0.1.0",
+      "mode": "SELF_HOSTED",
+      "execution_profile": "EMRP-1.1"
+    },
+    "repository": {
+      "repository": "zwmhua2-lab2/MarketPulse-AI",
+      "authority_ref": "origin/main",
+      "commit": "1dbdc3f318fa1e96396a8b6058796a5a6f1811f1",
+      "binding_mode": "EXACT BASELINE / REBIND ON DRIFT"
+    }
+  },
+  "lineage": {
+    "original_registration_record_blob": "5f97143d2ba643c95964477b888fd50ef516d66d",
+    "original_resolved_profile_blob": "1abdcd270ae1b94d89d27022d6c29ac844c9ef3f",
+    "original_dispatch_projection_blob": "d702742b1afec15570a509144de92adf24d11af6",
+    "stale_dispatch_run_id": "MP-INPUT-BASELINE-01-STOP-20261003"
+  },
+  "rule_load": {
+    "state": "PASS",
+    "required_active": 6,
+    "fully_read": 6,
+    "manifest": "fd00-rule-manifest/0.1.0",
+    "workflow_commit": "cbc1a221646a9f4703a65e626e58cf192ed96426"
+  },
+  "rebind_state": "CURRENT_REBOUND"
+}

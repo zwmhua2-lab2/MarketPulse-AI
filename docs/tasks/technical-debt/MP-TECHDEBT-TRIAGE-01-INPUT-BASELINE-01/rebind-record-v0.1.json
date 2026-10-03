@@ -1,0 +1,160 @@
+{
+  "control_task_id": "MP-TECHDEBT-TRIAGE-01-INPUT-BASELINE-01-CONTRACT-REBIND-01",
+  "record_version": "v0.1",
+  "rebind_state": "CURRENT_REBOUND",
+  "repository": "zwmhua2-lab2/MarketPulse-AI",
+  "branch": "techdebt/mp-techdebt-triage-01-input-baseline-01-contract-rebind-01",
+  "branch_base": "1dbdc3f318fa1e96396a8b6058796a5a6f1811f1",
+  "old_repository_baseline": "8c94ea338f500e2ea4dd2f8a5ccc81a65502468e",
+  "new_repository_baseline": "1dbdc3f318fa1e96396a8b6058796a5a6f1811f1",
+  "git_compare": {
+    "status": "COMPLETE",
+    "merge_base": "8c94ea338f500e2ea4dd2f8a5ccc81a65502468e",
+    "ahead": 2,
+    "behind": 0,
+    "left_right_count": "0 2",
+    "old_main_descends_to_new": true,
+    "changed_paths": [
+      "PROJECT_STATE.md",
+      "dev_log/2026-10-03-ui-rd01-i04-supp-02-v02-taskcontract-integration.md",
+      "dev_log/2026-10-03-ui-rd01-i04-supp-02-v02-taskcontract-materialization.md",
+      "docs/task-contracts/UI-RD01/UI-RD01-I04-REQ-PERSIST-R01-SUPP-02-v0.2-REGISTRATION-RECORD.md",
+      "docs/task-contracts/UI-RD01/UI-RD01-I04-REQ-PERSIST-R01-SUPP-02-v0.2.task-contract.json",
+      "docs/task-contracts/UI-RD01/UI-RD01-I04-REQ-PERSIST-R01-SUPP-02-v0.2.task-contract.md",
+      "docs/task-contracts/UI-RD01/reviews/UI-RD01-I04-REQ-PERSIST-R01-SUPP-02-TC-FORMALIZE-R01-RESULT-v0.1.md"
+    ]
+  },
+  "changed_commit_identities": [
+    {
+      "sha": "9a7e8aec026381a941246e5d0ad046e938636134",
+      "parents": [
+        "8c94ea338f500e2ea4dd2f8a5ccc81a65502468e"
+      ],
+      "subject": "docs(ui-rd01-i04): materialize SUPP-02 v0.2 task contract candidate"
+    },
+    {
+      "sha": "1dbdc3f318fa1e96396a8b6058796a5a6f1811f1",
+      "parents": [
+        "9a7e8aec026381a941246e5d0ad046e938636134"
+      ],
+      "subject": "docs(ui-rd01-i04): register SUPP-02 task contract"
+    }
+  ],
+  "drift_classification": "NON_MATERIAL_REBINDABLE",
+  "materiality_analysis": {
+    "subject_A_H_semantics_changed": false,
+    "subject_acceptance_criteria_changed": false,
+    "technical_debt_authority_superseded": false,
+    "backend_frontend_schema_migration_dependency_or_runtime_changed": false,
+    "governance_changed": false,
+    "project_state_delta_understood": "It records UI-RD01-I04 SUPP-02 v0.2 contract materialization and controlled registration; Requirement Freeze, implementation authorization, and implementation remain NOT PERFORMED.",
+    "parallel_occupancy_handling": "The unchanged Subject requires current evidence for UI-RD01-I04 / EdgeAggregateRead. At Subject execution it must be freshly observed as OBSERVED_ACTIVE, OBSERVED_INACTIVE, or UNKNOWN; Rebind pre-fills no status.",
+    "semantic_group_delta": "Only repository-binding metadata in the identity group changed: the bound SHA value and its label now says Current rebound baseline SHA. All A–H, AC01–AC22, permissions, scope, prohibitions, stop conditions, and result boundaries are preserved."
+  },
+  "subject_semantic_delta": "NONE",
+  "canonical_identity": {
+    "path": "docs/tasks/technical-debt/MP-TECHDEBT-TRIAGE-01-INPUT-BASELINE-01/task-contract-v0.1-rebind-01.json",
+    "git_blob_sha1": "5e4a8a0792a31eb5e62d29f05ffb9ce95c69a009",
+    "bytes": 37757,
+    "sha256": "68e78126634d8a0abbb95dcefcc961622bd13a11f48ebb740b5cc4e32819d9c5"
+  },
+  "readable_projection_identity": {
+    "path": "docs/tasks/technical-debt/MP-TECHDEBT-TRIAGE-01-INPUT-BASELINE-01/task-contract-v0.1-rebind-01.md",
+    "git_blob_sha1": "2fac1b9288031468d3402b37547ced783e43e38f",
+    "bytes": 21330,
+    "sha256": "cbafe51321c5d28c6dba975e09ba96cd62687199442df1bf2d53149c657f8749"
+  },
+  "original_canonical_identity": {
+    "path": "docs/tasks/technical-debt/MP-TECHDEBT-TRIAGE-01-INPUT-BASELINE-01/task-contract-v0.1.json",
+    "git_blob_sha1": "ed3f8814561972220df4080f7476efb2e887762c",
+    "bytes": 36397,
+    "sha256": "611e917cb23d8b3825a110ee8da826f1f15d2ae23678b7a0cdb0a1982b563175"
+  },
+  "lineage": {
+    "original_formalization_candidate": "9556e0c21100c04a4a36c875f0fa139fdddc0d83",
+    "original_formalization_branch": "techdebt/mp-techdebt-triage-01-input-baseline-01-contract-formalize-01",
+    "stale_dispatch_run_id": "MP-INPUT-BASELINE-01-STOP-20261003",
+    "control_task_id": "MP-TECHDEBT-TRIAGE-01-INPUT-BASELINE-01-CONTRACT-REBIND-01",
+    "original_registration_record_blob": "5f97143d2ba643c95964477b888fd50ef516d66d",
+    "original_resolved_profile_blob": "1abdcd270ae1b94d89d27022d6c29ac844c9ef3f",
+    "original_dispatch_projection_blob": "d702742b1afec15570a509144de92adf24d11af6"
+  },
+  "governance_currentness": {
+    "repository": "zwmhua2-lab2/ai-dev-workflow",
+    "origin_main": "cbc1a221646a9f4703a65e626e58cf192ed96426",
+    "governance_version": "0.1.0",
+    "rule_pack_version": "0.1.0",
+    "manifest_identity": "fd00-rule-manifest/0.1.0",
+    "rule_load": "PASS",
+    "required_active": 6,
+    "fully_read": 6,
+    "emrp_1_1": "ACTIVE ON ACCEPTED MAIN"
+  },
+  "execution_profile_currentness": {
+    "profile": "EMRP-1.1",
+    "authority_commit": "cbc1a221646a9f4703a65e626e58cf192ed96426",
+    "authority_blob": "99f00b5809d0104e326282e12041e2a9ca2db467",
+    "authority_sha256": "6eaeb5cc301b85f101d778e0a5785fa7d93b9dd86944fb4480911aaff8741d01",
+    "resolution": {
+      "path": "docs/tasks/technical-debt/MP-TECHDEBT-TRIAGE-01-INPUT-BASELINE-01/resolved-execution-profile-v0.1-rebind-01.json",
+      "git_blob_sha1": "08c5fdbd1f4456a99cd134a0bc8451b13a5b1f1e",
+      "bytes": 3316,
+      "sha256": "f31ae8c308ce3c70dfc4dc6b76ed6211907ccedfa137afdaeccf9e4a2946f511"
+    },
+    "route": "ER-3 / GPT-6.1 Sol / Medium / Codex Desktop / Fresh Context / READ_ONLY",
+    "eligibility": "PASS",
+    "fallback": "NONE",
+    "subject_runtime": "NOT_RUN"
+  },
+  "registration_identity": {
+    "path": "docs/tasks/technical-debt/MP-TECHDEBT-TRIAGE-01-INPUT-BASELINE-01/registration-record-v0.1-rebind-01.json",
+    "git_blob_sha1": "2a3947519a5a2ceb20f9286fd61414a2b4385cb2",
+    "bytes": 3795,
+    "sha256": "070ab08209c8d1324efbb26cf24c5c01c7c4933944ccce9b2301398666af4891"
+  },
+  "dispatch_projection_identity": {
+    "path": "docs/tasks/technical-debt/MP-TECHDEBT-TRIAGE-01-INPUT-BASELINE-01/dispatch-projection-v0.1-rebind-01.md",
+    "git_blob_sha1": "6bd77966ba3e6abfae8be85fbc3478f3ebb61606",
+    "bytes": 22226,
+    "sha256": "705c0c5a2e0f9db191eac26d2de69ea2b9751fb1bd55843a106651b12e9af078"
+  },
+  "existing_dirty_checkout_preservation": {
+    "before": {
+      "dirty_primary_checkout": {
+        "sha256": "807750a4c74543eeed737d44241dcd8db2c8ff1a8a7e24f7fb8247c84c7b11e7",
+        "bytes": 75106
+      },
+      "prior_formalization_worktree": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      }
+    },
+    "after": {
+      "dirty_primary_checkout": {
+        "sha256": "807750a4c74543eeed737d44241dcd8db2c8ff1a8a7e24f7fb8247c84c7b11e7",
+        "bytes": 75106
+      },
+      "prior_formalization_worktree": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      }
+    }
+  },
+  "main_mutation": "NOT_PERFORMED; main ref remains at 1dbdc3f318fa1e96396a8b6058796a5a6f1811f1",
+  "subject_execution": "NOT_STARTED",
+  "technical_debt_findings": "NONE_CLOSED_REPRIORITIZED_OR_RECLASSIFIED",
+  "verification": {
+    "rule_load": "PASS; manifest and all 6 REQUIRED_ACTIVE full rule files read at exact Workflow origin/main.",
+    "workflow_baseline": "PASS; remote main and local origin/main = cbc1a221646a9f4703a65e626e58cf192ed96426.",
+    "marketpulse_baseline": "PASS; remote main and local origin/main = 1dbdc3f318fa1e96396a8b6058796a5a6f1811f1.",
+    "original_identity": "PASS; prior canonical Git blob, byte count, and SHA-256 match immutable registration evidence.",
+    "topology_and_paths": "PASS; merge base is old baseline; 2 ahead, 0 behind; exact changed paths recorded.",
+    "semantic_fidelity": "PASS; six semantic groups preserved; only identity-group baseline binding metadata (value and label) changed; A–H and AC01–AC22 remain unchanged.",
+    "markdown_projection": "PASS; canonical Subject block exactly reconstructs from rebound JSON sections.",
+    "identity_bindings": "PASS; registration, resolved profile, dispatch and rebind record bind canonical SHA-256/blob identities.",
+    "parallel_occupancy": "PASS; future fresh UI-RD01-I04 observation statuses explicit; no status pre-filled.",
+    "scope": "PASS; intended changes are limited to six authorized contract files and one authorized dev_log.",
+    "main_and_dirty_worktrees": "PASS; main authority unchanged and pre-existing dirty status snapshots unchanged.",
+    "git_diff_check": "PASS; staged diff check required and recorded after staging."
+  }
+}

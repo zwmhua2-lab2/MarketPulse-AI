@@ -1,0 +1,62 @@
+{
+  "profile_id": "MP-TECHDEBT-TRIAGE-01-INPUT-BASELINE-01-REP-v0.1-rebind-01",
+  "subject_task_id": "MP-TECHDEBT-TRIAGE-01-INPUT-BASELINE-01",
+  "subject_task_version": "v0.1",
+  "canonical_contract_identity": {
+    "path": "docs/tasks/technical-debt/MP-TECHDEBT-TRIAGE-01-INPUT-BASELINE-01/task-contract-v0.1-rebind-01.json",
+    "git_blob_sha1": "5e4a8a0792a31eb5e62d29f05ffb9ce95c69a009",
+    "bytes": 37757,
+    "sha256": "68e78126634d8a0abbb95dcefcc961622bd13a11f48ebb740b5cc4e32819d9c5"
+  },
+  "profile_authority": {
+    "profile": "EMRP-1.1",
+    "repository": "zwmhua2-lab2/ai-dev-workflow",
+    "commit": "cbc1a221646a9f4703a65e626e58cf192ed96426",
+    "path": "governance/profiles/EXECUTION_MODEL_ROUTING_PROFILE.md",
+    "git_blob_sha1": "99f00b5809d0104e326282e12041e2a9ca2db467",
+    "bytes": 9412,
+    "sha256": "6eaeb5cc301b85f101d778e0a5785fa7d93b9dd86944fb4480911aaff8741d01",
+    "currentness_evidence": "GOV-MODEL-EXEC-02 final cutover and final closeout in accepted main confirm EMRP-1.1 ACTIVE ON ACCEPTED MAIN; post-cutover verification result and manifest are persisted."
+  },
+  "recommended": {
+    "routing_tier": "ER-3",
+    "provider": "OpenAI",
+    "model": "GPT-6.1 Sol",
+    "model_id": "gpt-6.1-sol",
+    "reasoning": "Medium",
+    "harness": "Codex Desktop"
+  },
+  "resolved": {
+    "routing_tier": "ER-3",
+    "provider": "OpenAI",
+    "model": "GPT-6.1 Sol",
+    "model_id": "gpt-6.1-sol",
+    "reasoning": "Medium",
+    "mapped_effort": "medium",
+    "harness": "Codex Desktop",
+    "context": "FRESH CONTEXT",
+    "permissions": "READ_ONLY"
+  },
+  "eligibility_evidence": {
+    "authorization": "This control task authorizes resolution of the exact future Subject route and explicitly does not dispatch or execute that Subject.",
+    "binding": "Workflow origin/main and MarketPulse origin/main were freshly read and matched the exact bindings in the rebound canonical contract.",
+    "availability": "Current Codex Desktop tool metadata exposes gpt-6.1-sol and medium effort on this host.",
+    "harness_effort_support": "Codex Desktop execution profile supports GPT-6.1 Sol with Medium; selected effort is explicitly listed for the current harness.",
+    "minimum_capability": "Cross-document authority reasoning, Git/ref topology analysis, and bounded evidence review across multiple worklines.",
+    "sufficiency": "EMRP-1.1 ER-3 Medium covers substantive bounded engineering reasoning; task has explicit ER-3/GPT-6.1 Sol/Medium binding.",
+    "hard_eligibility": "PASS for future READ_ONLY Subject dispatch; exact authorities current; required read-only tools available; no Product Provider calls or repository mutation are permitted during Subject execution.",
+    "selection_method": "Hard Eligibility -> Minimum Capability -> Static Preference -> First Sufficient",
+    "fallback": "NONE; no alias or substitution.",
+    "revalidation": "Before Subject dispatch, revalidate both remote baselines, active profile, model/harness/effort support, and canonical/profile identities; stop on any mismatch."
+  },
+  "actual_runtime": {
+    "model": "NOT_RUN",
+    "provider": "NOT_RUN",
+    "harness": "NOT_RUN",
+    "reasoning": "NOT_RUN",
+    "subject_state": "NOT_STARTED"
+  },
+  "product_provider_calls": "PROHIBITED",
+  "write_main": "PROHIBITED",
+  "scope_change": "NONE"
+}
