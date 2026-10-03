@@ -2593,3 +2593,11 @@ UI-RD01-I03-REQ-04 — Trading Audit Read Product Read Implementation Requiremen
 - Canonical candidate: `docs/task-contracts/UI-RD01/UI-RD01-I04-REQ-PERSIST-R01-SUPP-02-v0.2.task-contract.json`; readable projection: `docs/task-contracts/UI-RD01/UI-RD01-I04-REQ-PERSIST-R01-SUPP-02-v0.2.task-contract.md`. Exact attachment bytes persisted; identities and bindings: `dev_log/2026-10-03-ui-rd01-i04-supp-02-v02-taskcontract-materialization.md`.
 - SUPP-02 v0.2 review: `NOT STARTED`; R01 closure / Requirement Freeze / Implementation Authorization / Implementation / main integration: `NOT PERFORMED BY THIS TASK`.
 - Next legal gate: `UI-RD01-I04-REQ-PERSIST-R01-SUPP-02-TC-FORMALIZE-R01` independent contract materialization review.
+
+## UI-RD01-I04 SUPP-02 v0.2 TaskContract Controlled Registration Integration
+
+- Materialization review: `CONTRACT_MATERIALIZATION_REVIEW_PASS / READY_FOR_CONTROLLED_INTEGRATION_DESIGN`; blocking findings `0`; exact persisted reviewer result SHA-256 `04de8534dcbf169d36a484f852a5effdef747770b5596bad6564c625641294dd` (13884 bytes).
+- Integration carrier branch: `codex/ui-rd01-i04-supp02-tc-integrate-01`, created directly on reviewed candidate `9a7e8aec026381a941246e5d0ad046e938636134` (parent `8c94ea338f500e2ea4dd2f8a5ccc81a65502468e`). Full commit identity is resolved from the exact pushed branch tip and reported in the integration result.
+- Human `WRITE_MAIN` authorization is limited to this exact task and reviewed candidate. Intended target is `FORMALLY_REGISTERED_ON_MAIN`, subject to successful non-force fast-forward and post-integration identity checks.
+- Canonical SUPP-02 v0.2 JSON and Markdown bytes remain unchanged. Dispatch remains `BLOCKED` pending `UI-RD01-I04-REQ-PERSIST-R01-SUPP-02-TC-FORMALIZE-INTEGRATION-V01` post-integration receipt PASS.
+- Requirement Freeze, R01 persistence closure, Implementation Authorization, and Implementation remain `NOT PERFORMED`.

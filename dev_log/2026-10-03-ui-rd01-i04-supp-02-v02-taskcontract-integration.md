@@ -1,0 +1,13 @@
+# UI-RD01-I04 SUPP-02 v0.2 TaskContract Controlled Integration
+
+- Task: `UI-RD01-I04-REQ-PERSIST-R01-SUPP-02-TC-FORMALIZE-INTEGRATE-01 v0.1`.
+- Contract: `UI-RD01-I04-REQ-PERSIST-R01-SUPP-02-TC-FORMALIZE-INTEGRATE-01-v0.1-candidate.1`; supplied Contract SHA-256 `2ffe9bae345235d5d70aa5a64b9efb35641499d24a1336c35e5f5fa66d981ce8`.
+- Start bindings: Workflow `origin/main` `cbc1a221646a9f4703a65e626e58cf192ed96426`; MarketPulse `origin/main` `8c94ea338f500e2ea4dd2f8a5ccc81a65502468e`; reviewed candidate branch `codex/ui-rd01-i04-supp02-tc-formalize-01` tip `9a7e8aec026381a941246e5d0ad046e938636134`, tree `a062a9d28ff9c49393e1c621e921baae4d70291a`, parent `8c94ea338f500e2ea4dd2f8a5ccc81a65502468e`.
+- R01 review result: `CONTRACT_MATERIALIZATION_REVIEW_PASS / READY_FOR_CONTROLLED_INTEGRATION_DESIGN`; blocking findings `0`; exact source/persisted identity 13884 bytes, SHA-256 `04de8534dcbf169d36a484f852a5effdef747770b5596bad6564c625641294dd`.
+- Human `WRITE_MAIN` authorization: granted only for this task and exact reviewed candidate `9a7e8aec026381a941246e5d0ad046e938636134`.
+- Carrier identity: exact branch tip commit/tree is established at commit and recorded in the returned Structured Result; required single parent is the exact reviewed candidate above.
+- Changed path set: `PROJECT_STATE.md`; `dev_log/2026-10-03-ui-rd01-i04-supp-02-v02-taskcontract-integration.md`; `docs/task-contracts/UI-RD01/UI-RD01-I04-REQ-PERSIST-R01-SUPP-02-v0.2-REGISTRATION-RECORD.md`; `docs/task-contracts/UI-RD01/reviews/UI-RD01-I04-REQ-PERSIST-R01-SUPP-02-TC-FORMALIZE-R01-RESULT-v0.1.md`.
+- End bindings: the returned Structured Result records live Workflow `origin/main`, MarketPulse `origin/main`, reviewed-candidate branch, integration branch, and I04 subject branch refs after integration.
+- Push result: must be recorded in the returned Structured Result from live remote readback; this carrier snapshot does not claim an unperformed push.
+- Post-check result: must be recorded in the returned Structured Result after checking remote `main`, carrier branch, contract blobs, R01 bytes, state pointer, I04 subject, and end Workflow `main`; no PASS is inferred before those checks execute.
+- Remaining gate: read-only post-integration receipt `UI-RD01-I04-REQ-PERSIST-R01-SUPP-02-TC-FORMALIZE-INTEGRATION-V01`. SUPP-02 v0.2 review remains `NOT STARTED`; Requirement Freeze, R01 closure, Implementation Authorization, and Implementation remain `NOT PERFORMED`.
