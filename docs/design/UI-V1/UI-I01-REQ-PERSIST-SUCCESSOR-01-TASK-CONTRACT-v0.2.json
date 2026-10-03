@@ -1,0 +1,448 @@
+{
+  "authoritative_inputs": {
+    "design_review_source": {
+      "bytes": 48780,
+      "copy_rule": "EXACT_GIT_BYTES_ONLY",
+      "expected_blocking_findings": 0,
+      "expected_verdict": "PASS WITH NON-BLOCKING FINDINGS",
+      "git_blob": "bc6875dd9bf4132e129c75a78f45ee5af2704701",
+      "path": "docs/design/UI-V1/reviews/UI-I01-DESIGN-R01-RERUN-02-Review-Result.md",
+      "repository_commit": "212b20659e00deb5b91d566bef74969bef1d1758",
+      "sha256": "f3052a173c58331e099c12a7ba3cdbc74b73d2577c6ee2098b2ba2ccd4eec816"
+    },
+    "historical_persistence": {
+      "candidate": "212b20659e00deb5b91d566bef74969bef1d1758",
+      "original_r01": "HISTORICAL_PASS_PRESERVED_BUT_NOT_USABLE_FOR_CURRENT_FREEZE_GATING",
+      "reuse_old_persistence_dev_log": false,
+      "reuse_old_state_carriers": false
+    },
+    "human_design_state": {
+      "design_content": "HUMAN_CONFIRMED",
+      "nb_r2_01_02_03": "ACCEPTED_NON_BLOCKING_CARRY_FORWARD",
+      "requirement_semantics": "UNCHANGED"
+    },
+    "requirement_source": {
+      "bytes": 41170,
+      "copy_rule": "EXACT_GIT_BYTES_ONLY",
+      "crlf": 691,
+      "final_lf": false,
+      "git_blob": "22a4b75c5abc416ed9b4cfd888c70bfe31594849",
+      "logical_lines": 692,
+      "path": "docs/design/UI-V1/UI-I01-Implementation-Requirements.md",
+      "repository_commit": "212b20659e00deb5b91d566bef74969bef1d1758",
+      "sha256": "f3b5ff12b99f82bc2a37ac488c70d7efea719582b454a0f0fde37e0c33f0c834"
+    },
+    "resolution_result": {
+      "expected_bytes": 42692,
+      "expected_primary_disposition": "DISP-B / REQUIRED_PREDICATE_UNSATISFIED",
+      "expected_sha256": "7ea62eccf3c80191e2e2d4021cafc492633b14ea6e2e9d72218866b563597993",
+      "external_path": "E:/Documents/AI-Developer/review-evidence/UI-I01-REQ-PERSIST-R01-CC03-RESOLUTION-01/DISPATCH-01-RECOVER-INPUTS/UI-I01-REQ-PERSIST-R01-CC03-RESOLUTION-01-RESULT-v0.1.json",
+      "must_verify_before_write": true
+    }
+  },
+  "authority_state": "STRUCTURED_TASKCONTRACT_CANDIDATE_NOT_YET_REGISTERED",
+  "baseline_rebind": {
+    "classification": "NON_MATERIAL_FOR_UI_I01_SUCCESSOR",
+    "compare": {
+      "ahead_by": 2,
+      "behind_by": 0,
+      "changed_paths": [
+        "PROJECT_STATE.md",
+        "dev_log/2026-10-03-ui-rd01-i04-supp-02-v02-taskcontract-integration.md",
+        "dev_log/2026-10-03-ui-rd01-i04-supp-02-v02-taskcontract-materialization.md",
+        "docs/task-contracts/UI-RD01/UI-RD01-I04-REQ-PERSIST-R01-SUPP-02-v0.2-REGISTRATION-RECORD.md",
+        "docs/task-contracts/UI-RD01/UI-RD01-I04-REQ-PERSIST-R01-SUPP-02-v0.2.task-contract.json",
+        "docs/task-contracts/UI-RD01/UI-RD01-I04-REQ-PERSIST-R01-SUPP-02-v0.2.task-contract.md",
+        "docs/task-contracts/UI-RD01/reviews/UI-RD01-I04-REQ-PERSIST-R01-SUPP-02-TC-FORMALIZE-R01-RESULT-v0.1.md"
+      ]
+    },
+    "core_semantics": "UNCHANGED",
+    "new_marketpulse_main": "1dbdc3f318fa1e96396a8b6058796a5a6f1811f1",
+    "old_marketpulse_main": "8c94ea338f500e2ea4dd2f8a5ccc81a65502468e",
+    "relevance_checks": {
+      "ai_context_blob_unchanged": "3c58fac6db960d5992d2a94f01c8d0b133df64a9",
+      "backend_changed": false,
+      "decisions_blob_unchanged": "37c98f9cfa650abe7453843a2800335c7048e9aa",
+      "docs_design_ui_v1_changed": false,
+      "frontend_changed": false,
+      "project_state_delta": "APPEND_ONLY / 15_ADDITIONS / 0_DELETIONS",
+      "project_state_new_blob": "8dee2c07db55b06ee331c741f5823bf7b5642396",
+      "project_state_old_blob": "8a2fb1dd8698b2657a037c7f917503320b8f9326",
+      "runtime_changed": false,
+      "ui_i01_design_review_target_absent_on_new_main": true,
+      "ui_i01_requirement_target_absent_on_new_main": true,
+      "ui_i01_successor_dev_log_target_absent_on_new_main": true,
+      "ui_i01_successor_manifest_target_absent_on_new_main": true
+    },
+    "required_execution_behavior": "REVALIDATE_CURRENTNESS_AT_START_AND_END"
+  },
+  "boundary": {
+    "allowed_actions": [
+      "read and hash repository objects",
+      "read external Resolution result",
+      "create isolated worktree from exact main",
+      "exact-byte copy from immutable Git objects",
+      "append minimal fresh state/context/decision records",
+      "create fresh dev_log",
+      "create evidence manifest",
+      "commit successor candidate",
+      "push successor branch"
+    ],
+    "allowed_changes": [
+      "docs/design/UI-V1/UI-I01-Implementation-Requirements.md",
+      "docs/design/UI-V1/reviews/UI-I01-DESIGN-R01-RERUN-02-Review-Result.md",
+      "PROJECT_STATE.md",
+      "AI_CONTEXT.md",
+      "DECISIONS.md",
+      "dev_log/2026-10-03-ui-i01-requirements-persist-successor-01.md",
+      "docs/design/UI-V1/reviews/UI-I01-REQ-PERSIST-SUCCESSOR-01-EVIDENCE-MANIFEST-v0.1.json"
+    ],
+    "forbidden_actions": [
+      "write in primary checkout",
+      "reset",
+      "clean",
+      "stash unrelated work",
+      "force checkout over dirty work",
+      "rebase",
+      "merge main",
+      "force push",
+      "modify Requirement bytes",
+      "modify Design Review bytes",
+      "copy old AI_CONTEXT/DECISIONS/PROJECT_STATE entries as if current",
+      "copy old persistence dev_log as successor evidence",
+      "modify production/tests/tooling/runtime",
+      "WRITE_MAIN"
+    ],
+    "out_of_scope": [
+      "Requirement redesign or rewrite",
+      "Design Review rewrite",
+      "Old persistence candidate repair",
+      "Old R01 correction or reinterpretation",
+      "Requirement Freeze",
+      "Independent review execution",
+      "Implementation Authorization",
+      "Implementation",
+      "Lint Foundation",
+      "Backend/frontend/test/tooling/runtime mutation",
+      "main integration",
+      "WRITE_MAIN"
+    ],
+    "scope": [
+      "Create a fresh isolated worktree from exact authoritative MarketPulse main",
+      "Persist exact Requirement bytes from immutable source commit without semantic or byte change",
+      "Persist exact final Design Review bytes from immutable source commit without byte change",
+      "Create fresh successor state/decision/context records describing only this successor persistence",
+      "Create a fresh successor dev_log",
+      "Create a deterministic evidence manifest including workspace-preservation evidence",
+      "Commit and push a clean-room successor candidate branch",
+      "Stop ready for a new independent Persistence Successor Review"
+    ],
+    "stop_conditions": [
+      "RULE_LOAD_FAIL",
+      "RESOLUTION_RESULT_IDENTITY_MISMATCH",
+      "RESOLUTION_DISPOSITION_NOT_DISP_B",
+      "MARKETPULSE_MAIN_DRIFT",
+      "WORKFLOW_MAIN_DRIFT",
+      "SOURCE_REQUIREMENT_IDENTITY_MISMATCH",
+      "SOURCE_REVIEW_IDENTITY_MISMATCH",
+      "TARGET_PATH_PREEXISTS_ON_MAIN",
+      "DUPLICATE_SUCCESSOR_ACTIVE",
+      "PARALLEL_SCOPE_CONFLICT",
+      "DIRTY_WORKSPACE_SNAPSHOT_UNAVAILABLE",
+      "PRIMARY_WORKSPACE_PRESERVATION_MISMATCH",
+      "ISOLATED_WORKTREE_NOT_CLEAN_AT_START",
+      "ALLOWED_PATH_SET_EXCEEDED",
+      "PROTECTED_ARTIFACT_BYTE_MISMATCH",
+      "ANY_NEED_FOR_REQUIREMENT_SEMANTIC_CHANGE",
+      "ANY_NEED_FOR_IMPLEMENTATION_OR_FREEZE"
+    ],
+    "workspace": {
+      "isolated_worktree": "REQUIRED",
+      "primary_checkout_write": "PROHIBITED",
+      "recommended_branch": "ui-i01-requirements-persist-successor-01",
+      "registration_carrier_is_not_execution_parent": true,
+      "required_branch_parent": "1dbdc3f318fa1e96396a8b6058796a5a6f1811f1"
+    }
+  },
+  "contract_semantic_id": "UI-I01-REQ-PERSIST-SUCCESSOR-01@0.2",
+  "execution": {
+    "budget": {
+      "dispatch_limit": 1,
+      "external_billed_budget": 0,
+      "fix_round_limit_within_same_contract": 0,
+      "mutation_retry_max": 0,
+      "transient_read_retry_max": 1
+    },
+    "context_requirement": {
+      "fresh_context": true,
+      "full_rule_load": true,
+      "inherited_private_reasoning": "PROHIBITED"
+    },
+    "data_policy": {
+      "external_paid_api": "PROHIBITED",
+      "provider_calls": "NONE_REQUIRED",
+      "secrets": "DO_NOT_READ"
+    },
+    "permissions": {
+      "candidate_branch_commit": true,
+      "candidate_branch_push": true,
+      "isolated_worktree_write": true,
+      "primary_checkout_write": false,
+      "production_mutation": false,
+      "repository_read": true,
+      "write_main": false
+    },
+    "profile_requirements": {
+      "eligible_routing_tier": "ER-1H",
+      "reason": "Known cause, stable architecture, bounded multi-file persistence/evidence task with explicit acceptance."
+    },
+    "routing_recommendation": {
+      "harness": "Codex Desktop",
+      "model": "GPT-6 Luna",
+      "provider": "OpenAI",
+      "reasoning": "High",
+      "routing_tier": "ER-1H"
+    },
+    "tools": [
+      "git",
+      "filesystem",
+      "hashing",
+      "repository read"
+    ]
+  },
+  "governance": {
+    "governance_mode": "SELF_HOSTED",
+    "governance_version": "0.1.0",
+    "manifest_identity": "fd00-rule-manifest/0.1.0",
+    "operational_profile": {
+      "id": "EMRP",
+      "state": "ACTIVE",
+      "version": "1.1"
+    },
+    "parent_tier_floor": "L2",
+    "protected_subsystem": [
+      "UI-I01 REQUIREMENT LIFECYCLE EVIDENCE"
+    ],
+    "risk_tags": [
+      "PERSISTENCE",
+      "EVIDENCE_INTEGRITY"
+    ],
+    "risk_tier": "L2",
+    "role": "Clean-Room Persistence Executor",
+    "role_separation": {
+      "cannot": [
+        "Redesign Requirement",
+        "Review own persistence as independent reviewer",
+        "Freeze Requirement",
+        "Grant Implementation Authorization",
+        "Accept own work"
+      ]
+    },
+    "rule_pack_version": "0.1.0",
+    "task_mode": [
+      "FRESH_CONTEXT",
+      "CONTROLLED_WRITE",
+      "ISOLATED_WORKTREE_REQUIRED",
+      "NO_REQUIREMENT_SEMANTIC_CHANGE",
+      "NO_FREEZE",
+      "NO_IMPLEMENTATION"
+    ]
+  },
+  "identity": {
+    "creation_binding": {
+      "marketpulse_authoritative_main": "1dbdc3f318fa1e96396a8b6058796a5a6f1811f1",
+      "resolution_contract_carrier": "73ce8432c0a0551cb8d8da8b458936261fd10d67",
+      "source_persistence_candidate": "212b20659e00deb5b91d566bef74969bef1d1758",
+      "workflow_authoritative_main": "cbc1a221646a9f4703a65e626e58cf192ed96426"
+    },
+    "governance_repository": "zwmhua2-lab2/ai-dev-workflow",
+    "lineage": {
+      "blocked_dispatch": {
+        "dispatch_id": "UI-I01-REQ-PERSIST-SUCCESSOR-01-DISPATCH-01",
+        "repository_mutation": "NONE",
+        "result": "BLOCKED / MARKETPULSE_MAIN_DRIFT"
+      },
+      "predecessor_contract": {
+        "carrier_commit": "53fd901aa6d742ab43bdd99e1d53004a3edf054f",
+        "semantic_id": "UI-I01-REQ-PERSIST-SUCCESSOR-01@0.1",
+        "state": "STALE_BY_MARKETPULSE_MAIN_DRIFT_BEFORE_WRITE"
+      }
+    },
+    "parent_gate": "UI-I01-REQ-PERSIST-R01",
+    "project": "MarketPulse-AI",
+    "repository": "zwmhua2-lab2/MarketPulse-AI",
+    "task_id": "UI-I01-REQ-PERSIST-SUCCESSOR-01",
+    "task_types": [
+      "CONTROLLED_DOCUMENT_PERSISTENCE",
+      "EVIDENCE_PERSISTENCE",
+      "CLEAN_ROOM_SUCCESSOR"
+    ],
+    "task_version": "0.2",
+    "trigger": {
+      "meaning": "Original R01 may not gate Requirement Freeze; create a clean-room successor persistence/review path.",
+      "resolution": "DISP-B / REQUIRED_PREDICATE_UNSATISFIED",
+      "resolution_task": "UI-I01-REQ-PERSIST-R01-CC03-RESOLUTION-01 v0.1"
+    },
+    "work_name": "UI-I01 Clean-Room Requirement Persistence Successor / Current-Context Rebind",
+    "workline": "UI-I01 | Global Shell + System"
+  },
+  "registration": {
+    "canonical_target_path": "docs/design/UI-V1/UI-I01-REQ-PERSIST-SUCCESSOR-01-TASK-CONTRACT-v0.2.json",
+    "registration_state_after_success": "FORMALLY_REGISTERED_PROJECT_LOCAL_STRUCTURED_TASKCONTRACT",
+    "suggested_branch": "ui-i01-persist-successor-v02-taskcontract-register-01",
+    "target_parent": "1dbdc3f318fa1e96396a8b6058796a5a6f1811f1",
+    "target_repository": "zwmhua2-lab2/MarketPulse-AI",
+    "write_main": false
+  },
+  "result": {
+    "result_status_allowed": [
+      "COMPLETED",
+      "BLOCKED",
+      "STALE",
+      "DUPLICATE",
+      "ESCALATION_REQUIRED"
+    ],
+    "structured_result_envelope": {
+      "acceptance": "NOT_PERFORMED",
+      "changed_scope": "REQUIRED",
+      "contract_identity": "REQUIRED",
+      "dispatch_identity": "REQUIRED",
+      "evidence_references": "REQUIRED",
+      "findings": "REQUIRED",
+      "official_verification": "NOT_PERFORMED",
+      "produced_candidate": "REQUIRED_ON_COMPLETED",
+      "remaining_work": "REQUIRED",
+      "repository_mutation": "REQUIRED",
+      "review": "NOT_PERFORMED_BY_THIS_TASK",
+      "run_identity": "REQUIRED",
+      "self_check": "REQUIRED",
+      "staleness": "REQUIRED",
+      "subject_sources": "REQUIRED",
+      "workspace_preservation": "REQUIRED"
+    },
+    "success_boundary": {
+      "candidate_state": "CLEAN_ROOM_PERSISTENCE_SUCCESSOR_CANDIDATE_READY_FOR_INDEPENDENT_REVIEW",
+      "implementation": "NOT_STARTED",
+      "implementation_authorization": "NOT_GRANTED",
+      "next": "RETURN_TO_UI_I01_SYSTEM_WORKLINE_COORDINATOR",
+      "requirement_freeze": "NOT_PERFORMED",
+      "requirement_semantics": "UNCHANGED",
+      "result_status": "COMPLETED",
+      "write_main": "NOT_PERFORMED"
+    }
+  },
+  "serialization": {
+    "awb_template_pack_authority": "NOT_APPLICABLE",
+    "format": "JSON",
+    "project_local": true,
+    "template_authority": "NONE"
+  },
+  "state_transition_semantics": {
+    "implementation": "NOT_STARTED",
+    "implementation_authorization": "NOT_GRANTED",
+    "next_gate": "UI-I01-REQ-PERSIST-SUCCESSOR-R01 / INDEPENDENT PERSISTENCE SUCCESSOR REVIEW",
+    "old_candidate_state": "HISTORICAL / PRESERVED",
+    "old_r01_state": "HISTORICAL PASS / NOT USABLE FOR CURRENT FREEZE GATING",
+    "requirement_freeze": "NOT_PERFORMED",
+    "successor_candidate_state": "PERSISTED_CLEAN_ROOM_SUCCESSOR_CANDIDATE"
+  },
+  "verification_acceptance": {
+    "acceptance": "NOT_PERFORMED",
+    "human_gate": "NONE IN THIS TASK",
+    "official_verification": "NOT_SEPARATE; deterministic CPV self-check is execution evidence only",
+    "rebind_currentness": {
+      "must_confirm_at_start": {
+        "marketpulse_main": "1dbdc3f318fa1e96396a8b6058796a5a6f1811f1",
+        "workflow_main": "cbc1a221646a9f4703a65e626e58cf192ed96426"
+      },
+      "must_confirm_no_new_material_overlap": true,
+      "on_new_drift": "STOP_AND_RETURN_TO_COORDINATOR"
+    },
+    "required_evidence": [
+      "Resolution result identity",
+      "source artifact identity matrix",
+      "START/END remote refs",
+      "primary workspace BEFORE/AFTER snapshots",
+      "isolated worktree identity",
+      "exact changed-path list",
+      "source-target byte equality",
+      "candidate branch/commit/tree",
+      "evidence manifest"
+    ],
+    "required_review": "UI-I01-REQ-PERSIST-SUCCESSOR-R01 / Independent Persistence Successor Review",
+    "reviewer_independence": "Required; executor self-check cannot substitute for R01.",
+    "success_predicate": "CPV-01..CPV-12 PASS",
+    "verification_contract": [
+      {
+        "id": "CPV-01",
+        "requirement": "Full current Workflow rule load and exact START bindings PASS."
+      },
+      {
+        "id": "CPV-02",
+        "requirement": "Exact Resolution result bytes/hash verified and primary disposition is DISP-B."
+      },
+      {
+        "id": "CPV-03",
+        "requirement": "Exact source Requirement and Design Review identities verified from immutable source commit."
+      },
+      {
+        "id": "CPV-04",
+        "requirement": "Both target artifact paths are absent on exact authoritative main before write."
+      },
+      {
+        "id": "CPV-05",
+        "requirement": "Primary workspace BEFORE snapshot is complete and deterministic."
+      },
+      {
+        "id": "CPV-06",
+        "requirement": "Isolated worktree starts clean at exact authoritative main and all task writes occur there."
+      },
+      {
+        "id": "CPV-07",
+        "requirement": "Persisted Requirement and Design Review bytes exactly equal source bytes/blobs/hashes."
+      },
+      {
+        "id": "CPV-08",
+        "requirement": "Fresh PROJECT_STATE / AI_CONTEXT / DECISIONS / dev_log accurately describe successor state and do not claim Freeze or Implementation Authorization."
+      },
+      {
+        "id": "CPV-09",
+        "requirement": "Evidence manifest contains source identities, START bindings, BEFORE snapshot, changed-path intent and no self-hash loop."
+      },
+      {
+        "id": "CPV-10",
+        "requirement": "Final candidate diff contains exactly the seven allowed paths and no forbidden surface."
+      },
+      {
+        "id": "CPV-11",
+        "requirement": "Primary workspace AFTER snapshot exactly equals BEFORE snapshot; claim limited to PRIMARY_WORKSPACE_PRESERVED."
+      },
+      {
+        "id": "CPV-12",
+        "requirement": "END refs equal START refs; successor branch push read-back and clean worktree PASS."
+      }
+    ]
+  },
+  "workspace_preservation_contract": {
+    "after_commit_push_before_success": [
+      "Repeat the exact primary-checkout snapshot procedure",
+      "Require exact equality of raw status bytes/hash, path set, states, file hashes and byte counts",
+      "Any mismatch triggers PRIMARY_WORKSPACE_PRESERVATION_MISMATCH and blocks success"
+    ],
+    "before_any_task_write": [
+      "Record primary checkout branch and HEAD",
+      "Capture raw `git status --porcelain=v2 -z` bytes and SHA-256",
+      "Enumerate every pre-existing modified/deleted/untracked path",
+      "For every existing file, record raw-file SHA-256 and byte count",
+      "For every deleted path, record ABSENT",
+      "For every untracked directory, recursively record sorted relative file list plus per-file SHA-256/bytes",
+      "Store the complete BEFORE snapshot in the successor evidence manifest"
+    ],
+    "claim_boundary": [
+      "May claim PRIMARY_WORKSPACE_PRESERVED if before/after snapshots are exactly equal",
+      "Must not claim historical NEVER_WRITTEN or transient no-write proof",
+      "Must separately record that all authorized task writes were performed in the isolated worktree"
+    ],
+    "purpose": "Mechanically prove preservation of pre-existing primary-checkout work without making an unprovable transient historical no-write claim."
+  }
+}

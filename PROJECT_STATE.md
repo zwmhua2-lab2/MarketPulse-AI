@@ -2601,3 +2601,13 @@ UI-RD01-I03-REQ-04 — Trading Audit Read Product Read Implementation Requiremen
 - Human `WRITE_MAIN` authorization is limited to this exact task and reviewed candidate. Intended target is `FORMALLY_REGISTERED_ON_MAIN`, subject to successful non-force fast-forward and post-integration identity checks.
 - Canonical SUPP-02 v0.2 JSON and Markdown bytes remain unchanged. Dispatch remains `BLOCKED` pending `UI-RD01-I04-REQ-PERSIST-R01-SUPP-02-TC-FORMALIZE-INTEGRATION-V01` post-integration receipt PASS.
 - Requirement Freeze, R01 persistence closure, Implementation Authorization, and Implementation remain `NOT PERFORMED`.
+
+## UI-I01 Persistence Successor v0.2 Current-Context Rebind Registration
+
+- TaskContract: `UI-I01-REQ-PERSIST-SUCCESSOR-01 v0.2` (`UI-I01-REQ-PERSIST-SUCCESSOR-01@0.2`); exact attachment bytes: 18,131; SHA-256 `d5c000c0cb5a40b4cc962156cf71b85d626ed14cf0f872bb1fab1899b125ac91`.
+- ContractPath: `docs/design/UI-V1/UI-I01-REQ-PERSIST-SUCCESSOR-01-TASK-CONTRACT-v0.2.json`; Contract Git blob and SHA-256 are recorded in the branch registration result / Git identity.
+- RebindClassification: `NON_MATERIAL_FOR_UI_I01_SUCCESSOR`; RebindFrom `8c94ea338f500e2ea4dd2f8a5ccc81a65502468e`; RebindTo `1dbdc3f318fa1e96396a8b6058796a5a6f1811f1`; core task semantics unchanged.
+- Registration: `FORMALLY_REGISTERED / BRANCH_BOUND / NOT_ON_MAIN`; branch `ui-i01-persist-successor-v02-taskcontract-register-01`, parent `1dbdc3f318fa1e96396a8b6058796a5a6f1811f1`.
+- Dispatch: `NOT_YET_ISSUED`; ResolvedExecutionProfile: `NOT_YET_RESOLVED`; ImplementationAuthorization: `NOT_GRANTED`; RequirementFreeze: `NOT_PERFORMED`.
+- Next: `RESOLVE_EXECUTION_PROFILE_AND_COMPILE_REBOUND_DISPATCH_PROJECTION`; return to `UI-I01 System Workline Coordinator` for rebound dispatch.
+- This registration does not execute Persistence Successor, modify Requirement or Design Review, perform Independent Review or Requirement Freeze, grant Implementation Authorization, implement, integrate to `main`, or perform `WRITE_MAIN`.
