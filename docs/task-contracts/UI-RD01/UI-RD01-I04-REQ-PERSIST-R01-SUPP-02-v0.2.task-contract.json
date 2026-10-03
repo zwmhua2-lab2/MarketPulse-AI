@@ -1,0 +1,325 @@
+{
+  "binding": {
+    "active_profile": "EMRP-1.1",
+    "active_profile_blob": "99f00b5809d0104e326282e12041e2a9ca2db467",
+    "governance_mode": "SELF_HOSTED",
+    "governance_version": "0.1.0",
+    "manifest": "fd00-rule-manifest/0.1.0",
+    "marketpulse_main": "8c94ea338f500e2ea4dd2f8a5ccc81a65502468e",
+    "marketpulse_main_tree": "941a52985bc16fe054bbd9cb4e2f43739333817b",
+    "rule_pack": "0.1.0",
+    "subject_candidate_branch": "ui-rd01-i04-requirements-persist-02",
+    "subject_candidate_commit": "ddfefedb14fa278657f5bfc3cb7e30a571398d65",
+    "subject_candidate_expected_parent": "8c94ea338f500e2ea4dd2f8a5ccc81a65502468e",
+    "subject_candidate_tree": "98c6dbe3d67995631967909d5fa3ada65632c06d",
+    "workflow_main": "cbc1a221646a9f4703a65e626e58cf192ed96426",
+    "workflow_tree": "48d5406d583f0b1594a864591cffbee4e34ebcdc"
+  },
+  "boundary": {
+    "allowed_external_outputs": [
+      "Result",
+      "Evidence Manifest",
+      "Coverage",
+      "segments",
+      "commands log",
+      "raw evidence",
+      "Bundle",
+      "detached hashes"
+    ],
+    "allowed_repository_changes": "NONE",
+    "forbidden_actions": [
+      "fetch",
+      "checkout",
+      "reset",
+      "rebase",
+      "merge",
+      "stash",
+      "clean",
+      "branch creation",
+      "worktree creation",
+      "repository file write",
+      "commit",
+      "push",
+      "PR creation",
+      "PROJECT_STATE modification",
+      "AI_CONTEXT modification",
+      "DECISIONS modification",
+      "dev_log modification",
+      "tests",
+      "build",
+      "PostgreSQL",
+      "benchmark",
+      "service startup",
+      "provider calls",
+      "Freeze",
+      "Implementation Authorization",
+      "Implementation",
+      "Acceptance",
+      "Main Integration"
+    ],
+    "out_of_scope": [
+      "requirement redesign",
+      "requirement mutation",
+      "candidate mutation",
+      "requirement freeze",
+      "freeze persistence",
+      "implementation authorization",
+      "EdgeAggregateRead implementation",
+      "implementation verification",
+      "UI-RD01-I05",
+      "UI Edge Lab",
+      "SE-02D mathematics changes",
+      "schema/migration/index/dependency changes",
+      "OpenAPI/generated.ts implementation",
+      "Real AI/Gate/Live/Trading activation",
+      "main integration"
+    ],
+    "scope": [
+      "establish fresh reviewer context",
+      "complete required authority full reads",
+      "review exact persistence candidate",
+      "qualify reusable historical mechanical evidence",
+      "reassess F-SUPP-01 and NB-04",
+      "produce current supplemental persistence verdict",
+      "determine readiness for Designer persistence closure assessment"
+    ]
+  },
+  "completion_boundary": [
+    "independent supplemental review finished",
+    "structured result delivered",
+    "evidence delivered",
+    "coverage delivered",
+    "current verdict established",
+    "STOP"
+  ],
+  "contract_state": "STRUCTURED_TASKCONTRACT_CANDIDATE_NOT_FORMALLY_REGISTERED",
+  "execution": {
+    "data_policy": "Only task-required repository/docs/evidence; no production secrets, private account/trading data, paid provider calls for proof.",
+    "permissions": [
+      "NO_REPOSITORY_WRITE",
+      "NO_FETCH",
+      "NO_COMMIT",
+      "NO_PUSH",
+      "NO_PR",
+      "NO_MAIN_INTEGRATION"
+    ],
+    "profile_separation": {
+      "missing_hidden_runtime_metadata_alone_blocks_review": false,
+      "resolved_execution_profile": "BOUND_AT_DISPATCH",
+      "routing_recommendation": "NOT_RUNTIME_ATTESTATION",
+      "runtime_attestation": "RECORD_ONLY_HARNESS_EXPOSED_FIELDS"
+    },
+    "routing_recommendation": {
+      "harness": "Codex",
+      "model": "GPT-6.1 Sol",
+      "provider": "OpenAI",
+      "reasoning": "Medium"
+    },
+    "routing_tier": "ER-3",
+    "tools": [
+      "readonly Git/repository connector",
+      "exact Git object access",
+      "SHA-256 and byte counting",
+      "paged text reading",
+      "diff/tree/object inspection",
+      "out-of-repository artifact writing"
+    ]
+  },
+  "governance": {
+    "authority_order": [
+      "USER_CURRENT_EXPLICIT_DECISIONS",
+      "ACCEPTED_AI_DEVELOPMENT_WORKFLOW_REPOSITORY_TRUTH",
+      "MARKETPULSE_CURRENT_REPOSITORY_TRUTH",
+      "EXACT_SUBJECT_CANDIDATE",
+      "APPLICABLE_FROZEN_TRUTH_AND_AMENDMENTS",
+      "HISTORICAL_REVIEW_INPUTS_ONLY"
+    ],
+    "parent_tier_floor": "L2",
+    "protected_subsystem_direct_modification": "NONE",
+    "risk_tags": [
+      "PUBLIC_CONTRACT",
+      "PERSISTENCE",
+      "CONCURRENCY"
+    ],
+    "risk_tier": "L2",
+    "role": "INDEPENDENT_SUPPLEMENTAL_PERSISTENCE_REVIEWER",
+    "task_mode": [
+      "STRICT_READ_ONLY",
+      "EXACT_CANDIDATE_REVIEW",
+      "FRESH_CONTEXT",
+      "NO_REPOSITORY_MUTATION"
+    ]
+  },
+  "identity": {
+    "contract_id": "UI-RD01-I04-REQ-PERSIST-R01-SUPP-02-TC-v0.2-candidate.1",
+    "governance_repository": "zwmhua2-lab2/ai-dev-workflow",
+    "parent_work_package": "UI-RD01-I04|EdgeAggregateRead",
+    "predecessor": "UI-RD01-I04-REQ-PERSIST-R01-SUPP-02 v0.1 / BLOCKED / HISTORICAL",
+    "project": "MarketPulse-AI",
+    "repository": "zwmhua2-lab2/MarketPulse-AI",
+    "successor_reason": [
+      "EXECUTION_EVIDENCE_STANDARD_CORRECTION",
+      "REVIEWER_INDEPENDENCE_EVIDENCE_CORRECTION"
+    ],
+    "task_id": "UI-RD01-I04-REQ-PERSIST-R01-SUPP-02",
+    "task_type": "RE_REVIEW_SUPPLEMENTAL_PERSISTENCE_REVIEW_SUCCESSOR",
+    "task_version": "v0.2",
+    "work_name": "Focused Input Completion and Consolidated Persistence Review"
+  },
+  "non_stop_condition": "RUNTIME_MODEL_METADATA_NOT_EXPOSED",
+  "required_context": {
+    "frozen_authority": {
+      "A": [
+        "docs/design/UI-RD01/UI-RD01-Product-Read-API-Formal-Design.md",
+        "f98dd6e92695aa9e56237d1c7fa6000b7368aff5"
+      ],
+      "B": [
+        "docs/design/UI-V1/UI-V1-D01-MarketPulse-UI-V1-Formal-Design.md",
+        "62173554e3824418326a9f782e1f9c7e971ca25a"
+      ],
+      "C": [
+        "docs/design/UI-V1/UI-V1-D01-AMEND-01-Post-Freeze-Amendment.md",
+        "b3af9d9aa0ee4ac7152216761a57974217935a88"
+      ],
+      "D": [
+        "docs/design/SE-02D/SE-02D-D01-Family-Aggregation-Expectancy-Contract.md",
+        "f9b9ac904bb31c61ed95ce6f3a268e7836dfbd70"
+      ]
+    },
+    "governance_full_read": [
+      "AI_WORKFLOW_BOOTSTRAP.md",
+      "governance/WORKFLOW_RULE_MANIFEST.md",
+      "all dynamically enumerated REQUIRED_ACTIVE rules",
+      "complete workflow PROJECT_STATE.md",
+      "current ACTIVE execution routing profile"
+    ],
+    "marketpulse": [
+      "AGENTS.md",
+      "PRODUCT_REQUIREMENTS.md",
+      "complete PROJECT_STATE.md",
+      "relevant AI_CONTEXT.md/DECISIONS.md/dev_log context"
+    ],
+    "subject_candidate_full_read": [
+      "docs/design/UI-RD01/UI-RD01-I04-Implementation-Requirements.md",
+      "docs/design/UI-RD01/reviews/UI-RD01-I04-DESIGN-R01-Review-Transcript.txt",
+      "dev_log/2026-09-27-ui-rd01-i04-requirement-persistence.md",
+      "PROJECT_STATE.md"
+    ]
+  },
+  "result_contract": {
+    "acceptance": "NOT_PERFORMED",
+    "official_implementation_verification": "NOT_PERFORMED / NOT_APPLICABLE",
+    "produced_candidate": "NONE",
+    "repository_mutation": "NONE",
+    "required_fields": [
+      "Result Status",
+      "Contract Identity",
+      "Dispatch Identity",
+      "Run Identity",
+      "Role",
+      "Resolved Execution Profile",
+      "Runtime Attestation",
+      "Reviewer Independence Basis",
+      "Subject Candidate",
+      "Produced Candidate",
+      "Repository Mutation",
+      "Changed Scope",
+      "Rule Load",
+      "Binding Status",
+      "Verification Matrix",
+      "Acceptance Criteria",
+      "Self-check",
+      "Official Implementation Verification",
+      "Review Result",
+      "Acceptance",
+      "Human Freeze Readiness",
+      "Blocking Findings",
+      "Non-Blocking Findings",
+      "Observations",
+      "Remaining Work",
+      "Evidence References",
+      "Staleness",
+      "Next Legal Gate"
+    ]
+  },
+  "reviewer_independence": {
+    "basis": [
+      "ROLE_SEPARATION",
+      "FRESH_CONTEXT",
+      "PROCESS_SEPARATION",
+      "NO_SELF_ACCEPTANCE"
+    ],
+    "hard_blockers": [
+      "positive evidence reviewer authored requirement under review",
+      "positive evidence reviewer executed persistence candidate",
+      "reviewer attempts self-acceptance",
+      "Fresh Context cannot be established"
+    ],
+    "hidden_platform_identity_required": false,
+    "required_conditions": [
+      "reviewer does not mutate subject candidate",
+      "reviewer does not use executor private reasoning as authority",
+      "reviewer freshly loads governance",
+      "reviewer freshly resolves repository truth",
+      "reviewer reviews exact subject independently",
+      "historical PASS is not inherited as current PASS",
+      "reviewer does not perform acceptance or freeze"
+    ]
+  },
+  "schema": "marketpulse.project-local.structured-task-contract/0.1-candidate",
+  "stop_conditions": [
+    "RULE_LOAD_FAIL",
+    "STALE_BINDING",
+    "DUPLICATE_ACTIVE_V02_RUN",
+    "REQUIRED_INPUT_MISSING",
+    "UNRECOVERABLE_READ_TRUNCATION",
+    "REAL_ROLE_SEPARATION_CONFLICT",
+    "FRESH_CONTEXT_FAILURE",
+    "EXACT_CANDIDATE_MISMATCH",
+    "AUTHORITY_CONFLICT",
+    "SCOPE_EXPANSION_REQUIRED",
+    "CODE_RUNTIME_SCHEMA_DELTA_DISCOVERED",
+    "REPOSITORY_MUTATION_REQUIRED"
+  ],
+  "verification_acceptance": {
+    "acceptance_criteria": [
+      "AC-01",
+      "AC-02",
+      "AC-03",
+      "AC-04",
+      "AC-05",
+      "AC-06",
+      "AC-07",
+      "AC-08",
+      "AC-09",
+      "AC-10"
+    ],
+    "human_freeze_readiness_separate": true,
+    "matrix": [
+      "T-01",
+      "T-02",
+      "T-03",
+      "T-04",
+      "T-05",
+      "T-06",
+      "T-07",
+      "T-08",
+      "T-09",
+      "T-10"
+    ],
+    "nb_status": {
+      "NB-01": "OPEN",
+      "NB-02": "OPEN",
+      "NB-03": "OPEN",
+      "NB-04": "OPEN"
+    },
+    "pass_does_not_mean": [
+      "R01_CLOSED",
+      "REQUIREMENT_FROZEN",
+      "HUMAN_FREEZE_READY",
+      "IMPLEMENTATION_AUTHORIZED"
+    ],
+    "pass_result": "FOCUSED_SUPPLEMENT_PASS / READY_FOR_DESIGNER_CLOSURE_ASSESSMENT",
+    "verification_profile": "I04-PERSISTENCE-FOCUSED-SUPP-02-v0.2"
+  }
+}

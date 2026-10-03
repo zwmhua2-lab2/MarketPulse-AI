@@ -2586,3 +2586,10 @@ UI-RD01-I03-REQ-04 — Trading Audit Read Product Read Implementation Requiremen
 - Cutover is prospective only. Historical task contracts, review records, accepted candidates, frozen requirements, Human decisions, protocol references, and evidence retain their historical meaning and are not rewritten.
 - Activation boundary unchanged: Real AI = `NOT ACTIVATED`; Gate A = `NOT ACTIVATED`; Gate B = `NOT ACTIVATED`; Gate C = `NOT PASSED`; live `G2→G3` = `NOT ACTIVE`; Live = `NOT AUTHORIZED`; Live Trading = `DISABLED`。
 - `UI-RD01-I04 = NOT STARTED`；`UI-RD01-I05 = NOT STARTED`；Next Product Task = `NOT YET SELECTED`。This cutover does not select, design, or authorize a next product task.
+
+## UI-RD01-I04 SUPP-02 v0.2 TaskContract Materialization Candidate
+
+- Control task: `UI-RD01-I04-REQ-PERSIST-R01-SUPP-02-TC-FORMALIZE-01 v0.1`; state: `MATERIALIZED CANDIDATE / READY FOR INDEPENDENT CONTRACT REVIEW`; branch-only, not formally registered or active.
+- Canonical candidate: `docs/task-contracts/UI-RD01/UI-RD01-I04-REQ-PERSIST-R01-SUPP-02-v0.2.task-contract.json`; readable projection: `docs/task-contracts/UI-RD01/UI-RD01-I04-REQ-PERSIST-R01-SUPP-02-v0.2.task-contract.md`. Exact attachment bytes persisted; identities and bindings: `dev_log/2026-10-03-ui-rd01-i04-supp-02-v02-taskcontract-materialization.md`.
+- SUPP-02 v0.2 review: `NOT STARTED`; R01 closure / Requirement Freeze / Implementation Authorization / Implementation / main integration: `NOT PERFORMED BY THIS TASK`.
+- Next legal gate: `UI-RD01-I04-REQ-PERSIST-R01-SUPP-02-TC-FORMALIZE-R01` independent contract materialization review.
