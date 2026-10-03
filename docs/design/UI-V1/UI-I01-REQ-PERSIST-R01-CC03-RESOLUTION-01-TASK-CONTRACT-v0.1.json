@@ -1,0 +1,348 @@
+{
+  "allowed_dispositions": [
+    {
+      "id": "DISP-A",
+      "meaning": "The unprovable historical statement was not a required PASS predicate; original R01 may remain usable subject to a formal correction/reconciliation carrier.",
+      "name": "NON_GATING_HISTORICAL_ASSERTION"
+    },
+    {
+      "id": "DISP-B",
+      "meaning": "The statement was a required R01 PASS predicate and cannot now be proven; original R01 may not gate Requirement Freeze.",
+      "name": "REQUIRED_PREDICATE_UNSATISFIED"
+    },
+    {
+      "id": "DISP-C",
+      "meaning": "The normative obligation concerns protected final state rather than transient historical non-write behavior, and current exact evidence proves the required protection without asserting the stronger historical claim.",
+      "name": "CURRENT_STATE_EQUIVALENT_EVIDENCE_SUFFICIENT"
+    },
+    {
+      "id": "DISP-D",
+      "meaning": "Repository/evidence semantics are materially ambiguous and cannot be resolved without an authorized human decision or amendment.",
+      "name": "AUTHORITY_AMBIGUITY_REQUIRES_HUMAN_RESOLUTION"
+    }
+  ],
+  "authoritative_inputs": {
+    "closure_recovery_blocked_result": {
+      "expected_run_identity": "UI-I01-REQ-PERSIST-R01-CLOSURE-RECOVERY-01-DISPATCH-01-RUN-01",
+      "expected_stop_condition": "CC03_MATERIAL_DEPENDENCY_FOUND",
+      "required_source": "CURRENT DISPATCH STRUCTURED RESULT / ATTACHMENT OR VERIFIABLE LOCAL EVIDENCE"
+    },
+    "current_repository_truth": {
+      "marketpulse_main": "8c94ea338f500e2ea4dd2f8a5ccc81a65502468e",
+      "subject_candidate": "212b20659e00deb5b91d566bef74969bef1d1758",
+      "workflow_main": "cbc1a221646a9f4703a65e626e58cf192ed96426"
+    },
+    "historical_cc_material": {
+      "rule": "TASK CARDS ALONE ARE NOT SUCCESS EVIDENCE",
+      "search_targets": [
+        "Evidence Correction task/result",
+        "Continuation task/result",
+        "Independent Recheck result/manifest",
+        "CC-03",
+        "CC-04"
+      ]
+    },
+    "original_persistence_task_material": {
+      "agents_blob": "48a7d68d1c38563a9efb71f0e075ae812eedb75b",
+      "candidate_commit": "212b20659e00deb5b91d566bef74969bef1d1758",
+      "persistence_dev_log": "dev_log/2026-10-03-ui-i01-requirements-persist-01.md",
+      "project_state_at_candidate_blob": "24cfb304dc37871435c6d01cddc8c7afe7abd928"
+    },
+    "original_r01": {
+      "authority": "MUST_VERIFY_EXACT_BYTES_AND_CONTENT",
+      "critical_reported_lines": [
+        256,
+        266,
+        "399-401"
+      ],
+      "expected_bytes_from_trigger_result": 37233,
+      "expected_sha256_from_trigger_result": "fc29a4cdc32457a76dc5a960963a93edd6916ca2775f0a65c3f4823d1bda0204",
+      "path": "E:/Documents/AI-Developer/review-evidence/UI-I01-REQ-PERSIST-R01/UI-I01-REQ-PERSIST-R01-RESULT-v0.1.md"
+    },
+    "registered_closure_recovery_contract": {
+      "carrier_commit": "bff57c2fed5bb1db317bb2bb03776025d4943605",
+      "git_blob": "4a28d2f50fcedfddd17b122318a85605c2256b92",
+      "path": "docs/design/UI-V1/UI-I01-REQ-PERSIST-R01-CLOSURE-RECOVERY-01-TASK-CONTRACT-v0.2.json",
+      "sha256": "6296d0ce87513f451c917e74f878a0a174e3f7da8b81c1b3fe4620317433933d"
+    }
+  },
+  "authority_state": "STRUCTURED_TASKCONTRACT_CANDIDATE_NOT_YET_REGISTERED",
+  "boundary": {
+    "allowed_actions": [
+      "read repository and external evidence",
+      "hash and identity verification",
+      "bounded evidence search",
+      "compare task contract / review / evidence semantics",
+      "produce repository-external structured resolution result"
+    ],
+    "allowed_changes": [],
+    "out_of_scope": [
+      "Requirement mutation",
+      "Design Review mutation",
+      "Original R01 mutation",
+      "Persistence candidate mutation",
+      "Re-running full R01",
+      "Performing Closure Recovery again",
+      "Requirement Freeze",
+      "Implementation Authorization",
+      "Implementation",
+      "main integration",
+      "WRITE_MAIN",
+      "Product code/test/tooling/runtime changes"
+    ],
+    "repository_mutation": "PROHIBITED",
+    "scope": [
+      "Recover the exact normative meaning of original R01 section 9 and its PASS predicate",
+      "Determine whether the dirty-checkout non-pollution assertion was a mandatory acceptance predicate, evidentiary support statement, or non-gating observation",
+      "Determine whether current NOT_VERIFIED status invalidates original R01 for downstream Freeze gating",
+      "Reconcile the contradiction between historical continuation/recheck disposition and the current Closure Recovery blocker",
+      "Select one authorized disposition and define the exact next task class without executing it"
+    ],
+    "stop_conditions": [
+      "RULE_LOAD_FAIL",
+      "ORIGINAL_R01_IDENTITY_MISMATCH",
+      "TRIGGER_RESULT_NOT_VERIFIABLE",
+      "NORMATIVE_R01_REQUIREMENT_NOT_RECOVERABLE",
+      "AUTHORITY_CONFLICT_CANNOT_BE_RESOLVED",
+      "MATERIAL_BASELINE_DRIFT",
+      "GOVERNANCE_DRIFT",
+      "TASK_DUPLICATE_ACTIVE",
+      "SCOPE_UNCERTAINTY"
+    ]
+  },
+  "contract_semantic_id": "UI-I01-REQ-PERSIST-R01-CC03-RESOLUTION-01@0.1",
+  "execution": {
+    "budget": {
+      "dispatch_limit": 1,
+      "external_billed_budget": 0,
+      "mutation_retry_max": 0
+    },
+    "context_requirement": {
+      "fresh_context": true,
+      "full_rule_load": true,
+      "inherited_private_reasoning": "PROHIBITED"
+    },
+    "data_policy": {
+      "external_paid_api": "PROHIBITED",
+      "provider_calls": "NONE_REQUIRED",
+      "secrets": "DO_NOT_READ"
+    },
+    "permissions": {
+      "external_evidence_read": true,
+      "repository_read": true,
+      "repository_write": false,
+      "write_main": false
+    },
+    "profile_requirements": {
+      "minimum_routing_tier": "ER-3",
+      "reason": "Authority/acceptance-predicate conflict with contradictory historical evidence."
+    },
+    "routing_recommendation": {
+      "harness": "Codex Desktop",
+      "model": "GPT-6.1 Sol",
+      "provider": "OpenAI",
+      "reasoning": "High",
+      "routing_tier": "ER-3"
+    }
+  },
+  "governance": {
+    "governance_mode": "SELF_HOSTED",
+    "governance_version": "0.1.0",
+    "manifest_identity": "fd00-rule-manifest/0.1.0",
+    "operational_profile": {
+      "id": "EMRP",
+      "state": "ACTIVE",
+      "version": "1.1"
+    },
+    "parent_tier_floor": "L2",
+    "protected_subsystem": [
+      "UI-I01 REQUIREMENT LIFECYCLE / ACCEPTANCE PREDICATE"
+    ],
+    "risk_tags": [
+      "AUTHORIZATION",
+      "PERSISTENCE",
+      "EVIDENCE_INTEGRITY"
+    ],
+    "risk_tier": "L3",
+    "role": "Resolver / Independent Acceptance-Predicate Analyst",
+    "role_separation": {
+      "cannot": [
+        "Modify Requirement",
+        "Modify original R01",
+        "Change acceptance criteria retroactively",
+        "Perform Requirement Freeze",
+        "Grant Implementation Authorization",
+        "Accept own resolution as lifecycle transition"
+      ]
+    },
+    "rule_pack_version": "0.1.0",
+    "task_mode": [
+      "FRESH_CONTEXT",
+      "STRICT_READ_ONLY_REPOSITORY",
+      "AUTHORITY_RESOLUTION",
+      "NO_LIFECYCLE_TRANSITION"
+    ]
+  },
+  "identity": {
+    "creation_binding": {
+      "closure_recovery_contract_carrier": "bff57c2fed5bb1db317bb2bb03776025d4943605",
+      "contract_registration_branch": "ui-i01-taskcontract-formalize-01",
+      "marketpulse_authoritative_main": "8c94ea338f500e2ea4dd2f8a5ccc81a65502468e",
+      "subject_branch": "ui-i01-requirements-persist-01",
+      "subject_candidate": "212b20659e00deb5b91d566bef74969bef1d1758",
+      "workflow_authoritative_main": "cbc1a221646a9f4703a65e626e58cf192ed96426"
+    },
+    "governance_repository": "zwmhua2-lab2/ai-dev-workflow",
+    "parent_gate": "UI-I01-REQ-PERSIST-R01",
+    "project": "MarketPulse-AI",
+    "repository": "zwmhua2-lab2/MarketPulse-AI",
+    "task_id": "UI-I01-REQ-PERSIST-R01-CC03-RESOLUTION-01",
+    "task_types": [
+      "RESOLUTION",
+      "READ_ONLY_INVESTIGATION",
+      "AUDIT"
+    ],
+    "task_version": "0.1",
+    "trigger": {
+      "dispatch_id": "UI-I01-REQ-PERSIST-R01-CLOSURE-RECOVERY-01-DISPATCH-01",
+      "result": "BLOCKED",
+      "stop_condition": "CC03_MATERIAL_DEPENDENCY_FOUND",
+      "task_id": "UI-I01-REQ-PERSIST-R01-CLOSURE-RECOVERY-01",
+      "version": "0.2"
+    },
+    "work_name": "UI-I01 Persistence Review CC-03 Acceptance-Predicate Resolution",
+    "workline": "UI-I01 | Global Shell + System"
+  },
+  "next_task_mapping": {
+    "DISP-A": "Create current-context R01 evidence reconciliation/correction contract; then re-enter Closure/Freeze only after independent review as required.",
+    "DISP-B": "Create a clean-room successor persistence/review path from exact Requirement bytes; do not attempt retroactive proof of historical checkout behavior.",
+    "DISP-C": "Create a narrowly scoped independent re-review contract that verifies the equivalent protection evidence and current candidate integrity before Freeze.",
+    "DISP-D": "Create a Human Resolution / Authorized Amendment candidate; no Freeze until resolved."
+  },
+  "registration": {
+    "canonical_target_path": "docs/design/UI-V1/UI-I01-REQ-PERSIST-R01-CC03-RESOLUTION-01-TASK-CONTRACT-v0.1.json",
+    "registration_state_after_success": "FORMALLY_REGISTERED_PROJECT_LOCAL_STRUCTURED_TASKCONTRACT",
+    "suggested_branch": "ui-i01-cc03-resolution-taskcontract-register-01",
+    "target_parent": "bff57c2fed5bb1db317bb2bb03776025d4943605",
+    "target_repository": "zwmhua2-lab2/MarketPulse-AI",
+    "write_main": false
+  },
+  "resolution_questions": [
+    {
+      "id": "RQ-01",
+      "question": "What exact normative obligation did original R01 section 9 impose regarding the dirty primary checkout?"
+    },
+    {
+      "id": "RQ-02",
+      "question": "Was that obligation part of the R01 PASS predicate, a required evidence item, or merely a supporting historical assertion?"
+    },
+    {
+      "id": "RQ-03",
+      "question": "Does the original R01 text itself condition PASS on proving this historical non-pollution fact?"
+    },
+    {
+      "id": "RQ-04",
+      "question": "Do the original persistence task contract/dev_log define 'do not overwrite dirty work' as final-state protection, no-write-at-all historical behavior, or another mechanically testable condition?"
+    },
+    {
+      "id": "RQ-05",
+      "question": "Can currently available immutable Git evidence establish the normative obligation even if transient historical behavior is not independently reproducible?"
+    },
+    {
+      "id": "RQ-06",
+      "question": "Did historical CC/Continuation results lawfully narrow the assertion to NOT_VERIFIED without changing the original acceptance predicate?"
+    },
+    {
+      "id": "RQ-07",
+      "question": "Is there a contradiction between the historical closure disposition and the current fresh analysis? If yes, which source has authority and why?"
+    }
+  ],
+  "result": {
+    "structured_result_envelope": {
+      "acceptance": "NOT_PERFORMED",
+      "contract_identity": "REQUIRED",
+      "contradictions": "REQUIRED",
+      "dispatch_identity": "REQUIRED",
+      "evidence_references": "REQUIRED",
+      "findings": "REQUIRED",
+      "official_verification": "NOT_PERFORMED",
+      "primary_disposition": "REQUIRED_ON_COMPLETED",
+      "remaining_work": "REQUIRED",
+      "repository_mutation": "MUST_BE_NONE",
+      "resolution_question_matrix": "REQUIRED",
+      "result_status": [
+        "COMPLETED",
+        "BLOCKED",
+        "STALE",
+        "DUPLICATE",
+        "ESCALATION_REQUIRED"
+      ],
+      "review": "NOT_PERFORMED_BY_THIS_TASK",
+      "run_identity": "REQUIRED",
+      "source_identity_matrix": "REQUIRED",
+      "staleness": "REQUIRED"
+    },
+    "success_boundary": {
+      "implementation": "NOT_STARTED",
+      "implementation_authorization": "NOT_GRANTED",
+      "next": "RETURN_TO_UI_I01_SYSTEM_WORKLINE_COORDINATOR",
+      "requirement_freeze": "NOT_PERFORMED",
+      "write_main": "NOT_PERFORMED"
+    }
+  },
+  "serialization": {
+    "awb_template_pack_authority": "NOT_APPLICABLE",
+    "format": "JSON",
+    "project_local": true,
+    "template_authority": "NONE"
+  },
+  "verification_acceptance": {
+    "acceptance": "NOT_PERFORMED",
+    "human_gate": "NONE UNLESS DISP-D",
+    "official_verification": "NOT_PERFORMED / NOT_APPLICABLE AS SEPARATE GATE FOR THIS READ_ONLY RESOLUTION",
+    "required_review": "UI-I01 System Workline Coordinator Completion Review",
+    "success_predicate": "RV-01..RV-10 PASS AND ONE PRIMARY DISPOSITION SELECTED",
+    "verification_contract": [
+      {
+        "id": "RV-01",
+        "requirement": "Full current Workflow rule load and repository binding PASS."
+      },
+      {
+        "id": "RV-02",
+        "requirement": "Exact original R01 bytes/hash and trigger Closure Recovery result identity are verified."
+      },
+      {
+        "id": "RV-03",
+        "requirement": "Original persistence task/dev_log and relevant task contract semantics are read in full where available."
+      },
+      {
+        "id": "RV-04",
+        "requirement": "Historical CC/Continuation/Recheck artifacts are recovered where available; task cards are not treated as success evidence."
+      },
+      {
+        "id": "RV-05",
+        "requirement": "RQ-01..RQ-07 each receive source-bound answers with FACT / INTERPRETATION / UNVERIFIED separated."
+      },
+      {
+        "id": "RV-06",
+        "requirement": "Exactly one primary disposition DISP-A/B/C/D is selected, with contradictions and uncertainty explicitly recorded."
+      },
+      {
+        "id": "RV-07",
+        "requirement": "No acceptance criterion is weakened or retroactively changed."
+      },
+      {
+        "id": "RV-08",
+        "requirement": "No repository mutation occurs."
+      },
+      {
+        "id": "RV-09",
+        "requirement": "START/END refs are current with no unresolved drift."
+      },
+      {
+        "id": "RV-10",
+        "requirement": "Next task class is identified but not executed or registered by this task."
+      }
+    ]
+  }
+}

@@ -2618,3 +2618,24 @@ Next: RESOLVE_EXECUTION_PROFILE_AND_COMPILE_DISPATCH_PROJECTION
 
 Registration evidence: dev_log/2026-10-03-ui-i01-closure-recovery-taskcontract-registration.md.
 The exact JSON retains its candidate-time authority/registration strings as immutable source content. This branch-bound registration record records the subsequent registration event; it does not reserialize the Contract or grant Dispatch. Earlier Requirement/Persistence state records remain historical evidence without reinterpretation. Closure Recovery Audit, Requirement Freeze, Implementation Authorization, Implementation, main integration, and WRITE_MAIN are not performed by this operation.
+
+## UI-I01 CC-03 Resolution TaskContract Registration
+
+Operation: UI-I01-CC03-RESOLUTION-TASKCONTRACT-REGISTER-01 v0.1
+OperationClass: MANUAL_CONTROL_PLANE_TASKCONTRACT_FORMALIZATION_AND_REGISTRATION
+RegistrationBranch: ui-i01-cc03-resolution-taskcontract-register-01
+RegistrationParent: bff57c2fed5bb1db317bb2bb03776025d4943605
+ContractGitBlob: 64d1a2f8fdc1f9c9d503ed953d812c88b255edd1
+ContractBytes: 13926
+ContractPath: docs/design/UI-V1/UI-I01-REQ-PERSIST-R01-CC03-RESOLUTION-01-TASK-CONTRACT-v0.1.json
+ContractSHA256: d4076dbd5f19b41b21131a6bad3b2af4297bdc3a8da47cebc20d54db9f1a7c73
+Dispatch: NOT_YET_ISSUED
+ImplementationAuthorization: NOT_GRANTED
+Next: RESOLVE_EXECUTION_PROFILE_AND_COMPILE_DISPATCH_PROJECTION
+Registration: FORMALLY_REGISTERED / BRANCH_BOUND / NOT_ON_MAIN
+RequirementFreeze: NOT_PERFORMED
+ResolvedExecutionProfile: NOT_YET_RESOLVED
+TaskContract: UI-I01-REQ-PERSIST-R01-CC03-RESOLUTION-01 v0.1
+Trigger: CC03_MATERIAL_DEPENDENCY_FOUND
+Registration evidence: dev_log/2026-10-03-ui-i01-cc03-resolution-taskcontract-registration.md.
+This entry records exact-byte branch-bound registration only. Candidate-time authority strings inside the Contract remain unchanged. CC-03 Resolution is not executed; original R01, Requirement, Review artifacts and existing lifecycle records retain their contents and authority. No Requirement Freeze, Implementation Authorization, Implementation, main integration or WRITE_MAIN is performed.
