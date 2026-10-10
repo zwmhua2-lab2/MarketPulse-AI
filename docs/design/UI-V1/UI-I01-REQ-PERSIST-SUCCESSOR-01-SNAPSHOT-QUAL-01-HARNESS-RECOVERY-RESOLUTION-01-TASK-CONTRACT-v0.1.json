@@ -1,0 +1,355 @@
+{
+  "authoritative_inputs": {
+    "currentness_delta": {
+      "ahead_by": 2,
+      "ai_context_blob_current": "3c58fac6db960d5992d2a94f01c8d0b133df64a9",
+      "behind_by": 0,
+      "classification_at_design_time": "NON_MATERIAL_FOR_UI_I01_SNAPSHOT_QUALIFICATION_SEMANTICS / MUST_BE_REVALIDATED_BY_TASK",
+      "current_marketpulse_main": "b959b3a472e4bcd7ca400ef285f2406aef8b6438",
+      "decisions_blob_current": "37c98f9cfa650abe7453843a2800335c7048e9aa",
+      "observed_changed_surface": "PROJECT_STATE + UI-RD01-I04 SUPP-02 v0.2.1 task-contract/review/registration artifacts only",
+      "old_marketpulse_main": "1dbdc3f318fa1e96396a8b6058796a5a6f1811f1"
+    },
+    "execution_amendment": {
+      "bytes": 4151,
+      "carrier": "946e08c6a77eb81d10647bf2b4af4420d357190e",
+      "git_blob": "d23a7d0e37f788369f36f80962bf66777462e4f4",
+      "semantic_id": "UI-I01-REQ-PERSIST-SUCCESSOR-01-EXEC-AMEND-01@0.1",
+      "sha256": "a2bc8287a0df5af165f0dac77eb40aa5292d13a083cb93b4675b0975289595f4"
+    },
+    "qualification_blocked_result": {
+      "reported_result_path": "E:/Documents/AI-Developer/review-evidence/UI-I01-REQ-PERSIST-SUCCESSOR-01-SNAPSHOT-QUAL-01/UI-I01-SNAPSHOT-QUAL-01-DISPATCH-01-RUN-20261003-BLOCKED-01/Structured-Result-Envelope.json",
+      "result_status": "BLOCKED / NOT_QUALIFIED",
+      "source": "CURRENT_USER_SUPPLIED_RESULT_SUMMARY",
+      "structured_result_bytes": 5762,
+      "structured_result_sha256": "7f9cf57de80e239ad4fd58326cbfd1be5a0d3ead7f464e5d24e3859f3b096ddc",
+      "use": "TRIGGER / DIAGNOSTIC INPUT; independently verify repository/harness facts where possible."
+    },
+    "qualification_contract": {
+      "bytes": 14820,
+      "carrier": "85f31cd1f7e7de744882f50aab8f68e5956b47cc",
+      "git_blob": "c4172817534e07f92ef846eee7b453bbbc424665",
+      "semantic_id": "UI-I01-REQ-PERSIST-SUCCESSOR-01-SNAPSHOT-QUAL-01@0.1",
+      "sha256": "508283399d56af30ad6dfac2177f34e81c2bc90ecb2eece45785c0248a189340",
+      "state": "REGISTERED_BRANCH_BOUND / STALE_BY_MARKETPULSE_MAIN_DRIFT / DISPATCH_LIMIT_CONSUMED"
+    },
+    "successor_contract": {
+      "bytes": 18131,
+      "carrier": "c4e7a84fccd21f583ab905668b7c27214c0f5a8b",
+      "git_blob": "44cac7a5236fef3ef3a7db2cd3cdf9695d1045fa",
+      "semantic_id": "UI-I01-REQ-PERSIST-SUCCESSOR-01@0.2",
+      "sha256": "d5c000c0cb5a40b4cc962156cf71b85d626ed14cf0f872bb1fab1899b125ac91"
+    }
+  },
+  "authority_state": "STRUCTURED_TASKCONTRACT_CANDIDATE_NOT_YET_REGISTERED",
+  "boundary": {
+    "external_write_scope": {
+      "allowed": true,
+      "must_be_outside_git_worktrees": true,
+      "purpose": "Capability-probe logs, exact policy-denial evidence, transport analysis, resolution result.",
+      "root_pattern": "E:/Documents/AI-Developer/review-evidence/UI-I01-REQ-PERSIST-SUCCESSOR-01-SNAPSHOT-QUAL-01-HARNESS-RECOVERY-RESOLUTION-01/<run-id>/"
+    },
+    "forbidden_actions": [
+      "Modify any Git repository/worktree/index/ref/config",
+      "git add/commit/push/reset/clean/stash/rebase/merge",
+      "Create/delete/move branches or worktrees",
+      "Install packages or software",
+      "Fetch executable tooling from network",
+      "Circumvent or bypass harness approval/policy controls",
+      "Retry an operation after a policy denial merely by obfuscating, encoding, renaming, or changing shell syntax to evade the denial",
+      "Run the full workspace snapshot qualification",
+      "Persist Requirement or Final Design Review",
+      "WRITE_MAIN"
+    ],
+    "git_read_integrity": {
+      "application": "All local Git read commands that could otherwise refresh index metadata; use process-scoped environment only, never git config mutation.",
+      "failure_to_apply": "Affected zero-mutation claim = NOT_VERIFIED; fail the affected probe.",
+      "mandatory_environment": "GIT_OPTIONAL_LOCKS=0"
+    },
+    "input_transport_resolution_requirement": {
+      "dispatch_projection_delivery": "INLINE_EXACT_CONTENT_OR_OTHER_HARNESS_VISIBLE_CHANNEL; attachments may be supplemental only",
+      "formal_authority_source": "Registered TaskContract Git carrier",
+      "next_execution_must_not_require_attachment_local_paths": true,
+      "no_semantic_change_via_transport": true,
+      "resolved_execution_profile_delivery": "INLINE_EXACT_FIELDS_OR_OTHER_HARNESS_VISIBLE_CHANNEL; attachments may be supplemental only"
+    },
+    "out_of_scope": [
+      "Running SQV-01..SQV-12 as a qualification",
+      "Producing SNAPSHOT_METHOD_QUALIFIED",
+      "Executing or resuming Persistence Successor",
+      "Creating Qualification successor/rebind contract",
+      "Creating EXEC-AMEND-02",
+      "Creating Dispatch-04",
+      "Requirement Freeze",
+      "Independent Persistence Review",
+      "Implementation Authorization",
+      "Implementation",
+      "Product/frontend/backend/runtime/tooling/package changes",
+      "main integration",
+      "WRITE_MAIN"
+    ],
+    "repository_allowed_changes": [],
+    "scope": [
+      "Revalidate the MarketPulse main drift from 1dbdc3f3... to current b959b3a4... and determine whether it is material to Snapshot Qualification semantics.",
+      "Determine why the prior qualification execution could not read the two dispatch-side JSON inputs and define a next-run transport that does not depend on attachment-local paths.",
+      "Determine whether the exact Qualification TaskContract can be recovered solely from its registered Git carrier and whether all non-authoritative execution projection fields can be delivered inline in a future dispatch.",
+      "Establish mandatory Git read-only integrity requirements, including process-scoped GIT_OPTIONAL_LOCKS=0 for local Git reads that may otherwise refresh index metadata.",
+      "Perform bounded, policy-compliant Codex Desktop capability probes sufficient to determine whether the harness can execute the required binary-safe capture/evidence operations without policy circumvention.",
+      "Classify Codex Desktop for the future qualification task as ELIGIBLE, INELIGIBLE, or POLICY_UNRESOLVED.",
+      "If eligible, describe the exact policy-permitted primitive categories that a successor Qualification contract may rely on; do not perform full qualification.",
+      "If ineligible or policy-unresolved, identify the exact missing capability and return to Human/Coordinator for alternate harness selection.",
+      "Produce a structured resolution result and evidence outside all Git worktrees."
+    ],
+    "stop_conditions": [
+      "RULE_LOAD_FAIL",
+      "WORKFLOW_MAIN_DRIFT",
+      "MARKETPULSE_MAIN_DRIFT_AFTER_START",
+      "AUTHORITY_CARRIER_IDENTITY_MISMATCH",
+      "NEWER_UI_I01_SUCCESSOR_AMENDMENT_OR_RESOLUTION_DETECTED",
+      "DUPLICATE_RESOLUTION_TASK_ACTIVE",
+      "CURRENTNESS_DELTA_MATERIAL_TO_UI_I01",
+      "ANY_REPOSITORY_OR_INDEX_MUTATION_DETECTED",
+      "POLICY_PROBE_REQUIRES_CIRCUMVENTION",
+      "INPUT_TRANSPORT_CANNOT_BE_MADE_HARNESS_VISIBLE_WITHOUT_SEMANTIC_CHANGE",
+      "HARNESS_CAPABILITY_REMAINS_AMBIGUOUS_AFTER_BOUNDED_PROBES",
+      "SCOPE_EXPANSION_REQUIRED"
+    ]
+  },
+  "contract_semantic_id": "UI-I01-REQ-PERSIST-SUCCESSOR-01-SNAPSHOT-QUAL-01-HARNESS-RECOVERY-RESOLUTION-01@0.1",
+  "execution": {
+    "budget": {
+      "dispatch_limit": 1,
+      "external_billed_budget": 0,
+      "input_transport_probe_max": 2,
+      "policy_capability_probe_max": 3,
+      "repository_mutation_retry_max": 0
+    },
+    "context_requirement": {
+      "fresh_context": true,
+      "full_rule_load": true,
+      "inherited_private_reasoning": "PROHIBITED"
+    },
+    "data_policy": {
+      "external_paid_api": "PROHIBITED",
+      "package_installation": "PROHIBITED",
+      "provider_calls": "NONE_REQUIRED",
+      "secrets": "DO_NOT_READ"
+    },
+    "permissions": {
+      "external_evidence_write": true,
+      "git_index_write": false,
+      "git_ref_write": false,
+      "policy_probe": "BOUNDED / NON-CIRCUMVENTING",
+      "repository_read": true,
+      "repository_write": false,
+      "write_main": false
+    },
+    "routing_recommendation": {
+      "harness": "Codex Desktop",
+      "model": "GPT-6.1 Sol",
+      "provider": "OpenAI",
+      "rationale": "The task must reason about actual Codex Desktop policy/tool eligibility and local transport constraints; it is not a product implementation task.",
+      "reasoning": "Medium",
+      "routing_tier": "ER-3"
+    },
+    "tools": [
+      "Git read-only commands with GIT_OPTIONAL_LOCKS=0",
+      "Windows PowerShell/pwsh read-only and external-evidence operations",
+      "PowerShell/.NET standard library",
+      "filesystem reads",
+      "GitHub/remote ref reads where available",
+      "external evidence-root writes"
+    ]
+  },
+  "governance": {
+    "governance_mode": "SELF_HOSTED",
+    "governance_version": "0.1.0",
+    "manifest_identity": "fd00-rule-manifest/0.1.0",
+    "operational_profile": {
+      "id": "EMRP",
+      "state": "ACTIVE",
+      "version": "1.1"
+    },
+    "parent_tier_floor": "L2",
+    "protected_subsystem": [
+      "UI-I01 REQUIREMENT LIFECYCLE EVIDENCE"
+    ],
+    "risk_tags": [
+      "RECOVERY",
+      "PERSISTENCE",
+      "EVIDENCE_INTEGRITY"
+    ],
+    "risk_tier": "L2",
+    "role": "Harness / Input-Transport Resolution Investigator",
+    "role_separation": {
+      "cannot": [
+        "Execute Snapshot Method Qualification",
+        "Execute or resume Persistence Successor",
+        "Modify existing TaskContract or Amendment",
+        "Create Dispatch-04",
+        "Freeze Requirement",
+        "Grant Implementation Authorization",
+        "Accept UI-I01 work"
+      ]
+    },
+    "rule_pack_version": "0.1.0",
+    "task_mode": [
+      "STRICT_READ_ONLY_REPOSITORIES",
+      "CURRENT_CONTEXT_RESOLUTION",
+      "HARNESS_ELIGIBILITY_ANALYSIS",
+      "INPUT_TRANSPORT_ANALYSIS",
+      "NO_QUALIFICATION_EXECUTION",
+      "EXTERNAL_EVIDENCE_WRITES_ONLY",
+      "FRESH_CONTEXT"
+    ]
+  },
+  "identity": {
+    "creation_binding": {
+      "execution_amendment_carrier": "946e08c6a77eb81d10647bf2b4af4420d357190e",
+      "marketpulse_authoritative_main": "b959b3a472e4bcd7ca400ef285f2406aef8b6438",
+      "qualification_contract_carrier": "85f31cd1f7e7de744882f50aab8f68e5956b47cc",
+      "successor_contract_carrier": "c4e7a84fccd21f583ab905668b7c27214c0f5a8b",
+      "workflow_authoritative_main": "165b1cad65fdd4949a7cf283681006c68ff249e5"
+    },
+    "governance_repository": "zwmhua2-lab2/ai-dev-workflow",
+    "parent_work": "UI-I01-REQ-PERSIST-SUCCESSOR-01-SNAPSHOT-QUAL-01@0.1",
+    "project": "MarketPulse-AI",
+    "repository": "zwmhua2-lab2/MarketPulse-AI",
+    "task_id": "UI-I01-REQ-PERSIST-SUCCESSOR-01-SNAPSHOT-QUAL-01-HARNESS-RECOVERY-RESOLUTION-01",
+    "task_version": "0.1",
+    "trigger": {
+      "currentness_failure": "MarketPulse authoritative main advanced after the qualification contract binding.",
+      "git_read_integrity_gap": "Initial diagnostic git status did not explicitly disable optional locks; zero index mutation was NOT VERIFIED.",
+      "harness_policy_failure": "Automatic approval rejected raw-byte capture / evidence-script execution as blocked by policy.",
+      "input_transport_failure": "Resolved Execution Profile and Dispatch Projection attachments were not readable in the execution environment.",
+      "qualification_dispatch": "UI-I01-REQ-PERSIST-SUCCESSOR-01-SNAPSHOT-QUAL-01-DISPATCH-01",
+      "qualification_result": "BLOCKED / NOT_QUALIFIED"
+    },
+    "work_name": "Snapshot Qualification Harness / Input-Transport Recovery Resolution",
+    "workline": "UI-I01 | Global Shell + System"
+  },
+  "registration": {
+    "canonical_target_path": "docs/design/UI-V1/UI-I01-REQ-PERSIST-SUCCESSOR-01-SNAPSHOT-QUAL-01-HARNESS-RECOVERY-RESOLUTION-01-TASK-CONTRACT-v0.1.json",
+    "registration_state_after_success": "FORMALLY_REGISTERED_PROJECT_LOCAL_STRUCTURED_TASKCONTRACT",
+    "suggested_branch": "ui-i01-snapshot-qual-harness-recovery-resolution-01-register",
+    "target_parent": "b959b3a472e4bcd7ca400ef285f2406aef8b6438",
+    "target_repository": "zwmhua2-lab2/MarketPulse-AI",
+    "write_main": false
+  },
+  "result": {
+    "result_status_allowed": [
+      "COMPLETED",
+      "BLOCKED",
+      "STALE",
+      "DUPLICATE",
+      "ESCALATION_REQUIRED"
+    ],
+    "structured_result_envelope": {
+      "contract_identity": "REQUIRED",
+      "current_bindings": "REQUIRED",
+      "currentness_resolution": "REQUIRED",
+      "dispatch_identity": "REQUIRED",
+      "external_artifacts": "REQUIRED",
+      "findings": "REQUIRED",
+      "git_read_integrity_resolution": "REQUIRED",
+      "harness_disposition": "REQUIRED",
+      "harness_probe_matrix": "REQUIRED",
+      "input_transport_resolution": "REQUIRED",
+      "remaining_work": "REQUIRED",
+      "repository_mutation": "REQUIRED",
+      "result_status": "REQUIRED",
+      "run_identity": "REQUIRED",
+      "staleness": "REQUIRED"
+    },
+    "success_boundary": {
+      "implementation": "NOT_STARTED",
+      "implementation_authorization": "NOT_GRANTED",
+      "next": "RETURN_TO_UI_I01_COORDINATOR_FOR_CURRENT_CONTEXT_QUALIFICATION_SUCCESSOR_OR_HARNESS_SELECTION",
+      "persistence_successor": "NOT_EXECUTED",
+      "requirement_freeze": "NOT_PERFORMED",
+      "resolution_state": "HARNESS_AND_INPUT_TRANSPORT_RESOLVED",
+      "result_status": "COMPLETED",
+      "snapshot_method_qualification": "NOT_EXECUTED",
+      "write_main": "NOT_PERFORMED"
+    }
+  },
+  "serialization": {
+    "format": "JSON",
+    "project_local": true,
+    "template_authority": "NONE"
+  },
+  "verification_acceptance": {
+    "acceptance": "NOT_UI_I01_ACCEPTANCE",
+    "human_gate": "NONE IN THIS TASK",
+    "official_verification": "NOT_SEPARATE; this is a resolution/investigation task.",
+    "required_evidence": [
+      "currentness compare",
+      "authority carrier identity matrix",
+      "dispatch/input transport analysis",
+      "GIT_OPTIONAL_LOCKS=0 command policy",
+      "bounded harness capability probe log",
+      "policy denial evidence if any",
+      "START/END refs",
+      "zero-repository-mutation evidence",
+      "structured resolution result"
+    ],
+    "required_review": "UI-I01 System Workline Coordinator Completion Result Review",
+    "resolution_dispositions": {
+      "ELIGIBLE_FOR_REBOUND_QUALIFICATION": "Codex Desktop has a policy-permitted primitive set and transport mode sufficient to design a current-context Qualification successor/rebind.",
+      "INELIGIBLE_FOR_REQUIRED_QUALIFICATION": "Required primitive class is prohibited by harness policy; return to Human/Coordinator for alternate harness selection before new Qualification task.",
+      "POLICY_UNRESOLVED": "Bounded safe probes cannot establish eligibility; fail closed and return to Human/Coordinator."
+    },
+    "success_predicate": "HRR-01..HRR-12 PASS",
+    "verification_contract": [
+      {
+        "id": "HRR-01",
+        "requirement": "Full current Workflow rule load and exact START MarketPulse/Workflow main bindings PASS."
+      },
+      {
+        "id": "HRR-02",
+        "requirement": "Exact Successor Contract, EXEC-AMEND-01, and Qualification Contract identities match their immutable carriers."
+      },
+      {
+        "id": "HRR-03",
+        "requirement": "Main drift 1dbdc3f3...→b959b3a4... is independently compared and classified material/non-material for UI-I01 Snapshot Qualification semantics."
+      },
+      {
+        "id": "HRR-04",
+        "requirement": "Qualification Dispatch-01 consumption is recognized; the old dispatch is not resumed and old dispatch_limit is not silently extended."
+      },
+      {
+        "id": "HRR-05",
+        "requirement": "Input-transport root cause is identified and a future delivery mode is specified that does not depend on attachment-local filesystem paths."
+      },
+      {
+        "id": "HRR-06",
+        "requirement": "Future formal authority remains the registered Git TaskContract; inline/profile/dispatch transport is proven to be projection-only and cannot alter Contract semantics."
+      },
+      {
+        "id": "HRR-07",
+        "requirement": "GIT_OPTIONAL_LOCKS=0 is established as mandatory process-scoped protection for relevant local Git reads; no git config mutation is used."
+      },
+      {
+        "id": "HRR-08",
+        "requirement": "At most three non-circumventing Codex Desktop capability probes establish whether policy permits the primitive categories required for binary-safe capture/evidence generation."
+      },
+      {
+        "id": "HRR-09",
+        "requirement": "Every policy denial is preserved verbatim enough to classify the blocked operation category; no bypass/evasion attempt occurs."
+      },
+      {
+        "id": "HRR-10",
+        "requirement": "Codex Desktop disposition is exactly one of ELIGIBLE_FOR_REBOUND_QUALIFICATION, INELIGIBLE_FOR_REQUIRED_QUALIFICATION, or POLICY_UNRESOLVED."
+      },
+      {
+        "id": "HRR-11",
+        "requirement": "Resolution causes zero repository/index/ref/config/worktree mutation and records START/END refs plus external evidence identities."
+      },
+      {
+        "id": "HRR-12",
+        "requirement": "Structured result defines the next legal coordinator action without executing Qualification, Persistence Successor, Freeze, Implementation Authorization, Acceptance, or WRITE_MAIN."
+      }
+    ],
+    "verification_profile_identity": "UI-I01-SNAPSHOT-HARNESS-RECOVERY-RESOLUTION-VP-v0.1"
+  }
+}

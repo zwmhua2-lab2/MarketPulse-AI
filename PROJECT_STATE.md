@@ -2616,3 +2616,17 @@ UI-RD01-I03-REQ-04 — Trading Audit Read Product Read Implementation Requiremen
 - SUPP-02 v0.2.1 persistence review: `NOT STARTED`; dispatch: `BLOCKED PENDING POST-INTEGRATION RECEIPT PASS`.
 - Persistence R01 closure, Requirement Freeze / Human Freeze disposition, Implementation Authorization, and Implementation: `NOT PERFORMED`.
 - Next legal gate: `UI-RD01-I04-REQ-PERSIST-R01-SUPP-02-V021-TC-REGISTER-INTEGRATION-V01` post-integration receipt.
+
+## UI-I01 Harness Recovery Resolution Branch Registration — 2026-10-10
+
+- Operation: `UI-I01-SNAPSHOT-QUAL-HARNESS-RECOVERY-RESOLUTION-01-TASKCONTRACT-REGISTER-01 v0.1`; manual Control Plane registration only.
+- TaskContract: `UI-I01-REQ-PERSIST-SUCCESSOR-01-SNAPSHOT-QUAL-01-HARNESS-RECOVERY-RESOLUTION-01 v0.1`.
+- Registration: `FORMALLY_REGISTERED / BRANCH_BOUND / NOT_ON_MAIN` on `ui-i01-snapshot-qual-harness-recovery-resolution-01-register`, conditional on publication and exact readback of this single-parent carrier. Resolve its identity from Git; this record does not embed its own commit SHA.
+- CurrentMarketPulseBinding / required parent: `b959b3a472e4bcd7ca400ef285f2406aef8b6438`; Workflow binding: `165b1cad65fdd4949a7cf283681006c68ff249e5`.
+- Canonical contract: `docs/design/UI-V1/UI-I01-REQ-PERSIST-SUCCESSOR-01-SNAPSHOT-QUAL-01-HARNESS-RECOVERY-RESOLUTION-01-TASK-CONTRACT-v0.1.json`; 17287 bytes; SHA-256 `6439e56dcbe9eb455040ea1685ec906dbe4c1135c4c5a8ea7c5d1dc5a39ad1f1`.
+- Binding-only revision from preserved original SHA-256 `ab36ee5392ab2b3b3468b1cc96af264b953ac4cabb2febd24ef560418794a89d`: only `identity.creation_binding.workflow_authoritative_main` changed from `cbc1a221646a9f4703a65e626e58cf192ed96426`. Task identity, version, lineage, scope, HRR criteria, role and budgets remain unchanged.
+- ResolutionScope: `HARNESS_ELIGIBILITY + INPUT_TRANSPORT + CURRENTNESS + GIT_READ_INTEGRITY`; PriorQualification: `BLOCKED / NOT_QUALIFIED / STALE_BY_MAIN_DRIFT`; its consumed dispatch and prior exhausted Successor/EXEC-AMEND capacity remain preserved.
+- Registration attempt 1: local thread `01a12583-9a11-705f-bc97-9de7cd2db0be`, turn `01a12583-b375-71cb-b3ea-77c0c3f60aa9`, terminated before source hashing because configured proxy refused connection; parent-reported no repository mutation. Attempt 2: authorized continuation through connected GitHub API, not a Codex Cloud container. No attempt or root reset.
+- Dispatch: `NOT_YET_ISSUED`; ResolvedExecutionProfile: `NOT_YET_RESOLVED`; RequirementFreeze: `NOT_PERFORMED`; ImplementationAuthorization: `NOT_GRANTED`. No Resolution execution or consumption of its future dispatch/probe budget by this registration.
+- Next: `RESOLVE_EXECUTION_PROFILE_AND_COMPILE_DISPATCH_PROJECTION`, after Coordinator intake and actual dispatch-authority checks. No Qualification, Persistence, Dispatch-04, Registry/Sequence change, acceptance, product modification or WRITE_MAIN.
+- Evidence and current Human authorization references: `dev_log/2026-10-03-ui-i01-snapshot-qual-harness-recovery-resolution-01-taskcontract-registration.md` (actual execution date 2026-10-10).
