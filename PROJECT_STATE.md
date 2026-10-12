@@ -2616,3 +2616,14 @@ UI-RD01-I03-REQ-04 — Trading Audit Read Product Read Implementation Requiremen
 - SUPP-02 v0.2.1 persistence review: `NOT STARTED`; dispatch: `BLOCKED PENDING POST-INTEGRATION RECEIPT PASS`.
 - Persistence R01 closure, Requirement Freeze / Human Freeze disposition, Implementation Authorization, and Implementation: `NOT PERFORMED`.
 - Next legal gate: `UI-RD01-I04-REQ-PERSIST-R01-SUPP-02-V021-TC-REGISTER-INTEGRATION-V01` post-integration receipt.
+
+## UI-I02 PAGE DESIGN R01 TaskContract Candidate (2026-10-12)
+
+- Materialization control operation: `UI-I02-PAGE-IMPLEMENTATION-DESIGN-R01-TC-MATERIALIZE-01 v0.1` / branch-only.
+- Candidate target: `UI-I02-PAGE-IMPLEMENTATION-DESIGN-R01 v0.1` (Independent Frontend Design Review; proposed identity only).
+- Source main / single parent: `b959b3a472e4bcd7ca400ef285f2406aef8b6438`; source tree `2b615322d4b666cbce567f256375766a41737ed8`; Workflow main `165b1cad65fdd4949a7cf283681006c68ff249e5`.
+- Candidate branch: `mp/ui-i02-page-design-r01-tc-materialize-01`; candidate files: `docs/task-contracts/UI-I02/UI-I02-PAGE-IMPLEMENTATION-DESIGN-R01-v0.1.task-contract.json` and `docs/task-contracts/UI-I02/UI-I02-PAGE-IMPLEMENTATION-DESIGN-R01-v0.1.task-card.md`.
+- Original C JSON and Markdown preserved byte-exact from Library `libfile_dc61dade8cd881918200fbaa48aaabab` and `libfile_16956ec1582c8191b43f4bd60637a124`. Source and Frozen Git identities: Library `libfile_607285023d008191bfe5f5d8e388fa33`; control intake `libfile_6b13cf732f048191b7c0d3bd74980ffb`.
+- Parent: `NOT_APPLICABLE_PROPOSED` / pending formal applicability; UI-V1-D01 is frozen design lineage only. Review risk: `L2 PROPOSED` and unresolved parent/protected-subsystem floor; no final adoption.
+- Effectiveness: **BRANCH_CANDIDATE / NOT_REGISTERED / NOT_EFFECTIVE / NOT_DISPATCHABLE**. Review Budget/Ledger, Reviewer/Profile, independent Review, Human Freeze, Implementation and Acceptance remain ungranted/unperformed.
+- Git main and all product code, schema, runtime, verification and original design/AC remain unchanged by this branch-only operation. Next gate requires independently authorized formal candidate review and exact task-control/effectiveness determination; this branch does not grant it.

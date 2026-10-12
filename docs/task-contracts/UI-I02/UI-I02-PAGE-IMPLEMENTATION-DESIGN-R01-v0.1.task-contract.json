@@ -1,0 +1,169 @@
+{
+  "artifact_nature": "PROPOSED_DESIGN_REVIEW_TASK_SEMANTIC_DRAFT / NOT_FORMAL / NOT_REGISTERED / NOT_DISPATCHABLE",
+  "boundary": {
+    "allowed_write_scope": "NONE_IN_PRODUCT_AND_GOVERNANCE_REPOSITORIES; ONLY_SEPARATELY_AUTHORIZED_OUT_OF_REPO_EVIDENCE",
+    "exclusions": [
+      "NO_PRODUCT_OR_REPOSITORY_MUTATION",
+      "NO_FRONTEND_CODE_EDIT_OR_TEST_RUN",
+      "NO_MAIN_OR_REGISTRY_WRITE",
+      "NO_FREEZE_NO_IMPLEMENTATION_NO_ACCEPTANCE_NO_GATE_TRANSITION",
+      "NO_NEW_BACKEND_API_OR_SCHEMA",
+      "NO_EXTERNAL_PAID_CALL",
+      "NO_REVIEW_RESULT_BY_THIS_DESIGNER"
+    ],
+    "input_scope": "PINNED_GIT_REFS_AND_EXACT_LIBRARY_SOURCE_OBJECTS_ONLY",
+    "review_scope": [
+      "Review existing I02 original design draft against Frozen UI-V1 / amendments, accepted Product Read API and traceability table",
+      "Check exactly ten original ACs and paired test design; do not rewrite them",
+      "Check current typed DTO availability, provenance/absence semantics, adverse examples, errors and security",
+      "Check read-only page boundary and G04 shared-router two-path single-writer principle",
+      "Report precise findings, residual dependencies and missing future implementation verification"
+    ],
+    "stop_conditions": [
+      "RULE_LOAD_PARTIAL_OR_STALE",
+      "UNREADABLE_EXACT_INPUT_OR_HASH_MISMATCH",
+      "AUTHORIZATION_MISSING",
+      "RISK_OR_PARENT_FLOOR_CONFLICT",
+      "EXTERNAL_PAID_CALL_REQUIRED_WITHOUT_AUTHORIZATION",
+      "UNRESOLVED_INDEPENDENCE",
+      "REVIEW_SCOPE_EXPANSION",
+      "CURRENTNESS_DRIFT"
+    ]
+  },
+  "execution": {
+    "data_policy": "NO_SECRETS, NO_RAW_PRIVATE_PROVIDER_OUTPUT, NO_PAID_EXTERNAL_CALL",
+    "fresh_context": "MANDATORY_BY_REVIEWER_AFTER_DISPATCH",
+    "harness": "UNBOUND",
+    "heterogeneity_requirement": "NOT_AUTOMATIC; APPLY_FINAL_REVIEW_PROFILE",
+    "input_delivery_readability": "C_WEB_VERIFIED; FUTURE_REVIEW_HARNESS_NOT_VERIFIED",
+    "model": "UNBOUND",
+    "model_routing_note": "EMRP-1.1 is active Executor routing; do NOT bind Executor ER tier to independent Reviewer",
+    "permissions": "STRICT_READ_ONLY_REVIEW; AUTHORIZATION_NOT_GRANTED",
+    "profile_class": "INDEPENDENT_REVIEW_PROFILE_PROPOSAL_ONLY",
+    "proposed_review_budget": {
+      "authority": "DESIGN_PROPOSAL_ONLY_NOT_SPENDABLE",
+      "consumed": "UNKNOWN_UNREGISTERED",
+      "external_billed_micro_USD": 0,
+      "ledger_identity": "NOT_CREATED",
+      "max_dispatch_attempts": 1,
+      "max_fix_rounds": 1,
+      "max_invalid_verification_runs": 0,
+      "max_minor_amendments": 0,
+      "remaining": "NOT_CALCULABLE"
+    },
+    "provider": "UNBOUND",
+    "reasoning": "UNBOUND",
+    "resolved_execution_or_review_profile": "NOT_CREATED",
+    "reviewer_slots_proposal": 1,
+    "tools_proposed": [
+      "AUTHORIZED_GITHUB_READ",
+      "AUTHORIZED_LIBRARY_READ",
+      "NO_MUTATING_TOOL"
+    ],
+    "workspace": "NOT_ASSIGNED; C_WEB_DESIGN_WORKSPACE_ONLY"
+  },
+  "governance": {
+    "authoritative_inputs": "C-I02-I03-Exact-Review-Subject-Index-v0.2.json :: review_subjects.I02",
+    "frozen_truth_status": "EXACT_FROZEN_SOURCES_IDENTIFIED; FORMAL_TASK_FROZEN_TRUTH_BUNDLE_NOT_BOUND",
+    "governance_version": "0.1.0",
+    "manifest_identity": "fd00-rule-manifest/0.1.0",
+    "mode": "INDEPENDENT_DESIGN_REVIEW / STRICT_READ_ONLY / PROPOSED",
+    "parent_tier_floor": "UNKNOWN_PENDING_FORMAL_APPLICABILITY",
+    "protected_subsystem": "PAGE_READ_PRESENTATION_AND_AUTH_SESSION_BOUNDARY; FINAL_CLASSIFICATION_PENDING",
+    "review_dispatch_authority": "NOT_GRANTED",
+    "risk_tags_proposed": [
+      "PUBLIC_CONTRACT",
+      "AUTHORIZATION",
+      "STATE_MACHINE"
+    ],
+    "risk_tier_proposal": "L2",
+    "role": "REVIEWER; MUST_BE_INDEPENDENT_OF_C_DESIGNER_AND_FUTURE_EXECUTOR",
+    "rule_pack_version": "0.1.0",
+    "workflow_main": "165b1cad65fdd4949a7cf283681006c68ff249e5",
+    "workflow_repo": "zwmhua2-lab2/ai-dev-workflow"
+  },
+  "identity": {
+    "formal_contract_content_id": "UNSEALED",
+    "formal_task_id_status": "UNASSIGNED",
+    "formal_task_version_status": "UNASSIGNED",
+    "frontend_sequence": "UI-F01 -> UI-RD01 -> UI-I01 -> UI-I02 -> UI-I03 -> UI-I04 -> UI-I05 -> UI-I06; design work parallel allowed; implementation sequence retained",
+    "parent_design": "UI-V1-D01 / ACCEPTED_FROZEN",
+    "parent_design_git_blob": "62173554e3824418326a9f782e1f9c7e971ca25a",
+    "parent_lineage_note": "KERNEL-05 requires Parent Work Package if applicable; do not fabricate an AWB parent or force new registry",
+    "parent_work_package_contract": "APPLICABILITY_UNRESOLVED; NO_IDENTIFIED_PAGE_PARENT_CONTRACT_ON_VERIFIED_MAIN",
+    "project": "MarketPulse-AI",
+    "proposed_review_task_id": "UI-I02-PAGE-IMPLEMENTATION-DESIGN-R01",
+    "proposed_target_page_task_id": "UI-I02-PAGE-IMPLEMENTATION-01",
+    "proposed_task_version": "v0.1",
+    "registration_state": "NOT_ESTABLISHED",
+    "repository": "zwmhua2-lab2/MarketPulse-AI",
+    "source_main": "b959b3a472e4bcd7ca400ef285f2406aef8b6438",
+    "source_tree": "2b615322d4b666cbce567f256375766a41737ed8"
+  },
+  "parent_source_index_sha256": "55cf7a604a3c7619fa4c0c4b379525f84230dde12882e827688bf0b6543f4ef3",
+  "result": {
+    "candidate_page_code": "NONE",
+    "disposition": "DO_NOT_DISPATCH_UNTIL_AUTHORIZED_FORMAL_BINDINGS",
+    "human_acceptance": "NOT_ESTABLISHED",
+    "official_verification_result": "NOT_PERFORMED",
+    "required_result_fields": [
+      "Result",
+      "ChangedScope",
+      "ReadCoverage",
+      "ExactReviewedSubject",
+      "ACMatrix",
+      "ReviewerIdentityAndIndependence",
+      "Evidence",
+      "OpenFindings",
+      "Remaining",
+      "RequiredHumanGates",
+      "NoMutationStatement"
+    ],
+    "result_return_target_proposed": "MarketPulse-AI｜C｜后续 UI 设计；随后按授权回报 MarketPulse-AI 总控",
+    "review_result": "NONE"
+  },
+  "verification_acceptance": {
+    "acceptance_boundary": "REVIEW_PASS_ALONE_NOT_FREEZE_NOT_IMPLEMENTATION_AUTH_NOT_PRODUCT_ACCEPTANCE",
+    "human_gate": "NOT_PERFORMED_AND_NOT_GRANTED_BY_THIS_CANDIDATE",
+    "original_acceptance_criteria_ids": [
+      "C-I02-01",
+      "C-I02-02",
+      "C-I02-03",
+      "C-I02-04",
+      "C-I02-05",
+      "C-I02-06",
+      "C-I02-07",
+      "C-I02-08",
+      "C-I02-09",
+      "C-I02-10"
+    ],
+    "original_test_design_ids": [
+      "M01",
+      "M02",
+      "M03",
+      "M04",
+      "M05",
+      "M06",
+      "M07",
+      "M08",
+      "M09",
+      "M10"
+    ],
+    "review_required_evidence": [
+      "EXACT_INPUT_HASH_CHECKS",
+      "FROZEN_TO_AC_MAPPING",
+      "INDEPENDENT_FINDING_MATRIX",
+      "REVIEW_PROFILE_AND_ROLE_PROOF",
+      "CURRENT_BASELINE_IDENTITY",
+      "BLOCKING_AND_NONBLOCKING_DISPOSITION"
+    ],
+    "review_status": "NOT_PERFORMED",
+    "reviewed_subject": {
+      "original_draft": "originals-v0.1/UI-I02-Implementation-Contract-DRAFT.md",
+      "prior_formalization_delta": "C-UI-I02-Formal-Task-Preparation-Delta-v0.1.md",
+      "test_design": "Acceptance-Test-Design.md",
+      "traceability": "I02-Source-AC-Test-Traceability.md"
+    },
+    "verification_status": "DESIGN_TEST_MATRIX_PRESENT / FUTURE_PAGE_TESTS_NOT_EXECUTED"
+  }
+}
