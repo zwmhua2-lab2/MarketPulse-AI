@@ -1,0 +1,32 @@
+{
+  "acceptance_authority": "NOT_GRANTED",
+  "asset_manifest": {
+    "expected": "Codex native tool trace and explicit structured receipt; no new script/test fixture/evidence file",
+    "external_written_assets": "NONE",
+    "kind": "EXISTING_TOOL_OUTPUT_ONLY"
+  },
+  "bound_contract": "docs/task-contracts/UI-I01/UI-I01-G03-HUA-WORKSPACE-READ-ONLY-01-v0.1.task-contract.json",
+  "bound_verification_contract": "docs/task-contracts/UI-I01/UI-I01-G03-HUA-WORKSPACE-READ-ONLY-01-v0.1.verification-contract.json",
+  "environment": "HUA / Codex Desktop / exact two roots",
+  "method": [
+    "Use ONLY allowed cmd templates after preflight",
+    "One bounded flow; no retry and fail closed",
+    "Capture exit/stdout/stderr for each invoked command",
+    "STOP at first applicable denial",
+    "No file writes, no network",
+    "No independent product verification"
+  ],
+  "preflight": [
+    "Effective formal task identity",
+    "current Governance/MarketPulse binding",
+    "Human read scope exact coverage",
+    "Current ResolvedExecutionProfile",
+    "One effective attempt-budget and pending check",
+    "Source delivery to HUA actual readability",
+    "Duplicate active run/old denial check"
+  ],
+  "profile_id": "UI-I01-G03-HUA-WORKSPACE-READ-ONLY-01-VP-v0.1-CANDIDATE",
+  "review_profile": "NOT_YET_RESOLVED",
+  "state": "CANDIDATE / NOT_EFFECTIVE",
+  "verification_owner": "UNASSIGNED / FORMAL BINDING REQUIRED"
+}

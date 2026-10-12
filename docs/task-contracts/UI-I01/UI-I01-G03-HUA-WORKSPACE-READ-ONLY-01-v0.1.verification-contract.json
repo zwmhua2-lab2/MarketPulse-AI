@@ -1,0 +1,29 @@
+{
+  "negative_cases": [
+    "directory unavailable",
+    "old policy refusal still active",
+    "permission denied exit 128",
+    "untrusted dirty attribution",
+    "unverified concurrent owner",
+    "Index write risk",
+    "input not locally visible",
+    "missing dispatch/profile/ledger"
+  ],
+  "pass_rule": "PASS requires every applicable mandatory observable obligation established from actual command-level evidence; otherwise PARTIAL/NOT_VERIFIED/BLOCKED; no automatic product acceptance",
+  "scope": "Single bounded HUA local read-only preflight",
+  "state": "CANDIDATE / NOT_FROZEN",
+  "task_id": "UI-I01-G03-HUA-WORKSPACE-READ-ONLY-01",
+  "task_version": "v0.1",
+  "verification_obligations": {
+    "G03-VC-01": "Effective TaskContract, registered identity, human scope and dispatch exist before ANY command.",
+    "G03-VC-02": "HUA host and Codex Desktop capability attested from authorized surface (or NOT_VERIFIED).",
+    "G03-VC-03": "Each of exactly two candidate roots has explicit exists/not exists/inaccessible result without recursive scan.",
+    "G03-VC-04": "For accessible verified Git roots, canonical root, HEAD, branch and origin/main tracking SHA captured.",
+    "G03-VC-05": "Git status -porcelain=v1 -uall and worktree list observed without unauthorized Git writes.",
+    "G03-VC-06": "Owner/concurrency/dirty attribution attested from existing approved metadata or marked NOT_VERIFIED.",
+    "G03-VC-07": "Each actually invoked command has exact command, stdout/stderr, exit, timestamp/order; refusal unchanged.",
+    "G03-VC-08": "START/END comparison and zero-mutation evidence are adequate or explicitly NOT_VERIFIED.",
+    "G03-VC-09": "Old HRR stays blocked; no retry of denied command, no old budget consumed, no unauthorized scope.",
+    "G03-VC-10": "Structured return includes budget consumption/pending and STOP/unknowns, no invented PASS."
+  }
+}

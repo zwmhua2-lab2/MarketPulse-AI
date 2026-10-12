@@ -1,0 +1,192 @@
+{
+  "authority_binding": {
+    "formal_dispatch": "NOT_CREATED",
+    "governance_mode": "SELF_HOSTED",
+    "governance_version": "0.1.0",
+    "human_owner_decision": "G04 Option A CONFIRMED; not a write right",
+    "human_read_scope": "Human current G03 confirmation in A Web conversation, 2026-10-12; read-only scope only, not registration/dispatch.",
+    "manifest": "fd00-rule-manifest/0.1.0",
+    "marketpulse_main": "b959b3a472e4bcd7ca400ef285f2406aef8b6438",
+    "marketpulse_tree": "2b615322d4b666cbce567f256375766a41737ed8",
+    "registered_carrier": "NOT_CREATED",
+    "registration_rule_status": "PROJECT_LOCAL pattern observed; whether branch-bound vs main-effective must be resolved by authorized Control Plane",
+    "routing_profile": "EMRP-1.1",
+    "routing_profile_blob": "99f00b5809d0104e326282e12041e2a9ca2db467",
+    "rule_pack": "0.1.0",
+    "standards_main": "b601ef7c3ddaed5dfc8f52d2d049e38ffbc6c4d5",
+    "workflow_main": "165b1cad65fdd4949a7cf283681006c68ff249e5",
+    "workflow_tree": "353bf882e0d7b7049ec239bb2deb483abdfcf161"
+  },
+  "boundary": {
+    "allowed_changes": "NONE in all repository/index/ref/config/worktree, local evidence files, database and runtime",
+    "allowed_command_templates": [
+      "Test-Path -LiteralPath <approved-root> -PathType Container",
+      "Get-Item -LiteralPath <approved-root> -Force",
+      "git -C <approved-root> rev-parse --show-toplevel",
+      "git -C <approved-root> rev-parse HEAD",
+      "git -C <approved-root> branch --show-current",
+      "git -C <approved-root> rev-parse refs/remotes/origin/main",
+      "git -C <approved-root> status --porcelain=v1 -uall",
+      "git -C <approved-root> worktree list --porcelain"
+    ],
+    "allowed_roots": [
+      "E:\\Documents\\AI-Developer\\repositories\\MarketPulse-AI",
+      "E:\\Documents\\AI-Developer\\repositories\\ai-dev-workflow"
+    ],
+    "forbidden": [
+      "git fetch/pull/add/commit/push/reset/rebase/merge/clean/stash",
+      "create branch/worktree",
+      "git config writes",
+      "new shell/tool to evade permission rejection",
+      "ACL/elevation modifications",
+      "file/script creation",
+      "reading secrets/unrelated paths",
+      "retry of 8dc518 denial",
+      "consumption of HRR budget"
+    ],
+    "goal": "Verify permitted HUA canonical roots, Git identities, status, worktree/owner and read eligibility without touching user repos.",
+    "out_of_scope": [
+      "old HRR or qualification rerun",
+      "requirement freeze",
+      "UI implementation",
+      "network Git/fetch/pull",
+      "install/build/test",
+      "process-wide scan",
+      "permission repair",
+      "write_main",
+      "registry/state transitions by local executor"
+    ],
+    "stop_conditions": [
+      "FORMAL_CONTRACT_NOT_EFFECTIVE",
+      "DISPATCH_NOT_EFFECTIVE",
+      "EXECUTION_PROFILE_NOT_RESOLVED",
+      "BUDGET_NOT_EFFECTIVE",
+      "REQUIRED_INPUT_NOT_LOCALLY_ACCESSIBLE",
+      "HARNESS_NOT_HUA_CODEX_DESKTOP",
+      "POLICY_DENIAL_STILL_APPLICABLE",
+      "PERMISSION_DENIED_OR_EXIT_128",
+      "INDEX_WRITE_RISK",
+      "UNKNOWN_DIRTY_OWNER",
+      "CONCURRENCY_CONFLICT",
+      "BASELINE_MISMATCH",
+      "PROBE_OR_NEW_CAPABILITY_REQUIRED",
+      "SCOPE_EXPANSION_REQUIRED",
+      "ANY_UNAUTHORIZED_WRITE"
+    ]
+  },
+  "contract_state": "DESIGN_CANDIDATE / NOT_REGISTERED / NOT_DISPATCHABLE",
+  "execution": {
+    "attachments": [
+      {
+        "availability": "WEB READ; HUA CODEX UNVERIFIED",
+        "file_name": "MarketPulse-A-G03-Formal-Binding-Control-Intake-20261012-v0.1.md",
+        "source": "libfile_b5a07202b9a48191b166ec1d72198a7b",
+        "source_bytes": 9717
+      },
+      {
+        "availability": "WEB READ; HUA CODEX UNVERIFIED",
+        "file_name": "MarketPulse-AI-A-G03-HUA-Authority-Routing-20261012-v0.1.md",
+        "source": "libfile_e50678481618819195ce87ef5b5b350a",
+        "source_bytes": 9775
+      },
+      {
+        "availability": "CURRENT CHAT; FORMAL TRANSPORT/ATTESTATION TO HUA NOT VERIFIED",
+        "file_name": "Conversation message: 批准",
+        "source": "Current A Web Human approval"
+      }
+    ],
+    "attempt_max_proposed": 1,
+    "data_policy": "Only two approved roots and approved workspace ownership metadata; no credential/secret content; outputs sanitized without losing command/error evidence",
+    "evidence_output": "CHAT_ONLY / NATIVE CODEX RESPONSE; no filesystem output",
+    "external_paid_authorized_usd_proposed": 0,
+    "git_process_environment": {
+      "GIT_OPTIONAL_LOCKS": "0",
+      "core_fsmonitor_override": "NOT_AUTHORIZED_BY_DEFAULT; ONLY IF ADDITIONALLY VERIFIED IN ORIGINAL HUMAN SCOPE AND HARNESS POLICY"
+    },
+    "harness": "Codex Desktop (MUST_ATTEST)",
+    "host": "HUA (MUST_ATTEST)",
+    "model_routing_recommendation": {
+      "model": "GPT-6 Luna",
+      "provider": "OpenAI",
+      "rationale": "bounded deterministic read-only observation; no architecture implementation",
+      "reasoning": "Medium",
+      "tier": "ER-1"
+    },
+    "permissions": {
+      "external_evidence_write": false,
+      "network_git": false,
+      "process_scan": false,
+      "repository_read": true,
+      "repository_write": false
+    },
+    "resolved_execution_profile_ref": "NOT_CREATED; resolve by Control Plane prior to dispatch",
+    "retry_max_proposed": 0,
+    "task_working_dir": "ONLY EXISTING APPROVED ROOT; no new local directory"
+  },
+  "governance": {
+    "parent_tier_floor": "NOT_VERIFIED; must not downgrade any applicable formal floor",
+    "protected_subsystems": [
+      "repository index/refs/config/worktree (READ ONLY)"
+    ],
+    "risk_tags": [
+      "AUTHORIZATION",
+      "WORKSPACE_CURRENTNESS",
+      "RECOVERY"
+    ],
+    "risk_tier": "L2_PROPOSED; formal confirmation required",
+    "role": "WORKSPACE_READ_ONLY_EXECUTOR",
+    "separation": "Designer != Executor != Independent Reviewer != Official Verification != Human Acceptance",
+    "task_mode": "STRICT_READ_ONLY / ONE_BOUNDED_ATTEMPT / NO_REPAIR",
+    "task_requires_fresh_context": true
+  },
+  "identity": {
+    "contract_id": "UI-I01-G03-HUA-WORKSPACE-READ-ONLY-01-TC-v0.1-candidate.1",
+    "creation_sequence": "NOT_ASSIGNED; resolve only if project-local current registration authority requires it",
+    "governance_repository": "zwmhua2-lab2/ai-dev-workflow",
+    "lineage": "NEW_INDEPENDENT_PREFLIGHT / NOT_REUSE_OF_HRR",
+    "parent_work_package": "UI-I01 Global Shell + System — G03 Workspace Admission",
+    "product_repository": "zwmhua2-lab2/MarketPulse-AI",
+    "project": "MarketPulse-AI",
+    "task_id": "UI-I01-G03-HUA-WORKSPACE-READ-ONLY-01",
+    "task_version": "v0.1",
+    "work_name": "HUA two-repository read-only Workspace eligibility observation"
+  },
+  "result_contract": {
+    "no_provisional_pass": true,
+    "required_fields": [
+      "Result",
+      "Changes",
+      "Verification",
+      "Remaining",
+      "Evidence",
+      "Task ID/version",
+      "Formal Dispatch ID/run ID",
+      "Actual host/model/harness metadata",
+      "Per-root path/Git/HEAD/origin-main/status/worktree",
+      "All invoked command outputs/exit/refusals",
+      "Attempt ledger and pending",
+      "Stop classification",
+      "No-mutation witness or NOT_VERIFIED"
+    ],
+    "return_target": "A｜系统页与恢复 → MarketPulse-AI｜项目总控｜续接 02 → dot (last leg only if delivered)",
+    "when_formal_inputs_missing": "STOP_BEFORE_COMMAND / FORMAL_DISPATCH_NOT_READY"
+  },
+  "schema": "marketpulse.project-local.structured-task-contract/0.1-candidate",
+  "verification_acceptance": {
+    "human_gate": "G03 read-only scope APPROVED; other permissions and formal control still pending",
+    "independent_review": "ONLY IF FORMAL RISK/REVIEW PROFILE REQUIRES; not self-accepted",
+    "official_verification": "NOT_PERFORMED; profile to be resolved by authorized Verification owner",
+    "required_evidence": [
+      "Actual HUA host and Codex harness proof",
+      "effective Contract/Dispatch/Profile/Ledger authorizations",
+      "START and END local Git refs if authorized, else NOT_VERIFIED",
+      "per-repo command/exit/stdout/stderr",
+      "git status and worktree/owner read observations",
+      "policy refusals / STOP receipts",
+      "zero repository mutation evidence, within observed scope"
+    ],
+    "success_semantics": "Execution result is source evidence, not formal Implementation Authorization or Acceptance",
+    "verification_contract_ref": "docs/task-contracts/UI-I01/UI-I01-G03-HUA-WORKSPACE-READ-ONLY-01-v0.1.verification-contract.json",
+    "verification_profile_ref": "docs/task-contracts/UI-I01/UI-I01-G03-HUA-WORKSPACE-READ-ONLY-01-v0.1.verification-profile.json"
+  }
+}

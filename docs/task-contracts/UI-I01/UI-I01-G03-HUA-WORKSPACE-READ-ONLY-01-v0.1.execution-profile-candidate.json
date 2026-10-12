@@ -1,0 +1,18 @@
+{
+  "effective_harness": "PENDING_CONTROL_PLANE_RESOLUTION",
+  "effective_model": "PENDING_CONTROL_PLANE_RESOLUTION",
+  "effective_provider": "PENDING_CONTROL_PLANE_RESOLUTION",
+  "effective_reasoning": "PENDING_CONTROL_PLANE_RESOLUTION",
+  "permissions": "STRICT_READ_ONLY; exact two roots/command whitelist; no mutation",
+  "recommendation": {
+    "model": "GPT-6 Luna",
+    "provider": "OpenAI",
+    "reasoning": "Medium",
+    "routing_tier": "ER-1"
+  },
+  "routing_authority": "EMRP-1.1 active main blob 99f00b5809d0104e326282e12041e2a9ca2db467",
+  "state": "CANDIDATE / NOT A FORMAL RESOLVED EXECUTION PROFILE",
+  "stop_if_unavailable": "NO_SUBSTITUTION / RETURN_NOT_DISPATCHABLE",
+  "target_harness": "HUA local Codex Desktop",
+  "task_id": "UI-I01-G03-HUA-WORKSPACE-READ-ONLY-01"
+}

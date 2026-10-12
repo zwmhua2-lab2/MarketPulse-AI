@@ -1,0 +1,28 @@
+{
+  "budget_id": "UI-I01-G03-HUA-WORKSPACE-READ-ONLY-01-BUDGET-v0.1-CANDIDATE",
+  "dimension_proposals": {
+    "dispatch_attempts": {
+      "consumed": "NOT_VERIFIED",
+      "limit_proposed": 1,
+      "remaining": "NOT_AUTHORIZED"
+    },
+    "paid_external_usd": {
+      "actual_cost": "UNKNOWN / NO_PROVIDER_RECEIPT",
+      "authorized_limit_proposed": 0,
+      "authorized_paid_capacity": "ZERO_PROPOSED"
+    },
+    "retry_attempts": {
+      "consumed": "NOT_VERIFIED",
+      "limit_proposed": 0,
+      "remaining": "NOT_AUTHORIZED"
+    }
+  },
+  "historical_HRR_usage": "NOT_TRANSFERABLE: dispatch reported 1/1, input probe 0/2, policy probe 2/3; pending/billed actual unknown",
+  "human_budget_approval": "NOT_ESTABLISHED",
+  "human_read_scope": "APPROVED FOR ONE BOUNDED READ-ONLY CHECK",
+  "ledger_owner": "CONTROL_PLANE / PENDING",
+  "no_reset": true,
+  "pre_dispatch_ledger_predicate": "Effective approval+no existing consumed attempt or pending/unknown submission; prevent double dispatch",
+  "state": "CANDIDATE / NOT EFFECTIVE / NO CAPACITY GRANTED",
+  "task_id": "UI-I01-G03-HUA-WORKSPACE-READ-ONLY-01"
+}
