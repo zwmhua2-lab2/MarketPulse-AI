@@ -2577,11 +2577,11 @@ UI-RD01-I03-REQ-04 — Trading Audit Read Product Read Implementation Requiremen
 - Zero-change boundary：Production Code / Tests / Frontend / `generated.ts` / Schema / Migration / Index / dependency manifests / Frozen Requirement = `ZERO CHANGE`；`DECISIONS.md`、`PRODUCT_REQUIREMENTS.md`、`AGENTS.md` = `ZERO CHANGE`。Frozen Requirement `docs/design/UI-RD01/UI-RD01-I03-Implementation-Requirements.md` blob = `658bd6588f7548379e86a05002cc0dd2c3a62a62`。
 - Activation boundary remains unchanged: `I04 = NOT STARTED`；`I05 = NOT STARTED`；Real AI = `NOT ACTIVATED`；live `G2→G3 = NOT ACTIVE`；Gate A = `NOT ACTIVATED`；Gate B = `NOT ACTIVATED`；Gate C = `NOT PASSED`；Live = `NOT AUTHORIZED`；Live Trading = `DISABLED`。
 - 下一授权步骤：`RESUME OVERARCHING PRE-RAI-R01 SYSTEM REVIEW ON LATEST ACCEPTED MAIN`。本 closeout 不启动 I04、I05、Real AI activation、Gate activation、Live 或 Live Trading。
-## MP-WF-CUTOVER-01 Current Authoritative State
+## MP-WF-CUTOVER-01 Historical State — Superseded
 
-- `MP-WF-CUTOVER-01: ACCEPTED / COMPLETE`；Human Cutover Confirmation = `CONFIRMED — 2026-09-26`；Workflow Cutover = `COMPLETE`。
-- MarketPulse Development Governance = `AI Development Workflow`；Governance Version = `0.1.0`；Rule Pack = `0.1.0`；Rule Manifest = `fd00-rule-manifest/0.1.0`；Governance Mode = `SELF_HOSTED`。
-- Legacy `ai-dev-protocol` = `REFERENCE ONLY / NON-AUTHORITATIVE`；Implicit Legacy Fallback = `PROHIBITED`。New MarketPulse Tasks MUST USE ACTIVE AI DEVELOPMENT WORKFLOW。
+- Historical record: `MP-WF-CUTOVER-01: ACCEPTED / COMPLETE`；Human Cutover Confirmation = `CONFIRMED — 2026-09-26`；Workflow Cutover = `COMPLETE`。
+- 该历史切换的开发协作规则声明已于 2026-10-14 被 EB 取代；当前唯一规则来源为 [Engineering Brain（EB）OPERATING.md](https://github.com/zwmhua2-lab2/Engineering-Brain/blob/main/OPERATING.md)。
+- 旧 Workflow / ai-dev-protocol 不再作为新任务规则来源，不得据本历史记录恢复或自动回退旧规则。
 - `PRE-RAI-R01 System Review = COMPLETE`；`PRE-RAI-R01-RESUME-01 = PASS WITH NON-BLOCKING FINDINGS`；Exact Reviewed Main = `5fa6b295b01d936c98d5d9b277f979e972cb8406`；PRE-RAI Blocking Findings = `0`。
 - Cutover is prospective only. Historical task contracts, review records, accepted candidates, frozen requirements, Human decisions, protocol references, and evidence retain their historical meaning and are not rewritten.
 - Activation boundary unchanged: Real AI = `NOT ACTIVATED`; Gate A = `NOT ACTIVATED`; Gate B = `NOT ACTIVATED`; Gate C = `NOT PASSED`; live `G2→G3` = `NOT ACTIVE`; Live = `NOT AUTHORIZED`; Live Trading = `DISABLED`。
