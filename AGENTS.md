@@ -1,3 +1,7 @@
+> 候选分支迁移提示：仅适用于 `docs/rule-transition-notice`。请先阅读 [Rules / Flow 新版迁移与研究入口](https://github.com/zwmhua2-lab2/ai-dev-workflow/blob/next-draft/candidates/next-version/README.md)。新版正文尚未就绪、未采用、未生效；不得因新版缺失自动回退旧规则，也不得依据候选草稿发起正式执行。
+>
+> 以下项目纪律与 CIP 正文完整保留；保留旧内容不表示新版已经生效，不构成新增任务派发或规则切换授权。本提示不修改 main，不会自动暂停旧窗口或已有任务；暂停与正式切换仍须各项目总控另行确认并核验。
+
 # MarketPulse AI 工作纪律
 
 - Architecture Frozen：Backend 使用 Python + FastAPI，Frontend 使用 React + TypeScript + Vite，采用 Modular Monolith。
