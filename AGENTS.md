@@ -1,6 +1,6 @@
-> 候选分支迁移提示：仅适用于 `docs/rule-transition-notice`。请先阅读 [Rules / Flow 新版迁移与研究入口](https://github.com/zwmhua2-lab2/ai-dev-workflow/blob/next-draft/candidates/next-version/README.md)。新版正文尚未就绪、未采用、未生效；不得因新版缺失自动回退旧规则，也不得依据候选草稿发起正式执行。
+> 当前开发协作规则入口：[Engineering Brain（EB）OPERATING.md](https://github.com/zwmhua2-lab2/Engineering-Brain/blob/main/OPERATING.md)。本 docs/rule-transition-notice 分支改读 EB；旧 AWB 规则已废止，不得引用、推断、恢复或自动回退。
 >
-> 以下项目纪律与 CIP 正文完整保留；保留旧内容不表示新版已经生效，不构成新增任务派发或规则切换授权。本提示不修改 main，不会自动暂停旧窗口或已有任务；暂停与正式切换仍须各项目总控另行确认并核验。
+> 以下原项目纪律、工作流及 CIP 正文完整保留为历史资料，不作为当前开发协作规则恢复使用；项目需求与代码事实须另行从项目读取。本提示不修改项目 main，也不代表已有窗口或任务已实际切换；代码写入、合并、发布仍须各自授权。
 
 # MarketPulse AI 工作纪律
 
