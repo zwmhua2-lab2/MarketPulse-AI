@@ -1,0 +1,12 @@
+2026-10-20T15:35:20+00:00	window=confirm	panic_drop_long v0	BTC-USDT	5m	n_raw=699	n_days=204
+2026-10-20T15:35:20+00:00	window=confirm	panic_drop_long v0	BTC-USDT	15m	n_raw=699	n_days=204
+2026-10-20T15:35:20+00:00	window=confirm	panic_drop_long v0	BTC-USDT	1h	n_raw=698	n_days=204
+2026-10-20T15:35:20+00:00	window=confirm	failed_breakdown_reclaim v0	BTC-USDT	5m	n_raw=1199	n_days=217
+2026-10-20T15:35:20+00:00	window=confirm	failed_breakdown_reclaim v0	BTC-USDT	15m	n_raw=1199	n_days=217
+2026-10-20T15:35:20+00:00	window=confirm	failed_breakdown_reclaim v0	BTC-USDT	1h	n_raw=1199	n_days=217
+2026-10-20T15:35:20+00:00	window=confirm	panic_drop_long v0	ETH-USDT	5m	n_raw=789	n_days=207
+2026-10-20T15:35:20+00:00	window=confirm	panic_drop_long v0	ETH-USDT	15m	n_raw=789	n_days=207
+2026-10-20T15:35:20+00:00	window=confirm	panic_drop_long v0	ETH-USDT	1h	n_raw=788	n_days=207
+2026-10-20T15:35:20+00:00	window=confirm	failed_breakdown_reclaim v0	ETH-USDT	5m	n_raw=1255	n_days=218
+2026-10-20T15:35:20+00:00	window=confirm	failed_breakdown_reclaim v0	ETH-USDT	15m	n_raw=1255	n_days=218
+2026-10-20T15:35:20+00:00	window=confirm	failed_breakdown_reclaim v0	ETH-USDT	1h	n_raw=1255	n_days=218

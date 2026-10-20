@@ -1,0 +1,5 @@
+data/
+data_smoke/
+__pycache__/
+*.log
+*.tmp

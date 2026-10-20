@@ -1,0 +1,18 @@
+# window=confirm coin=BTC-USDT bars=210240 window_bars=63072 2026-03-15 15:30:00+00:00 .. 2026-10-20 15:25:00+00:00
+# window=confirm coin=ETH-USDT bars=210240 window_bars=63072 2026-03-15 15:35:00+00:00 .. 2026-10-20 15:30:00+00:00
+family_version             coin       hz   n_raw n_days expectancy   baseline      delta           95% CI (bps)
+---------------------------------------------------------------------------------------------------------------
+panic_drop_long v0         BTC-USDT   5m     699    204     -29.74     -29.93       0.20 [    -1.45,     1.80]
+panic_drop_long v0         BTC-USDT  15m     699    204     -28.28     -29.87       1.59 [    -0.91,     4.07]
+panic_drop_long v0         BTC-USDT   1h     698    204     -24.96     -29.60       4.65 [     0.36,     8.90]
+failed_breakdown_reclaim v0 BTC-USDT   5m    1199    217     -30.10     -29.93      -0.17 [    -0.94,     0.65]
+failed_breakdown_reclaim v0 BTC-USDT  15m    1199    217     -29.54     -29.87       0.35 [    -1.19,     1.83]
+failed_breakdown_reclaim v0 BTC-USDT   1h    1199    217     -29.97     -29.60      -0.39 [    -2.98,     2.23]
+panic_drop_long v0         ETH-USDT   5m     789    207     -30.38     -29.93      -0.44 [    -2.51,     1.59]
+panic_drop_long v0         ETH-USDT  15m     789    207     -29.73     -29.85       0.14 [    -3.49,     3.60]
+panic_drop_long v0         ETH-USDT   1h     788    207     -26.65     -29.51       2.84 [    -2.49,     8.08]
+failed_breakdown_reclaim v0 ETH-USDT   5m    1255    218     -30.37     -29.93      -0.44 [    -1.53,     0.63]
+failed_breakdown_reclaim v0 ETH-USDT  15m    1255    218     -29.84     -29.85       0.02 [    -1.65,     1.64]
+failed_breakdown_reclaim v0 ETH-USDT   1h    1255    218     -29.98     -29.51      -0.50 [    -3.80,     2.67]
+
+# appended 12 rows to confirm_log.txt
