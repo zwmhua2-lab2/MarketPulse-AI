@@ -1,0 +1,43 @@
+== Binance USD-M futures (public REST) ==
+funding rate history : 500 rows, 2026-05-07 .. 2026-10-20, 8h grid -> paginates, no key
+open interest (OI)    : 500 rows, 2026-10-18 .. 2026-10-20 (0.1 months), 5m grid
+top trader long/short : 500 rows, 2026-10-18 .. 2026-10-20 (0.1 months), 5m grid
+taker buy/sell volume : 500 rows, 2026-10-18 .. 2026-10-20 (0.1 months), 5m grid
+
+== Binance public data dumps (data.binance.vision) ==
+metrics/2023-01-01: HTTP 200, bytes=14337
+metrics/2024-01-01: HTTP 200, bytes=11521
+metrics/2026-10-01: HTTP 200, bytes=11631
+metrics 5m probe   : HTTP 404 (404 -> daily only in the dump)
+  daily metrics fields: create_time, sum_open_interest, sum_open_interest_value,
+  count_toptrader_long_short_ratio, sum_toptrader_long_short_ratio,
+  count_long_short_ratio, sum_taker_long_short_vol_ratio  (one row per day)
+
+== OKX public REST ==
+funding (BTC-USDT-SWAP): 100 rows, 2026-09-17 .. 2026-10-20, 8h grid, paginates via `after`
+  page 2 reaches back to 2026-08-15 -> older history exists
+OI + volume (rubik)     : 575 rows, 2026-10-18 .. 2026-10-20 (0.1 months), 5m grid
+long/short acct (rubik) : 576 rows, 2026-10-18 .. 2026-10-20 (0.1 months), 5m grid
+taker volume (rubik)    : 72 rows, 2026-10-20 .. 2026-10-20 (0.0 months), 5m grid
+
+== liquidation history ==
+OKX liquidation-orders : 100 fills, 2026-10-20 .. 2026-10-20, span 0.0 months
+Binance allForceOrders : HTTP 404 (401/403 -> key required, not public)
+
+== depth probes (how far back does it actually go) ==
+Binance funding from 2019-06: earliest row 2019-09-10, 1000 rows
+Binance OI, window now-30d : 500 rows, earliest 2026-10-18
+metrics dump 2019-12-01: HTTP 404, bytes=None
+metrics dump 2020-06-01: HTTP 404, bytes=None
+metrics dump 2021-01-01: HTTP 200, bytes=12278
+OKX funding before 2020-01-01: 0 rows (none -> history starts later)
+OKX rubik OI, window now-90d: 575 rows, earliest 2026-10-18
+Binance OI, window 30d..20d ago: 500 rows, 2026-09-28
+OKX rubik OI, window 30d..20d ago: 0 rows (empty -> retention ~2d)
+
+== other free futures dumps (HEAD only, no download) ==
+aggTrades 2020-01-01      : HTTP 200, bytes=1010368
+aggTrades 2026-10-19      : HTTP 200, bytes=12371006
+liquidationSnapshot 2021  : HTTP 404, bytes=None
+liquidationSnapshot monthly: HTTP 404, bytes=None
+metrics 2020-12-01        : HTTP 200, bytes=12417

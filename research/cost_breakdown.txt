@@ -1,0 +1,21 @@
+cost model: SPOT long taker round trip, multiplicative
+  entry: open * (1+5.00bps slip) * (1+10.00bps fee) = 1.00150050x
+  exit : close * (1-5.00bps slip) * (1-10.00bps fee) = 0.99850050x
+  K = exit/entry = 0.99700449  -> cost = 29.96 bps
+  legs: fee 20.00 + slippage 10.00 = 30.00 bps additive, cross term -0.04 bps, total 29.96 bps
+
+coin       hz  drift(gross)    cost  baseline(net)  residual
+BTC-USDT   5m          0.02   29.96         -29.94    -0.000
+BTC-USDT  15m          0.05   29.96         -29.90    -0.000
+BTC-USDT   1h          0.22   29.96         -29.74    -0.001
+BTC-USDT   4h          0.85   29.96         -29.11    -0.003
+BTC-USDT  12h          2.48   29.96         -27.48    -0.007
+BTC-USDT   1d          4.99   29.96         -24.98    -0.015
+ETH-USDT   5m          0.01   29.96         -29.95    -0.000
+ETH-USDT  15m          0.04   29.96         -29.92    -0.000
+ETH-USDT   1h          0.19   29.96         -29.77    -0.001
+ETH-USDT   4h          0.74   29.96         -29.22    -0.002
+ETH-USDT  12h          2.22   29.96         -27.74    -0.007
+ETH-USDT   1d          4.52   29.96         -25.45    -0.014
+
+(bps. baseline(net) = drift - cost + residual; residual is the cross term, ~0)

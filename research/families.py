@@ -63,3 +63,26 @@ def failed_breakdown_reclaim(df: pd.DataFrame) -> pd.Series:
 
 
 FAMILIES["failed_breakdown_reclaim v0"] = failed_breakdown_reclaim
+
+
+# --- family 3: volatility squeeze breakout -----------------------------------
+SQUEEZE_BB_WINDOW = 20
+SQUEEZE_RANK_WINDOW = 288 * 5   # 5 days of 5m bars
+SQUEEZE_PERCENTILE = 0.20
+SQUEEZE_STD_MULT = 2.0
+
+
+def squeeze_breakout(df: pd.DataFrame) -> pd.Series:
+    """Bollinger width compressed into its 5-day bottom quintile, then close above the upper band."""
+
+    mid = df["close"].rolling(SQUEEZE_BB_WINDOW, min_periods=SQUEEZE_BB_WINDOW).mean()
+    sd = df["close"].rolling(SQUEEZE_BB_WINDOW, min_periods=SQUEEZE_BB_WINDOW).std()
+    upper = mid + SQUEEZE_STD_MULT * sd
+    width = (2 * SQUEEZE_STD_MULT * sd) / mid
+    threshold = width.rolling(SQUEEZE_RANK_WINDOW, min_periods=SQUEEZE_RANK_WINDOW).quantile(SQUEEZE_PERCENTILE)
+    compressed = (width <= threshold).fillna(False).astype(bool)
+    signal = compressed.shift(1, fill_value=False) & (df["close"] > upper)
+    return signal.fillna(False).astype(bool)
+
+
+FAMILIES["squeeze_breakout v0"] = squeeze_breakout

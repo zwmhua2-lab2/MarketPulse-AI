@@ -109,7 +109,7 @@ class BootstrapSanity(unittest.TestCase):
     def _run(self, ev, base, n_boot=2_000):
         rng = np.random.default_rng(11)
         days = len(ev)
-        _, _, delta = kernel.paired_day_bootstrap(
+        _, delta = kernel.bootstrap(
             ev.sum(axis=1), np.full(days, ev.shape[1], float),
             base.sum(axis=1), np.full(days, base.shape[1], float),
             rng, n_boot,
@@ -131,6 +131,28 @@ class BootstrapSanity(unittest.TestCase):
         lo, hi = self._run(ev, base)
         self.assertLess(lo, 0)
         self.assertGreater(hi, 0)
+
+
+class BlockLength(unittest.TestCase):
+    def test_one_day_blocks_for_intraday(self):
+        df = synthetic(2_000)  # 2000 * 5m = 6.9 days
+        ids = kernel.block_ids_for(df, kernel.BLOCK_DAYS["5m"])
+        self.assertEqual(len(np.unique(ids)), 7)
+
+    def test_five_day_blocks_for_daily_horizon(self):
+        df = synthetic(288 * 12)  # 12 days of 5m bars
+        ids = kernel.block_ids_for(df, kernel.BLOCK_DAYS["1d"])
+        self.assertEqual(len(np.unique(ids)), 3)
+        self.assertGreaterEqual(kernel.BLOCK_DAYS["1d"], 3)
+        for hz in kernel.HORIZON_BARS:
+            self.assertGreaterEqual(kernel.BLOCK_DAYS[hz] * 288, kernel.HORIZON_BARS[hz])
+
+    def test_both_gates_require_positive_lower_bounds(self):
+        row = kernel.Row("x", "BTC-USDT", "5m", 100, 40, 40.0, 10.0, -29.9, 39.9, 1.0, 5.0, 0.1, 2.0)
+        self.assertTrue(row.gate1)
+        self.assertTrue(row.gate2)
+        row.n_lo = -0.1
+        self.assertFalse(row.gate2)
 
 
 if __name__ == "__main__":
