@@ -1,5 +1,4 @@
 import { test } from 'node:test';
-// Human 于 2026-10-21 指定 tests/ 路径及定向测试命令；下方保留原 Issue GWT 原文。
 // - **GWT-01（C1/C3/X1/X2，端到端）**：Given 固定运行时钟 `2026-10-21T07:47:00.000Z`、模拟 Binance 返回 9 页有效 12 字段 K 线（前 8 页各 1000 条，最后一页 640 条；每条 OHLCV 固定为 `1.00,2.00,0.50,1.50,10.00`），When 执行抓取并保存，Then 只向指定端点发出 9 次 GET、每页 `limit≤1000`、每次带 `BTCUSDT/5m`，CSV 表头精确为 `open_time,open,high,low,close,volume`，数据恰好 8640 行，首行 `1789976700000,1.00,2.00,0.50,1.50,10.00`，末行 `1792568400000,1.00,2.00,0.50,1.50,10.00`，时间步长 `300000` 毫秒，退出码 0。
 // - **GWT-02（C1/C2/C3）**：Given 某页请求持续无响应、目标目录中已有已验证的完好 CSV，When 超过 10000 ms（允许模拟时钟）且请求被中止，Then 只请求 1 次、不重试、stderr=`FETCH_ERROR\n`、退出码 1、旧 CSV SHA-256 与失败前相同。
 // - **GWT-03（C1/C2/C3）**：Given 任一分页返回 HTTP 429、418、500 或请求抛网络错误（分别测试），When 执行抓取，Then 遇错误立即停止、不重试，stderr=`FETCH_ERROR\n`、退出码 1、旧 CSV 字节不变。
@@ -16,6 +15,24 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { spawnSync, execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import { existsSync } from 'node:fs';
+
+test('QA 回归：测试路径必须为 test/ 且不存在 tests/', () => {
+  assert.ok(existsSync('test/fetch-history.test.mjs'));
+  assert.equal(existsSync('tests'), false);
+});
+test('QA 回归：GWT-09 必须拒绝未跟踪文件', async () => {
+  const probe = `.gwt09-untracked-${process.pid}`;
+  try {
+    await writeFile(probe, 'QA probe', {flag: 'wx'});
+    const env = {...process.env};
+    delete env.NODE_TEST_CONTEXT;
+    const result = spawnSync(process.execPath,
+      ['--test', '--test-name-pattern=^GWT-09$', 'test/fetch-history.test.mjs'], {encoding: 'utf8', env});
+    assert.equal(result.status, 1);
+    assert.match(result.stdout + result.stderr, new RegExp(probe));
+  } finally { await rm(probe, {force: true}); }
+});
 
 const script = resolve('fetch-history.mjs');
 const header = 'open_time,open,high,low,close,volume';
@@ -152,7 +169,7 @@ test('GWT-08', async () => {
 test('GWT-09', () => {
   const files = execFileSync('git', ['diff', '--name-only', 'origin/main'], {encoding:'utf8'}).trim().split('\n').filter(Boolean);
   const untracked = execFileSync('git', ['ls-files', '--others', '--exclude-standard'], {encoding:'utf8'}).trim().split('\n').filter(Boolean);
-  for (const file of [...files, ...untracked]) assert.ok(['fetch-history.mjs', 'tests/fetch-history.test.mjs'].includes(file), file);
+  for (const file of [...files, ...untracked]) assert.ok(['fetch-history.mjs', 'test/fetch-history.test.mjs'].includes(file), file);
 });
 test('非法 JSON 保留旧 CSV', async () => failed(await run('json')));
 for (const mode of ['timestamp', 'zero', 'exponent', 'precision', 'object']) {
