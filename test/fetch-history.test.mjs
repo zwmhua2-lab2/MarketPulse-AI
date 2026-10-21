@@ -188,7 +188,7 @@ function gwt09Invalid(diff, untracked) {
   return invalid;
 }
 test('GWT-09', () => {
-  const diff = execFileSync('git', ['diff', '--name-status', '-z', '--find-renames', '--find-copies-harder', 'origin/main'], {encoding:'utf8'});
+  const diff = execFileSync('git', ['diff', '--name-status', '-z', '--find-renames', 'origin/main'], {encoding:'utf8'});
   const untracked = execFileSync('git', ['ls-files', '--others', '--exclude-standard', '-z'], {encoding:'utf8'});
   const invalid = gwt09Invalid(diff, untracked);
   assert.equal(invalid.length, 0, invalid.join('\n'));
