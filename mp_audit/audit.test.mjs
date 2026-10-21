@@ -1,4 +1,5 @@
 import test from 'node:test';
+import {spawnSync} from 'node:child_process';
 import assert from 'node:assert/strict';
 import {mkdtemp, readFile, writeFile, rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
@@ -25,6 +26,22 @@ test('GWT-5 HTTP/格式失败', async () => {for (const [fetcher,kind,reason] of
 // Given 模拟累计下载预算为 10 字节且即将读取第 11 字节，When 消费响应流，Then 中止、退出码 **1**、错误标识 `AUDIT_LIMIT`，无超额持久化样本，原文件 SHA-256 不变；生产配置固定 **20,971,520 字节**，预算涵盖所有外部请求。
 test('GWT-6 累计预算', async () => {const b={used:0,max:10}; await assert.rejects(consume(new Response('12345678901').body,b),/AUDIT_LIMIT/); assert.equal(b.used,10);});
 test('GWT-6 越界不发布', async () => {const d=await mkdtemp(join(tmpdir(),'audit-')); try {const marker=join(d,'old'); await writeFile(marker,'old'); const before=sha(await readFile(marker)); await assert.rejects(runAudit({dir:d,max:10,source:async()=>Buffer.from('x'),fetcher:async()=>new Response('12345678901')}),/AUDIT_LIMIT/); assert.equal(sha(await readFile(marker)),before); await assert.rejects(readFile(join(d,'oi-5m.json')),{code:'ENOENT'});} finally {await rm(d,{recursive:true,force:true});}});
+
+// Given 上限 10，发 11 字节块，When 消费响应并写入文件，Then 实际写入 ≤ 10 字节，退出码非 0。
+test('GWT-6 单块截断实际写入', async () => {
+  const d=await mkdtemp(join(tmpdir(),'audit-')), p=join(d,'received');
+  try {
+    await writeFile(p,'');
+    const script=`import {appendFile} from 'node:fs/promises';
+      import {consume} from ${JSON.stringify(new URL('./audit.mjs',import.meta.url).href)};
+      const stream=new ReadableStream({start(c){c.enqueue(Buffer.from('12345678901'));},cancel(){console.error('CANCELLED');}});
+      try {await consume(stream,{used:0,max:10},b=>appendFile(process.argv[1],b));}
+      catch(e){console.error(e.message);process.exitCode=1;}`;
+    const r=spawnSync(process.execPath,['--input-type=module','-e',script,p],{encoding:'utf8',timeout:5000});
+    assert.equal(r.error,undefined); assert.equal(r.status,1); assert.match(r.stderr,/AUDIT_LIMIT/); assert.match(r.stderr,/CANCELLED/);
+    const written=await readFile(p); assert.ok(written.length<=10); assert.equal(written.toString(),'1234567890');
+  } finally {await rm(d,{recursive:true,force:true});}
+});
 
 // Given `mp_audit/R3-V-REPORT.md` 或目标样本已存在，When 再执行审计，Then 退出码 **1**、错误 `AUDIT_OUTPUT_EXISTS`，该文件 SHA-256 前后相同、全部既有测试文件不变。Given 成功完成一次审计，When 检查 Git diff 与测试文件哈希，Then **白名单外变化文件数=0**，`test/fetch-history.test.mjs` 的前后 SHA-256 一致，新增行数（含测试）**≤300**。
 test('GWT-7 目标冲突', async () => {const d=await mkdtemp(join(tmpdir(),'audit-')); try {const p=join(d,'R3-V-REPORT.md'); await writeFile(p,'old'); await assert.rejects(runAudit({dir:d,source:async()=>'',fetcher:async()=>{throw Error('offline')}}),/AUDIT_OUTPUT_EXISTS/); assert.equal(await readFile(p,'utf8'),'old');} finally {await rm(d,{recursive:true,force:true});}});

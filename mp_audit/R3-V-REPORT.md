@@ -1,5 +1,5 @@
 # R3 第 4/5 项独立审计
-开始 UTC：2026-10-21T18:53:17.701Z
+审计总体记录起点 UTC：2026-10-21T18:50:24.352Z；报告脚本阶段起点 UTC：2026-10-21T18:53:17.701Z。
 固定来源：研究提交 `5cdc62ddcf42814130440ff47a47a1c3c9648b25`（本地 Git 对象只读）
 
 ## 固定源原始字节 SHA-256
@@ -28,8 +28,9 @@
 
 ## 范围与复核
 - 资金费率、大小户比例、主动成交、清算、完整回溯深度：NOT_VERIFIED。
-- 测试：`node --test mp_audit/*.test.mjs test/fetch-history.test.mjs`：54 pass、0 fail；单独 `node --test mp_audit/*.test.mjs` 曾于前一版测试得到 8 pass、0 fail，最终版的 11 项已包含在前述联合命令中。`node --test`：51 pass、7 fail，均因历史前端缺少 `vitest`、`msw`、`@testing-library/jest-dom`，未新增依赖。
-- 白名单 diff：暂存区 `git diff --cached --name-status origin/main` 仅 5 个 `A mp_audit/**` 路径（本报告、脚本、测试、OI JSON、metrics ZIP），白名单外变化数 0；新增文本 196 行，低于 300 行上限。`test/fetch-history.test.mjs` 的 HEAD 内容按当前 CRLF 签出重建与现文件字节一致，SHA-256 均为 aeccbef5f6bcf1c4b28ce6107fc6da3393ed9ff79c4b6a32f20a3389bee64ff4。
+- 测试记录更正（2026-10-22）：原记录未注明 Node 版本，历史版本为 `NOT_VERIFIED`；原 `node --test` 的 51 pass 撤回，以原提交 `01ebb91` 在 Node.js v24.14.0 的本机复跑为准：`node --test` 为 55 pass、7 fail；`node --test mp_audit/*.test.mjs test/fetch-history.test.mjs` 为 54 pass、0 fail。全量命令额外发现 `frontend/src/test/raw.d.ts`（1 pass）及 7 个缺少 `vitest`、`msw`、`@testing-library/jest-dom` 的前端失败文件。无法从已保存记录证明旧数字 51 的成因，故修正数字，不归因于未经验证的版本差异。
+- 本次预算边界修复（Node.js v24.14.0）：`node --test mp_audit/*.test.mjs` 为 12 pass、0 fail；`node --test mp_audit/*.test.mjs test/fetch-history.test.mjs` 为 55 pass、0 fail；`node --test` 为 56 pass、7 fail（退出码 1，仍是上述前端依赖缺失）。较原提交各增加 1 个 `GWT-6 单块截断实际写入` 回归：10 字节上限、单块 11 字节，实际文件为前 10 字节、流取消、子进程退出码 1；该回归修复前失败、修复后通过。未新增依赖。
+- 白名单 diff：原提交暂存区 `git diff --cached --name-status origin/main` 仅 5 个 `A mp_audit/**` 路径（本报告、脚本、测试、OI JSON、metrics ZIP），新增文本 196 行；本次仅修复脚本、测试、报告三个文件，相对 `origin/main` 仍仅新增上述 5 个路径、文本共 216 行，白名单外变化数 0，低于 300 行上限。`test/fetch-history.test.mjs` 的原 HEAD 内容按当前 CRLF 签出重建与现文件字节一致，SHA-256 均为 aeccbef5f6bcf1c4b28ce6107fc6da3393ed9ff79c4b6a32f20a3389bee64ff4。
 - 累计真实下载响应字节：851 + 11631 + 11631 = 24113 / 20971520。
-- 结束 UTC：2026-10-21T18:54:46.650Z；自 2026-10-21T18:50:24.352Z 开始约 4 分 22 秒（小于 2 小时）。
+- 结束 UTC：2026-10-21T18:54:46.650Z。按原记录的总体起点计算，总耗时 262.298 秒（4 分 22.298 秒，小于 2 小时）；其中报告脚本阶段 18:53:17.701–18:54:46.650 为 88.949 秒（约 89 秒），属于总耗时中的子阶段。此前 173.349 秒的具体活动无独立日志，标记 `NOT_VERIFIED`；本次修复未重新采样，也不计入上述历史耗时。
 - oi-5m.json 二次读取 SHA-256：2cfc8efd47dcfefd0f2a9863c2fb5e831618ae28793e89a9dea3f47ea530cd50；与原始哈希一致。

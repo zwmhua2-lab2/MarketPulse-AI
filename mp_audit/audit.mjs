@@ -14,12 +14,14 @@ export const gaps=xs=>xs.slice(1).map((x,i)=>x-xs[i]);
 const sourceDefault=async name=>execFileSync('git',['show',`${COMMIT}:research/${name}`],{maxBuffer:4*1024*1024});
 const fail=(code)=>{throw Error(code)};
 
-export async function consume(stream,budget) {
+export async function consume(stream,budget,writeChunk) {
   const parts=[]; let size=0;
   for await (const part of stream) {
     const b=Buffer.from(part); const remaining=budget.max-budget.used;
-    if (b.length>remaining) {budget.used=budget.max; fail('AUDIT_LIMIT');}
-    budget.used+=b.length; size+=b.length; parts.push(b);
+    const chunk=b.length>remaining?b.subarray(0,remaining):b;
+    budget.used+=chunk.length; size+=chunk.length; parts.push(chunk);
+    if(writeChunk) await writeChunk(chunk);
+    if(b.length>remaining) fail('AUDIT_LIMIT');
   }
   return Buffer.concat(parts,size);
 }
