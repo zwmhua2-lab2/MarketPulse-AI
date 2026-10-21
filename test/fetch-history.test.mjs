@@ -7,7 +7,7 @@ import { test } from 'node:test';
 // - **GWT-06（C2/C3/X2）**：Given 响应含 11 字段 K 线、非数字开盘价、`high<low` 或负成交量（逐例），旧 CSV 完好，When 抓取，Then 每例退出码 1、stderr=`FETCH_ERROR\n`、旧 CSV 字节不变。
 // - **GWT-07（C2/C3）**：Given 所有行情数据有效、旧 CSV 完好，但临时文件写入或 rename 被模拟为失败（逐例），When 保存，Then 退出码 1、stderr=`FETCH_ERROR\n`、旧 CSV 字节不变，正式文件无半截新数据。
 // - **GWT-08（C3）**：Given CLI 参数为 `--save`，When 执行，Then 在网络调用及文件写入前退出 1，stderr=`FETCH_ERROR\n`，旧 CSV 不变。
-// - **GWT-09（C5，终审清单）**：Given 对照最新 `main` 的 PR Diff，When 检查 Files changed，Then 只包含 `fetch-history.mjs`、`test/fetch-history.test.mjs`，以及可选的 `ARCHITECTURE.md` 第 7 节一行记录；`.github/**`、`AGENTS.md`、测试配置和依赖文件改动数为 0。
+// - **GWT-09（C5，终审清单）**：允许原有两个抓取器路径及 mp_audit/** 新增文件；拒绝已有审计文件的 M/D/R/C、其他路径及未授权未跟踪文件。
 import assert from 'node:assert/strict';
 import { mkdtemp, writeFile, readFile, rm, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -166,10 +166,83 @@ test('GWT-08', async () => {
   failed(r);
   assert.deepEqual(r.calls, []);
 });
+function gwt09Invalid(diff, untracked) {
+  const tokens = value => {
+    assert.ok(value === '' || value.endsWith('\0'), 'invalid Git NUL output');
+    return value === '' ? [] : value.slice(0, -1).split('\0');
+  };
+  const original = p => ['fetch-history.mjs', 'test/fetch-history.test.mjs'].includes(p);
+  const audit = p => p.startsWith('mp_audit/') && p.slice(9).split('/').every(s => s && s !== '.' && s !== '..');
+  const invalid = [], fields = tokens(diff);
+  for (let i = 0; i < fields.length;) {
+    const status = fields[i++];
+    assert.match(status, /^(?:[AMDUTX]|[RC]\d{1,3})$/, 'invalid Git status');
+    const paths = fields.slice(i, i + (/^[RC]/.test(status) ? 2 : 1));
+    i += paths.length;
+    assert.equal(paths.length, /^[RC]/.test(status) ? 2 : 1, 'missing Git path');
+    if (paths.every(original)) continue;
+    if (status === 'A' && paths.length === 1 && audit(paths[0])) continue;
+    invalid.push(paths.join(' -> '));
+  }
+  for (const p of tokens(untracked)) if (!original(p) && !audit(p)) invalid.push(p);
+  return invalid;
+}
 test('GWT-09', () => {
-  const files = execFileSync('git', ['diff', '--name-only', 'origin/main'], {encoding:'utf8'}).trim().split('\n').filter(Boolean);
-  const untracked = execFileSync('git', ['ls-files', '--others', '--exclude-standard'], {encoding:'utf8'}).trim().split('\n').filter(Boolean);
-  for (const file of [...files, ...untracked]) assert.ok(['fetch-history.mjs', 'test/fetch-history.test.mjs'].includes(file), file);
+  const diff = execFileSync('git', ['diff', '--name-status', '-z', '--find-renames', '--find-copies-harder', 'origin/main'], {encoding:'utf8'});
+  const untracked = execFileSync('git', ['ls-files', '--others', '--exclude-standard', '-z'], {encoding:'utf8'});
+  const invalid = gwt09Invalid(diff, untracked);
+  assert.equal(invalid.length, 0, invalid.join('\n'));
+});
+
+// Issue #5 GWT-1: Given Git 变更列表只有 `M\ttest/fetch-history.test.mjs` 与 `A\tmp_audit/audit.mjs`、`A\tmp_audit/R3-V-REPORT.md`，When 执行 GWT-09 的判定，Then 非法路径数 **0**，测试退出码 **0**；不得因为白名单目录不在 V1 抓取器原清单而拒绝。
+// GWT-2: Given 只有未跟踪文件 `mp_audit/sample.json`（Git `ls-files --others`）和 GWT-09 本卡允许的测试文件修改，When 执行路径判定，Then 非法路径数 **0**。Given 未跟踪根目录文件 `.gwt09-untracked-probe`，When 执行，Then 非法路径数 **1**，错误包含该文件名，退出码 **1**；现有 QA 未跟踪回归仍 PASS。
+// GWT-3: Given `M\tmp_audit/R3-V-REPORT.md`、`D\tmp_audit/sample.json`、`R100\tresearch/old.txt\tmp_audit/old.txt` 三个独立反例，When 逐个执行 GWT-09 判定，Then **每例非法路径数 1**、错误包含该路径、测试退出码 **1**；`mp_audit/` 前缀不得掩盖原有文件变更。
+// GWT-4: Given `A\t.github/workflows/unsafe.yml`、`A\tresearch/extra.txt`、`A\ttest/extra.test.mjs`、`A\tmp_audit2/fake.mjs` 四个独立反例，When 逐个执行路径判定，Then **每例非法路径数 1**、独立 GWT-09 退出码 **1**；原有 `fetch-history.mjs` 的允许规则不变化。
+// GWT-5: Given 现有抓取测试与 GWT-09 的直接相关回归，When 实际运行 `node --test test/fetch-history.test.mjs`，Then 退出码 **0**，所有原有用例（包含原 QA 未跟踪回归）保持通过；未实际运行不得写 PASS。
+// GWT-6: Given 本卡 PR 相对最新 `origin/main` 的 Diff，When 检查 `git diff --name-status origin/main` 和未跟踪文件清单，Then **改动路径仅 `test/fetch-history.test.mjs`，白名单外改动数 0，`mp_audit/**` 改动数 0**，总改动不超过 **300 行**；Issue #4 仍为 open，未对其实施任何操作。
+function runGwt09(diff, untracked = '', gitFailure = false) {
+  const hook = `import cp from 'node:child_process';
+import {syncBuiltinESMExports} from 'node:module';
+cp.execFileSync = (command, args) => {
+  if (${gitFailure}) throw Error('GIT_FAILURE');
+  if (command !== 'git') throw Error('unexpected command');
+  if (args[0] === 'diff') return ${JSON.stringify(diff)};
+  if (args[0] === 'ls-files') return ${JSON.stringify(untracked)};
+  throw Error('unexpected Git operation');
+}; syncBuiltinESMExports();`;
+  const env = {...process.env};
+  delete env.NODE_TEST_CONTEXT;
+  return spawnSync(process.execPath, ['--import', 'data:text/javascript,' + encodeURIComponent(hook),
+    '--test', '--test-name-pattern=^GWT-09$', 'test/fetch-history.test.mjs'], {encoding: 'utf8', env});
+}
+const gwt09Cases = [
+  ['GWT-1', 'M\0test/fetch-history.test.mjs\0A\0mp_audit/audit.mjs\0A\0mp_audit/R3-V-REPORT.md\0', '', []],
+  ['GWT-2 audit', 'M\0test/fetch-history.test.mjs\0', 'mp_audit/sample.json\0', []],
+  ['GWT-2 root', '', '.gwt09-untracked-probe\0', ['.gwt09-untracked-probe']],
+  ['GWT-3 M', 'M\0mp_audit/R3-V-REPORT.md\0', '', ['mp_audit/R3-V-REPORT.md']],
+  ['GWT-3 D', 'D\0mp_audit/sample.json\0', '', ['mp_audit/sample.json']],
+  ['GWT-3 R', 'R100\0research/old.txt\0mp_audit/old.txt\0', '', ['research/old.txt -> mp_audit/old.txt']],
+  ...['.github/workflows/unsafe.yml', 'research/extra.txt', 'test/extra.test.mjs', 'mp_audit2/fake.mjs']
+    .map(p => ['GWT-4 ' + p, 'A\0' + p + '\0', '', [p]]),
+  ['original allow', 'M\0fetch-history.mjs\0', '', []],
+  ['copy in', 'C100\0research/old.txt\0mp_audit/old.txt\0', '', ['research/old.txt -> mp_audit/old.txt']],
+  ['copy existing', 'C100\0mp_audit/a.txt\0mp_audit/b.txt\0', '', ['mp_audit/a.txt -> mp_audit/b.txt']],
+  ['rename within', 'R050\0mp_audit/a.txt\0mp_audit/b.txt\0', '', ['mp_audit/a.txt -> mp_audit/b.txt']],
+  ['rename out', 'R100\0mp_audit/old.txt\0fetch-history.mjs\0', '', ['mp_audit/old.txt -> fetch-history.mjs']],
+  ['directory itself', 'A\0mp_audit/\0', '', ['mp_audit/']],
+  ['NUL paths', 'A\0mp_audit/a\tb\nc.json\0', '', []],
+];
+for (const [name, diff, untracked, invalid] of gwt09Cases) test('GWT-09 contract ' + name, () => {
+  assert.deepEqual(gwt09Invalid(diff, untracked), invalid);
+  const r = runGwt09(diff, untracked);
+  assert.equal(r.error, undefined);
+  assert.equal(r.status, invalid.length ? 1 : 0, r.stdout + r.stderr);
+  for (const p of invalid) assert.ok((r.stdout + r.stderr).includes(p), p);
+});
+test('GWT-09 contract Git failure', () => {
+  const r = runGwt09('', '', true);
+  assert.equal(r.status, 1);
+  assert.match(r.stdout + r.stderr, /GIT_FAILURE/);
 });
 test('非法 JSON 保留旧 CSV', async () => failed(await run('json')));
 for (const mode of ['timestamp', 'zero', 'exponent', 'precision', 'object']) {
