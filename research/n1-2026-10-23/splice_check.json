@@ -1,0 +1,20 @@
+{
+  "BTC-USDT": {
+    "status": "VERIFIED",
+    "equation": "new_last_ts + 300000 == original_first_ts",
+    "new_last_ts": 1729437900000,
+    "original_first_ts": 1729438200000,
+    "boundary_contiguous": true,
+    "whole_series_adjacent_intervals_checked": true,
+    "no_gaps_or_duplicates": true
+  },
+  "ETH-USDT": {
+    "status": "VERIFIED",
+    "equation": "new_last_ts + 300000 == original_first_ts",
+    "new_last_ts": 1729438200000,
+    "original_first_ts": 1729438500000,
+    "boundary_contiguous": true,
+    "whole_series_adjacent_intervals_checked": true,
+    "no_gaps_or_duplicates": true
+  }
+}
