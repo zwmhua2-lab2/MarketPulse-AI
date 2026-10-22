@@ -3,6 +3,38 @@
 Falsify a K-line hypothesis per coffee break, without touching `backend/`, the
 database, Docker, migrations or the Gate workflow.
 
+## Boundary — sandbox vs production
+
+- **Writable scope is `research/` only.** Never touch `backend/`, `frontend/`,
+  the production database, migrations, Docker, or production wiring.
+- Research tasks **do not** have to walk the production Group / Gate / Issue /
+  PR / cross-model-QA chain. They do have to state: scope, time box, how the
+  result is self-checked, and where the real evidence lives.
+- Research is for falsification, not for tuning. Do not adjust a family,
+  window, cost or threshold to make a gate pass. Do not use a doc update or an
+  audit result to back-tune a family.
+- Pending items N1–N3 are tracked in `NOW.md` only; this file does not restate
+  their status.
+
+## Exploration vs confirmation
+
+- Any data that took part in choosing a family, comparing parameters or judging
+  direction is **exploration data**.
+- The current `data/{COIN}_5m.csv` (730 days) has already been looked at, so it
+  is exploration; `--confirm` refuses to run on it by design.
+- **Confirmation may only use data accumulated after this point and never used
+  for any selection**, with the window and the criterion agreed before it starts.
+- Pulling in earlier history now only **extends exploration**. It does not
+  become a confirmation set, even if that history has never been inspected.
+
+## History — do not overwrite
+
+`integrity_report.txt`, `cost_breakdown.txt`, `run_confirm.txt`,
+`run_explore.txt`, `run_r3_explore.txt`, `data_availability.txt`,
+`test_registry.json` and `confirm_log.txt` are historical evidence. Append new
+runs as new files or new rows; never rewrite, truncate or "tidy" the existing
+records.
+
 ## Layout
 
 | file | role |
@@ -54,9 +86,10 @@ python -m unittest test_parity -v
 python data_availability.py              # ~15 requests, stores nothing
 ```
 
-`--confirm` now refuses: the 730-day file has been looked at and is exploration
-by policy. A real confirmation window needs earlier history (5y+) plus data
-after 2026-10-20.
+`--confirm` refuses by design: the 730-day file has been looked at and is
+exploration by policy. A real confirmation window needs **data accumulated
+after this point and never used for selection**. Earlier history pulled in now
+only extends exploration — it does not become a confirmation set.
 
 ## Known limits
 

@@ -83,3 +83,12 @@ Acceptance Batch 完成后必须同步 `dev_log`、`PROJECT_STATE.md`、必要�
 ### CIP-10｜Context Compression
 
 `AI_CONTEXT.md` 只保存：当前状态、当前 accepted SHA、frozen invariants、当前 Group、关键 Source-of-Truth 指针、必须跨窗口保存的开发边界。不要复制几十页 Spec；详细内容应链接/指向原始文档。目标：小、稳定、可信、可快速读取。
+
+## 研究沙盒例外（Research Sandbox Exception，2026-10-22）
+
+**适用范围**：只在 `research/` 内进行的假设验证与文档整理任务。
+
+- 此类任务采用**轻量流程**：写明范围、时间盒、结果自检方式与真实证据位置即可；**不默认触发**生产侧的 Acceptance Group / Gate / Issue / PR / 异源 QA 治理链。
+- 例外**不允许**修改：`backend/`、`frontend/`、生产数据库、migration、生产接线、本文档所述安全不变量（Fail Closed、风险降低动作、Recovery / Reconciliation / Ledger、Secret 边界）、全局规则或权限。
+- **不是常驻授权**：只覆盖任务中明确列出的文件与范围；扩范围需重新批准，不得据此类推。
+- **生产条款继续完全有效**：Architecture Frozen、按 Acceptance Group 执行、GitHub Review 工作流、CIP-01～CIP-10 在生产改动上不因本例外被替换、简化或弱化。本例外只裁掉「研究任务也要走生产治理链」这一层，不裁任何安全与权限约束。
