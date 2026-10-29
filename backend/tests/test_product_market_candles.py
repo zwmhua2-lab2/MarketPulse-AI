@@ -140,6 +140,7 @@ def test_gwt_data_03_bad_window_fails_closed(harness, mutate):
         {"code": "500", "data": []},
         {"code": "0", "data": [["1"]]},
         {"code": "0", "data": rows(bad=lambda r: r[2].__setitem__(1, "NaN"))},
+        {"code": "0", "data": rows(bad=lambda r: r[2].__setitem__(1, "Infinity"))},
         {"code": "0", "data": rows(bad=lambda r: r[2].__setitem__(1, "1e2"))},
         {"code": "0", "data": rows(bad=lambda r: r[2].__setitem__(5, "-1"))},
         {"code": "0", "data": rows(bad=lambda r: r[2].__setitem__(2, "8"))},
@@ -149,7 +150,8 @@ def test_gwt_data_04_malformed_provider_data_is_sanitized(harness, payload):
     client, state, _, settings = harness
     state["payload"] = payload
     r = client.get(candles.PATH, params={"instrument_id": "BTC-USDT"}, headers=auth(settings))
-    assert r.status_code == 503 and "NaN" not in r.text and "private" not in r.text
+    assert r.status_code == 503 and "NaN" not in r.text and "Infinity" not in r.text
+    assert "private" not in r.text
 
 @pytest.mark.parametrize(
     "failure", [429, 500, 504, TimeoutError("secret timeout"), ConnectionError("secret connection")]
