@@ -34,6 +34,18 @@ dev_log / Acceptance Evidence  ← 历史实施与验收证据
 
 ## 1. Product Identity（产品定位）
 
+### 当前优先目标：本地 Web V0.1
+
+优先交付个人市场行为分析、策略研究与交易机会发现工作台：Windows 本地运行、React + FastAPI，覆盖 BTC-USDT / ETH-USDT 的真实行情、已收盘 K 线、Scanner、Opportunity、可证明的证据详情、研究摘要和系统状态，Web 业务界面只读。
+
+V0.1 采用独立本地观察入口与隔离观察数据库，原 RuntimeHost 默认关闭。观察记录写入不授予交易权限；不激活 Paper Execution、AI 自动决策、G2→G3 Advisory 或 Live Trading，不引入新回测引擎、多模型投票或公网部署。
+
+行情与事件必须真实；未激活、不可用、可信空结果、过期分别展示。缺失证据不猜测关联，不编造收益或胜率。R3/N1 为历史探索，研究双门通过记录为 0；登记差异只展示。
+
+这是当前优先产品方向，不代表已实现或验收；独立实施需按 ARCHITECTURE.md §7 及各 Issue 授权。下述既有 V1 交易能力和长期责任链继续保留，其能力存在不意味着 V0.1 已获激活授权。
+
+### 既有 V1 与长期产品定位
+
 **MarketPulse AI** 是一个 **AI-assisted quantitative Paper Trading system（AI 辅助量化纸面交易系统）**。
 
 当前 V1 产品目标：

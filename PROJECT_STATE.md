@@ -1,5 +1,13 @@
 # MarketPulse AI Project State
 
+## V0.1 当前阶段（2026-10-29）
+
+- `ARCH-V01-01-A01`：架构与门禁修订候选；Human 已批准实施范围，最终 Diff 的独立 QA / Human 验收仍待进行。
+- `V0.1 = 架构实施候选`；`业务源码 = NOT STARTED`；`观察入口 = NOT IMPLEMENTED`；`本地运行 / E2E = NOT_TESTED`。本记录不代表 V0.1 已集成或已验收。
+- 方向：Windows 本地 React + FastAPI，只读市场/机会/研究工作台；独立观察库，原 RuntimeHost 默认关闭。既有已验收组件保持历史状态，本任务不激活任何经济服务、G2→G3、Real AI、Paper 或 Live。
+- 已核查缺口：ProductReadContext 仍只接受 RuntimeHost；独立源适配、观察入口生命周期和隔离须后续 Issue 独立授权验证。下方各组历史进度不构成 V0.1 实施授权。
+- R3/N1 仍为历史探索；研究双门通过记录为 0，登记差异仅展示，未修改研究数据。实际实施与验证见 `dev_log/2026-10-29-v01-architecture-admission.md`。
+
 ## Current Group
 
 SE-02A — Contracts + Additive Persistence — ACCEPTED / COMPLETE
