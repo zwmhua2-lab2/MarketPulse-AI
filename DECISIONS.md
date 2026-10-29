@@ -1,5 +1,16 @@
 # Approved Decisions
 
+## V0.1 限定架构决策（2026-10-29）
+
+- `ARCH-V01-01-A01` 经 [Issue #9 Human 批准记录](https://github.com/zwmhua2-lab2/MarketPulse-AI/issues/9#issuecomment-6498889582) 授权，仅架构与门禁修订；最终 Diff 待验收，业务实施仍须独立 Issue。
+- 当前优先 Windows 本地 React + FastAPI 只读工作台；采用独立本地观察入口，FastAPI 生命周期拥有其启动/停止，原 RuntimeHost 默认关闭。优先复用 Market Data / G2 Scanner / EventRuntime / Capture / Product Read，不构造 PaperExecution、G3、AI Provider 或订单/持仓保护执行链。
+- 对下述 PRE-01B-D1/I1 唯一 composition owner 决策作有限适用范围补充：既有生产经济 RuntimeHost 的所有权、singleton、DB lifecycle、DF-01/DF-02 恢复权威不变；独立观察仅拥有隔离观察库的必要市场事件、Scanner、Opportunity、Evidence，不借用或伪造旧 Host 权威，不触碰生产经济状态。
+- G2 规则、Capture identity、live-ingress causal proof、durable Capture Anchor、revision / 幂等性及 `FORWARD_PAPER` 语义不变；不允许 replay、时间/币种近似关联或新 BBO 伪造证据。Web 只读与后台必要观察持久化是不同边界。
+- 观察入口/旧 Host 所有权隔离、重复启动与失败处理、Product Read 独立源适配由后续任务验证；当前代码的 Host-only 读上下文尚不支持该入口。若需要改变既有交易核心契约，必须停止并另走 Human 架构变更。
+- 路径资格与数据真实约束见 ARCHITECTURE.md §7；不激活 G2→G3、Real AI、Paper、Live 或 Gate A/B/C，不改变任何已冻结设计及历史验收资产。
+
+## 既有批准决策（保留历史原义）
+
 - Group 1 使用 Modular Monolith。
 - Backend/Frontend 本地运行，PostgreSQL 使用 Docker，默认监听 `127.0.0.1`。
 - Market data 采用 Raw Adapter → Normalized Data 边界。

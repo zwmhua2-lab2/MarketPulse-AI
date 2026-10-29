@@ -7,7 +7,7 @@ import { test } from 'node:test';
 // - **GWT-06（C2/C3/X2）**：Given 响应含 11 字段 K 线、非数字开盘价、`high<low` 或负成交量（逐例），旧 CSV 完好，When 抓取，Then 每例退出码 1、stderr=`FETCH_ERROR\n`、旧 CSV 字节不变。
 // - **GWT-07（C2/C3）**：Given 所有行情数据有效、旧 CSV 完好，但临时文件写入或 rename 被模拟为失败（逐例），When 保存，Then 退出码 1、stderr=`FETCH_ERROR\n`、旧 CSV 字节不变，正式文件无半截新数据。
 // - **GWT-08（C3）**：Given CLI 参数为 `--save`，When 执行，Then 在网络调用及文件写入前退出 1，stderr=`FETCH_ERROR\n`，旧 CSV 不变。
-// - **GWT-09（C5，终审清单）**：允许原有两个抓取器路径及 mp_audit/** 新增文件；拒绝已有审计文件的 M/D/R/C、其他路径及未授权未跟踪文件。
+// - **GWT-09（C5，终审清单）**：CLI、mp_audit 新增及 §7 有限路径资格；实际写入仍须 Issue 白名单，拒绝删除/重命名/复制和未知路径。
 import assert from 'node:assert/strict';
 import { mkdtemp, writeFile, readFile, rm, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -173,6 +173,15 @@ function gwt09Invalid(diff, untracked) {
   };
   const original = p => ['fetch-history.mjs', 'test/fetch-history.test.mjs'].includes(p);
   const audit = p => p.startsWith('mp_audit/') && p.slice(9).split('/').every(s => s && s !== '.' && s !== '..');
+  // Path eligibility only: this cannot prove Human authorization or inspect change semantics.
+  const docs = p => ['ARCHITECTURE.md', 'PRODUCT_REQUIREMENTS.md', 'DECISIONS.md', 'PROJECT_STATE.md'].includes(p);
+  const log = p => p === 'dev_log/2026-10-29-v01-architecture-admission.md';
+  const existing = p => ['frontend/src/app/router.tsx', 'frontend/src/app/ProductShell.tsx',
+    'frontend/src/api/generated.ts', 'backend/src/marketpulse/api/app.py'].includes(p);
+  const module = p => ['backend/src/marketpulse/api/product/market_candles.py',
+    'backend/tests/test_product_market_candles.py'].includes(p) ||
+    (/^frontend\/src\/v01\/(?:[A-Za-z0-9_-]+\/)*[A-Za-z0-9_-][A-Za-z0-9_.-]*\.(?:tsx?|css)$/.test(p) &&
+      !/(?:^|[/.])config\.(?:tsx?|css)$/.test(p));
   const invalid = [], fields = tokens(diff);
   for (let i = 0; i < fields.length;) {
     const status = fields[i++];
@@ -180,17 +189,20 @@ function gwt09Invalid(diff, untracked) {
     const paths = fields.slice(i, i + (/^[RC]/.test(status) ? 2 : 1));
     i += paths.length;
     assert.equal(paths.length, /^[RC]/.test(status) ? 2 : 1, 'missing Git path');
-    if (paths.every(original)) continue;
+    if (paths.length === 1 && ['A', 'M'].includes(status) && (original(paths[0]) || module(paths[0]))) continue;
+    if (status === 'M' && (docs(paths[0]) || existing(paths[0]))) continue;
+    if (status === 'A' && log(paths[0])) continue;
     if (status === 'A' && paths.length === 1 && audit(paths[0])) continue;
     invalid.push(paths.join(' -> '));
   }
-  for (const p of tokens(untracked)) if (!original(p) && !audit(p)) invalid.push(p);
+  for (const p of tokens(untracked)) if (!original(p) && !audit(p) && !module(p) && !log(p)) invalid.push(p);
   return invalid;
 }
 test('GWT-09', () => {
   const diff = execFileSync('git', ['diff', '--name-status', '-z', '--find-renames', 'origin/main'], {encoding:'utf8'});
   const untracked = execFileSync('git', ['ls-files', '--others', '--exclude-standard', '-z'], {encoding:'utf8'});
   const invalid = gwt09Invalid(diff, untracked);
+  if (invalid.length) process.stderr.write(invalid.join('\n') + '\n');
   assert.equal(invalid.length, 0, invalid.join('\n'));
 });
 
@@ -232,6 +244,47 @@ const gwt09Cases = [
   ['directory itself', 'A\0mp_audit/\0', '', ['mp_audit/']],
   ['NUL paths', 'A\0mp_audit/a\tb\nc.json\0', '', []],
 ];
+// ARCH-V01-01-A01 GWT-04：Given 原有合法、非法及边界测试样例。
+// When 执行 GWT-09 相关测试。Then 本次批准的路径通过，原有越界反例仍被拒绝。
+const admissionDocs = ['ARCHITECTURE.md', 'PRODUCT_REQUIREMENTS.md', 'DECISIONS.md', 'PROJECT_STATE.md'];
+const admissionLog = 'dev_log/2026-10-29-v01-architecture-admission.md';
+const v01Existing = ['frontend/src/app/router.tsx', 'frontend/src/app/ProductShell.tsx',
+  'frontend/src/api/generated.ts', 'backend/src/marketpulse/api/app.py'];
+const v01Modules = ['frontend/src/v01/Market.tsx', 'frontend/src/v01/market.test.ts',
+  'frontend/src/v01/style.css', 'backend/src/marketpulse/api/product/market_candles.py',
+  'backend/tests/test_product_market_candles.py'];
+for (const p of [...admissionDocs, ...v01Existing, ...v01Modules]) {
+  gwt09Cases.push(['V01 modify ' + p, `M\0${p}\0`, '', []]);
+}
+for (const p of [admissionLog, ...v01Modules]) {
+  gwt09Cases.push(['V01 add ' + p, `A\0${p}\0`, '', []], ['V01 untracked ' + p, '', `${p}\0`, []]);
+}
+for (const p of [...admissionDocs, ...v01Existing]) {
+  gwt09Cases.push(['V01 no replacement ' + p, `A\0${p}\0`, '', [p]],
+    ['V01 no untracked replacement ' + p, '', `${p}\0`, [p]]);
+}
+gwt09Cases.push(['V01 log immutable', `M\0${admissionLog}\0`, '', [admissionLog]]);
+for (const p of ['fetch-history.mjs', 'test/fetch-history.test.mjs', ...admissionDocs, admissionLog,
+  ...v01Existing, ...v01Modules]) {
+  for (const status of ['D', 'T', 'U', 'X']) gwt09Cases.push(['V01 reject ' + status + ' ' + p,
+    `${status}\0${p}\0`, '', [p]]);
+  for (const status of ['R100', 'C100']) gwt09Cases.push(['V01 reject ' + status + ' ' + p,
+    `${status}\0${p}\0test/fetch-history.test.mjs\0`, '', [`${p} -> test/fetch-history.test.mjs`]]);
+}
+for (const p of ['AGENTS.md', 'package.json', 'package-lock.json', '.github/workflows/ci.yml',
+  'backend/src/marketpulse/runtime_host.py', 'backend/src/marketpulse/g2/scanner.py',
+  'backend/src/marketpulse/edge/capture.py', 'backend/src/marketpulse/g3/service.py',
+  'backend/src/marketpulse/config.py', 'backend/alembic/new.py', 'backend/tests/conftest.py',
+  'frontend/package.json', 'frontend/vite.config.ts', 'frontend/src/auth/RequireAuth.tsx',
+  'frontend/src/v010/fake.ts', 'frontend/src/v01/../app/routes.ts', 'frontend/src/v01/a//b.ts',
+  'frontend/src/v01/.hidden.ts', 'frontend/src/v01/package.json', 'frontend/src/v01/run.mjs',
+  'frontend/src/v01/vitest.config.ts', 'frontend/src/v01/trailing.ts\n',
+  'frontend/src/v01/unsafe\\file.ts', 'frontend/src/v01/unsafe\nfile.ts',
+  'backend/src/marketpulse/api/product/market_candles.py/extra', 'research/extra.txt',
+  'dev_log/unknown.md', '.workbuddy/memory/unknown.md']) {
+  gwt09Cases.push(['V01 forbidden ' + p, `M\0${p}\0`, '', [p]],
+    ['V01 forbidden add ' + p, `A\0${p}\0`, '', [p]], ['V01 forbidden untracked ' + p, '', `${p}\0`, [p]]);
+}
 for (const [name, diff, untracked, invalid] of gwt09Cases) test('GWT-09 contract ' + name, () => {
   assert.deepEqual(gwt09Invalid(diff, untracked), invalid);
   const r = runGwt09(diff, untracked);
