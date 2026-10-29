@@ -176,7 +176,7 @@ function gwt09Invalid(diff, untracked) {
   // Path eligibility only: this cannot prove Human authorization or inspect change semantics.
   const docs = p => ['ARCHITECTURE.md', 'PRODUCT_REQUIREMENTS.md', 'DECISIONS.md', 'PROJECT_STATE.md'].includes(p);
   const log = p => p === 'dev_log/2026-10-29-v01-architecture-admission.md';
-  const existing = p => ['frontend/src/app/router.tsx', 'frontend/src/app/ProductShell.tsx',
+  const existing = p => ['frontend/src/app/router.tsx', 'frontend/src/app/router.test.tsx', 'frontend/src/app/ProductShell.tsx',
     'frontend/src/api/generated.ts', 'backend/src/marketpulse/api/app.py'].includes(p);
   const module = p => ['backend/src/marketpulse/api/product/market_candles.py',
     'backend/tests/test_product_market_candles.py'].includes(p) ||
@@ -248,7 +248,29 @@ const gwt09Cases = [
 // When 执行 GWT-09 相关测试。Then 本次批准的路径通过，原有越界反例仍被拒绝。
 const admissionDocs = ['ARCHITECTURE.md', 'PRODUCT_REQUIREMENTS.md', 'DECISIONS.md', 'PROJECT_STATE.md'];
 const admissionLog = 'dev_log/2026-10-29-v01-architecture-admission.md';
-const v01Existing = ['frontend/src/app/router.tsx', 'frontend/src/app/ProductShell.tsx',
+// GWT-FIX-01｜Node 版本兼容
+// Given Node 22 和 Node 24 的输出格式可能不同。
+// When 运行 GWT-09。
+// Then 两种环境均正确识别允许与拒绝路径，测试退出码为 0。
+// GWT-FIX-02｜精确测试路径
+// Given `router.test.tsx` 为现有测试。
+// When 其状态为 M。
+// Then 合资格。
+// When 状态为 A、未跟踪、D、R、C、T、U 或 X。
+// Then 拒绝。
+// GWT-FIX-03｜原门禁不退化
+// Given 原有 CLI、mp_audit 和 V0.1 测试矩阵。
+// When 执行完整 GWT-09 测试。
+// Then 原有合法样例通过，原有非法样例继续拒绝。
+// GWT-FIX-04｜范围及行数
+// Given FIX 后完整 PR Diff。
+// When 对照原 Base 检查。
+// Then：PR 文件仍为原授权六文件；FIX 本身只触及三条指定路径；总改动不超过 300 行；没有额外依赖；没有未授权源码改动。
+// GWT-FIX-05｜文档一致性
+// Given 修订后的 `ARCHITECTURE.md`。
+// When 检查路径资格、Human 授权和 C5。
+// Then 不存在永久资格等于永久授权的错误表述。
+const v01Existing = ['frontend/src/app/router.tsx', 'frontend/src/app/router.test.tsx', 'frontend/src/app/ProductShell.tsx',
   'frontend/src/api/generated.ts', 'backend/src/marketpulse/api/app.py'];
 const v01Modules = ['frontend/src/v01/Market.tsx', 'frontend/src/v01/market.test.ts',
   'frontend/src/v01/style.css', 'backend/src/marketpulse/api/product/market_candles.py',
@@ -272,6 +294,7 @@ for (const p of ['fetch-history.mjs', 'test/fetch-history.test.mjs', ...admissio
     `${status}\0${p}\0test/fetch-history.test.mjs\0`, '', [`${p} -> test/fetch-history.test.mjs`]]);
 }
 for (const p of ['AGENTS.md', 'package.json', 'package-lock.json', '.github/workflows/ci.yml',
+  'frontend/src/app/routes.ts', 'frontend/src/app/router.test.ts', 'frontend/src/test/router.test.tsx',
   'backend/src/marketpulse/runtime_host.py', 'backend/src/marketpulse/g2/scanner.py',
   'backend/src/marketpulse/edge/capture.py', 'backend/src/marketpulse/g3/service.py',
   'backend/src/marketpulse/config.py', 'backend/alembic/new.py', 'backend/tests/conftest.py',
@@ -290,7 +313,19 @@ for (const [name, diff, untracked, invalid] of gwt09Cases) test('GWT-09 contract
   const r = runGwt09(diff, untracked);
   assert.equal(r.error, undefined);
   assert.equal(r.status, invalid.length ? 1 : 0, r.stdout + r.stderr);
-  for (const p of invalid) assert.ok((r.stdout + r.stderr).includes(p), p);
+  for (const p of invalid) {
+    const diagnostic = r.stdout + r.stderr;
+    if (!p.includes('\n')) assert.ok(diagnostic.includes(p), p);
+    else {
+      // Reporters escape or indent newlines differently; require every nonempty segment in order.
+      let offset = 0;
+      for (const segment of p.split('\n').filter(Boolean)) {
+        const found = diagnostic.indexOf(segment, offset);
+        assert.notEqual(found, -1, p);
+        offset = found + segment.length;
+      }
+    }
+  }
 });
 test('GWT-09 contract Git failure', () => {
   const r = runGwt09('', '', true);

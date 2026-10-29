@@ -49,3 +49,24 @@
 - 最可能出错的两点：后续把路径资格误当写权限；后续把独立观察适配为旧 Host 或绕过 Capture 因果证明。均须独立 Issue、审查和运行证据，不能由本次测试证明安全。
 - 后续建议：先单独实施最小只读 market-candles；再明确观察入口/读源适配路径与生命周期、隔离、幂等验证，保持 300 行分批；Opportunity 筛选另验证分页/证据身份。
 - 本次仅候选提交及 Draft PR；不合并、不部署、不继续业务功能。自测 PASS 不等于独立 QA PASS 或 Human 接受，最终提交身份与 PR 见交付报告/PR 元数据。
+
+## ARCH-V01-01-A01-FIX-01｜QA R01 补充修复
+
+- 执行前回读 Issue #9 补充授权 `6500413090`；PR #10 为 OPEN/Draft，Base `51b93e693200ffbc30291ad9e770509eb64c9324`、Candidate `8c7d6d4407bcc798aa8cf9e92729cf607a65dad6` 与干净 `task/9` Worktree 一致。仅本轮三文件可改，完整 PR 仍限原六文件、300 行。
+- D-01：Node 22.22.2 的报告器转义/缩进换行，与 Node 24.14.0 不同；原换行路径诊断完整字符串匹配失效，精确非法路径结果及退出码判定未错。原 unsafe 六例在 Node 22 实测 3 PASS / 3 FAIL、exit 1；保留失败用例，改为按顺序核验换行路径的所有非空诊断分段，普通路径仍完整匹配，精确结果和子进程退出码断言不变。
+- D-02：先将既有 `frontend/src/app/router.test.tsx` 加入直接测试矩阵，旧门禁的 M 合资格断言实测失败、exit 1，随后只在 existing 精确列表中增加此路径。矩阵覆盖 M 允许及 A/未跟踪/D/R/C/T/U/X 拒绝；另补 routes.ts、相似文件名及 frontend/src/test 路径反例，不开放目录；该前端测试文件实际零修改。
+- D-03：§7.2 明确四份文档 M 为持续路径资格，具体修改仍需每个 Issue 独立授权；未来 ARCHITECTURE 修改须独立架构 Issue 与 Human 明确批准，C5 不变。本次未增加自动授权机制。
+- D-04：Human 已补充代理发布溯源；两个授权评论均是聊天指令代发，不是 Human 本人 GitHub 账号的独立签署证据。Codex 不证明身份；如审核要求账号亲签，由 Human 补证。
+- D-05：原候选的 C4 修改属于 CLI 公开接口无密钥边界与 V0.1 现有鉴权、Secret 保护边界的澄清；不改变 CLI 实现或鉴权行为。
+- D-06：原候选将 CLI 两路径 R/C 从原门禁可放行收紧为拒绝；A/M 和原未跟踪资格保留。这是原路径保护收紧，不涉及 CLI 抓取业务变化。
+- 以上为追加记录，历史测试结果未修改。FIX 验收映射：01=两版本 GWT-09；02=router.test.tsx 九状态矩阵；03=全部原门禁；04=固定 Base 的六文件/300 行及 FIX 三文件检查；05=§7.2 与 C5 文档自查。独立 QA R02 与 Human 验收仍待进行。
+
+### FIX-01 实际验证（Windows）
+
+- Node 22.22.2：使用仓库外官方 win-x64/node.exe，SHA-256 与该版本官方 SHASUMS256.txt 一致；Node 24.14.0：使用本机既有运行时。无仓库依赖新增。
+- 两版本分别执行 `--test --test-name-pattern='GWT-09' test/fetch-history.test.mjs`：各 exit 0、260 PASS / 0 FAIL / 0 SKIP。
+- 两版本分别执行 `--test test/fetch-history.test.mjs`：各 exit 0、283 PASS / 0 FAIL / 0 SKIP；Node 22 为 70721.1912ms，Node 24 为 67414.0669ms。原有 CLI、mp_audit、危险路径、未跟踪及 Git 失败测试全部保留。
+- 新增 18 个矩阵用例：router.test.tsx 九种状态及三个未知近似路径各 M/A/未跟踪反例；Node 22/24 均通过。D-02 修复前定向结果为 11 PASS / 1 FAIL、exit 1（含三个未知路径反例）。
+- 定向和完整回归使用的测试源码 SHA-256：`515578b124454600b2e51e5f537cad6cd7bca923c82176aed26fa0f80bac8d7a`；最终仅追加文档验证记录，测试源码未再修改。
+- 范围和契约检查：FIX 三文件、完整 PR 原六文件/不超过 300 行、diff --check、C1/C2/C3/C5/X1/X2 原文、前后端及 CLI 源码零修改、历史日志前缀保全均 PASS；具体 numstat 与源码哈希保留在外部 scope-final.json。
+- 原始红/绿日志、运行时校验、GitHub 授权快照和范围核验保留于 Worktree 同级 `MarketPulse-AI-ARCH-V01-01-A01-FIX-01-evidence/`；旧 evidence 未改。Node 20、前后端全量、真实网络、数据库、观察入口及经济服务运行/E2E = NOT_TESTED；未合并或部署。修复自测不等于独立 R02 关闭缺陷。

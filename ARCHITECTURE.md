@@ -76,12 +76,14 @@
 - 复用现有 Product Read API；拟补 `GET /api/v1/product/market-candles`，仅 BTC-USDT / ETH-USDT、5m / 15m / 1h、真实已收盘 OKX 公共数据，验证完整性、时间、新鲜度和来源，不可信时 fail closed，显式 503。
 - Opportunity 币种筛选仅为后续允许设计，必须保持正确分页与 Evidence 身份；API 类型使用仓库官方生成命令并执行 drift 校验，禁止手改生成内容冒充同步。
 - 下表仅为 GWT-09 **路径资格**，不是文件内容审查或写入授权。每个实施 Issue 必须另有 Human 精确白名单，C5 受保护文件仍需明确批准；当前任务仅授权四份文档、本测试及指定 dev_log 六文件。
+- 四份文档的 M 路径资格持续有效，不等于永久修改授权；本任务不授予未来任意修改文档的许可。未来修改 `ARCHITECTURE.md` 仍须独立架构 Issue 和 Human 明确批准，C5 红牌规则不变。
 
 | 合资格路径 | 允许状态 / 内容边界 |
 | --- | --- |
-| `ARCHITECTURE.md`、`PRODUCT_REQUIREMENTS.md`、`DECISIONS.md`、`PROJECT_STATE.md` | M；本次已批准的最小文档修订 |
+| `ARCHITECTURE.md`、`PRODUCT_REQUIREMENTS.md`、`DECISIONS.md`、`PROJECT_STATE.md` | M；持续有效的路径资格，具体修改须每个 Issue 单独授权 |
 | `dev_log/2026-10-29-v01-architecture-admission.md` | A / 未跟踪新增；本次真实记录，既有日志不可覆盖 |
 | `frontend/src/app/router.tsx`、`frontend/src/app/ProductShell.tsx` | M；后续只读页面接线，五路由不变 |
+| `frontend/src/app/router.test.tsx` | 仅 M；既有路由测试的后续资格，本任务不得修改该文件 |
 | `frontend/src/api/generated.ts` | M；后续官方生成与 drift 校验 |
 | `backend/src/marketpulse/api/app.py` | M；后续 K 线路由注册，非 Runtime 激活授权 |
 | `frontend/src/v01/**` | A / M / 未跟踪新增；仅 `.ts`、`.tsx`、`.css` 页面、只读客户端及相应测试 |
