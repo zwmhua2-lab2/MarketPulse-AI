@@ -78,6 +78,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/product/market-candles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Market Candles */
+        get: operations["market_candles_api_v1_product_market_candles_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/product/market-scanner": {
         parameters: {
             query?: never;
@@ -476,6 +493,66 @@ export interface components {
             password: string;
             /** Username */
             username: string;
+        };
+        /** MarketCandleItem */
+        MarketCandleItem: {
+            /** Close */
+            close: string;
+            /** Close Time Ms */
+            close_time_ms: number;
+            /**
+             * Confirmed
+             * @constant
+             */
+            confirmed: true;
+            /** High */
+            high: string;
+            /** Low */
+            low: string;
+            /** Open */
+            open: string;
+            /** Open Time Ms */
+            open_time_ms: number;
+            /** Volume */
+            volume: string;
+        };
+        /** MarketCandleResponse */
+        MarketCandleResponse: {
+            /**
+             * Bar
+             * @enum {string}
+             */
+            bar: "5m" | "15m" | "1h";
+            /**
+             * Data Quality
+             * @constant
+             */
+            data_quality: "FRESH";
+            /**
+             * Instrument Id
+             * @enum {string}
+             */
+            instrument_id: "BTC-USDT" | "ETH-USDT";
+            /** Items */
+            items: components["schemas"]["MarketCandleItem"][];
+            /**
+             * Observed At
+             * Format: date-time
+             */
+            observed_at: string;
+            /**
+             * Source
+             * @constant
+             */
+            source: "OKX_PUBLIC_REST";
+        };
+        /** MarketDataUnavailableResponse */
+        MarketDataUnavailableResponse: {
+            /**
+             * Detail
+             * @constant
+             */
+            detail: "market data unavailable";
         };
         /** MarketEventTraceDTO */
         MarketEventTraceDTO: {
@@ -2030,6 +2107,47 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    market_candles_api_v1_product_market_candles_get: {
+        parameters: {
+            query: {
+                instrument_id: "BTC-USDT" | "ETH-USDT";
+                bar?: "5m" | "15m" | "1h";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MarketCandleResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MarketDataUnavailableResponse"];
                 };
             };
         };

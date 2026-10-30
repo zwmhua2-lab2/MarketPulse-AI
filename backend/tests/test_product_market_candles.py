@@ -22,7 +22,7 @@ def rows(bar="5m", *, n=61, bad=None):
     for i in range(n):
         ts = edge - i * step
         result.append(
-            [str(ts), "10.00", "12.00", "9.00", "11.00", "2.50", "", "", "0" if i == 0 else "1"]
+            [str(ts), "10.00", "12.00", "9.00", "11.00", "2.50", "3.75", "41.25", "0" if i == 0 else "1"]
         )
     if bad:
         bad(result)
@@ -60,6 +60,8 @@ def harness(monkeypatch):
                 raise state["error"]
             if state["payload"] is None:
                 state["payload"] = {"code": "0", "data": rows(params["bar"].replace("H", "h"))}
+            if state.get("response_now") is not None:
+                monkeypatch.setattr(candles, "_now", lambda: state["response_now"])
             return Response()
 
     monkeypatch.setattr(candles.httpx, "AsyncClient", Client)
@@ -117,6 +119,119 @@ def test_gwt_data_02_returns_sixty_exact_sorted_confirmed_values(harness):
     )
     assert items[-1]["close_time_ms"] == items[-1]["open_time_ms"] + PERIOD["5m"]
     assert calls[0][0] == "/api/v5/market/candles"
+
+
+def test_gwt_b04_accepts_exactly_sixty_closed_candles(harness):
+    client, state, _, settings = harness
+    state["payload"] = {"code": "0", "data": rows()[1:]}
+    response = client.get(candles.PATH, params={"instrument_id": "BTC-USDT"}, headers=auth(settings))
+    assert response.status_code == 200 and len(response.json()["items"]) == 60
+
+
+@pytest.mark.parametrize("field,value", [(i, v) for i in (6, 7) for v in ("", "NaN", "Infinity", "1e2", "-1")])
+def test_gwt_b03_rejects_invalid_quote_volumes(harness, field, value):
+    client, state, _, settings = harness
+    state["payload"] = {"code": "0", "data": rows(bad=lambda r: r[2].__setitem__(field, value))}
+    response = client.get(candles.PATH, params={"instrument_id": "BTC-USDT"}, headers=auth(settings))
+    assert response.status_code == 503 and "items" not in response.json()
+
+
+def test_gwt_b03_allows_zero_quote_volumes_without_exposing_them(harness):
+    client, state, _, settings = harness
+    state["payload"] = {"code": "0", "data": rows(bad=lambda r: (r[2].__setitem__(6, "0"), r[2].__setitem__(7, "0")))}
+    response = client.get(candles.PATH, params={"instrument_id": "BTC-USDT"}, headers=auth(settings))
+    assert response.status_code == 200
+    assert "volCcy" not in response.text and "volCcyQuote" not in response.text
+
+
+def test_gwt_b04_rejects_old_complete_window(harness):
+    client, state, _, settings = harness
+    data = rows()[1:]
+    for row in data:
+        row[0] = str(int(row[0]) - PERIOD["5m"])
+    state["payload"] = {"code": "0", "data": data}
+    response = client.get(candles.PATH, params={"instrument_id": "BTC-USDT"}, headers=auth(settings))
+    assert response.status_code == 503
+
+
+def test_gwt_b04_rejects_aligned_future_candle(harness):
+    client, state, _, settings = harness
+    data = rows()[1:-1]
+    future = rows()[0].copy()
+    future[0], future[8] = str(int(future[0]) + PERIOD["5m"]), "1"
+    data.append(future)
+    state["payload"] = {"code": "0", "data": data}
+    response = client.get(candles.PATH, params={"instrument_id": "BTC-USDT"}, headers=auth(settings))
+    assert response.status_code == 503
+
+
+@pytest.mark.parametrize("bar,minute", [("5m", 5), ("15m", 15), ("1h", 0)])
+def test_gwt_b04_uses_post_response_observation_time(harness, bar, minute):
+    client, state, _, settings = harness
+    response_now = NOW.replace(hour=13, minute=minute, second=1) if bar == "1h" else NOW.replace(minute=minute, second=1)
+    step = PERIOD[bar]
+    data = rows(bar)[1:]
+    for row in data:
+        row[0] = str(int(row[0]) + step)
+    state["response_now"] = response_now
+    state["payload"] = {"code": "0", "data": data}
+    response = client.get(candles.PATH, params={"instrument_id": "BTC-USDT", "bar": bar}, headers=auth(settings))
+    observed_at = datetime.fromisoformat(response.json()["observed_at"])
+    assert response.status_code == 200 and observed_at == response_now
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        [("instrument_id", "BTC-USDT"), ("instrument_id", "ETH-USDT")],
+        [("instrument_id", "BTC-USDT"), ("bar", "5m"), ("bar", "15m")],
+    ],
+)
+def test_gwt_b05_rejects_duplicate_query_keys_without_upstream(harness, query):
+    client, _, calls, settings = harness
+    response = client.get(candles.PATH, params=query, headers=auth(settings))
+    assert response.status_code == 422 and not calls
+
+
+def test_gwt_b01_b02_registers_precisely_typed_authenticated_route(harness, monkeypatch):
+    import marketpulse.api.app as app_module
+
+    _, state, calls, settings = harness
+    monkeypatch.setattr(app_module, "settings", settings)
+    monkeypatch.setattr(app_module, "RuntimeHost", lambda *_: pytest.fail("RuntimeHost started"))
+    application = app_module.create_app()
+    application.dependency_overrides[get_settings] = lambda: settings
+    expected_paths = {
+        "/api/v1/auth/login", "/api/v1/health", "/api/v1/live", "/api/v1/market/instruments",
+        "/api/v1/product/market-scanner", "/api/v1/product/opportunities",
+        "/api/v1/product/opportunities/{opportunity_id}", "/api/v1/product/system",
+        "/api/v1/product/trading-audit", "/api/v1/protected/ping", "/api/v1/ready",
+        "/api/v1/runtime", "/api/v1/universe", candles.PATH,
+    }
+    with TestClient(application) as client:
+        assert application.state.host is None
+        spec = client.get("/openapi.json").json()
+        operation = spec["paths"][candles.PATH]["get"]
+        assert set(spec["paths"]) == expected_paths and set(spec["paths"][candles.PATH]) == {"get"}
+        responses = operation["responses"]
+        success_name = responses["200"]["content"]["application/json"]["schema"]["$ref"].rsplit("/", 1)[-1]
+        error_name = responses["503"]["content"]["application/json"]["schema"]["$ref"].rsplit("/", 1)[-1]
+        success = spec["components"]["schemas"][success_name]
+        error = spec["components"]["schemas"][error_name]
+        assert set(success["properties"]) == {"source", "instrument_id", "bar", "observed_at", "data_quality", "items"}
+        item_ref = success["properties"]["items"]["items"]["$ref"].split("/")[-1]
+        item = spec["components"]["schemas"][item_ref]
+        assert set(item["properties"]) == {"open_time_ms", "close_time_ms", "open", "high", "low", "close", "volume", "confirmed"}
+        assert success.get("additionalProperties") is not True
+        assert set(error["properties"]) == {"detail"}
+        assert client.get("/api/v1/live").json()["status"] == "disabled"
+        assert client.get("/api/v1/ready").status_code == 503
+        assert client.get(candles.PATH, params={"instrument_id": "BTC-USDT"}).status_code == 401
+        assert not calls
+        assert client.get(candles.PATH, params={"instrument_id": "BTC-USDT"}, headers=auth(settings)).status_code == 200
+        state["status"] = 503
+        unavailable = client.get(candles.PATH, params={"instrument_id": "BTC-USDT"}, headers=auth(settings))
+        assert unavailable.status_code == 503 and unavailable.json() == {"detail": "market data unavailable"}
 
 @pytest.mark.parametrize(
     "mutate",

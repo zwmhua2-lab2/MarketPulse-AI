@@ -9,6 +9,7 @@ from typing import Literal
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from pydantic import BaseModel
 
 from marketpulse.api.auth import verify_session
 from marketpulse.config import Settings, get_settings
@@ -18,6 +19,30 @@ router = APIRouter(tags=["product-read"])
 _STEP = {"5m": 300_000, "15m": 900_000, "1h": 3_600_000}
 _OKX_BAR = {"5m": "5m", "15m": "15m", "1h": "1H"}
 _NUMBER = re.compile(r"(?:0|[1-9][0-9]*)(?:\.[0-9]+)?\Z")
+
+
+class MarketCandleItem(BaseModel):
+    open_time_ms: int
+    close_time_ms: int
+    open: str
+    high: str
+    low: str
+    close: str
+    volume: str
+    confirmed: Literal[True]
+
+
+class MarketCandleResponse(BaseModel):
+    source: Literal["OKX_PUBLIC_REST"]
+    instrument_id: Literal["BTC-USDT", "ETH-USDT"]
+    bar: Literal["5m", "15m", "1h"]
+    observed_at: datetime
+    data_quality: Literal["FRESH"]
+    items: list[MarketCandleItem]
+
+
+class MarketDataUnavailableResponse(BaseModel):
+    detail: Literal["market data unavailable"]
 
 
 def _now() -> datetime:
@@ -53,10 +78,12 @@ def _candles(data: object, *, step: int, now_ms: int) -> list[dict[str, object]]
         stamp = int(ts)
         if stamp % step:
             raise ValueError("unaligned timestamp")
-        o, h, low, c, _volume = (_decimal(v, positive=i < 4) for i, v in enumerate(row[1:6]))
+        o, h, low, c = (_decimal(v, positive=True) for v in row[1:5])
+        for value in row[5:8]:
+            _decimal(value)
         if h < max(o, low, c) or low > min(o, c) or row[8] not in ("0", "1"):
             raise ValueError("invalid OHLC or confirmation")
-        parsed.append((stamp, row, h, low))
+        parsed.append((stamp, row))
     parsed.sort(key=lambda item: item[0])
     if len({item[0] for item in parsed}) != len(parsed):
         raise ValueError("duplicate timestamp")
@@ -68,8 +95,6 @@ def _candles(data: object, *, step: int, now_ms: int) -> list[dict[str, object]]
     expected = [edge - step * i for i in range(60, 0, -1)]
     if [item[0] for item in closed] != expected:
         raise ValueError("incomplete candle window")
-    if now_ms - (closed[-1][0] + step) > step + 30_000:
-        raise ValueError("stale candles")
     return [
         {
             "open_time_ms": ts,
@@ -81,21 +106,26 @@ def _candles(data: object, *, step: int, now_ms: int) -> list[dict[str, object]]
             "volume": row[5],
             "confirmed": True,
         }
-        for ts, row, _, _ in closed
+        for ts, row in closed
     ]
 
 
-@router.get(PATH)
+@router.get(
+    PATH,
+    response_model=MarketCandleResponse,
+    responses={503: {"model": MarketDataUnavailableResponse}},
+)
 async def market_candles(
     request: Request,
     instrument_id: Literal["BTC-USDT", "ETH-USDT"] = Query(...),
     bar: Literal["5m", "15m", "1h"] = Query("5m"),
     _: str = Depends(verify_session),
     settings: Settings = Depends(get_settings),  # noqa: B008
-) -> dict[str, object]:
+) -> MarketCandleResponse:
     if set(request.query_params) - {"instrument_id", "bar"}:
         raise HTTPException(422, "unsupported query parameter")
-    observed = _now()
+    if any(len(request.query_params.getlist(key)) > 1 for key in ("instrument_id", "bar")):
+        raise HTTPException(422, "duplicate query parameter")
     try:
         async with httpx.AsyncClient(base_url=settings.okx_rest_url, timeout=10) as client:
             response = await client.get(
@@ -106,15 +136,16 @@ async def market_candles(
             payload = response.json()
         if not isinstance(payload, dict) or payload.get("code") != "0":
             raise ValueError("invalid OKX response")
+        observed = _now()
         observed_ms = int(observed.timestamp()) * 1000 + observed.microsecond // 1000
         items = _candles(payload.get("data"), step=_STEP[bar], now_ms=observed_ms)
     except Exception as exc:  # provider errors are intentionally non-disclosing
         raise _unavailable() from exc
-    return {
-        "source": "OKX_PUBLIC_REST",
-        "instrument_id": instrument_id,
-        "bar": bar,
-        "observed_at": observed.isoformat(),
-        "data_quality": "FRESH",
-        "items": items,
-    }
+    return MarketCandleResponse(
+        source="OKX_PUBLIC_REST",
+        instrument_id=instrument_id,
+        bar=bar,
+        observed_at=observed,
+        data_quality="FRESH",
+        items=items,
+    )
