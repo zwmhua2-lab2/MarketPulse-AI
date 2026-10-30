@@ -12,6 +12,8 @@ type Instrument = "BTC-USDT" | "ETH-USDT";
 type Bar = "5m" | "15m" | "1h";
 type Response = components["schemas"]["MarketCandleResponse"];
 const bars: Bar[] = ["5m", "15m", "1h"];
+const periodMs: Record<Bar, number> = { "5m": 300_000, "15m": 900_000, "1h": 3_600_000 };
+const validTimestamp = (value: unknown) => typeof value === "number" && Number.isSafeInteger(value) && Number.isFinite(new Date(value).getTime());
 
 function valid(value: unknown, instrument: Instrument, bar: Bar): value is Response {
   if (!value || typeof value !== "object") return false;
@@ -22,11 +24,12 @@ function valid(value: unknown, instrument: Instrument, bar: Bar): value is Respo
       if (!item || typeof item !== "object") return false;
       const c = item as Partial<Response["items"][number]>;
       const prices = [c.open, c.high, c.low, c.close];
+      const step = periodMs[bar];
       return c.confirmed === true && prices.every((v) => typeof v === "string" && /^\d+(?:\.\d+)?$/.test(v) && Number.isFinite(Number(v)) && Number(v) > 0) &&
         typeof c.volume === "string" && /^\d+(?:\.\d+)?$/.test(c.volume) && Number.isFinite(Number(c.volume)) &&
-        Number.isSafeInteger(c.open_time_ms) && Number.isSafeInteger(c.close_time_ms) && c.close_time_ms! > c.open_time_ms! &&
+        validTimestamp(c.open_time_ms) && validTimestamp(c.close_time_ms) && c.open_time_ms! % step === 0 && c.close_time_ms! - c.open_time_ms! === step &&
         Number(c.high) >= Math.max(Number(c.open), Number(c.close), Number(c.low)) && Number(c.low) <= Math.min(Number(c.open), Number(c.close)) &&
-        (i === 0 || c.open_time_ms! > items[i - 1].open_time_ms);
+        (i === 0 || c.open_time_ms === Number(items[i - 1].open_time_ms) + step);
     });
 }
 

@@ -9,8 +9,11 @@ import { renderApp, seedSession } from "../test/render";
 import { PRODUCT_ROUTES } from "../app/routes";
 
 const path = "/api/v1/product/market-candles";
-const candle = (i: number) => ({ open_time_ms: i, close_time_ms: i + 1, open: "1.00", high: "3.00", low: "0.50", close: i === 0 ? "2.00" : i === 59 ? "1.50" : "0.75", volume: "9.000", confirmed: true as const });
-const payload = (instrument_id = "BTC-USDT", bar = "5m") => ({ instrument_id, bar, source: "OKX_PUBLIC_REST", data_quality: "FRESH", observed_at: "2026-10-30T00:00:00Z", items: Array.from({ length: 60 }, (_, i) => candle(i)) });
+const periodMs = { "5m": 300_000, "15m": 900_000, "1h": 3_600_000 } as const;
+type Bar = keyof typeof periodMs;
+const firstOpen = Date.UTC(2026, 9, 1);
+const candle = (i: number, bar: Bar = "5m") => ({ open_time_ms: firstOpen + i * periodMs[bar], close_time_ms: firstOpen + (i + 1) * periodMs[bar], open: "1.00", high: "3.00", low: "0.50", close: i === 0 ? "2.00" : i === 59 ? "1.50" : "0.75", volume: "9.000", confirmed: true as const });
+const payload = (instrument_id = "BTC-USDT", bar: Bar = "5m") => ({ instrument_id, bar, source: "OKX_PUBLIC_REST", data_quality: "FRESH", observed_at: "2026-10-30T00:00:00Z", items: Array.from({ length: 60 }, (_, i) => candle(i, bar)) });
 
 describe("GWT-UI01-01～06 Market page", () => {
   it("GWT-UI01-01: unauthenticated /market is handled by Login before any candle GET; keeps five routes", async () => {
@@ -35,7 +38,7 @@ describe("GWT-UI01-01～06 Market page", () => {
       const url = new URL(request.url);
       expect(request.headers.get("authorization")).toMatch(/^Bearer /);
       requests.push(`${url.searchParams.get("instrument_id")}/${url.searchParams.get("bar")}`);
-      return HttpResponse.json(payload(url.searchParams.get("instrument_id")!, url.searchParams.get("bar")!));
+      return HttpResponse.json(payload(url.searchParams.get("instrument_id")!, url.searchParams.get("bar")! as Bar));
     }));
     const user = userEvent.setup(); renderApp({ initialEntries: ["/market"] });
     await screen.findByText("数据源：OKX_PUBLIC_REST");
@@ -43,9 +46,13 @@ describe("GWT-UI01-01～06 Market page", () => {
     const bar = screen.getByLabelText("周期");
     for (const instrument of ["ETH-USDT", "BTC-USDT"]) {
       await user.selectOptions(coin, instrument);
-      for (const interval of ["5m", "15m", "1h"]) {
+      for (const interval of ["5m", "15m", "1h"] as const) {
         await user.selectOptions(bar, interval);
         await waitFor(() => expect(requests.at(-1)).toBe(`${instrument}/${interval}`));
+        await waitFor(() => {
+          expect(screen.getAllByTestId("candle")).toHaveLength(60);
+          expect(screen.getByText(`收盘时间：${new Date(firstOpen + 60 * periodMs[interval]).toISOString()}`)).toBeInTheDocument();
+        });
       }
     }
     expect(requests).toContain("ETH-USDT/5m");
@@ -63,7 +70,7 @@ describe("GWT-UI01-01～06 Market page", () => {
     expect(screen.getByText("后端观测时间：2026-10-30T00:00:00Z")).toBeInTheDocument();
     expect(screen.getByText("最新已收盘价：1.50")).toBeInTheDocument();
     expect(screen.getByText("成交量：9.000")).toBeInTheDocument();
-    expect(screen.getByText("收盘时间：1970-01-01T00:00:00.060Z")).toBeInTheDocument();
+    expect(screen.getByText("收盘时间：2026-10-01T05:00:00.000Z")).toBeInTheDocument();
     expect(screen.getByText(/已收盘历史 K 线/)).toBeInTheDocument();
     expect(screen.queryByText(/实时成交价/)).not.toBeInTheDocument();
   });
@@ -104,15 +111,39 @@ describe("GWT-UI01-01～06 Market page", () => {
     server.use(http.get(path, async ({ request }) => {
       const instrument = new URL(request.url).searchParams.get("instrument_id")!;
       if (instrument === "BTC-USDT") await waiting;
-      return HttpResponse.json(payload(instrument));
+      const response = payload(instrument);
+      if (instrument === "ETH-USDT") Object.assign(response.items[59], { open: "9.00", high: "10.00", low: "8.00", close: "9.99" });
+      return HttpResponse.json(response);
     }));
     const user = userEvent.setup(); renderApp({ initialEntries: ["/market"] });
     expect(await screen.findByText("行情加载中…")).toBeInTheDocument();
     await user.selectOptions(screen.getByLabelText("币种"), "ETH-USDT");
     expect(await screen.findByTestId("candle-chart")).toBeInTheDocument();
     expect(screen.getByText("ETH-USDT")).toBeInTheDocument();
+    expect(screen.getAllByTestId("candle")[59].querySelector("rect")).toHaveAttribute("data-close", "9.99");
     release();
     await waitFor(() => expect(screen.getByText("ETH-USDT")).toBeInTheDocument());
     expect(screen.getByTestId("candle-chart")).toBeInTheDocument();
+    expect(screen.getAllByTestId("candle")[59].querySelector("rect")).toHaveAttribute("data-close", "9.99");
+  });
+
+  it("GWT-UI01-04: rejects gaps, wrong candle duration and timestamps outside the Date range", async () => {
+    const valid = payload().items;
+    const shift = 8_640_000_000_000_000 + periodMs["5m"] - firstOpen;
+    const invalid = [
+      valid.map((c, i) => ({ ...c, open_time_ms: firstOpen + i, close_time_ms: firstOpen + i + periodMs["5m"] })),
+      valid.map((c, i) => ({ ...c, open_time_ms: firstOpen + i * 60_000, close_time_ms: firstOpen + i * 60_000 + periodMs["5m"] })),
+      valid.map((c) => ({ ...c, open_time_ms: c.open_time_ms + 1, close_time_ms: c.close_time_ms + 1 })),
+      valid.map((c) => ({ ...c, close_time_ms: c.close_time_ms + 1 })),
+      valid.map((c) => ({ ...c, open_time_ms: c.open_time_ms + shift, close_time_ms: c.close_time_ms + shift })),
+    ];
+    for (const items of invalid) {
+      seedSession();
+      server.use(http.get(path, () => HttpResponse.json({ ...payload(), items })));
+      const app = renderApp({ initialEntries: ["/market"] });
+      expect(await screen.findByText("数据无法验证")).toBeInTheDocument();
+      expect(screen.queryByTestId("candle-chart")).not.toBeInTheDocument();
+      app.unmount();
+    }
   });
 });
