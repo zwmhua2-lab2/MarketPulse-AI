@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from "react-router";
 import { LoginPage } from "../auth/LoginPage";
 import { RequireAuth } from "../auth/RequireAuth";
 import { FoundationPlaceholder } from "../pages/FoundationPlaceholder";
+import { MarketPage } from "../v01/MarketPage";
 import { ProductShell } from "./ProductShell";
 import { DEFAULT_PRODUCT_ROUTE, LOGIN_ROUTE, PRODUCT_ROUTES } from "./routes";
 
@@ -28,7 +29,7 @@ export function AppRoutes() {
           <Route
             key={route.path}
             path={route.path}
-            element={<FoundationPlaceholder title={route.title} ownerBatch={route.ownerBatch} />}
+            element={route.path === "/market" ? <MarketPage /> : <FoundationPlaceholder title={route.title} ownerBatch={route.ownerBatch} />}
           />
         ))}
         <Route path="*" element={<Navigate to={DEFAULT_PRODUCT_ROUTE} replace />} />
