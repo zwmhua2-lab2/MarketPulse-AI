@@ -13,7 +13,7 @@ type Bar = "5m" | "15m" | "1h";
 type Response = components["schemas"]["MarketCandleResponse"];
 const bars: Bar[] = ["5m", "15m", "1h"];
 const periodMs: Record<Bar, number> = { "5m": 300_000, "15m": 900_000, "1h": 3_600_000 };
-const validTimestamp = (value: unknown) => typeof value === "number" && Number.isSafeInteger(value) && Number.isFinite(new Date(value).getTime());
+const validTimestamp = (value: unknown) => typeof value === "number" && Number.isSafeInteger(value) && value > 0 && Number.isFinite(new Date(value).getTime());
 
 function valid(value: unknown, instrument: Instrument, bar: Bar): value is Response {
   if (!value || typeof value !== "object") return false;

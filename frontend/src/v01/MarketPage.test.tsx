@@ -146,4 +146,19 @@ describe("GWT-UI01-01～06 Market page", () => {
       app.unmount();
     }
   });
+
+  it("GWT-UI01-04: rejects continuous aligned candles containing non-positive timestamps", async () => {
+    seedSession();
+    const step = periodMs["5m"];
+    const items = payload().items.map((c, i) => ({
+      ...c,
+      open_time_ms: (i - 30) * step,
+      close_time_ms: (i - 29) * step,
+    }));
+    server.use(http.get(path, () => HttpResponse.json({ ...payload(), items })));
+
+    renderApp({ initialEntries: ["/market"] });
+    expect(await screen.findByText("数据无法验证")).toBeInTheDocument();
+    expect(screen.queryByTestId("candle-chart")).not.toBeInTheDocument();
+  });
 });
