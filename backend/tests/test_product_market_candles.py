@@ -371,7 +371,7 @@ def test_nl_03_unknown_connection_fails_closed(harness, proof):
         listener.getsockopt.return_value = 1
         listener.getsockname.return_value = ("0.0.0.0" if proof == "listener" else "127.0.0.1", 8000)
         peer.getsockname.return_value = listener.getsockname.return_value
-        peer.getpeername.return_value = ("192.168.1.2", 1234)
+        peer.getpeername.return_value = ("127.0.0.1" if proof == "listener" else "192.168.1.2", 1234)
         if proof == "unknown":
             peer.getpeername.side_effect = OSError("unknown peer")
         proof = (listener, peer)
