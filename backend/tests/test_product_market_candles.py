@@ -361,9 +361,20 @@ def test_nl_02_05_real_tcp_boundary(harness, monkeypatch, case):
             assert not thread.is_alive()
 
 
-@pytest.mark.parametrize("proof", [None, True, (None, None)])
+@pytest.mark.parametrize("proof", [None, True, (None, None), "listener", "peer", "unknown"])
 def test_nl_03_unknown_connection_fails_closed(harness, proof):
     client, _, calls, _ = harness
+    from unittest.mock import Mock
+
+    if isinstance(proof, str):
+        listener, peer = Mock(), Mock()
+        listener.getsockopt.return_value = 1
+        listener.getsockname.return_value = ("0.0.0.0" if proof == "listener" else "127.0.0.1", 8000)
+        peer.getsockname.return_value = listener.getsockname.return_value
+        peer.getpeername.return_value = ("192.168.1.2", 1234)
+        if proof == "unknown":
+            peer.getpeername.side_effect = OSError("unknown peer")
+        proof = (listener, peer)
     token = candles._connection.set(proof)
     try:
         assert client.get(candles.PATH, params={"instrument_id": "BTC-USDT"}, headers={"Host": "127.0.0.1", "X-Forwarded-For": "127.0.0.1", "Forwarded": "for=127.0.0.1"}).status_code == 401
