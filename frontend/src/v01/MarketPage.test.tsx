@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
@@ -101,6 +101,36 @@ describe("GWT-UI01-01～06 Market page", () => {
     expect(screen.queryByRole("heading", { name: "登录" })).not.toBeInTheDocument();
     expect(calls).toBe(1);
     expect(sessionStorage.length).toBe(0);
+  });
+
+  it.each([false, true])("R01-FIX-01: late BTC 401 preserves successful ETH and manual refresh (session=%s)", async (signedIn) => {
+    if (signedIn) seedSession();
+    let release!: () => void, finish!: () => void;
+    const waiting = new Promise<void>((resolve) => { release = resolve; });
+    const completed = new Promise<void>((resolve) => { finish = resolve; });
+    const requests: string[] = [];
+    server.use(http.get(path, async ({ request }) => {
+      const instrument = new URL(request.url).searchParams.get("instrument_id")!;
+      requests.push(instrument);
+      if (instrument === "BTC-USDT") { await waiting; finish(); return new HttpResponse(null, { status: 401 }); }
+      return HttpResponse.json(payload(instrument));
+    }));
+    const user = userEvent.setup(); renderApp({ initialEntries: ["/market"] });
+    await waitFor(() => expect(requests).toEqual(["BTC-USDT"]));
+    await user.selectOptions(screen.getByLabelText("币种"), "ETH-USDT");
+    expect(await screen.findAllByTestId("candle")).toHaveLength(60);
+    const chart = screen.getByTestId("candle-chart");
+    await act(async () => { release(); await completed; await new Promise((resolve) => setTimeout(resolve, 50)); });
+    expect(screen.getByLabelText("币种")).toHaveValue("ETH-USDT");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByTestId("candle-chart")).toBe(chart);
+    expect(screen.getAllByTestId("candle")).toHaveLength(60);
+    expect(sessionStorage.length > 0).toBe(signedIn);
+    expect(requests).toEqual(["BTC-USDT", "ETH-USDT"]);
+    await user.click(screen.getByRole("button", { name: "刷新" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "刷新" })).toBeEnabled());
+    expect(requests).toEqual(["BTC-USDT", "ETH-USDT", "ETH-USDT"]);
+    expect(screen.getAllByTestId("candle")).toHaveLength(60);
   });
 
   it("GWT-UI01-04: a late response for the prior selection cannot replace the current chart", async () => {

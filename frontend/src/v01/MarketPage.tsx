@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import type { components } from "../api/generated";
 import { HttpError, NetworkError } from "../api/errors";
@@ -38,13 +38,18 @@ export function MarketPage() {
   const [denied, setDenied] = useState(false);
   const [instrument, setInstrument] = useState<Instrument>("BTC-USDT");
   const [bar, setBar] = useState<Bar>("5m");
+  const requestGeneration = useRef(0);
   const query = useQuery({
     queryKey: ["market-candles", instrument, bar], retry: false, refetchOnReconnect: false, enabled: !denied,
-    queryFn: () => requestData(async () => {
-      const result = await client.GET("/api/v1/product/market-candles", { params: { query: { instrument_id: instrument, bar } } });
-      if (result.response.status === 401) setDenied(true);
-      return result;
-    }),
+    queryFn: ({ signal }) => {
+      const generation = ++requestGeneration.current;
+      return requestData(async () => {
+        // Abort obsolete selections before their 401 can clear the shared session/cache.
+        const result = await client.GET("/api/v1/product/market-candles", { signal, params: { query: { instrument_id: instrument, bar } } });
+        if (result.response.status === 401 && generation === requestGeneration.current) setDenied(true);
+        return result;
+      });
+    },
   });
   const data = query.data && valid(query.data, instrument, bar) ? query.data : undefined;
   const error = denied ? "当前模式需登录/无权读取行情" : query.error instanceof HttpError && query.error.status === 503 ? "行情暂不可用"
