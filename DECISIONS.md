@@ -2,6 +2,7 @@
 
 ## V0.1 限定架构决策（2026-10-29）
 
+- **2026-11-01 V0.1 五页免登录限域 Amendment（Human 批准；Issue #28 / PR #29）**：本地个人产品的 `/overview`、`/market`、`/research`、`/trading`、`/system` 五个顶层页面壳均无需账号密码、登录 Token 或登录跳转，`/` 仍默认进入 `/market`；后续功能亦不得设置强制登录流程。此条仅对既有 UI-V1-D01 冻结规则中「受保护请求 `401` 后进入 Login 边界」的**页面导航适用范围**作 V0.1 限域例外：受保护 API 返回 `401` 时，既有 Auth Session Boundary 仍清理 token/session 及已认证 Query Cache；对于仍设置 `RequireAuth` 门禁的旧页面/流程，按原规则进入 Login 边界；对于 V0.1 五个不设 `RequireAuth` 门禁的页面壳，不因此重定向到 `/login`，只显示认证/不可用或无权读取提示，不展示未授权私有信息，也不伪造业务数据。原 `/login` 路由、V1 Auth Provider、其它受保护后端 API 及 `verify_session` 鉴权均保留；既有 Windows 可信 loopback 行情 GET 匿名条件、交易与风险权限、RuntimeHost 关闭状态不变；未来敏感操作如无经验证的本机来源及操作授权则 fail closed。本条仅为**后续 Issue #30 的目标契约**，不代表当前 main 已实现五页免登录，历史 V1 冻结决定原文全部保留。
 - `ARCH-V01-01-A01` 经 [Issue #9 Human 批准记录](https://github.com/zwmhua2-lab2/MarketPulse-AI/issues/9#issuecomment-6498889582) 授权，仅架构与门禁修订；最终 Diff 待验收，业务实施仍须独立 Issue。
 - 当前优先 Windows 本地 React + FastAPI 只读工作台；采用独立本地观察入口，FastAPI 生命周期拥有其启动/停止，原 RuntimeHost 默认关闭。优先复用 Market Data / G2 Scanner / EventRuntime / Capture / Product Read，不构造 PaperExecution、G3、AI Provider 或订单/持仓保护执行链。
 - 对下述 PRE-01B-D1/I1 唯一 composition owner 决策作有限适用范围补充：既有生产经济 RuntimeHost 的所有权、singleton、DB lifecycle、DF-01/DF-02 恢复权威不变；独立观察仅拥有隔离观察库的必要市场事件、Scanner、Opportunity、Evidence，不借用或伪造旧 Host 权威，不触碰生产经济状态。

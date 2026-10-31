@@ -26,7 +26,7 @@
 - **C1 外部依赖**：仅允许 `https://api.binance.com/api/v3/klines`，固定 `BTCUSDT`、`5m`，每次最多 1000 条，按时间顺序分页。单次请求超时 10 秒，不自动重试。超时、网络错误、HTTP 非 200（含 429/418）立即失败。防的失败：请求挂死、限流后继续请求、错误数据进入结果。验证：测试（超时、HTTP 错误、分页）。
 - **C2 失败不污染**：全部抓取和校验成功后才写入，使用同目录临时文件加原子 rename。防的失败：残缺数据覆盖已有的完好 CSV。验证：测试（失败前后旧文件字节一致）。
 - **C3 对外结果明确**：成功退出码 0，生成 UTF-8 CSV；失败退出码 1，stderr 仅输出一行 `FETCH_ERROR`，不暴露堆栈。防的失败：错误被当成成功。验证：测试。
-- **C4 CLI 不适用 / V0.1 本地行情例外**：CLI 只用公开接口，无密钥。V0.1 本地只读 `/market` 页面壳可匿名进入，不以前端登录状态或行情 API 的运行准入条件为前提；读取行情数据仅限 §7.2 规定的后端 Windows 条件化匿名 GET。其他页面、API 和 V1 登录授权保持原有保护。Secret 不进入 Git、前端或 API 返回。
+- **C4 CLI 不适用 / V0.1 本地产品免登录**：CLI 只用公开接口，无密钥。Windows 本地个人使用的 V0.1 五个一级页面壳 `/overview`、`/market`、`/research`、`/trading`、`/system` 均无需账户密码、登录 Token 或登录跳转，`/` 默认进入 `/market`。后续产品功能也不要求用户执行账号密码登录流程；但页面可访问不等于敏感后端 API 已获授权，既有受保护接口暂保留认证，未来替代须另行设计可证明的本机调用来源、操作授权与风险门禁，未完成则 fail closed。行情 GET 匿名读取仅限 §7.2 的 Windows 严格条件。Secret 不进入 Git、前端或 API 返回。
 - **C5 红牌文件**：`.github/**`、`AGENTS.md`、`ARCHITECTURE.md`、测试配置、`package.json`、锁文件。普通任务一律不得修改，只有 Human 单独开的架构 Issue 才可改。验证：终审清单（检查 Files changed）。
 
 ## 3. 模式库
@@ -72,10 +72,11 @@
 
 ### 7.2 后续只读产品边界与路径资格
 
-- 保留五个顶层路由 `/overview`、`/market`、`/research`、`/trading`、`/system`。本地只读 `/market` 页面壳允许未登录访问，不以五项运行配置为前提；`/` 直接默认进入 `/market`，此路由行为不代表行情 API 已获匿名授权。匿名访问 `/market` 不重定向 `/login`，不自动创建隐式 Bearer 或管理员登录，匿名页面不显示无效的“退出登录”控制。数据层未获准入时仅展示认证或不可用提示，不展示私有信息。其他原受保护页面继续受保护；现有登录功能和 V1 Auth 机制保留，交易页仅如实显示状态，不引入交易控制。
+- 保留五个顶层路由 `/overview`、`/market`、`/research`、`/trading`、`/system`；五个页面壳均无需登录即可打开，且不以行情后端的运行准入条件为前提；`/` 默认进入 `/market`。未实现的页面明确展示占位/未接入，不得因未登录而跳转 `/login`，也不得将未接入功能冒充可用。匿名访问不创建隐式 Bearer 或管理员会话，不显示无效的退出登录控件。原 `/login`、V1 Auth Provider 和登录 API 暂保留为旧接口兼容，但不再作为五页导航门槛；页面开放不等于放开数据/API 或交易控制。交易页仅如实显示已实现状态或未接入占位，不引入交易控制；数据层未获准入时仅展示认证/不可用提示，不展示私有信息。
+- **401 适用边界（V0.1 页面壳例外）**：`DECISIONS.md` UI-V1-D01 的受保护 API 返回 `401` 后，原 Auth Session Boundary 仍按既有语义清除 token/session 与已认证 Query Cache，不改变后端权限判定。原 Login 边界重定向依赖 `RequireAuth` 路由门禁；V0.1 五个页面壳不再设置此门禁，因此页面不因后端 `401` 跳转 `/login`。当前 `/market` 行情 GET `401` 只显示无权读取提示；未获数据权限时不得展示私有信息或凭空填充行情。兼容 `/login` 路由仍保留，此有限页面导航例外不扩大其他 API 的匿名权限。
 - 复用现有 Product Read API；仅 `GET /api/v1/product/market-candles` 可按下述条件接受匿名请求。该接口仍仅允许 BTC-USDT / ETH-USDT、5m / 15m / 1h，返回 60 根真实已收盘 OKX 公共 K 线；数据完整性、时间、新鲜度、来源及不可信时 fail closed、显式 503 的约束不变。
 - 行情 GET 匿名准入必须**同时**满足后端实际运行 OS 为 Windows（不得凭浏览器 UA 或前端检测）、`RUN_MODE=TEST`、`LOCAL_ONLY=true`、`HOST=127.0.0.1`、`RUNTIME_HOST_ENABLED=false`、`ADVISORY_ACTIVATION_LEVEL=DISABLED`，且服务实际仅监听本机 loopback、请求连接对端实际为 loopback。来源须依据可验证的连接级 peer 或未被代理头改写的 ASGI client；不得凭浏览器 UA、`Host`、`X-Forwarded-For`、`Forwarded` 等可伪造头放行，也不得将未验证代理链的客户端地址当作授权证据。无法证实来源时 fail closed。任一条件不满足时，保留既有合法会话鉴权；缺失或错误认证仍返回 401，且在鉴权拒绝前不得向 OKX 发出请求（上游调用数为零）。不得全局移除 `verify_session`、关闭其他鉴权、泄露凭据或创建隐藏 Token；不开放公网、LAN 或隧道访问。
-- 其他 Product Read 与受保护 API 继续要求原有认证；Scanner、Opportunity、RuntimeHost、AI、Paper/Live 和交易执行链不因本例外激活或扩大权限。不增加公网/LAN 监听、数据库改造或交易能力。
+- 除既有 `GET /api/v1/product/market-candles` 的严格条件化匿名例外外，其他 Product Read 与受保护 API **目前仍保留原有鉴权**；五个页面壳免登录不自动开放其数据或操作。后续所有用户功能均不设置账号密码或其他强制登录流程（产品硬约束），但敏感数据、配置修改、凭据及任何经济风险增加型操作必须由后续独立任务提供可信本机调用来源、请求来源防伪与操作授权/确认，仍受 Risk/Execution 权限边界约束；机制未验证前不得通过全局关闭 `verify_session`、信任 Host/代理头或默认放行来满足免登录。Scanner、Opportunity、RuntimeHost、AI、Paper/Live 和交易执行链不因页面免登录激活或扩大权限；不增加公网/LAN 监听、数据库改造或交易能力。
 - Opportunity 币种筛选仅为后续允许设计，必须保持正确分页与 Evidence 身份；API 类型使用仓库官方生成命令并执行 drift 校验，禁止手改生成内容冒充同步。
 - 下表仅为 GWT-09 **路径资格**，不是文件内容审查或写入授权。每个实施 Issue 必须另有 Human 精确白名单，C5 受保护文件仍需明确批准；Issue #21 仅授权修改 `ARCHITECTURE.md`，后续业务代码与测试需独立 Issue 授权。若所需路径不在现有 GWT-09 白名单中，先报告具体差异，不扩大目录通配符。
 - 四份文档的 M 路径资格持续有效，不等于永久修改授权；本任务不授予未来任意修改文档的许可。未来修改 `ARCHITECTURE.md` 仍须独立架构 Issue 和 Human 明确批准，C5 红牌规则不变。
