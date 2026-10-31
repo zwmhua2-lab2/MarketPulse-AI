@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import platform
 import re
+import socket
+from contextvars import ContextVar
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
+from ipaddress import ip_address
 from typing import Literal
 
 import httpx
@@ -19,6 +23,30 @@ router = APIRouter(tags=["product-read"])
 _STEP = {"5m": 300_000, "15m": 900_000, "1h": 3_600_000}
 _OKX_BAR = {"5m": "5m", "15m": "15m", "1h": "1H"}
 _NUMBER = re.compile(r"(?:0|[1-9][0-9]*)(?:\.[0-9]+)?\Z")
+
+
+_connection: ContextVar[tuple | None] = ContextVar("market_tcp_connection", default=None)
+
+
+def _loopback(address):
+    return ip_address(address).is_loopback
+
+
+def _local_session(request: Request, settings: Settings = Depends(get_settings)):  # noqa: B008
+    connection = _connection.get()
+    if (platform.system() == "Windows" and settings.run_mode == "TEST" and settings.local_only
+            and settings.host == "127.0.0.1" and not settings.runtime_host_enabled
+            and settings.advisory_activation_level == "DISABLED" and connection is not None):
+        try:
+            listener, peer = connection
+            bound = listener.getsockname()
+            if (listener.getsockopt(socket.SOL_SOCKET, socket.SO_ACCEPTCONN)
+                    and bound[0] == "127.0.0.1" and peer.getsockname() == bound
+                    and _loopback(peer.getpeername()[0])):
+                return "local-read-only"
+        except (OSError, ValueError, AttributeError, TypeError):
+            pass  # Missing/closed/unknown socket facts always fall back to session auth.
+    return verify_session(request, settings)
 
 
 class MarketCandleItem(BaseModel):
@@ -119,7 +147,7 @@ async def market_candles(
     request: Request,
     instrument_id: Literal["BTC-USDT", "ETH-USDT"] = Query(...),
     bar: Literal["5m", "15m", "1h"] = Query("5m"),
-    _: str = Depends(verify_session),
+    _: str = Depends(_local_session),
     settings: Settings = Depends(get_settings),  # noqa: B008
 ) -> MarketCandleResponse:
     if set(request.query_params) - {"instrument_id", "bar"}:

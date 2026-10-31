@@ -293,3 +293,97 @@ def test_gwt_data_06_authentication_precedes_upstream(harness):
         == 200
     )
     assert len(calls) == 1
+
+
+@pytest.mark.parametrize("case", ["ok", "os", "run_mode", "local_only", "host", "runtime_host_enabled", "advisory_activation_level", "context", "peer", "listener", "headers", "bearer", "upstream", "network", "malformed"])
+def test_nl_02_05_real_tcp_boundary(harness, monkeypatch, case):
+    """Given controlled TCP/individual counterexamples; When GET; Then exact auth/upstream counts."""
+    import json
+    import socket
+    import threading
+    import time
+    import urllib.error
+    import urllib.request
+
+    import uvicorn
+    from marketpulse import main
+
+    client, state, calls, settings = harness
+    monkeypatch.setattr(candles.platform, "system", lambda: "Linux" if case == "os" else "Windows")
+    changes = {"run_mode": "REPLAY", "local_only": False, "host": "0.0.0.0", "runtime_host_enabled": True, "advisory_activation_level": "GATE_A"}
+    if case in changes:
+        setattr(settings, case, changes[case])
+    if case == "upstream":
+        state["status"] = 503
+    if case == "network":
+        state["error"] = TimeoutError("secret")
+    if case == "malformed":
+        state["payload"] = {"code": "0", "data": []}
+    with socket.socket() as listener, socket.socket() as other:
+        listener.bind(("127.0.0.1", 0))
+        other.bind(("127.0.0.1", 0))
+        config = main._local_config(client.app, other if case == "listener" else listener)
+        assert config.proxy_headers is False
+        if case == "context":
+            config = uvicorn.Config(client.app, proxy_headers=False, log_level="error")
+        if case == "peer":
+            monkeypatch.setattr(candles, "_loopback", lambda address: False)
+        server = uvicorn.Server(config)
+        thread = threading.Thread(target=server.run, kwargs={"sockets": [listener]}, daemon=True)
+        thread.start()
+        try:
+            deadline = time.monotonic() + 5
+            while not server.started and thread.is_alive() and time.monotonic() < deadline:
+                time.sleep(.01)
+            assert server.started
+            headers = auth(settings) if case == "bearer" else {"Authorization": "invalid"}
+            if case in ("headers", "context"):
+                headers.update({"Host": "127.0.0.1", "X-Forwarded-For": "127.0.0.1", "Forwarded": "for=127.0.0.1"})
+            if case in ("headers", "bearer"):
+                settings.local_only = False
+            url = f"http://127.0.0.1:{listener.getsockname()[1]}{candles.PATH}?instrument_id=BTC-USDT"
+            request = urllib.request.Request(url, headers=headers)
+            try:
+                response = urllib.request.urlopen(request, timeout=3)
+            except urllib.error.HTTPError as exc:
+                response = exc
+            with response:
+                status, body = response.status, json.load(response)
+            expected = 503 if case in ("upstream", "network", "malformed") else 200 if case in ("ok", "bearer") else 401
+            assert status == expected
+            assert len(calls) == (1 if expected in (200, 503) else 0)
+            if expected == 200:
+                assert len(body["items"]) == 60 and body["source"] == "OKX_PUBLIC_REST"
+                assert body["observed_at"].startswith("2026-10-30T12:02:00")
+        finally:
+            server.should_exit = True
+            thread.join(5)
+            assert not thread.is_alive()
+
+
+@pytest.mark.parametrize("proof", [None, True, (None, None)])
+def test_nl_03_unknown_connection_fails_closed(harness, proof):
+    client, _, calls, _ = harness
+    token = candles._connection.set(proof)
+    try:
+        assert client.get(candles.PATH, params={"instrument_id": "BTC-USDT"}, headers={"Host": "127.0.0.1", "X-Forwarded-For": "127.0.0.1", "Forwarded": "for=127.0.0.1"}).status_code == 401
+        assert calls == []
+    finally:
+        candles._connection.reset(token)
+
+
+@pytest.mark.parametrize("address,expected", [("127.0.0.1", True), ("::1", True), ("192.168.1.2", False), ("8.8.8.8", False)])
+def test_nl_03_peer_address(address, expected):
+    assert candles._loopback(address) is expected
+
+
+def test_nl_04_other_protected_api(harness):
+    from marketpulse.api.app import create_app
+    _, _, calls, settings = harness
+    app = create_app()
+    app.dependency_overrides[get_settings] = lambda: settings
+    with TestClient(app) as protected:
+        for path in ("/api/v1/protected/ping", "/api/v1/runtime", "/api/v1/product/market-scanner", "/api/v1/product/opportunities", "/api/v1/product/system", "/api/v1/product/trading-audit"):
+            assert protected.get(path).status_code == 401
+        assert protected.get("/api/v1/protected/ping", headers=auth(settings)).status_code == 200
+    assert calls == []

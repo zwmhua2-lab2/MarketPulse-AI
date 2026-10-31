@@ -24,11 +24,11 @@ describe("route topology", () => {
     seedSession();
     renderApp({ initialEntries: ["/"] });
 
-    expect(await screen.findByRole("heading", { name: "总览" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "市场与机会" })).toBeInTheDocument();
   });
 
-  it("sends an unauthenticated protected route to the Login boundary", async () => {
-    renderApp({ initialEntries: ["/trading"] });
+  it.each(["/overview", "/research", "/trading", "/system"])("NL-01: unauthenticated %s requires Login", async (path) => {
+    renderApp({ initialEntries: [path] });
 
     expect(await screen.findByRole("heading", { name: "登录" })).toBeInTheDocument();
   });
