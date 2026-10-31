@@ -10,7 +10,7 @@ import { PRODUCT_ROUTES } from "./routes";
  * UI V1 ships no trading, risk, scanner or runtime control (UI-V1-D01 §3, §6.4, §30).
  */
 export function ProductShell() {
-  const { signOut } = useAuthSession();
+  const { signOut, status } = useAuthSession();
 
   return (
     <div className="product-shell">
@@ -25,9 +25,9 @@ export function ProductShell() {
             ))}
           </ul>
         </nav>
-        <button type="button" onClick={signOut}>
+        {status === "authenticated" && <button type="button" onClick={signOut}>
           退出登录
-        </button>
+        </button>}
       </header>
       <main className="product-shell__main">
         <Outlet />

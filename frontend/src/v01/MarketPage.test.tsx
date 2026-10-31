@@ -1,10 +1,9 @@
-import { screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 
 import { server } from "../test/server";
-import { TEST_PASSWORD, TEST_USERNAME } from "../test/handlers";
 import { renderApp, seedSession } from "../test/render";
 import { PRODUCT_ROUTES } from "../app/routes";
 
@@ -16,27 +15,23 @@ const candle = (i: number, bar: Bar = "5m") => ({ open_time_ms: firstOpen + i * 
 const payload = (instrument_id = "BTC-USDT", bar: Bar = "5m") => ({ instrument_id, bar, source: "OKX_PUBLIC_REST", data_quality: "FRESH", observed_at: "2026-10-30T00:00:00Z", items: Array.from({ length: 60 }, (_, i) => candle(i, bar)) });
 
 describe("GWT-UI01-01～06 Market page", () => {
-  it("GWT-UI01-01: unauthenticated /market is handled by Login before any candle GET; keeps five routes", async () => {
+  it.each(["/", "/market"])("NL-01/06: anonymous %s reads once without login or bearer", async (entry) => {
     let calls = 0;
-    server.use(http.get(path, () => { calls++; return HttpResponse.json(payload()); }));
-    renderApp({ initialEntries: ["/market"] });
-    expect(await screen.findByRole("heading", { name: "登录" })).toBeInTheDocument();
-    expect(calls).toBe(0);
-    expect(PRODUCT_ROUTES.map((r) => r.path)).toEqual(["/overview", "/market", "/research", "/trading", "/system"]);
-    const user = userEvent.setup();
-    await user.type(screen.getByLabelText("用户名"), TEST_USERNAME);
-    await user.type(screen.getByLabelText("密码"), TEST_PASSWORD);
-    await user.click(screen.getByRole("button", { name: "登录" }));
-    expect(await screen.findByRole("heading", { name: "市场与机会" })).toBeInTheDocument();
-    await waitFor(() => expect(calls).toBe(1));
+    server.use(http.get(path, ({ request }) => { calls++; expect(request.headers.has("authorization")).toBe(false); return HttpResponse.json(payload()); }));
+    renderApp({ initialEntries: [entry] });
+    expect(await screen.findAllByTestId("candle")).toHaveLength(60);
+    expect(screen.queryByRole("button", { name: "退出登录" })).not.toBeInTheDocument();
+    expect(sessionStorage.length).toBe(0);
+    expect(calls).toBe(1);
+    expect(PRODUCT_ROUTES).toHaveLength(5);
   });
 
-  it("GWT-UI01-02: requests the selected instrument and bar through the authenticated same-origin API", async () => {
-    seedSession();
+  it.each([false, true])("NL-06: selection uses same-origin API (authenticated=%s)", async (signedIn) => {
+    if (signedIn) seedSession();
     const requests: string[] = [];
     server.use(http.get(path, ({ request }) => {
       const url = new URL(request.url);
-      expect(request.headers.get("authorization")).toMatch(/^Bearer /);
+      expect(request.headers.has("authorization")).toBe(signedIn);
       requests.push(`${url.searchParams.get("instrument_id")}/${url.searchParams.get("bar")}`);
       return HttpResponse.json(payload(url.searchParams.get("instrument_id")!, url.searchParams.get("bar")! as Bar));
     }));
@@ -98,11 +93,44 @@ describe("GWT-UI01-01～06 Market page", () => {
     expect(screen.queryByTestId("candle-chart")).not.toBeInTheDocument();
   });
 
-  it("GWT-UI01-05: a protected 401 clears the session and returns to Login", async () => {
-    seedSession(); server.use(http.get(path, () => new HttpResponse(null, { status: 401 })));
+  it.each([false, true])("NL-01/07: 401 keeps market visible and clears session (%s)", async (signedIn) => {
+    if (signedIn) seedSession();
+    let calls = 0; server.use(http.get(path, () => { calls++; return new HttpResponse(null, { status: 401 }); }));
     renderApp({ initialEntries: ["/market"] });
-    expect(await screen.findByRole("heading", { name: "登录" })).toBeInTheDocument();
+    expect(await screen.findByText("当前模式需登录/无权读取行情")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "登录" })).not.toBeInTheDocument();
+    expect(calls).toBe(1);
     expect(sessionStorage.length).toBe(0);
+  });
+
+  it.each([false, true])("R01-FIX-01: late BTC 401 preserves successful ETH and manual refresh (session=%s)", async (signedIn) => {
+    if (signedIn) seedSession();
+    let release!: () => void, finish!: () => void;
+    const waiting = new Promise<void>((resolve) => { release = resolve; });
+    const completed = new Promise<void>((resolve) => { finish = resolve; });
+    const requests: string[] = [];
+    server.use(http.get(path, async ({ request }) => {
+      const instrument = new URL(request.url).searchParams.get("instrument_id")!;
+      requests.push(instrument);
+      if (instrument === "BTC-USDT") { await waiting; finish(); return new HttpResponse(null, { status: 401 }); }
+      return HttpResponse.json(payload(instrument));
+    }));
+    const user = userEvent.setup(); renderApp({ initialEntries: ["/market"] });
+    await waitFor(() => expect(requests).toEqual(["BTC-USDT"]));
+    await user.selectOptions(screen.getByLabelText("币种"), "ETH-USDT");
+    expect(await screen.findAllByTestId("candle")).toHaveLength(60);
+    const chart = screen.getByTestId("candle-chart");
+    await act(async () => { release(); await completed; await new Promise((resolve) => setTimeout(resolve, 50)); });
+    expect(screen.getByLabelText("币种")).toHaveValue("ETH-USDT");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByTestId("candle-chart")).toBe(chart);
+    expect(screen.getAllByTestId("candle")).toHaveLength(60);
+    expect(sessionStorage.length > 0).toBe(signedIn);
+    expect(requests).toEqual(["BTC-USDT", "ETH-USDT"]);
+    await user.click(screen.getByRole("button", { name: "刷新" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "刷新" })).toBeEnabled());
+    expect(requests).toEqual(["BTC-USDT", "ETH-USDT", "ETH-USDT"]);
+    expect(screen.getAllByTestId("candle")).toHaveLength(60);
   });
 
   it("GWT-UI01-04: a late response for the prior selection cannot replace the current chart", async () => {

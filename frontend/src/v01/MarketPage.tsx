@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import type { components } from "../api/generated";
 import { HttpError, NetworkError } from "../api/errors";
@@ -35,14 +35,24 @@ function valid(value: unknown, instrument: Instrument, bar: Bar): value is Respo
 
 export function MarketPage() {
   const client = useApiClient();
+  const [denied, setDenied] = useState(false);
   const [instrument, setInstrument] = useState<Instrument>("BTC-USDT");
   const [bar, setBar] = useState<Bar>("5m");
+  const requestGeneration = useRef(0);
   const query = useQuery({
-    queryKey: ["market-candles", instrument, bar], retry: false,
-    queryFn: () => requestData(() => client.GET("/api/v1/product/market-candles", { params: { query: { instrument_id: instrument, bar } } })),
+    queryKey: ["market-candles", instrument, bar], retry: false, refetchOnReconnect: false, enabled: !denied,
+    queryFn: ({ signal }) => {
+      const generation = ++requestGeneration.current;
+      return requestData(async () => {
+        // Abort obsolete selections before their 401 can clear the shared session/cache.
+        const result = await client.GET("/api/v1/product/market-candles", { signal, params: { query: { instrument_id: instrument, bar } } });
+        if (result.response.status === 401 && generation === requestGeneration.current) setDenied(true);
+        return result;
+      });
+    },
   });
   const data = query.data && valid(query.data, instrument, bar) ? query.data : undefined;
-  const error = query.error instanceof HttpError && query.error.status === 503 ? "行情暂不可用"
+  const error = denied ? "当前模式需登录/无权读取行情" : query.error instanceof HttpError && query.error.status === 503 ? "行情暂不可用"
     : query.error instanceof NetworkError ? "网络连接失败"
     : query.error ? "行情读取失败，请手动重试" : "数据无法验证";
 
@@ -53,9 +63,9 @@ export function MarketPage() {
         <option>BTC-USDT</option><option>ETH-USDT</option></select></label>
       <label>周期<select aria-label="周期" value={bar} onChange={(e) => setBar(e.target.value as Bar)}>
         {bars.map((value) => <option key={value}>{value}</option>)}</select></label>
-      <button type="button" onClick={() => void query.refetch()} disabled={query.isFetching}>刷新</button>
+      <button type="button" onClick={() => void query.refetch()} disabled={query.isFetching || denied}>刷新</button>
     </div>
-    {query.isPending ? <p role="status">行情加载中…</p> : query.isError || !data ? <p role="alert">{error}</p> : <>
+    {denied ? <p role="alert">{error}</p> : query.isPending ? <p role="status">行情加载中…</p> : query.isError || !data ? <p role="alert">{error}</p> : <>
       <section className="market-facts" aria-label="行情事实">
         <span>数据源：{data.source}</span><span>后端观测时间：{data.observed_at}</span>
         <span>最新已收盘价：{data.items.at(-1)!.close}</span>
