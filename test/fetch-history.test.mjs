@@ -177,7 +177,8 @@ function gwt09Invalid(diff, untracked) {
   const docs = p => ['ARCHITECTURE.md', 'PRODUCT_REQUIREMENTS.md', 'DECISIONS.md', 'PROJECT_STATE.md'].includes(p);
   const log = p => p === 'dev_log/2026-10-29-v01-architecture-admission.md';
   const existing = p => ['frontend/src/app/router.tsx', 'frontend/src/app/router.test.tsx', 'frontend/src/app/ProductShell.tsx',
-    'frontend/src/api/generated.ts', 'backend/src/marketpulse/api/app.py'].includes(p);
+    'frontend/src/api/generated.ts', 'backend/src/marketpulse/api/app.py',
+    'backend/src/marketpulse/main.py'].includes(p);
   const module = p => ['backend/src/marketpulse/api/product/market_candles.py',
     'backend/tests/test_product_market_candles.py'].includes(p) ||
     (/^frontend\/src\/v01\/(?:[A-Za-z0-9_-]+\/)*[A-Za-z0-9_-][A-Za-z0-9_.-]*\.(?:tsx?|css)$/.test(p) &&
@@ -270,8 +271,10 @@ const admissionLog = 'dev_log/2026-10-29-v01-architecture-admission.md';
 // Given 修订后的 `ARCHITECTURE.md`。
 // When 检查路径资格、Human 授权和 C5。
 // Then 不存在永久资格等于永久授权的错误表述。
+// Issue #24: main.py is existing-file M only; A, untracked, D/R/C/T/U/X stay rejected.
 const v01Existing = ['frontend/src/app/router.tsx', 'frontend/src/app/router.test.tsx', 'frontend/src/app/ProductShell.tsx',
-  'frontend/src/api/generated.ts', 'backend/src/marketpulse/api/app.py'];
+  'frontend/src/api/generated.ts', 'backend/src/marketpulse/api/app.py',
+  'backend/src/marketpulse/main.py'];
 const v01Modules = ['frontend/src/v01/Market.tsx', 'frontend/src/v01/market.test.ts',
   'frontend/src/v01/style.css', 'backend/src/marketpulse/api/product/market_candles.py',
   'backend/tests/test_product_market_candles.py'];
@@ -297,7 +300,8 @@ for (const p of ['AGENTS.md', 'package.json', 'package-lock.json', '.github/work
   'frontend/src/app/routes.ts', 'frontend/src/app/router.test.ts', 'frontend/src/test/router.test.tsx',
   'backend/src/marketpulse/runtime_host.py', 'backend/src/marketpulse/g2/scanner.py',
   'backend/src/marketpulse/edge/capture.py', 'backend/src/marketpulse/g3/service.py',
-  'backend/src/marketpulse/config.py', 'backend/alembic/new.py', 'backend/tests/conftest.py',
+  'backend/src/marketpulse/config.py', 'backend/src/marketpulse/main_extra.py',
+  'backend/alembic/new.py', 'backend/tests/conftest.py',
   'frontend/package.json', 'frontend/vite.config.ts', 'frontend/src/auth/RequireAuth.tsx',
   'frontend/src/v010/fake.ts', 'frontend/src/v01/../app/routes.ts', 'frontend/src/v01/a//b.ts',
   'frontend/src/v01/.hidden.ts', 'frontend/src/v01/package.json', 'frontend/src/v01/run.mjs',

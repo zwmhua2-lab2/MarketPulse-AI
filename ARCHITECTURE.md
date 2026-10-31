@@ -79,6 +79,7 @@
 - Opportunity 币种筛选仅为后续允许设计，必须保持正确分页与 Evidence 身份；API 类型使用仓库官方生成命令并执行 drift 校验，禁止手改生成内容冒充同步。
 - 下表仅为 GWT-09 **路径资格**，不是文件内容审查或写入授权。每个实施 Issue 必须另有 Human 精确白名单，C5 受保护文件仍需明确批准；Issue #21 仅授权修改 `ARCHITECTURE.md`，后续业务代码与测试需独立 Issue 授权。若所需路径不在现有 GWT-09 白名单中，先报告具体差异，不扩大目录通配符。
 - 四份文档的 M 路径资格持续有效，不等于永久修改授权；本任务不授予未来任意修改文档的许可。未来修改 `ARCHITECTURE.md` 仍须独立架构 Issue 和 Human 明确批准，C5 红牌规则不变。
+- **可信启动入口路径准入（Issue #24）**：仅新增 `backend/src/marketpulse/main.py` 的已有文件 M 路径资格；路径合格不等于后续代码修改获授权，也不等于已证明监听范围或原始连接 peer 可信。后续须单独授权并实证验证 loopback 绑定、代理头不改写与请求来源；不能证明则匿名行情 fail closed；若需要其他文件，先申请精确增补，不扩展目录白名单。
 
 | 合资格路径 | 允许状态 / 内容边界 |
 | --- | --- |
@@ -88,6 +89,7 @@
 | `frontend/src/app/router.test.tsx` | 仅 M；既有路由测试的后续资格，本任务不得修改该文件 |
 | `frontend/src/api/generated.ts` | M；后续官方生成与 drift 校验 |
 | `backend/src/marketpulse/api/app.py` | M；后续 K 线路由注册，非 Runtime 激活授权 |
+| `backend/src/marketpulse/main.py` | 仅 M；后续受独立 Issue 精确授权的 V0.1 Windows 本地可信启动入口/监听与连接事实，不改 RuntimeHost、交易或其他 API 鉴权 |
 | `frontend/src/v01/**` | A / M / 未跟踪新增；仅 `.ts`、`.tsx`、`.css` 页面、只读客户端及相应测试 |
 | `backend/src/marketpulse/api/product/market_candles.py`、`backend/tests/test_product_market_candles.py` | A / M / 未跟踪新增；后续最小只读 K 线接口及测试 |
 
