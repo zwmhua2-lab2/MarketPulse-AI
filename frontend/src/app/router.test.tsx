@@ -20,17 +20,28 @@ describe("route topology", () => {
     expect(paths).not.toContain(LOGIN_ROUTE);
   });
 
-  it("redirects / to the default product route once authenticated", async () => {
-    seedSession();
+  it("PAGE-02: redirects anonymous / to market", async () => {
     renderApp({ initialEntries: ["/"] });
 
     expect(await screen.findByRole("heading", { name: "市场与机会" })).toBeInTheDocument();
   });
 
-  it.each(["/overview", "/research", "/trading", "/system"])("NL-01: unauthenticated %s requires Login", async (path) => {
+  it.each(PRODUCT_ROUTES)("PAGE-01: anonymous $path opens its page", async ({ path, title, ownerBatch }) => {
     renderApp({ initialEntries: [path] });
 
-    expect(await screen.findByRole("heading", { name: "登录" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: title })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "登录" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "退出登录" })).not.toBeInTheDocument();
+    if (path !== "/market") {
+      expect(screen.getByText(`${title} — 将在 ${ownerBatch} 实现`)).toBeInTheDocument();
+    }
+  });
+
+  it.each(PRODUCT_ROUTES)("PAGE-03: session can open $path", async ({ path, title }) => {
+    seedSession();
+    renderApp({ initialEntries: [path] });
+    expect(await screen.findByRole("heading", { name: title })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "登录" })).not.toBeInTheDocument();
   });
 
   it("never renders an AI product page for /ai", async () => {
@@ -49,15 +60,15 @@ describe("route topology", () => {
     expect(screen.getByText("系统 — 将在 UI-I01 实现")).toBeInTheDocument();
   });
 
-  it("returns to the intended protected route after a successful login", async () => {
+  it("PAGE-04: direct login remains compatible", async () => {
     const user = userEvent.setup();
-    renderApp({ initialEntries: ["/trading"] });
+    renderApp({ initialEntries: ["/login"] });
     await screen.findByRole("heading", { name: "登录" });
 
     await user.type(screen.getByLabelText("用户名"), TEST_USERNAME);
     await user.type(screen.getByLabelText("密码"), TEST_PASSWORD);
     await user.click(screen.getByRole("button", { name: "登录" }));
 
-    expect(await screen.findByRole("heading", { name: "交易与仓位" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "总览" })).toBeInTheDocument();
   });
 });

@@ -111,7 +111,7 @@ describe("auth session boundary", () => {
 
     expect(readAccessToken()).toBeNull();
     expect(window.sessionStorage.getItem(AUTH_TOKEN_STORAGE_KEY)).toBeNull();
-    expect(await screen.findByRole("heading", { name: "登录" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "总览" })).toBeInTheDocument();
   });
 
   it("fences a late old-lifetime 401 after a new AuthSessionProvider mounts", async () => {
