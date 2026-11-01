@@ -177,6 +177,7 @@ function gwt09Invalid(diff, untracked) {
   const docs = p => ['ARCHITECTURE.md', 'PRODUCT_REQUIREMENTS.md', 'DECISIONS.md', 'PROJECT_STATE.md'].includes(p);
   const log = p => p === 'dev_log/2026-10-29-v01-architecture-admission.md';
   const existing = p => ['frontend/src/app/router.tsx', 'frontend/src/app/router.test.tsx', 'frontend/src/app/ProductShell.tsx',
+    'frontend/src/auth/sessionBoundary.test.tsx', 'frontend/src/auth/unauthorized.test.tsx',
     'frontend/src/api/generated.ts', 'backend/src/marketpulse/api/app.py',
     'backend/src/marketpulse/main.py'].includes(p);
   const module = p => ['backend/src/marketpulse/api/product/market_candles.py',
@@ -245,6 +246,25 @@ const gwt09Cases = [
   ['directory itself', 'A\0mp_audit/\0', '', ['mp_audit/']],
   ['NUL paths', 'A\0mp_audit/a\tb\nc.json\0', '', []],
 ];
+// Issue #32 GWT-A01/A02: exact existing auth tests allow M only.
+for (const p of ['frontend/src/auth/sessionBoundary.test.tsx', 'frontend/src/auth/unauthorized.test.tsx']) {
+  gwt09Cases.push(['auth M ' + p, `M\0${p}\0`, '', []],
+    ['auth untracked ' + p, '', `${p}\0`, [p]]);
+  for (const status of ['A', 'D', 'T', 'U', 'X']) gwt09Cases.push(['auth reject ' + status + ' ' + p,
+    `${status}\0${p}\0`, '', [p]]);
+  for (const status of ['R100', 'C100']) {
+    gwt09Cases.push(['auth reject source ' + status + ' ' + p,
+      `${status}\0${p}\0test/fetch-history.test.mjs\0`, '', [`${p} -> test/fetch-history.test.mjs`]],
+    ['auth reject target ' + status + ' ' + p,
+      `${status}\0test/fetch-history.test.mjs\0${p}\0`, '', [`test/fetch-history.test.mjs -> ${p}`]]);
+  }
+}
+// GWT-A03: granting two exact paths must not grant their directory.
+for (const p of ['frontend/src/auth/unlisted.test.tsx']) {
+  gwt09Cases.push(['auth forbidden M ' + p, `M\0${p}\0`, '', [p]],
+    ['auth forbidden A ' + p, `A\0${p}\0`, '', [p]],
+    ['auth forbidden untracked ' + p, '', `${p}\0`, [p]]);
+}
 // ARCH-V01-01-A01 GWT-04：Given 原有合法、非法及边界测试样例。
 // When 执行 GWT-09 相关测试。Then 本次批准的路径通过，原有越界反例仍被拒绝。
 const admissionDocs = ['ARCHITECTURE.md', 'PRODUCT_REQUIREMENTS.md', 'DECISIONS.md', 'PROJECT_STATE.md'];
