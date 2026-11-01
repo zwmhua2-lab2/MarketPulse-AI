@@ -1,7 +1,12 @@
-import { screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
+import { Link, MemoryRouter } from "react-router";
+import { AppProviders } from "../app/AppProviders";
+import { AppRoutes } from "../app/router";
+import { AuthSessionProvider } from "./AuthSessionProvider";
+import { ProtectedRequestProbe } from "../test/probe";
 
 import { queryClient } from "../app/queryClient";
 import { AUTH_TOKEN_STORAGE_KEY, readAccessToken } from "./session";
@@ -22,6 +27,20 @@ function rejectSession(): void {
     http.get(PROTECTED_PING_PATH, () =>
       HttpResponse.json({ detail: "invalid session" }, { status: 401 }),
     ),
+  );
+}
+
+function renderWithLoginNavigation(path: string, probe: { onRejected?: (error: unknown) => void; onSettled?: () => void } = {}) {
+  return render(
+    <AppProviders>
+      <MemoryRouter initialEntries={[path]}>
+        <AuthSessionProvider>
+          <AppRoutes />
+          <Link to="/login" state={{ intended: path }}>显式登录</Link>
+          <ProtectedRequestProbe {...probe} />
+        </AuthSessionProvider>
+      </MemoryRouter>
+    </AppProviders>,
   );
 }
 
@@ -73,10 +92,10 @@ describe("protected API 401", () => {
     expect(readAccessToken()).toBeNull();
     expect(window.sessionStorage.getItem(AUTH_TOKEN_STORAGE_KEY)).toBeNull();
     expect(queryClient.getQueryData(["authenticated-probe"])).toBeUndefined();
-    expect(await screen.findByRole("heading", { name: "登录" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "交易与仓位" })).toBeInTheDocument();
   });
 
-  it("clears the session, clears the authenticated query cache and enters the Login boundary", async () => {
+  it("clears the session and authenticated query cache while keeping the page accessible", async () => {
     rejectSession();
     seedSession();
     queryClient.setQueryData(["authenticated-probe"], { cached: "authenticated data" });
@@ -86,7 +105,7 @@ describe("protected API 401", () => {
       protectedProbe: {},
     });
 
-    expect(await screen.findByRole("heading", { name: "登录" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "交易与仓位" })).toBeInTheDocument();
 
     await waitFor(() => {
       expect(readAccessToken()).toBeNull();
@@ -98,11 +117,12 @@ describe("protected API 401", () => {
   it("retains the safe intended route and returns to it after re-authentication", async () => {
     rejectSession();
     seedSession();
-    renderApp({ initialEntries: ["/research"], protectedProbe: {} });
-
-    await screen.findByRole("heading", { name: "登录" });
-
+    renderWithLoginNavigation("/research");
+    await waitFor(() => expect(readAccessToken()).toBeNull());
+    expect(screen.getByRole("heading", { name: "策略研究" })).toBeInTheDocument();
     const user = userEvent.setup();
+    await user.click(screen.getByRole("link", { name: "显式登录" }));
+    await screen.findByRole("heading", { name: "登录" });
     await user.type(screen.getByLabelText("用户名"), TEST_USERNAME);
     await user.type(screen.getByLabelText("密码"), TEST_PASSWORD);
     await user.click(screen.getByRole("button", { name: "登录" }));
@@ -140,19 +160,16 @@ describe("protected API 401", () => {
     );
 
     seedSession(oldToken);
-    renderApp({
-      initialEntries: ["/trading"],
-      protectedProbe: {
-        onRejected: (error) => {
-          oldRequestFailure = error;
-        },
-        onSettled: markOldRequestSettled,
-      },
+    renderWithLoginNavigation("/trading", {
+      onRejected: (error) => { oldRequestFailure = error; },
+      onSettled: markOldRequestSettled,
     });
     await oldRequestDispatched;
 
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "退出登录" }));
+    expect(screen.getByRole("heading", { name: "交易与仓位" })).toBeInTheDocument();
+    await user.click(screen.getByRole("link", { name: "显式登录" }));
     await screen.findByRole("heading", { name: "登录" });
 
     await user.type(screen.getByLabelText("用户名"), TEST_USERNAME);
