@@ -88,6 +88,8 @@
 | `dev_log/2026-10-29-v01-architecture-admission.md` | A / 未跟踪新增；本次真实记录，既有日志不可覆盖 |
 | `frontend/src/app/router.tsx`、`frontend/src/app/ProductShell.tsx` | M；后续只读页面接线，五路由不变 |
 | `frontend/src/app/router.test.tsx` | 仅 M；既有路由测试的后续资格，本任务不得修改该文件 |
+| `frontend/src/auth/sessionBoundary.test.tsx` | 仅 M；后续经独立 Issue 授权，修正五页免登录后的既有测试导航预期 |
+| `frontend/src/auth/unauthorized.test.tsx` | 仅 M；后续经独立 Issue 授权，修正五页免登录后的既有测试导航预期，保留 401 与认证会话安全覆盖 |
 | `frontend/src/api/generated.ts` | M；后续官方生成与 drift 校验 |
 | `backend/src/marketpulse/api/app.py` | M；后续 K 线路由注册，非 Runtime 激活授权 |
 | `backend/src/marketpulse/main.py` | 仅 M；后续受独立 Issue 精确授权的 V0.1 Windows 本地可信启动入口/监听与连接事实，不改 RuntimeHost、交易或其他 API 鉴权 |
